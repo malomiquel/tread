@@ -1,42 +1,29 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Tabs } from "expo-router";
-import { Pressable, StyleSheet, View, type GestureResponderEvent } from "react-native";
-import { colors, shadows } from "@/lib/theme";
+import { StyleSheet, View } from "react-native";
+import { colors } from "@/lib/theme";
 import { useTracker } from "@/lib/tracker";
 
 /**
- * The raised centre button. It is the one thing you reach for, so it sits in
- * the middle of the bar and stands proud of it rather than queuing up with the
- * other two.
+ * The Courir tab icon, with a dot when a run is recording.
  *
- * Its icon reports the tracker's state, which means a run left recording is
- * visible from any tab, not only from the screen that started it.
+ * The dot rather than a different icon on purpose: swapping in a play or pause
+ * symbol made the tab look like a button that would start something, when all
+ * it does is move between sections. A badge reports state without promising
+ * an action.
  */
-function StartTabButton({ onPress }: { onPress?: (event: GestureResponderEvent) => void }) {
+function RunTabIcon({ color, size }: { color: string; size: number }) {
   const tracker = useTracker();
-  const icon =
-    tracker.status === "running" ? "pulse" : tracker.status === "paused" ? "pause" : "play";
-
   return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel="Courir"
-      style={styles.slot}
-    >
-      {({ pressed }) => (
-        <View style={[styles.circle, pressed && styles.pressed]}>
-          <Ionicons
-            name={icon}
-            size={26}
-            color={colors.accentText}
-            // A play triangle centred geometrically reads as off-centre: its
-            // mass sits left of its box. The other two icons are symmetrical.
-            style={icon === "play" ? styles.play : undefined}
-          />
-        </View>
+    <View>
+      <Ionicons name="footsteps" size={size} color={color} />
+      {tracker.status !== "idle" && (
+        <View
+          style={[styles.badge, tracker.status === "paused" && styles.badgePaused]}
+          accessibilityLabel="Course en cours"
+        />
       )}
-    </Pressable>
+    </View>
   );
 }
 
@@ -47,7 +34,7 @@ export default function TabsLayout() {
         headerShown: false,
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.subtle,
-        tabBarStyle: styles.bar,
+        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
         sceneStyle: { backgroundColor: colors.background },
       }}
     >
@@ -58,14 +45,12 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size }) => <Ionicons name="list" size={size} color={color} />,
         }}
       />
+      {/* Au milieu : c'est la section qu'on ouvre le plus souvent. */}
       <Tabs.Screen
         name="index"
         options={{
           title: "Courir",
-          // The raised button carries its own meaning; a label underneath
-          // would collide with the circle and add nothing.
-          tabBarLabel: () => null,
-          tabBarButton: (props) => <StartTabButton onPress={props.onPress} />,
+          tabBarIcon: ({ color, size }) => <RunTabIcon color={color} size={size} />,
         }}
       />
       <Tabs.Screen
@@ -80,30 +65,18 @@ export default function TabsLayout() {
 }
 
 const styles = StyleSheet.create({
-  bar: {
-    backgroundColor: colors.surface,
-    borderTopColor: colors.border,
-    height: 88,
-    paddingTop: 8,
-    // Without this the lifted circle is clipped at the top of the bar.
-    overflow: "visible",
-  },
-  slot: { flex: 1, alignItems: "center", justifyContent: "flex-start" },
-  circle: {
-    width: 62,
-    height: 62,
-    borderRadius: 31,
-    alignItems: "center",
-    justifyContent: "center",
+  badge: {
+    position: "absolute",
+    top: -2,
+    right: -3,
+    width: 9,
+    height: 9,
+    borderRadius: 5,
     backgroundColor: colors.accent,
-    // Lifted just enough to read as raised, not so far that it floats away
-    // from the bar it belongs to.
-    marginTop: -18,
-    ...shadows.button,
-    shadowColor: colors.accent,
-    shadowOpacity: 0.34,
-    shadowRadius: 16,
+    // A ring in the bar's own colour keeps the dot legible wherever it lands
+    // on the icon beneath it.
+    borderWidth: 1.5,
+    borderColor: colors.surface,
   },
-  pressed: { transform: [{ scale: 0.94 }], opacity: 0.92 },
-  play: { marginLeft: 3 },
+  badgePaused: { backgroundColor: colors.warning },
 });
