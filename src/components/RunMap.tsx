@@ -1,11 +1,14 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
+import {
+  ActivityIndicator, Pressable, StyleSheet, useColorScheme, View,
+  type StyleProp, type ViewStyle,
+} from "react-native";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import { bounds, segments, type TrackPoint } from "@/lib/geo";
 import { CONTROLS_TOP } from "@/lib/layout";
 import { getCurrentCoords, type Coords } from "@/lib/location";
-import { colors, floatingShadow } from "@/lib/theme";
+import { colors, floatingShadow, literalColors } from "@/lib/theme";
 
 interface Props {
   points: TrackPoint[];
@@ -43,6 +46,7 @@ export function RunMap({
   onToggleFullscreen, fullscreen = false, controlsBottom = 12, controlsAtTop = false, style,
 }: Props) {
   const map = useRef<MapView>(null);
+  const scheme = useColorScheme() === "dark" ? "dark" : "light";
   const [locating, setLocating] = useState(false);
 
   const empty = points.length === 0;
@@ -104,7 +108,7 @@ export function RunMap({
         ref={map}
         style={StyleSheet.absoluteFill}
         initialRegion={initialRegion}
-        userInterfaceStyle="light"
+        userInterfaceStyle={scheme}
         showsUserLocation={!fitAll}
         showsMyLocationButton={false}
         showsCompass={false}
@@ -117,7 +121,7 @@ export function RunMap({
             // segment keeps its identity as the track grows.
             key={track[0].ts}
             coordinates={track.map((p) => ({ latitude: p.lat, longitude: p.lng }))}
-            strokeColor={colors.track}
+            strokeColor={literalColors.track[scheme]}
             strokeWidth={4}
             lineCap="round"
             lineJoin="round"

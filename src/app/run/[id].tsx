@@ -275,7 +275,7 @@ const styles = StyleSheet.create({
   actions: { flexDirection: "row", gap: 10, paddingHorizontal: GUTTER },
 
   backdrop: {
-    flex: 1, backgroundColor: "rgba(16, 16, 16, 0.4)",
+    flex: 1, backgroundColor: colors.scrim,
     alignItems: "center", justifyContent: "center", padding: 28,
   },
   dialog: {

@@ -1,6 +1,6 @@
 import { BlurView } from "expo-blur";
 import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
-import { Platform, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
+import { Platform, StyleSheet, useColorScheme, View, type StyleProp, type ViewStyle } from "react-native";
 import { colors, floatingShadow } from "@/lib/theme";
 
 interface Props {
@@ -23,6 +23,10 @@ interface Props {
  * an interface stops feeling like one piece of work.
  */
 export function GlassPanel({ children, style, interactive = false }: Props) {
+  // The blur fallback has to be told which way to lean; the glass material
+  // and the opaque panel take care of themselves.
+  const scheme = useColorScheme() === "dark" ? "dark" : "light";
+
   if (isLiquidGlassAvailable()) {
     return (
       <GlassView style={[styles.panel, style]} glassEffectStyle="regular" isInteractive={interactive}>
@@ -33,7 +37,7 @@ export function GlassPanel({ children, style, interactive = false }: Props) {
 
   if (Platform.OS === "ios") {
     return (
-      <BlurView intensity={70} tint="light" style={[styles.panel, styles.bordered, style]}>
+      <BlurView intensity={70} tint={scheme} style={[styles.panel, styles.bordered, style]}>
         {children}
       </BlurView>
     );

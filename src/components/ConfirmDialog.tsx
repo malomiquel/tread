@@ -50,7 +50,7 @@ export function ConfirmDialog({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: "rgba(16, 16, 16, 0.4)",
+    backgroundColor: colors.scrim,
     alignItems: "center",
     justifyContent: "center",
     padding: 28,

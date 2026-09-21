@@ -41,7 +41,7 @@ export default function RootLayout() {
     // Required at the root for any gesture to be recognised. Expo Router does
     // not mount it for us, and without it a swipe simply never fires.
     <GestureHandlerRootView style={styles.root}>
-      <StatusBar style="dark" />
+      <StatusBar style="auto" />
       <Stack
         screenOptions={{
           headerStyle: { backgroundColor: colors.background },
