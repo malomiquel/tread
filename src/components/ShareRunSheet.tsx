@@ -32,6 +32,7 @@ function viewShot(): ViewShot | null {
   if (Platform.OS === "web") return (loaded = null);
   try {
     loaded = TurboModuleRegistry.get("RNViewShot")
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       ? (require("react-native-view-shot") as ViewShot)
       : null;
   } catch {
