@@ -161,7 +161,10 @@ export default function RecordScreen() {
 
       {/* Each setting in its own pill rather than two halves of one: they
           switch different things, and joining them made a single control with
-          two states out of what is really two controls. */}
+          two states out of what is really two controls. Stacked, and cut to
+          the same size as the map's own button, so the three read as one
+          column rather than as three unrelated things that happen to be near
+          each other. */}
       <View pointerEvents="box-none" style={[styles.toggles, { bottom: togglesBottom }]}>
         <GlassPanel style={styles.togglePill}>
           <Toggle
@@ -177,7 +180,7 @@ export default function RecordScreen() {
             on={settings.autoPause}
             onPress={() => void toggleSetting("autoPause")}
             icon="pause-circle"
-            name="PAUSE AUTO"
+            name="AUTO"
             label="Pause automatique à l'arrêt"
           />
         </GlassPanel>
@@ -308,16 +311,15 @@ const styles = StyleSheet.create({
 
   // Right-aligned so the pills, the locate button and the panel's edge all
   // land on one line down the side of the screen.
-  toggles: { position: "absolute", right: 12, flexDirection: "row", gap: 8 },
-  togglePill: { flexDirection: "row", gap: 2, borderRadius: 16, padding: 3 },
-  // Height fixed rather than left to its contents: the pill has to come out
-  // at the same 42 points as the map's own buttons across the way, or the two
-  // clusters stop reading as a pair.
+  toggles: { position: "absolute", right: 12, alignItems: "flex-end", gap: 10 },
+  togglePill: { borderRadius: CONTROL_SIZE / 2, padding: 0 },
+  // Square, exactly the map button's size: the three sit in one column and
+  // any difference between them would read as a mistake.
   toggle: {
-    minWidth: 42, height: 36, paddingHorizontal: 7,
+    width: CONTROL_SIZE, height: CONTROL_SIZE,
     alignItems: "center", justifyContent: "center", gap: 1,
   },
-  toggleName: { fontSize: 9.5, fontFamily: font.semibold, letterSpacing: 0.8 },
+  toggleName: { fontSize: 9, fontFamily: font.semibold, letterSpacing: 0.6 },
 
   bottom: { position: "absolute", left: 12, right: 12 },
   panel: { borderRadius: 22, paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
