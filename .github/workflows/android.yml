@@ -12,7 +12,7 @@
 # it is always the same key — which it is, because it ships with the
 # template. It is not enough for the Play Store, and swapping in a real
 # keystore is one secret and four lines when that day comes.
-name: APK Android
+name: Android APK
 
 on:
   push:
@@ -25,7 +25,7 @@ permissions:
 
 jobs:
   apk:
-    name: Construire et publier
+    name: Build and publish
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -46,28 +46,28 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Dépendances
+      - name: Dependencies
         run: npm ci
 
       # Before building rather than after. A failed build tells you something
       # is wrong; a green build of code that does not typecheck tells you
       # nothing at all.
-      - name: Vérifications
+      - name: Checks
         run: |
           npm run typecheck
           npm run lint
           npm test
 
-      - name: Générer le projet Android
+      - name: Generate the Android project
         # --no-install because npm ci has already done it, and prebuild would
         # otherwise install everything a second time.
         run: npx expo prebuild --platform android --no-install
 
-      - name: Construire l'APK
+      - name: Build the APK
         run: ./gradlew assembleRelease --no-daemon
         working-directory: android
 
-      - name: Nommer le fichier
+      - name: Name the file
         id: apk
         run: |
           version=$(node -p "require('./app.config.js')({ config: {} }).version ?? '0.0.0'")
@@ -78,7 +78,7 @@ jobs:
 
       # Kept whatever the trigger was, so a manual run still leaves something
       # installable behind without inventing a release nobody asked for.
-      - name: Conserver l'APK
+      - name: Keep the APK
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.apk.outputs.name }}
@@ -87,7 +87,7 @@ jobs:
 
       # A release only where a tag says so. One per manual run would fill the
       # page with builds that were never meant to be anybody's copy.
-      - name: Publier la release
+      - name: Publish the release
         if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}

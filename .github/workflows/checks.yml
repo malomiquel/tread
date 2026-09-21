@@ -5,7 +5,7 @@
 # than spelled out here: a pipeline that checks something subtly different
 # from what a developer runs is a pipeline that eventually disagrees with
 # them, and the disagreement is always found at the worst moment.
-name: Vérifications
+name: Checks
 
 on:
   push:
@@ -15,7 +15,7 @@ on:
 
 jobs:
   checks:
-    name: Typage, lint et tests
+    name: Types, lint and tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -32,7 +32,7 @@ jobs:
 
       - run: npm ci
 
-      - name: Typage
+      - name: Types
         run: npm run typecheck
 
       - name: Lint
