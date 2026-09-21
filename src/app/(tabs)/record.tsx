@@ -3,7 +3,7 @@ import * as Haptics from "expo-haptics";
 import { useKeepAwake } from "expo-keep-awake";
 import { useFocusEffect, useIsFocused, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   FadeIn, FadeOut, runOnJS, useAnimatedStyle, useDerivedValue, useSharedValue, withTiming,
@@ -178,19 +178,6 @@ export default function RecordScreen() {
    */
   const leave = () => (router.canGoBack() ? router.back() : router.navigate("/"));
 
-  const { width } = useWindowDimensions();
-  /** How far the screen has been dragged towards the right, in points. */
-  const dragX = useSharedValue(0);
-  const dragged = useAnimatedStyle(() => ({ transform: [{ translateX: dragX.value }] }), []);
-
-  // Never arrive already pushed aside. The gesture puts itself back on
-  // release, but a screen left mid-drag by anything else — a call arriving,
-  // the gesture cancelled from under it — would otherwise come back sitting
-  // off the edge, which is indistinguishable from a blank screen.
-  // `set` rather than an assignment: writing `.value` outside a worklet is
-  // what the lint rule guards against, and it is right to — from here the
-  // write has to be scheduled onto the ui thread rather than performed.
-  useFocusEffect(useCallback(() => { dragX.set(0); }, [dragX]));
 
   /**
    * The same swipe that goes back everywhere else in iOS, on a narrow strip
@@ -208,20 +195,8 @@ export default function RecordScreen() {
   const swipeBack = Gesture.Pan()
     .activeOffsetX(14)
     .failOffsetY([-24, 24])
-    // The screen travels with the finger rather than waiting to be thrown. A
-    // gesture that only gives its verdict at the end asks somebody to trust
-    // that it is working; one that moves shows how far they are from the
-    // threshold, and lets them change their mind.
-    .onUpdate((event) => {
-      dragX.value = Math.min(width, Math.max(0, event.translationX));
-    })
     .onEnd((event) => {
-      const go = event.translationX > 80 || event.velocityX > 700;
-      // Snapped home rather than flung off on the way out: the tab underneath
-      // changes in the same breath, so an exit animation would be playing
-      // against a screen that has already gone.
-      dragX.value = go ? 0 : withTiming(0, { duration: 180 });
-      if (go) runOnJS(leave)();
+      if (event.translationX > 60 && event.velocityX > 0) runOnJS(leave)();
     });
 
   const recording = tracker.status !== "idle";
@@ -372,10 +347,7 @@ export default function RecordScreen() {
   const tooShort = distance < 100;
 
   return (
-    // Translated, never faded. An animated opacity is what the map and the
-    // glass refuse to composite under, and it is the one thing this screen
-    // has been blanked by twice already.
-    <Animated.View style={[styles.screen, dragged]}>
+    <View style={styles.screen}>
       {/* The map is the screen now, not something hidden behind a button. */}
       <RunMap
         points={tracker.points}
@@ -562,7 +534,7 @@ export default function RecordScreen() {
         onClose={() => setChoosing(false)}
       />
 
-    </Animated.View>
+    </View>
   );
 }
 
