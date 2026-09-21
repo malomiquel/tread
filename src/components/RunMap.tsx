@@ -181,5 +181,4 @@ const styles = StyleSheet.create({
     ...floatingShadow,
   },
   controlPressed: { transform: [{ scale: 0.96 }], opacity: 0.9 },
-  locatePressed: { transform: [{ scale: 0.96 }], opacity: 0.9 },
 });
