@@ -83,6 +83,11 @@ export const font = {
  */
 export const literalColors = {
   track: { light: "#00348f", dark: "#6fa8ff" },
+  // The navigation header is a native bar, and native bars resolve a dynamic
+  // colour to its light variant and stop there — so a dark app wore a white
+  // strip across the top of every pushed screen.
+  background: { light: "#ffffff", dark: "#0b0b0c" },
+  text: { light: "#101010", dark: "#f2f2f3" },
 } as const;
 
 /**

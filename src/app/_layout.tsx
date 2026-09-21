@@ -7,15 +7,16 @@ import { Stack } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, useColorScheme, View } from "react-native";
 import { IncomingGpx } from "@/components/IncomingGpx";
 import { initDb } from "@/lib/db";
 import { requestHealthAccess } from "@/lib/health";
 import { clearStaleRun } from "@/lib/liveActivity";
 import { loadSettings } from "@/lib/settings";
-import { colors } from "@/lib/theme";
+import { colors, literalColors } from "@/lib/theme";
 
 export default function RootLayout() {
+  const scheme = useColorScheme() === "dark" ? "dark" : "light";
   const [ready, setReady] = useState(false);
   // Nothing is drawn before the faces are in: text rendered in the system
   // font and then reflowed a frame later is a visible stutter on every launch.
@@ -73,8 +74,13 @@ export default function RootLayout() {
       <IncomingGpx />
       <Stack
         screenOptions={{
-          headerStyle: { backgroundColor: colors.background },
-          headerTintColor: colors.text,
+          // Literal, read from the scheme here, rather than the dynamic colour
+          // the rest of the app uses: a native navigation bar takes the light
+          // variant of a dynamic colour whatever the appearance, which put a
+          // white strip above every dark screen. The scene below it keeps the
+          // dynamic one, which React Native does resolve properly.
+          headerStyle: { backgroundColor: literalColors.background[scheme] },
+          headerTintColor: literalColors.text[scheme],
           headerShadowVisible: false,
           contentStyle: { backgroundColor: colors.background },
         }}
