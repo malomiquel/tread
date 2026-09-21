@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { formatEnergy, formatSpeed } from "./format.ts";
 import { timeAgo, weekStart, weekTotals } from "./stats.ts";
 
 const run = (startedAt: number, distanceM = 5000, durationS = 1500) =>
@@ -52,4 +53,16 @@ test("time ago reads naturally at every scale", () => {
   assert.equal(ago(60 * 24 * 3), "il y a 3 jours");
   assert.equal(ago(60 * 24 * 7), "il y a une semaine");
   assert.equal(ago(60 * 24 * 21), "il y a 3 semaines");
+});
+
+test("formatSpeed reads a pace the other way round", () => {
+  // 3 m/s is 10.8 km/h, and a 5'33" kilometre.
+  assert.equal(formatSpeed(3), "10,8");
+  assert.equal(formatSpeed(0), "–", "immobile n'a pas de vitesse");
+  assert.equal(formatSpeed(Number.NaN), "–");
+});
+
+test("formatEnergy refuses to pretend to a decimal", () => {
+  assert.equal(formatEnergy(412.6), "413");
+  assert.equal(formatEnergy(0), "0");
 });

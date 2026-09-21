@@ -20,8 +20,16 @@ export interface TrackPoint {
 
 const EARTH_RADIUS_M = 6371008.8;
 
-/** Beyond this the fix is too vague to trust, typical of an indoor start. */
-export const MAX_ACCURACY_M = 30;
+/**
+ * Beyond this the fix is too vague to trust, typical of an indoor start.
+ *
+ * Twenty metres rather than thirty. A vague fix does not shorten a run, it
+ * lengthens it: the reported position wanders around where you actually are,
+ * and every wander is counted as ground covered. Between tall buildings that
+ * is how a five-kilometre run reports five and a half — the credibility
+ * problem runs in the opposite direction to the one people expect.
+ */
+export const MAX_ACCURACY_M = 20;
 /** 12 m/s is 43 km/h: no runner, but a very common GPS jump. */
 export const MAX_SPEED_MS = 12;
 /** Below this it is GPS jitter while standing still, not travel. */

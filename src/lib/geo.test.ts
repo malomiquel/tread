@@ -151,3 +151,54 @@ test("regionAround lifts the track when asked", () => {
   assert.equal(lifted.latitudeDelta, plain.latitudeDelta, "zoom inchangé");
   assert.equal(lifted.longitude, plain.longitude, "longitude inchangée");
 });
+
+/**
+ * A run along a straight kilometre, seen through a receiver that keeps
+ * losing confidence: one fix in three lands metres off course and says so in
+ * its accuracy. This is the city-centre case, and the one that decides
+ * whether the app can be believed.
+ */
+function noisyKilometre(): { truth: TrackPoint[]; seen: TrackPoint[] } {
+  const truth: TrackPoint[] = [];
+  const seen: TrackPoint[] = [];
+  // A deterministic wobble, so the test measures the filter and not luck.
+  let wobble = 1;
+  const next = () => (wobble = (wobble * 1103515245 + 12345) % 2147483648) / 2147483648 - 0.5;
+
+  for (let i = 0; i < 334; i++) {
+    const north = 48 + i * 3 * DEG_PER_M;
+    truth.push(at(i * 1000, north, 2));
+
+    const vague = i % 3 === 1;
+    seen.push(
+      vague
+        ? at(i * 1000, north + next() * 40 * DEG_PER_M, 2 + next() * 40 * DEG_PER_M, { accuracy: 35 })
+        : at(i * 1000, north, 2, { accuracy: 6 }),
+    );
+  }
+  return { truth, seen };
+}
+
+/** Keeps only the fixes the tracker would have kept. */
+function filtered(points: TrackPoint[]): TrackPoint[] {
+  const kept: TrackPoint[] = [];
+  for (const point of points) {
+    if (isAcceptable(kept.length ? kept[kept.length - 1] : null, point)) kept.push(point);
+  }
+  return kept;
+}
+
+test("vague fixes inflate a distance, and the filter is what stops them", () => {
+  const { truth, seen } = noisyKilometre();
+  const real = totalDistanceM(truth);
+
+  const raw = totalDistanceM(seen);
+  const kept = totalDistanceM(filtered(seen));
+
+  // Unfiltered, the wandering is counted as ground covered and the run grows.
+  assert.ok(raw > real * 1.5, `le bruit devrait gonfler la distance : ${raw} vs ${real}`);
+
+  // Filtered, what is left is within a few percent of the truth.
+  const error = Math.abs(kept - real) / real;
+  assert.ok(error < 0.05, `erreur après filtrage : ${(error * 100).toFixed(1)} %`);
+});

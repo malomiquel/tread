@@ -23,6 +23,24 @@ export function formatPace(secPerKm: number | null): string {
   return `${m}'${String(s === 60 ? 0 : s).padStart(2, "0")}"`;
 }
 
+/**
+ * Speed in kilometres per hour, the other way of saying a pace.
+ *
+ * Both are shown because runners do not think in one or the other by habit
+ * so much as by discipline: a pace answers "how long is this kilometre going
+ * to take", a speed answers "how fast am I going", and the same run reads
+ * differently through each.
+ */
+export function formatSpeed(metresPerSecond: number): string {
+  if (!Number.isFinite(metresPerSecond) || metresPerSecond <= 0) return "–";
+  return (metresPerSecond * 3.6).toFixed(1).replace(".", ",");
+}
+
+/** Kilocalories, rounded: a decimal on an estimate would be a pretence. */
+export function formatEnergy(kcal: number): string {
+  return String(Math.round(kcal));
+}
+
 export function formatElevation(metres: number): string {
   return String(Math.round(metres));
 }

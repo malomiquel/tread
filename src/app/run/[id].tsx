@@ -13,10 +13,13 @@ import { CardMapSource, type CardMapHandle } from "@/components/CardMapSource";
 import { RunMap } from "@/components/RunMap";
 import { ShareRunSheet } from "@/components/ShareRunSheet";
 import { deleteRun, readRun, renameRun, type Run } from "@/lib/db";
-import { formatDate, formatDistance, formatDuration, formatElevation, formatPace } from "@/lib/format";
+import {
+  formatDate, formatDistance, formatDuration, formatElevation, formatEnergy, formatPace, formatSpeed,
+} from "@/lib/format";
 import { splits, type TrackPoint } from "@/lib/geo";
 import { gpxFileName, toGpx } from "@/lib/gpx";
-import { forgetRunInHealth, healthAvailable, requestHealthAccess, syncRunToHealth } from "@/lib/health";
+import { estimateActiveEnergyKcal } from "@/lib/energy";
+import { forgetRunInHealth, healthAvailable, readBodyMassKg, requestHealthAccess, syncRunToHealth } from "@/lib/health";
 import { colors, floatingShadow, font } from "@/lib/theme";
 
 type Loaded = { run: Run; points: TrackPoint[] };
@@ -35,10 +38,15 @@ export default function RunDetailScreen() {
   const [hasHealth] = useState(healthAvailable);
   const [sharingImage, setSharingImage] = useState(false);
   const [cardMap, setCardMap] = useState<string | null>(null);
+  // Energy needs a weight, and the app keeps none of its own.
+  const [weightKg, setWeightKg] = useState<number | null>(null);
   const cardMapSource = useRef<CardMapHandle>(null);
 
   useEffect(() => {
     let active = true;
+    void readBodyMassKg().then((weight) => {
+      if (active) setWeightKg(weight);
+    });
     readRun(Number(id))
       .then((loaded) => {
         if (active) setData(loaded);
@@ -73,6 +81,9 @@ export default function RunDetailScreen() {
     .filter((split) => !split.partial)
     .reduce<number | null>((best, split) => (best === null || split.durationS < best ? split.durationS : best), null);
   const fullCount = kilometres.filter((split) => !split.partial).length;
+  // Null until Health has answered, and null for good if it has no weight on
+  // file: an invented figure would be worse than a missing one.
+  const energyKcal = weightKg === null ? null : estimateActiveEnergyKcal(run.distanceM, weightKg);
 
   /**
    * Writes the run as GPX into the cache and hands it to the share sheet.
@@ -208,6 +219,16 @@ export default function RunDetailScreen() {
             ) : null}
           </View>
         )}
+        <View style={styles.row}>
+          <Metric
+            label="Vitesse moyenne"
+            value={formatSpeed(run.durationS > 0 ? run.distanceM / run.durationS : 0)}
+            unit="km/h"
+          />
+          {energyKcal !== null ? (
+            <Metric label="Calories estimées" value={formatEnergy(energyKcal)} unit="kcal" />
+          ) : null}
+        </View>
       </View>
 
       <RunMap

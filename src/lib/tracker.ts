@@ -241,7 +241,13 @@ async function startGps(): Promise<boolean> {
       const background = await Location.requestBackgroundPermissionsAsync();
       if (background.status === "granted") {
         await Location.startLocationUpdatesAsync(TASK_NAME, {
-          accuracy: Location.Accuracy.BestForNavigation,
+          // Highest, not BestForNavigation. Apple reserves the latter for
+          // turn-by-turn driving with the device on a charger: it pins the
+          // receiver at full rate and brings other sensors in to dead-reckon
+          // between fixes. A run does not need to know which lane it is in,
+          // and an hour of it would be paid for out of the battery that has
+          // to last the whole outing.
+          accuracy: Location.Accuracy.Highest,
           distanceInterval: 3,
           timeInterval: 1000,
           activityType: Location.ActivityType.Fitness,
@@ -261,7 +267,7 @@ async function startGps(): Promise<boolean> {
   }
 
   subscription = await Location.watchPositionAsync(
-    { accuracy: Location.Accuracy.BestForNavigation, distanceInterval: 3, timeInterval: 1000 },
+    { accuracy: Location.Accuracy.Highest, distanceInterval: 3, timeInterval: 1000 },
     handleLocation,
   );
   return false;

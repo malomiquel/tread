@@ -9,7 +9,7 @@ import { Metric } from "@/components/Metric";
 import { RunMap } from "@/components/RunMap";
 import { listRuns, type Run } from "@/lib/db";
 import { formatDistance, formatDuration, formatElevation, formatPace } from "@/lib/format";
-import { currentPace, elevationGainM, paceSecPerKm, totalDistanceM } from "@/lib/geo";
+import { currentPace, elevationGainM, MAX_ACCURACY_M, paceSecPerKm, totalDistanceM } from "@/lib/geo";
 import { healthAvailable, requestHealthAccess, sharingRefused } from "@/lib/health";
 import { CONTROLS_TOP, useTabBarSpace } from "@/lib/layout";
 import { useInitialLocation } from "@/lib/location";
@@ -148,8 +148,10 @@ export default function RecordScreen() {
       : "Course en cours"
     : "Prêt à courir";
 
+  // The same threshold the tracker throws fixes away at, so the warning and
+  // the filter can never disagree about what counts as a poor signal.
   const weakSignal =
-    (recording && tracker.accuracyM !== null && tracker.accuracyM > 30) || granted === false;
+    (recording && tracker.accuracyM !== null && tracker.accuracyM > MAX_ACCURACY_M) || granted === false;
 
   async function close() {
     setConfirming(false);

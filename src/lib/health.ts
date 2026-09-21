@@ -114,6 +114,19 @@ async function bodyMassKg(api: Api): Promise<number | null> {
 }
 
 /**
+ * The weight Health holds, for anything that needs one outside of an export.
+ *
+ * Energy cannot be worked out without it, and the app has no scales of its
+ * own — so where Health has never been asked, or has nothing to say, the
+ * figure is simply not shown rather than guessed at from an average person.
+ */
+export async function readBodyMassKg(): Promise<number | null> {
+  const health = healthKit();
+  if (!health) return null;
+  return bodyMassKg(health.api);
+}
+
+/**
  * One distance sample and one energy sample per active segment, rather than a
  * single sample spanning the whole run. A run paused for a coffee should leave
  * the day's distance graph flat for that quarter of an hour, not draw a block
