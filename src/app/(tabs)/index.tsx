@@ -11,7 +11,7 @@ import { Button } from "@/components/Button";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { SwipeToDelete } from "@/components/SwipeToDelete";
 import { archiveFileName, buildArchive } from "@/lib/archive";
-import { deleteRun, importRun, listRuns, readRun, type Run } from "@/lib/db";
+import { deleteRun, importRun, listRuns, planSessionOfRun, readRun, type Run } from "@/lib/db";
 import { createDemoRun } from "@/lib/demo";
 import { formatDate, formatDistance, formatDuration, formatPace } from "@/lib/format";
 import { parseGpx } from "@/lib/gpx";
@@ -36,6 +36,8 @@ export default function HistoryScreen() {
   const router = useRouter();
   const tabBarSpace = useTabBarSpace();
   const [pending, setPending] = useState<Run | null>(null);
+  /** True while the run awaiting deletion is one a programme is counting on. */
+  const [pendingLinked, setPendingLinked] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const [importing, setImporting] = useState(false);
 
@@ -176,6 +178,21 @@ export default function HistoryScreen() {
 
   const totalM = (runs ?? []).reduce((total, run) => total + run.distanceM, 0);
 
+  /**
+   * Arm the deletion, and find out what else it would take with it.
+   *
+   * Asked here rather than in the dialog because the answer decides what the
+   * dialog says, and a warning that appears a moment after the question is a
+   * warning nobody reads.
+   */
+  function askDelete(run: Run) {
+    setPending(run);
+    setPendingLinked(false);
+    void planSessionOfRun(run.id)
+      .then((linked) => setPendingLinked(linked !== null))
+      .catch(() => undefined);
+  }
+
   return (
     <SafeAreaView style={styles.screen} edges={["top"]}>
       {/* The page arrives rather than appearing: coming from a screen that
@@ -247,7 +264,7 @@ export default function HistoryScreen() {
           )
         }
         renderItem={({ item }) => (
-          <SwipeToDelete label={item.name ?? "cette course"} onDelete={() => setPending(item)}>
+          <SwipeToDelete label={item.name ?? "cette course"} onDelete={() => askDelete(item)}>
           <Pressable
             onPress={() => router.push({ pathname: "/run/[id]", params: { id: String(item.id) } })}
             accessibilityRole="button"
@@ -276,7 +293,10 @@ export default function HistoryScreen() {
         title="Supprimer cette course ?"
         message={
           pending
-            ? `${pending.name ?? "Course"}, ${formatDistance(pending.distanceM)} km. Ses points GPS seront effacés et l'action est définitive.`
+            ? `${pending.name ?? "Course"}, ${formatDistance(pending.distanceM)} km. Ses points GPS seront effacés et l'action est définitive.${
+              pendingLinked
+                ? " La séance correspondante redeviendra à faire dans ton programme."
+                : ""}`
             : undefined
         }
         confirmLabel="Supprimer"

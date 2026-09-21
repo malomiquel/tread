@@ -392,7 +392,25 @@ export async function readRun(id: number): Promise<{ run: Run; points: TrackPoin
 export async function deleteRun(id: number): Promise<void> {
   const db = getDb();
   await db.runAsync("DELETE FROM points WHERE run_id = ?", id);
+  // The programme has to let go of it too. `plan_done` points at a run
+  // without a foreign key to enforce it, so a deleted run used to leave the
+  // session ticked off against nothing — the one thing a runner cannot undo
+  // from the outside, since the tick is what hides the session from them.
+  await db.runAsync("DELETE FROM plan_done WHERE run_id = ?", id);
   await db.runAsync("DELETE FROM runs WHERE id = ?", id);
+}
+
+/**
+ * The programme session a run was recorded for, if any.
+ *
+ * Asked before deleting, so the warning can say what else is about to change.
+ */
+export async function planSessionOfRun(runId: number): Promise<{ order: number } | null> {
+  const row = await getDb().getFirstAsync<{ session_order: number }>(
+    "SELECT session_order FROM plan_done WHERE run_id = ? LIMIT 1",
+    runId,
+  );
+  return row ? { order: row.session_order } : null;
 }
 
 export interface PersonalRecords {

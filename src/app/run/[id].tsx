@@ -13,7 +13,7 @@ import { CardMapSource, type CardMapHandle } from "@/components/CardMapSource";
 import { RunMap } from "@/components/RunMap";
 import { canShareImage, ShareRunSheet } from "@/components/ShareRunSheet";
 import { EXERTION_NAMES, type Exertion } from "@/lib/plan";
-import { deleteRun, readRun, renameRun, type Run, setRunExertion,
+import { deleteRun, readRun, renameRun, type Run, setRunExertion, planSessionOfRun,
 } from "@/lib/db";
 import {
   formatDate, formatDistance, formatDuration, formatElevation, formatEnergy, formatPace, formatSpeed,
@@ -69,10 +69,24 @@ export default function RunDetailScreen() {
   const [sharingImage, setSharingImage] = useState(false);
   /** Whether the exertion has been unlocked again on this visit. */
   const [editingFeel, setEditingFeel] = useState(false);
+  /** Set when this run is what ticked a session off a programme. */
+  const [planLinked, setPlanLinked] = useState(false);
   const [cardMap, setCardMap] = useState<string | null>(null);
   // Energy needs a weight, and the app keeps none of its own.
   const [weightKg, setWeightKg] = useState<number | null>(null);
   const cardMapSource = useRef<CardMapHandle>(null);
+
+  // Asked once, so the warning before deleting can say what else goes with it.
+  useEffect(() => {
+    let active = true;
+    const runId = Number(id);
+    if (Number.isFinite(runId)) {
+      void planSessionOfRun(runId)
+        .then((linked) => active && setPlanLinked(linked !== null))
+        .catch(() => undefined);
+    }
+    return () => { active = false; };
+  }, [id]);
 
   useEffect(() => {
     let active = true;
@@ -514,7 +528,11 @@ export default function RunDetailScreen() {
       <ConfirmDialog
         visible={confirmingDelete}
         title="Supprimer cette course ?"
-        message="Ses points GPS seront effacés et l'action est définitive."
+        message={
+          planLinked
+            ? "Ses points GPS seront effacés et l'action est définitive. La séance correspondante redeviendra à faire dans ton programme."
+            : "Ses points GPS seront effacés et l'action est définitive."
+        }
         confirmLabel="Supprimer"
         destructive
         onConfirm={removeRun}
