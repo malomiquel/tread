@@ -313,7 +313,7 @@ const styles = StyleSheet.create({
 
   bottom: { position: "absolute", left: 12, right: 12 },
   panel: { borderRadius: 22, paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
-  state: { color: colors.muted, fontSize: 11.5, fontFamily: font.medium },
+  state: { color: colors.muted, fontSize: 15.5, fontFamily: font.medium },
   stateWeak: { color: colors.warning },
   panelRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   panelMetrics: { flex: 1, gap: 10, minWidth: 0 },
@@ -332,5 +332,5 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.55 },
   play: { marginLeft: 2 },
 
-  error: { color: colors.danger, fontSize: 12 },
+  error: { color: colors.danger, fontSize: 16 },
 });

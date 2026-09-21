@@ -48,7 +48,7 @@ const styles = StyleSheet.create({
   right: { alignItems: "flex-end" },
   label: {
     color: colors.subtle,
-    fontSize: 10,
+    fontSize: 14,
     fontFamily: font.semibold,
     letterSpacing: 1.4,
     textTransform: "uppercase",
@@ -57,15 +57,17 @@ const styles = StyleSheet.create({
   rowRight: { justifyContent: "flex-end" },
   value: {
     color: colors.text,
-    fontSize: 28,
+    fontSize: 38,
     fontFamily: font.semibold,
     letterSpacing: -0.9,
     fontVariant: ["tabular-nums"],
   },
-  large: { fontSize: 76, fontFamily: font.bold, letterSpacing: -1.8, lineHeight: 78 },
-  valueCompact: { fontFamily: font.regular, fontSize: 17, letterSpacing: -0.4 },
-  labelCompact: { fontFamily: font.regular, fontSize: 9, letterSpacing: 0.9 },
-  unitCompact: { fontSize: 10 },
-  unit: { color: colors.subtle, fontSize: 12, fontFamily: font.semibold },
-  unitLarge: { fontSize: 18 },
+  large: { fontSize: 103, fontFamily: font.bold, letterSpacing: -1.8, lineHeight: 106 },
+  // No family here on purpose: these only narrow the base style, and naming
+  // one would quietly drop the weight it inherits from it.
+  valueCompact: { fontSize: 23, letterSpacing: -0.4 },
+  labelCompact: { fontSize: 12, letterSpacing: 0.9 },
+  unitCompact: { fontSize: 14 },
+  unit: { color: colors.subtle, fontSize: 16, fontFamily: font.semibold },
+  unitLarge: { fontSize: 24 },
 });

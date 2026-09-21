@@ -129,5 +129,5 @@ const styles = StyleSheet.create({
   cardShadow: { width: CARD_WIDTH, height: CARD_HEIGHT, ...floatingShadow },
   actions: { flexDirection: "row", alignItems: "center", gap: 10 },
   waiting: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14 },
-  waitingText: { color: colors.background, fontSize: 12, fontFamily: font.medium },
+  waitingText: { color: colors.background, fontSize: 16, fontFamily: font.medium },
 });

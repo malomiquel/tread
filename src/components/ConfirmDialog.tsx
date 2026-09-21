@@ -63,7 +63,7 @@ const styles = StyleSheet.create({
     gap: 10,
     ...floatingShadow,
   },
-  title: { color: colors.text, fontSize: 16.5, fontFamily: font.bold, letterSpacing: -0.2 },
-  message: { color: colors.muted, fontFamily: font.regular, fontSize: 13.5, lineHeight: 20 },
+  title: { color: colors.text, fontSize: 22.5, fontFamily: font.bold, letterSpacing: -0.2 },
+  message: { color: colors.muted, fontFamily: font.regular, fontSize: 18.5, lineHeight: 27 },
   actions: { flexDirection: "row", gap: 10, marginTop: 8 },
 });

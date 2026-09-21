@@ -94,5 +94,5 @@ const styles = StyleSheet.create({
     backgroundColor: colors.danger,
   },
   actionPressed: { opacity: 0.75 },
-  actionLabel: { color: colors.accentText, fontSize: 11, fontFamily: font.semibold },
+  actionLabel: { color: colors.accentText, fontSize: 15, fontFamily: font.semibold },
 });
