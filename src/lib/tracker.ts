@@ -1,6 +1,8 @@
 import * as Location from "expo-location";
+import { Pedometer } from "expo-sensors";
 import * as TaskManager from "expo-task-manager";
 import { useSyncExternalStore } from "react";
+import { cadenceSpm } from "./cadence";
 import { createRun, finishRun, insertPoints } from "./db";
 import { syncRunToHealth } from "./health";
 import { autoName } from "./format";
@@ -271,6 +273,28 @@ export function handleLocation(location: Location.LocationObject): void {
   }
 }
 
+/**
+ * The cadence held over a finished run, asked of the phone after the fact.
+ *
+ * Asked rather than counted as it happens, which matters more than it sounds:
+ * the pedometer keeps its own log, so the answer is right even when the run
+ * was spent in a pocket with the screen off and nothing here could have
+ * counted a thing.
+ */
+async function cadenceOf(from: number, to: number, activeS: number): Promise<number | null> {
+  try {
+    if (!(await Pedometer.isAvailableAsync())) return null;
+    const { status } = await Pedometer.requestPermissionsAsync();
+    if (status !== "granted") return null;
+    const { steps } = await Pedometer.getStepCountAsync(new Date(from), new Date(to));
+    return cadenceSpm(steps, activeS);
+  } catch {
+    // No pedometer, no permission, or a simulator: a run is worth keeping
+    // without a cadence.
+    return null;
+  }
+}
+
 /** Write pending points to disk, never letting two writes overlap. */
 function flush(): Promise<void> {
   writeQueue = writeQueue
@@ -430,6 +454,7 @@ export async function finish(): Promise<number | null> {
   await flush();
 
   const distance = totalDistanceM(points);
+  const cadence = startedAt === null ? null : await cadenceOf(startedAt, endedAt, duration);
   await finishRun(runId, {
     endedAt,
     distanceM: distance,
@@ -438,6 +463,7 @@ export async function finish(): Promise<number | null> {
     name: autoName(startedAt ?? endedAt),
     elevationGainM: elevationGainM(points),
     fastestKmS: fastestKmS(points),
+    cadenceSpm: cadence,
     sessionId: state.sessionId,
     // Including the block under way when the run was stopped: a session
     // abandoned halfway is still a session, and the work done in that last

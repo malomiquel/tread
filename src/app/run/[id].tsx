@@ -262,6 +262,11 @@ export default function RunDetailScreen() {
             <Metric label="Calories estimées" value={formatEnergy(energyKcal)} unit="kcal" />
           ) : null}
         </View>
+        {run.cadenceSpm !== null && (
+          <View style={styles.row}>
+            <Metric label="Cadence" value={String(run.cadenceSpm)} unit="pas/min" />
+          </View>
+        )}
       </View>
 
       <RunMap

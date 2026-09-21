@@ -44,7 +44,8 @@
             ]
           }
         ],
-        "LSSupportsOpeningDocumentsInPlace": true
+        "LSSupportsOpeningDocumentsInPlace": true,
+        "NSMotionUsageDescription": "Tread lit le podomètre pour calculer ta cadence, en pas par minute."
       }
     },
     "android": {

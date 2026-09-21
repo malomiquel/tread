@@ -48,6 +48,8 @@ export interface Run {
    * written twice, and deleting it here can delete it there too.
    */
   healthUuid: string | null;
+  /** Steps per minute held over the run, or null when unmeasured. */
+  cadenceSpm: number | null;
   /** The structured session this run followed, or null for a free run. */
   sessionId: string | null;
   /** Each block as it was actually run. Empty for a free run. */
@@ -68,6 +70,7 @@ interface RunRow {
   health_uuid: string | null;
   session_id: string | null;
   session_blocks: string | null;
+  cadence_spm: number | null;
 }
 
 const toRun = (row: RunRow): Run => ({
@@ -81,6 +84,7 @@ const toRun = (row: RunRow): Run => ({
   elevationGainM: row.elevation_gain_m,
   fastestKmS: row.fastest_km_s,
   healthUuid: row.health_uuid,
+  cadenceSpm: row.cadence_spm,
   sessionId: row.session_id,
   // Stored as one json column rather than its own table: the blocks are only
   // ever read with the run they belong to, and never queried across runs.
@@ -100,7 +104,7 @@ function parseBlocks(raw: string | null): RanBlock[] {
   }
 }
 
-const SCHEMA_VERSION = 6;
+const SCHEMA_VERSION = 7;
 
 export async function initDb(): Promise<void> {
   const db = getDb();
@@ -124,7 +128,8 @@ export async function initDb(): Promise<void> {
         fastest_km_s REAL,
         health_uuid TEXT,
         session_id TEXT,
-        session_blocks TEXT
+        session_blocks TEXT,
+        cadence_spm REAL
       );
       CREATE TABLE IF NOT EXISTS points (
         id INTEGER PRIMARY KEY,
@@ -194,6 +199,11 @@ export async function initDb(): Promise<void> {
     version = 6;
   }
 
+  if (version < 7) {
+    await db.execAsync("ALTER TABLE runs ADD COLUMN cadence_spm REAL");
+    version = 7;
+  }
+
   await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
   await recoverInterruptedRuns();
 }
@@ -220,6 +230,7 @@ export interface RunTotals {
   endedAt: number;
   sessionId?: string | null;
   blocks?: RanBlock[];
+  cadenceSpm?: number | null;
   distanceM: number;
   durationS: number;
   avgPaceSKm: number | null;
@@ -230,11 +241,12 @@ export interface RunTotals {
 
 export async function finishRun(id: number, totals: RunTotals): Promise<void> {
   await getDb().runAsync(
-    "UPDATE runs SET ended_at = ?, distance_m = ?, duration_s = ?, avg_pace_s_km = ?, name = ?, elevation_gain_m = ?, fastest_km_s = ?, session_id = ?, session_blocks = ? WHERE id = ?",
+    "UPDATE runs SET ended_at = ?, distance_m = ?, duration_s = ?, avg_pace_s_km = ?, name = ?, elevation_gain_m = ?, fastest_km_s = ?, session_id = ?, session_blocks = ?, cadence_spm = ? WHERE id = ?",
     totals.endedAt, totals.distanceM, totals.durationS, totals.avgPaceSKm,
     totals.name, totals.elevationGainM, totals.fastestKmS,
     totals.sessionId ?? null,
     totals.blocks?.length ? JSON.stringify(totals.blocks) : null,
+    totals.cadenceSpm ?? null,
     id,
   );
 }
