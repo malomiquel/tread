@@ -1,11 +1,15 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { File, Paths } from "expo-file-system";
 import { useFocusEffect, useRouter } from "expo-router";
+import * as Sharing from "expo-sharing";
 import { useCallback, useState } from "react";
-import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "@/components/Button";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { SwipeToDelete } from "@/components/SwipeToDelete";
-import { deleteRun, listRuns, type Run } from "@/lib/db";
+import { archiveFileName, buildArchive } from "@/lib/archive";
+import { deleteRun, listRuns, readRun, type Run } from "@/lib/db";
 import { createDemoRun } from "@/lib/demo";
 import { formatDate, formatDistance, formatDuration, formatPace } from "@/lib/format";
 import { useTabBarSpace } from "@/lib/layout";
@@ -17,6 +21,7 @@ export default function HistoryScreen() {
   const router = useRouter();
   const tabBarSpace = useTabBarSpace();
   const [pending, setPending] = useState<Run | null>(null);
+  const [archiving, setArchiving] = useState(false);
 
   const reload = useCallback(() => listRuns().then(setRuns).catch(() => setRuns([])), []);
 
@@ -66,16 +71,67 @@ export default function HistoryScreen() {
     }
   }
 
+  /**
+   * Writes every run to one zip of GPX files and hands it to the share sheet.
+   *
+   * This is the only backup the app has: the runs live in a single database on
+   * this phone, and deleting the app takes them with it. Exporting them
+   * somewhere else is what makes that survivable.
+   */
+  async function exportAll() {
+    if (archiving || !runs?.length) return;
+    setArchiving(true);
+    try {
+      const loaded = [];
+      for (const run of runs) {
+        const stored = await readRun(run.id);
+        if (stored) loaded.push({ run: stored.run, points: stored.points });
+      }
+
+      const file = new File(Paths.cache, archiveFileName());
+      file.create({ overwrite: true });
+      file.write(await buildArchive(loaded), { encoding: "base64" });
+
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(file.uri, { mimeType: "application/zip", UTI: "public.zip-archive" });
+      } else {
+        Alert.alert("Partage indisponible", "Impossible d'ouvrir la feuille de partage sur cet appareil.");
+      }
+    } catch (cause) {
+      Alert.alert("Export impossible", cause instanceof Error ? cause.message : "Erreur inattendue.");
+    } finally {
+      setArchiving(false);
+    }
+  }
+
   const totalM = (runs ?? []).reduce((total, run) => total + run.distanceM, 0);
 
   return (
     <SafeAreaView style={styles.screen} edges={["top"]}>
       <View style={styles.header}>
-        <Text style={styles.title}>Historique</Text>
+        <View style={styles.headerText}>
+          <Text style={styles.title}>Historique</Text>
+          {runs && runs.length > 0 && (
+            <Text style={styles.subtitle}>
+              {runs.length} course{runs.length > 1 ? "s" : ""} · {formatDistance(totalM)} km au total
+            </Text>
+          )}
+        </View>
         {runs && runs.length > 0 && (
-          <Text style={styles.subtitle}>
-            {runs.length} course{runs.length > 1 ? "s" : ""} · {formatDistance(totalM)} km au total
-          </Text>
+          <Pressable
+            onPress={() => void exportAll()}
+            disabled={archiving}
+            accessibilityRole="button"
+            accessibilityLabel="Exporter toutes les courses"
+            hitSlop={10}
+            style={({ pressed }) => [styles.export, pressed && styles.pressed]}
+          >
+            {archiving ? (
+              <ActivityIndicator size="small" color={colors.accent} />
+            ) : (
+              <Ionicons name="share-outline" size={20} color={colors.text} />
+            )}
+          </Pressable>
         )}
       </View>
 
@@ -145,7 +201,16 @@ const GUTTER = 20;
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  header: { paddingHorizontal: GUTTER, paddingTop: 10, paddingBottom: 14 },
+  header: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12,
+    paddingHorizontal: GUTTER, paddingTop: 10, paddingBottom: 14,
+  },
+  headerText: { flex: 1 },
+  export: {
+    width: 40, height: 40, borderRadius: 20,
+    alignItems: "center", justifyContent: "center",
+    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline,
+  },
   title: { color: colors.text, fontSize: 24, fontWeight: "700", letterSpacing: -0.6 },
   subtitle: { color: colors.subtle, fontSize: 12, marginTop: 3 },
 
