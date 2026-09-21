@@ -137,11 +137,10 @@ export const SESSIONS: Session[] = [
   {
     id: "longue",
     name: "Sortie longue 1 h",
-    steps: [
-      { effort: "échauffement", seconds: 600 },
-      { effort: "allure", seconds: 2400 },
-      { effort: "retour au calme", seconds: 600 },
-    ],
+    // One block, like the easy run. Cutting a long run into a warm-up and a
+    // cool-down announces three things where there is only one to do: go out
+    // and run for an hour.
+    steps: [{ effort: "allure", seconds: 3600 }],
   },
 ];
 

@@ -199,8 +199,16 @@ export default function RecordScreen() {
 
   useEffect(() => {
     if (!recording) return;
+    // Refreshed once immediately, then every second. Without the first, the
+    // clock a run starts against is the one captured when the screen mounted,
+    // which may be minutes old: the elapsed time comes out negative and a
+    // thirty minute block opens at 30:02 before falling back to 29:59.
+    const first = setTimeout(() => setNow(Date.now()), 0);
     const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
+    return () => {
+      clearTimeout(first);
+      clearInterval(timer);
+    };
   }, [recording]);
 
   useFocusEffect(
