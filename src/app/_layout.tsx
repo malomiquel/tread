@@ -8,6 +8,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { IncomingGpx } from "@/components/IncomingGpx";
 import { initDb } from "@/lib/db";
 import { requestHealthAccess } from "@/lib/health";
 import { clearStaleRun } from "@/lib/liveActivity";
@@ -67,6 +68,9 @@ export default function RootLayout() {
     // not mount it for us, and without it a swipe simply never fires.
     <GestureHandlerRootView style={styles.root}>
       <StatusBar style="auto" />
+      {/* Mounted inside the navigator, because opening a file ends by
+          showing the run it created. */}
+      <IncomingGpx />
       <Stack
         screenOptions={{
           headerStyle: { backgroundColor: colors.background },
