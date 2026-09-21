@@ -45,6 +45,15 @@ export function FloatingTabBar({
   const router = useRouter();
   const tracker = useTracker();
   const recording = tracker.status !== "idle";
+  /**
+   * Not over the programme.
+   *
+   * Every line on that screen already starts a run, and each of them starts
+   * the right one. A general button beside them would be the only way out of
+   * the plan that ignores it, sitting in the brightest colour on the screen —
+   * which is a strange thing for a programme to offer about itself.
+   */
+  const offersRun = state.routes[state.index].name !== "plan";
 
   /**
    * Hidden by sliding out, not by unmounting.
@@ -136,8 +145,8 @@ export function FloatingTabBar({
   const content = (
     <View style={styles.row}>
       {tabs}
-      <View style={styles.divider} />
-      {run}
+      {offersRun ? <View style={styles.divider} /> : null}
+      {offersRun ? run : null}
     </View>
   );
 
