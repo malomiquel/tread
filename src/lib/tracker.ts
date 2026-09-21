@@ -13,7 +13,7 @@ import { reflectRun, stopRun, type RunProgress } from "./liveActivity";
 import { paceDrift } from "./pace";
 import { getSettings } from "./settings";
 import {
-  hasSinglePace, sessionById, stepIsDone, stepLabel, type RanBlock,
+  hasSinglePace, isPaced, sessionById, stepIsDone, stepLabel, type RanBlock,
 } from "./workout";
 
 export const TASK_NAME = "tread-gps-tracking";
@@ -222,7 +222,14 @@ function checkPace(): void {
   // from an earlier run would talk over it — correcting a recovery towards a
   // figure chosen for a repetition.
   const session = sessionById(state.sessionId);
-  if (session && !hasSinglePace(session)) return;
+  if (session) {
+    if (!hasSinglePace(session)) return;
+    // Even then, only through the block the target was meant for. A long run
+    // warms up and cools down around its pace, and nobody wants to be told
+    // they are running their warm-up too slowly.
+    const step = session.steps[state.stepIndex];
+    if (!step || !isPaced(step)) return;
+  }
 
   const now = Date.now();
   if (state.startedAt !== null && now - state.startedAt < PACE_WORD_AFTER_MS) return;

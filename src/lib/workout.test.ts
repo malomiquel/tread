@@ -52,10 +52,15 @@ test("a session is found by its identifier, and only then", () => {
   assert.equal(sessionById(null), null);
 });
 
-test("a session asks for one pace only when every block wants the same effort", () => {
-  const steady = SESSIONS.find((s) => s.id === "footing")!;
-  const varied = SESSIONS.find((s) => s.id === "400")!;
+test("only the blocks you hold a pace through decide whether a target fits", () => {
+  const by = (id: string) => SESSIONS.find((s) => s.id === id)!;
 
-  assert.equal(hasSinglePace(steady), true, "a plain run asks for one pace");
-  assert.equal(hasSinglePace(varied), false, "repetitions ask for several");
+  assert.equal(hasSinglePace(by("footing")), true, "a plain run holds one pace");
+  // A long run warms up and cools down around a single sustained block: those
+  // do not compete for a target, and counting them would rule it out.
+  assert.equal(hasSinglePace(by("longue")), true, "a long run holds one pace");
+
+  assert.equal(hasSinglePace(by("400")), false, "five repetitions ask for several");
+  assert.equal(hasSinglePace(by("seuil")), false, "three threshold blocks do too");
+  assert.equal(hasSinglePace(by("pyramide")), false);
 });

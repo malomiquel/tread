@@ -145,16 +145,22 @@ export const SESSIONS: Session[] = [
   },
 ];
 
+/** True for a block you hold a pace through, as opposed to one you survive. */
+export function isPaced(step: Step): boolean {
+  return step.effort === "rapide" || step.effort === "allure";
+}
+
 /**
- * True when every block of a session asks for the same effort.
+ * True when a session has at most one block to hold a pace through.
  *
- * A single pace can only cover a run that asks for a single pace. A session
- * alternating warm-up, repetitions and recovery already says what each block
- * is for, and holding one figure across all of them would be asking a runner
- * to sprint their recovery.
+ * Warming up and cooling down do not compete for a target: nobody holds a
+ * figure through them, and counting them would rule out a long run, which has
+ * exactly one pace to hold and half an hour of easy running around it. What
+ * rules a target out is several efforts asking for different speeds — five
+ * repetitions, or three blocks at threshold.
  */
 export function hasSinglePace(session: Session): boolean {
-  return session.steps.every((step) => step.effort === session.steps[0].effort);
+  return session.steps.filter(isPaced).length <= 1;
 }
 
 export const sessionById = (id: string | null): Session | null =>
