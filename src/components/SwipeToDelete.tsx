@@ -11,6 +11,7 @@ const ACTION_WIDTH = 92;
 
 interface Props {
   children: ReactNode;
+  /** Called when the revealed action is tapped, before anything is deleted. */
   onDelete: () => void;
   /** Spoken to a screen reader, which cannot perform the swipe. */
   label: string;
@@ -19,16 +20,24 @@ interface Props {
 /**
  * Wraps a list row so it can be swiped leftwards to reveal a delete action.
  *
- * Deleting takes two deliberate moves, the swipe then the tap, which is
- * confirmation enough; a dialog on top of that is the pattern people complain
- * about. The row is not removed by a full swipe, because a run cannot be
- * recovered and a flick of the thumb is too cheap for that.
+ * The row is not removed by a full swipe: a run cannot be recovered, and a
+ * flick of the thumb is too cheap a gesture for that. Tapping the revealed
+ * action asks the caller to confirm.
  */
 export function SwipeToDelete({ children, onDelete, label }: Props) {
   const row = useRef<SwipeableMethods>(null);
 
   const renderAction = (_progress: SharedValue<number>, translation: SharedValue<number>) => (
-    <Action translation={translation} label={label} onPress={onDelete} />
+    <Action
+      translation={translation}
+      label={label}
+      onPress={() => {
+        // Close first: if the confirmation is dismissed, the row is already
+        // back in place rather than left open on an abandoned action.
+        row.current?.close();
+        onDelete();
+      }}
+    />
   );
 
   return (

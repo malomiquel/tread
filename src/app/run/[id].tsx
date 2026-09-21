@@ -7,6 +7,7 @@ import {
   ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { Button } from "@/components/Button";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Metric } from "@/components/Metric";
 import { RunMap } from "@/components/RunMap";
 import { deleteRun, readRun, renameRun, type Run } from "@/lib/db";
@@ -26,6 +27,7 @@ export default function RunDetailScreen() {
   const [draftName, setDraftName] = useState("");
   const [exporting, setExporting] = useState(false);
   const [mapExpanded, setMapExpanded] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -96,17 +98,9 @@ export default function RunDetailScreen() {
     setData({ run: { ...run, name: next }, points });
   }
 
-  function confirmDelete() {
-    Alert.alert("Supprimer cette course ?", "Cette action est définitive.", [
-      { text: "Annuler", style: "cancel" },
-      {
-        text: "Supprimer",
-        style: "destructive",
-        onPress: () => {
-          void deleteRun(run.id).then(() => router.back());
-        },
-      },
-    ]);
+  function removeRun() {
+    setConfirmingDelete(false);
+    void deleteRun(run.id).then(() => router.back());
   }
 
   return (
@@ -199,8 +193,18 @@ export default function RunDetailScreen() {
           onPress={() => void exportGpx()}
           disabled={exporting || points.length === 0}
         />
-        <Button label="Supprimer" variant="danger" onPress={confirmDelete} />
+        <Button label="Supprimer" variant="danger" onPress={() => setConfirmingDelete(true)} />
       </View>
+
+      <ConfirmDialog
+        visible={confirmingDelete}
+        title="Supprimer cette course ?"
+        message="Ses points GPS seront effacés et l'action est définitive."
+        confirmLabel="Supprimer"
+        destructive
+        onConfirm={removeRun}
+        onCancel={() => setConfirmingDelete(false)}
+      />
 
       <Modal visible={renaming} transparent animationType="fade" onRequestClose={() => setRenaming(false)}>
         <Pressable style={styles.backdrop} onPress={() => setRenaming(false)}>

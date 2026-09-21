@@ -3,6 +3,7 @@ import { useCallback, useState } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "@/components/Button";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { SwipeToDelete } from "@/components/SwipeToDelete";
 import { deleteRun, listRuns, type Run } from "@/lib/db";
 import { createDemoRun } from "@/lib/demo";
@@ -15,6 +16,7 @@ export default function HistoryScreen() {
   const [seeding, setSeeding] = useState(false);
   const router = useRouter();
   const tabBarSpace = useTabBarSpace();
+  const [pending, setPending] = useState<Run | null>(null);
 
   const reload = useCallback(() => listRuns().then(setRuns).catch(() => setRuns([])), []);
 
@@ -54,6 +56,7 @@ export default function HistoryScreen() {
    * a broken button.
    */
   async function remove(run: Run) {
+    setPending(null);
     setRuns((current) => (current ?? []).filter((item) => item.id !== run.id));
     try {
       await deleteRun(run.id);
@@ -99,7 +102,7 @@ export default function HistoryScreen() {
           )
         }
         renderItem={({ item }) => (
-          <SwipeToDelete label={item.name ?? "cette course"} onDelete={() => void remove(item)}>
+          <SwipeToDelete label={item.name ?? "cette course"} onDelete={() => setPending(item)}>
           <Pressable
             onPress={() => router.push({ pathname: "/run/[id]", params: { id: String(item.id) } })}
             accessibilityRole="button"
@@ -119,6 +122,20 @@ export default function HistoryScreen() {
           </Pressable>
           </SwipeToDelete>
         )}
+      />
+
+      <ConfirmDialog
+        visible={pending !== null}
+        title="Supprimer cette course ?"
+        message={
+          pending
+            ? `${pending.name ?? "Course"}, ${formatDistance(pending.distanceM)} km. Ses points GPS seront effacés et l'action est définitive.`
+            : undefined
+        }
+        confirmLabel="Supprimer"
+        destructive
+        onConfirm={() => pending && void remove(pending)}
+        onCancel={() => setPending(null)}
       />
     </SafeAreaView>
   );
