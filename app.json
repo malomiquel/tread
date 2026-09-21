@@ -1,42 +1,43 @@
 {
   "expo": {
-    "name": "running",
+    "name": "Running",
     "slug": "running",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "running",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "dark",
+    "platforms": ["ios", "android"],
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "com.malomiquel.running",
+      "supportsTablet": false
     },
     "android": {
+      "package": "com.malomiquel.running",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#0b1120",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false
     },
-    "web": {
-      "output": "static",
-      "favicon": "./assets/images/favicon.png"
-    },
     "plugins": [
       "expo-router",
+      ["expo-splash-screen", { "backgroundColor": "#0b1120", "image": "./assets/images/splash-icon.png", "imageWidth": 76 }],
+      "expo-sqlite",
       [
-        "expo-splash-screen",
+        "expo-location",
         {
-          "backgroundColor": "#208AEF",
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "isIosBackgroundLocationEnabled": true,
+          "locationWhenInUsePermission": "Running utilise ta position pour tracer ta course et mesurer ta distance.",
+          "locationAlwaysAndWhenInUsePermission": "Running a besoin de ta position même écran verrouillé pour continuer à enregistrer ta course dans ta poche.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
         }
       ]
     ],
-    "experiments": {
-      "typedRoutes": true,
-      "reactCompiler": true
-    }
+    "experiments": { "typedRoutes": true, "reactCompiler": true }
   }
 }
