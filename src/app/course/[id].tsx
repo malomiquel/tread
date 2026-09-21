@@ -7,7 +7,7 @@ import { Chiffre } from "@/components/Chiffre";
 import { lireCourse, supprimerCourse, type Course } from "@/lib/bd";
 import { formaterAllure, formaterDate, formaterDistance, formaterDuree } from "@/lib/format";
 import { fractionnes, type Point } from "@/lib/geo";
-import { couleurs } from "@/lib/theme";
+import { couleurs, ombres } from "@/lib/theme";
 
 export default function DetailCourse() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -82,15 +82,27 @@ const styles = StyleSheet.create({
   contenu: { padding: 20, gap: 18, paddingBottom: 40 },
   centre: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: couleurs.fond },
   date: { color: couleurs.attenue, fontSize: 14, textTransform: "capitalize" },
-  mesures: { gap: 14 },
+  mesures: {
+    gap: 16,
+    backgroundColor: couleurs.surface,
+    borderRadius: 20,
+    padding: 20,
+    ...ombres.carte,
+  },
   rangee: { flexDirection: "row", gap: 12 },
   carte: { height: 280 },
-  section: { gap: 10 },
+  section: {
+    gap: 12,
+    backgroundColor: couleurs.surface,
+    borderRadius: 20,
+    padding: 18,
+    ...ombres.carte,
+  },
   sectionTitre: { color: couleurs.discret, fontSize: 11, letterSpacing: 1.5, textTransform: "uppercase" },
   split: { flexDirection: "row", alignItems: "center", gap: 12 },
   splitKm: { color: couleurs.attenue, width: 64, fontSize: 13, fontVariant: ["tabular-nums"] },
-  barreFond: { flex: 1, height: 6, borderRadius: 3, backgroundColor: "rgba(255,255,255,0.08)", overflow: "hidden" },
-  barre: { height: "100%", borderRadius: 3, backgroundColor: "rgba(200,255,61,0.55)" },
+  barreFond: { flex: 1, height: 8, borderRadius: 4, backgroundColor: couleurs.bordure, overflow: "hidden" },
+  barre: { height: "100%", borderRadius: 4, backgroundColor: "rgba(22, 163, 74, 0.35)" },
   barreRecord: { backgroundColor: couleurs.accent },
   splitAllure: { color: couleurs.texte, width: 56, textAlign: "right", fontSize: 14, fontWeight: "600", fontVariant: ["tabular-nums"] },
   record: { color: couleurs.accent },

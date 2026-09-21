@@ -9,7 +9,7 @@ export default function Onglets() {
         headerShown: false,
         tabBarActiveTintColor: couleurs.accent,
         tabBarInactiveTintColor: couleurs.discret,
-        tabBarStyle: { backgroundColor: couleurs.fond, borderTopColor: couleurs.bordure },
+        tabBarStyle: { backgroundColor: couleurs.surface, borderTopColor: couleurs.bordure },
         sceneStyle: { backgroundColor: couleurs.fond },
       }}
     >

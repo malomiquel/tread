@@ -1,5 +1,6 @@
 import "@/lib/suivi"; // definit la tache GPS de fond des le demarrage, hors de tout ecran
 import { Stack } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { initialiserBd } from "@/lib/bd";
@@ -31,6 +32,8 @@ export default function Racine() {
   }
 
   return (
+    <>
+    <StatusBar style="dark" />
     <Stack
       screenOptions={{
         headerStyle: { backgroundColor: couleurs.fond },
@@ -42,6 +45,7 @@ export default function Racine() {
       <Stack.Screen name="(onglets)" options={{ headerShown: false }} />
       <Stack.Screen name="course/[id]" options={{ title: "Course" }} />
     </Stack>
+    </>
   );
 }
 

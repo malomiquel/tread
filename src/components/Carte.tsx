@@ -65,7 +65,7 @@ export function Carte({ points, suivre = false, cadrer = false, centreInitial = 
       ref={ref}
       style={[styles.carte, style]}
       initialRegion={regionInitiale}
-      userInterfaceStyle="dark"
+      userInterfaceStyle="light"
       showsUserLocation={!cadrer}
       showsMyLocationButton={false}
       showsCompass={false}

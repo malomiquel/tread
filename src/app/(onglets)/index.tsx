@@ -10,7 +10,7 @@ import { formaterAllure, formaterDistance, formaterDuree } from "@/lib/format";
 import { allureInstantanee, allureSecParKm, distanceTotaleM } from "@/lib/geo";
 import { usePositionInitiale } from "@/lib/position";
 import { abandonner, demarrer, dureeActiveS, mettreEnPause, reprendre, terminer, useSuivi } from "@/lib/suivi";
-import { couleurs } from "@/lib/theme";
+import { couleurs, ombres } from "@/lib/theme";
 
 /**
  * Garde l'ecran allume tant que ce composant est monte. Dans Expo Go, le GPS
@@ -121,12 +121,18 @@ export default function Courir() {
 const styles = StyleSheet.create({
   ecran: { flex: 1, backgroundColor: couleurs.fond, paddingHorizontal: 20, gap: 16 },
   entete: { paddingTop: 8 },
-  titre: { color: couleurs.texte, fontSize: 22, fontWeight: "700", letterSpacing: -0.3 },
-  signal: { color: couleurs.discret, fontSize: 12, marginTop: 2 },
+  titre: { color: couleurs.texte, fontSize: 26, fontWeight: "800", letterSpacing: -0.8 },
+  signal: { color: couleurs.discret, fontSize: 12.5, marginTop: 3, fontWeight: "500" },
   signalFaible: { color: couleurs.pause },
-  mesures: { gap: 14 },
-  rangee: { flexDirection: "row", gap: 12 },
-  carte: { flex: 1, minHeight: 200 },
+  mesures: {
+    gap: 16,
+    backgroundColor: couleurs.surface,
+    borderRadius: 20,
+    padding: 20,
+    ...ombres.carte,
+  },
+  rangee: { flexDirection: "row", gap: 12, paddingTop: 2 },
+  carte: { flex: 1, minHeight: 200, borderRadius: 20 },
   erreur: { color: couleurs.danger, fontSize: 13 },
   actions: { flexDirection: "row", gap: 12, paddingBottom: 12 },
 });

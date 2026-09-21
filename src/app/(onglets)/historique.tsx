@@ -4,7 +4,7 @@ import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { listerCourses, type Course } from "@/lib/bd";
 import { formaterAllure, formaterDate, formaterDistance, formaterDuree } from "@/lib/format";
-import { couleurs } from "@/lib/theme";
+import { couleurs, ombres } from "@/lib/theme";
 
 export default function Historique() {
   const [courses, setCourses] = useState<Course[] | null>(null);
@@ -58,15 +58,15 @@ export default function Historique() {
 const styles = StyleSheet.create({
   ecran: { flex: 1, backgroundColor: couleurs.fond },
   entete: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12 },
-  titre: { color: couleurs.texte, fontSize: 22, fontWeight: "700", letterSpacing: -0.3 },
+  titre: { color: couleurs.texte, fontSize: 26, fontWeight: "800", letterSpacing: -0.8 },
   sousTitre: { color: couleurs.discret, fontSize: 12, marginTop: 2 },
-  liste: { paddingHorizontal: 20, paddingBottom: 24, gap: 10 },
+  liste: { paddingHorizontal: 20, paddingBottom: 24, gap: 12 },
   vide: { color: couleurs.attenue, textAlign: "center", marginTop: 60, lineHeight: 22, paddingHorizontal: 20 },
   ligne: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    backgroundColor: couleurs.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: couleurs.bordure,
+    backgroundColor: couleurs.surface, borderRadius: 16, padding: 16, ...ombres.carte,
   },
-  presse: { opacity: 0.8 },
+  presse: { transform: [{ scale: 0.98 }], opacity: 0.9 },
   gauche: { gap: 3 },
   date: { color: couleurs.texte, fontSize: 15, fontWeight: "600", textTransform: "capitalize" },
   detail: { color: couleurs.attenue, fontSize: 13, fontVariant: ["tabular-nums"] },

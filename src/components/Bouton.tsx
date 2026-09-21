@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, Text, type StyleProp, type ViewStyle } from "react-native";
-import { couleurs } from "@/lib/theme";
+import { couleurs, ombres } from "@/lib/theme";
 
 interface Props {
   libelle: string;
@@ -16,10 +16,20 @@ export function Bouton({ libelle, onPress, variante = "principal", desactive, st
       disabled={desactive}
       accessibilityRole="button"
       style={({ pressed }) => [
-        styles.base, styles[variante], pressed && styles.presse, desactive && styles.desactive, style,
+        styles.base,
+        styles[variante],
+        pressed && styles.presse,
+        desactive && styles.desactive,
+        style,
       ]}
     >
-      <Text style={[styles.texte, variante === "principal" && styles.textePrincipal, variante === "danger" && styles.texteDanger]}>
+      <Text
+        style={[
+          styles.texte,
+          variante === "principal" && styles.textePrincipal,
+          variante === "danger" && styles.texteDanger,
+        ]}
+      >
         {libelle}
       </Text>
     </Pressable>
@@ -27,13 +37,21 @@ export function Bouton({ libelle, onPress, variante = "principal", desactive, st
 }
 
 const styles = StyleSheet.create({
-  base: { flex: 1, minHeight: 56, borderRadius: 14, alignItems: "center", justifyContent: "center", paddingHorizontal: 18 },
-  principal: { backgroundColor: couleurs.accent },
-  secondaire: { backgroundColor: couleurs.surface, borderWidth: 1, borderColor: couleurs.bordure },
-  danger: { backgroundColor: "rgba(248,113,113,0.12)", borderWidth: 1, borderColor: "rgba(248,113,113,0.35)" },
-  presse: { transform: [{ scale: 0.96 }] },
+  base: {
+    flex: 1,
+    minHeight: 56,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 18,
+  },
+  principal: { backgroundColor: couleurs.accent, ...ombres.bouton, shadowColor: couleurs.accent },
+  secondaire: { backgroundColor: couleurs.surface, ...ombres.carte },
+  danger: { backgroundColor: couleurs.dangerDoux },
+  // 0.96 : en dessous le bouton a l'air de se dérober sous le doigt.
+  presse: { transform: [{ scale: 0.96 }], opacity: 0.92 },
   desactive: { opacity: 0.4 },
   texte: { color: couleurs.texte, fontSize: 16, fontWeight: "600" },
-  textePrincipal: { color: couleurs.accentTexte },
+  textePrincipal: { color: couleurs.accentTexte, fontWeight: "700" },
   texteDanger: { color: couleurs.danger },
 });
