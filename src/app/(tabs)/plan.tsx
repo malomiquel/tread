@@ -39,11 +39,11 @@ const ICONS: Record<string, React.ComponentProps<typeof Ionicons>["name"]> = {
 };
 
 function SessionRow({
-  entry, today, onStart,
+  entry, today, onPress,
 }: {
   entry: ScheduledSession;
   today: number;
-  onStart: (entry: ScheduledSession) => void;
+  onPress: (entry: ScheduledSession) => void;
 }) {
   const done = entry.runId !== null;
   const isToday = entry.at === today;
@@ -51,10 +51,13 @@ function SessionRow({
 
   return (
     <Pressable
-      onPress={() => !done && onStart(entry)}
-      disabled={done}
+      onPress={() => onPress(entry)}
       accessibilityRole="button"
-      accessibilityLabel={`${entry.session.name}, ${dayName(entry.at)}`}
+      accessibilityLabel={
+        done
+          ? `${entry.session.name}, faite le ${dayName(entry.at)}, voir la course`
+          : `${entry.session.name}, ${dayName(entry.at)}`
+      }
       style={({ pressed }) => [styles.row, isToday && styles.rowToday, pressed && styles.pressed]}
     >
       <View style={[styles.mark, (done || entry.kind === "race") && styles.markFilled]}>
@@ -73,8 +76,11 @@ function SessionRow({
         </Text>
       </View>
       <Text style={[styles.rowDay, isToday && styles.rowDayToday]}>
-        {isToday ? "aujourd'hui" : dayName(entry.at)}
+        {isToday && !done ? "aujourd'hui" : dayName(entry.at)}
       </Text>
+      {/* A done session leads somewhere, so it says so. Without the chevron
+          nothing suggests the line is still worth touching. */}
+      {done ? <Ionicons name="chevron-forward" size={15} color={colors.subtle} /> : null}
     </Pressable>
   );
 }
@@ -149,6 +155,20 @@ export default function PlanScreen() {
    * pass instead. Its order travels with it so that finishing the run ticks
    * the right line off, and only once the run is safely written.
    */
+  /**
+   * A session leads to its run once it has one, and to its blocks until then.
+   *
+   * The same line answering two different questions, in the order they are
+   * asked: what am I about to do, and then what did I actually do.
+   */
+  function open(entry: ScheduledSession) {
+    if (entry.runId !== null && entry.runId > 0) {
+      router.push({ pathname: "/run/[id]", params: { id: String(entry.runId) } });
+      return;
+    }
+    setViewing(entry);
+  }
+
   function startSession(entry: ScheduledSession) {
     setViewing(null);
     chooseSession(entry.session, entry.order);
@@ -256,7 +276,7 @@ export default function PlanScreen() {
                   Semaine {week} · {PHASE_NAMES[entries[0].phase]}
                 </Text>
                 {entries.map((entry) => (
-                  <SessionRow key={entry.order} entry={entry} today={today} onStart={setViewing} />
+                  <SessionRow key={entry.order} entry={entry} today={today} onPress={open} />
                 ))}
               </View>
             );

@@ -310,9 +310,14 @@ export default function RecordScreen() {
   async function close() {
     setConfirming(false);
     setFinishing(true);
+    // Read before finishing, which clears it: the sheet needs to know where
+    // this run came from so that closing it lands somewhere sensible.
+    const from = tracker.planOrder !== null ? "plan" : "history";
     const id = await finish();
     setFinishing(false);
-    if (id !== null) router.push({ pathname: "/run/[id]", params: { id: String(id) } });
+    if (id !== null) {
+      router.push({ pathname: "/run/[id]", params: { id: String(id), from } });
+    }
   }
 
   const tooShort = distance < 100;

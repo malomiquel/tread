@@ -55,7 +55,7 @@ function BlockRow({ block, rank }: { block: RanBlock; rank: number }) {
 }
 
 export default function RunDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, from } = useLocalSearchParams<{ id: string; from?: string }>();
   const router = useRouter();
   // undefined while loading, null when not found.
   const [data, setData] = useState<Loaded | null | undefined>(undefined);
@@ -108,6 +108,19 @@ export default function RunDetailScreen() {
   const { run, points } = data;
   const kilometres = splits(points);
   const profile = elevationProfile(points);
+
+  /**
+   * Close a run that was just finished, and land where it came from.
+   *
+   * Arriving here straight off a run left the back button as the only way
+   * out, and back meant the running screen — the one place nobody wants to
+   * be once they have stopped. The whole stack is dismissed rather than
+   * popped, so the run screen does not flash past on the way.
+   */
+  function validate() {
+    if (router.canDismiss()) router.dismissAll();
+    router.navigate(from === "plan" ? "/plan" : "/");
+  }
   const fastest = kilometres
     .filter((split) => !split.partial)
     .reduce<number | null>((best, split) => (best === null || split.durationS < best ? split.durationS : best), null);
@@ -426,6 +439,15 @@ export default function RunDetailScreen() {
         </View>
       )}
 
+      {/* Only for a run just finished. Opened from the history or the plan,
+          the sheet is something you leave by going back, and a button
+          claiming to validate what is already recorded would be noise. */}
+      {from ? (
+        <View style={styles.validate}>
+          <Button label="Valider" onPress={validate} />
+        </View>
+      ) : null}
+
       <View style={styles.actions}>
         <Button
           label={exporting ? "Export…" : "Exporter en GPX"}
@@ -507,6 +529,7 @@ const styles = StyleSheet.create({
   name: { color: colors.text, fontSize: 32, fontFamily: font.bold, letterSpacing: -0.6 },
   date: { color: colors.subtle, fontSize: 16 },
 
+  validate: { paddingHorizontal: 20, paddingTop: 22 },
   feelRow: { flexDirection: "row", gap: 8, paddingTop: 2 },
   feel: {
     flex: 1, aspectRatio: 1.6, alignItems: "center", justifyContent: "center", borderRadius: 8,
