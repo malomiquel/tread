@@ -18,6 +18,12 @@ interface Props {
   onToggleFullscreen?: () => void;
   /** Flips the expand button into a collapse button. */
   fullscreen?: boolean;
+  /**
+   * How far above the bottom edge the controls sit. Screens that lay their own
+   * buttons over the map raise this, otherwise those buttons cover the
+   * controls and the map can no longer be closed.
+   */
+  controlsBottom?: number;
   style?: StyleProp<ViewStyle>;
 }
 
@@ -31,7 +37,7 @@ const RUNNER_ZOOM = 0.006;
  */
 export function RunMap({
   points, follow = false, fitAll = false, initialCenter = null,
-  onToggleFullscreen, fullscreen = false, style,
+  onToggleFullscreen, fullscreen = false, controlsBottom = 12, style,
 }: Props) {
   const map = useRef<MapView>(null);
   const [locating, setLocating] = useState(false);
@@ -122,7 +128,7 @@ export function RunMap({
         )}
       </MapView>
 
-      <View style={styles.controls}>
+      <View style={[styles.controls, { bottom: controlsBottom }]}>
         {onToggleFullscreen && (
           <Pressable
             onPress={onToggleFullscreen}
@@ -160,7 +166,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, borderRadius: 16, overflow: "hidden", backgroundColor: colors.border },
   // The controls stack in one column so they never collide, whatever the
   // combination of buttons a screen asks for.
-  controls: { position: "absolute", right: 12, bottom: 12, gap: 10 },
+  controls: { position: "absolute", right: 12, gap: 10 },
   control: {
     width: 44,
     height: 44,
