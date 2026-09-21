@@ -12,6 +12,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { GlassPanel } from "@/components/GlassPanel";
 import { Metric } from "@/components/Metric";
 import { RunMap } from "@/components/RunMap";
+import { SessionDetail } from "@/components/SessionDetail";
 import { SessionPicker } from "@/components/SessionPicker";
 import { listRuns, type Run } from "@/lib/db";
 import { formatDistance, formatDuration, formatElevation, formatPace } from "@/lib/format";
@@ -128,6 +129,8 @@ export default function RecordScreen() {
   const bottomInset = useTabBarBottom() + 8;
   const [now, setNow] = useState(() => Date.now());
   const [finishing, setFinishing] = useState(false);
+  /** The block list, opened from the session line. */
+  const [showingSteps, setShowingSteps] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [choosing, setChoosing] = useState(false);
   const [history, setHistory] = useState<Run[]>([]);
@@ -393,12 +396,25 @@ export default function RecordScreen() {
                 everything written beside it. */}
             <View style={styles.panelRow}>
               <View style={styles.panelMetrics}>
-                <Text
-                  style={[styles.state, weakSignal && styles.stateWeak, sessionLine && styles.stateSession]}
-                  numberOfLines={1}
+                {/* The session line opens the whole session. Mid-interval it
+                    says which block and what is left of it, which is the only
+                    thing anyone looks for — but "3/23" says nothing about what
+                    the other twenty are, and that question has nowhere else to
+                    go on this screen. */}
+                <Pressable
+                  onPress={() => session && setShowingSteps(true)}
+                  disabled={session === null}
+                  accessibilityRole={session ? "button" : "text"}
+                  accessibilityLabel={session ? `${session.name}, voir les blocs` : undefined}
+                  hitSlop={6}
                 >
-                  {sessionLine ?? `${state} · ${recording ? signal : idleSignal}`}
-                </Text>
+                  <Text
+                    style={[styles.state, weakSignal && styles.stateWeak, sessionLine && styles.stateSession]}
+                    numberOfLines={1}
+                  >
+                    {sessionLine ?? `${state} · ${recording ? signal : idleSignal}`}
+                  </Text>
+                </Pressable>
 
                 {recording ? (
                   // Two rows of two rather than four abreast: on a narrow phone
@@ -469,6 +485,15 @@ export default function RecordScreen() {
         </GlassPanel>
         </Animated.View>
       </Animated.View>
+
+      <SessionDetail
+        visible={showingSteps}
+        session={session}
+        // Only while running: standing still, the question is what the session
+        // is, not how far into it you are.
+        currentIndex={recording ? tracker.stepIndex : null}
+        onClose={() => setShowingSteps(false)}
+      />
 
       <SessionPicker
         visible={choosing}

@@ -144,6 +144,64 @@ export const SESSIONS: Session[] = [
   },
 ];
 
+/** Consecutive blocks that repeat, folded into one line. */
+export interface StepGroup {
+  times: number;
+  steps: Step[];
+}
+
+const sameStep = (a: Step, b: Step): boolean =>
+  a.effort === b.effort && a.metres === b.metres && a.seconds === b.seconds;
+
+/**
+ * Fold a session's blocks into the shape a runner thinks in.
+ *
+ * Nobody holds twenty three blocks in their head. They hold a warm-up, six
+ * repetitions, and a cool-down — which is the same session said in the way
+ * it was designed. Listing every block flat is accurate and useless, and it
+ * is what made "4 blocs" on screen tell you nothing about what they were.
+ *
+ * Cycles up to four blocks long are recognised, which covers everything the
+ * generator and the catalogue produce: an effort with its recovery is two,
+ * and nothing here alternates more richly than that.
+ */
+export function groupSteps(steps: Step[]): StepGroup[] {
+  const groups: StepGroup[] = [];
+  let at = 0;
+
+  while (at < steps.length) {
+    let bestSize = 1;
+    let bestTimes = 1;
+
+    for (let size = 1; size <= 4 && at + size * 2 <= steps.length; size += 1) {
+      let times = 1;
+      while (
+        at + (times + 1) * size <= steps.length
+        && steps.slice(at, at + size)
+          .every((step, i) => sameStep(step, steps[at + times * size + i]))
+      ) {
+        times += 1;
+      }
+      // Longest run of blocks wins, so six of a pair beats three of a
+      // four-block cycle covering the same ground.
+      if (times > 1 && times * size > bestTimes * bestSize) {
+        bestSize = size;
+        bestTimes = times;
+      }
+    }
+
+    groups.push({ times: bestTimes, steps: steps.slice(at, at + bestSize) });
+    at += bestSize * bestTimes;
+  }
+  return groups;
+}
+
+/** How a group reads on one line — displayed. */
+export function groupLabel(group: StepGroup): string {
+  const body = group.steps.map(stepLabel).join(" + ");
+  return group.times > 1 ? `${group.times} × (${body})` : body;
+}
+
 /** True for a block you hold a pace through, as opposed to one you survive. */
 export function isPaced(step: Step): boolean {
   return step.effort === "rapide" || step.effort === "allure";

@@ -5,6 +5,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-nati
 import Animated, { FadeIn } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { PlanSetup, type PlanDraft } from "@/components/PlanSetup";
+import { SessionDetail } from "@/components/SessionDetail";
 import { activePlan, createPlan, deletePlan, planDone, type StoredPlan } from "@/lib/db";
 import { formatDuration, formatPace } from "@/lib/format";
 import { useTabBarSpace } from "@/lib/layout";
@@ -91,6 +92,8 @@ export default function PlanScreen() {
   const [done, setDone] = useState<Map<number, Done>>(new Map());
   /** Read on arrival, never during a render. A day is not a pure value. */
   const [today, setToday] = useState(0);
+  /** The session being looked at, before deciding to run it. */
+  const [viewing, setViewing] = useState<ScheduledSession | null>(null);
   const tabBarSpace = useTabBarSpace();
   const router = useRouter();
 
@@ -142,6 +145,7 @@ export default function PlanScreen() {
    * the right line off, and only once the run is safely written.
    */
   function startSession(entry: ScheduledSession) {
+    setViewing(null);
     chooseSession(entry.session, entry.order);
     router.push("/record");
   }
@@ -189,7 +193,7 @@ export default function PlanScreen() {
 
           {next ? (
             <Pressable
-              onPress={() => startSession(next)}
+              onPress={() => setViewing(next)}
               accessibilityRole="button"
               style={({ pressed }) => [styles.next, pressed && styles.pressed]}
             >
@@ -218,11 +222,22 @@ export default function PlanScreen() {
                   Semaine {week} · {PHASE_NAMES[entries[0].phase]}
                 </Text>
                 {entries.map((entry) => (
-                  <SessionRow key={entry.order} entry={entry} today={today} onStart={startSession} />
+                  <SessionRow key={entry.order} entry={entry} today={today} onStart={setViewing} />
                 ))}
               </View>
             );
           })}
+
+          {/* Seeing what a session is made of before committing to it. The
+              extra tap is nothing next to the forty minutes it precedes, and
+              it means nobody starts a session blind. */}
+          <SessionDetail
+            visible={viewing !== null}
+            session={viewing?.session ?? null}
+            targetSKm={viewing?.targetSKm ?? null}
+            onStart={() => viewing && startSession(viewing)}
+            onClose={() => setViewing(null)}
+          />
 
           <Pressable onPress={abandon} accessibilityRole="button" style={styles.abandon}>
             <Text style={styles.abandonLabel}>Abandonner le programme</Text>

@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  hasSinglePace, SESSIONS, sessionById, sessionMinutes, stepIsDone, stepLabel, stepRemaining,
+  groupLabel, groupSteps, hasSinglePace, SESSIONS, sessionById, sessionMinutes, stepIsDone,
+  stepLabel, stepRemaining,
 } from "./workout.ts";
 
 test("a distance block ends on distance, whatever the clock says", () => {
@@ -63,4 +64,40 @@ test("only the blocks you hold a pace through decide whether a target fits", () 
   assert.equal(hasSinglePace(by("400")), false, "five repetitions ask for several");
   assert.equal(hasSinglePace(by("seuil")), false, "three threshold blocks do too");
   assert.equal(hasSinglePace(by("pyramide")), false);
+});
+
+
+test("repeated blocks fold into the shape the session was designed in", () => {
+  const session = sessionById("400")!;
+  const groups = groupSteps(session.steps);
+  // A warm-up, five repetitions of effort and recovery, a cool-down.
+  assert.equal(groups.length, 3);
+  assert.equal(groups[0].times, 1);
+  assert.equal(groups[1].times, 5);
+  assert.equal(groups[1].steps.length, 2);
+  assert.equal(groups[2].times, 1);
+  assert.match(groupLabel(groups[1]), /^5 × \(400 m rapide \+ 200 m récupération\)$/);
+});
+
+test("folding never loses or invents a block", () => {
+  for (const session of SESSIONS) {
+    const total = groupSteps(session.steps).reduce((sum, g) => sum + g.times * g.steps.length, 0);
+    assert.equal(total, session.steps.length, session.id);
+  }
+});
+
+test("a session with nothing to repeat is left alone", () => {
+  const footing = sessionById("footing")!;
+  const groups = groupSteps(footing.steps);
+  assert.equal(groups.length, 1);
+  assert.equal(groups[0].times, 1);
+  assert.equal(groupLabel(groups[0]), stepLabel(footing.steps[0]));
+
+  const pyramid = groupSteps(sessionById("pyramide")!.steps);
+  // Every block differs, so nothing folds and nothing is lost.
+  assert.equal(pyramid.reduce((sum, g) => sum + g.times * g.steps.length, 0), 11);
+});
+
+test("folding an empty session yields nothing rather than looping", () => {
+  assert.deepEqual(groupSteps([]), []);
 });
