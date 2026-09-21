@@ -319,25 +319,28 @@ export default function RecordScreen() {
           write to the same translation and fight over it, which shows up as
           the buttons shivering as they land. */}
       <Animated.View pointerEvents="box-none" style={[styles.toggles, togglesRise]}>
-        <Animated.View style={togglesArrive}>
-        <GlassPanel style={styles.togglePill}>
-          <Toggle
-            on={session !== null}
-            onPress={() => setChoosing(true)}
-            icon="list"
-            name="SÉANCE"
-            label="Choisir une séance d'entraînement"
-          />
-        </GlassPanel>
-        <GlassPanel style={styles.togglePill}>
-          <Toggle
-            on={settings.voice}
-            onPress={() => void toggleSetting("voice")}
-            icon={settings.voice ? "volume-high" : "volume-mute"}
-            name="VOIX"
-            label="Annonce vocale des kilomètres"
-          />
-        </GlassPanel>
+        {/* The spacing belongs on this view, not the one outside it: the
+            pills are its children, and a gap set on their grandparent
+            separates nothing. */}
+        <Animated.View style={[styles.toggleStack, togglesArrive]}>
+          <GlassPanel style={styles.togglePill}>
+            <Toggle
+              on={session !== null}
+              onPress={() => setChoosing(true)}
+              icon="list"
+              name="SÉANCE"
+              label="Choisir une séance d'entraînement"
+            />
+          </GlassPanel>
+          <GlassPanel style={styles.togglePill}>
+            <Toggle
+              on={settings.voice}
+              onPress={() => void toggleSetting("voice")}
+              icon={settings.voice ? "volume-high" : "volume-mute"}
+              name="VOIX"
+              label="Annonce vocale des kilomètres"
+            />
+          </GlassPanel>
         </Animated.View>
       </Animated.View>
 
@@ -476,7 +479,10 @@ function Toggle({
   /** The whole sentence, for anyone listening rather than looking. */
   label: string;
 }) {
-  const tint = on ? colors.accent : colors.subtle;
+  // An inactive setting still has to be readable. State is told by which
+  // colour it is, not by how nearly invisible it has become — at forty-two
+  // percent black on glass over a map, the off state simply vanished.
+  const tint = on ? colors.accent : colors.text;
   return (
     <Pressable
       onPress={onPress}
@@ -498,7 +504,8 @@ const styles = StyleSheet.create({
 
   // Right-aligned so the pills, the locate button and the panel's edge all
   // land on one line down the side of the screen.
-  toggles: { position: "absolute", right: 12, alignItems: "flex-end", gap: 10 },
+  toggles: { position: "absolute", right: 12, alignItems: "flex-end" },
+  toggleStack: { alignItems: "flex-end", gap: 10 },
   backEdge: { position: "absolute", left: 0, top: 0, bottom: 0, width: 26 },
   leave: { position: "absolute", top: CONTROLS_TOP, left: 12 },
   leavePill: { borderRadius: CONTROL_SIZE / 2, padding: 0 },
@@ -506,7 +513,12 @@ const styles = StyleSheet.create({
     width: CONTROL_SIZE, height: CONTROL_SIZE,
     alignItems: "center", justifyContent: "center",
   },
-  togglePill: { borderRadius: CONTROL_SIZE / 2, padding: 0 },
+  // The same outline the panel's buttons were given, and for the same
+  // reason: glass laid over a map has no edge of its own.
+  togglePill: {
+    borderRadius: CONTROL_SIZE / 2, padding: 0,
+    borderWidth: 1.5, borderColor: colors.hairline,
+  },
   // Square, exactly the map button's size: the three sit in one column and
   // any difference between them would read as a mistake.
   toggle: {

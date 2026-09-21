@@ -42,7 +42,7 @@ export default function TabsLayout() {
       tabBar={(props) => (
         <FloatingTabBar
           {...props}
-          hidden={props.state.routes[props.state.index].name === "courir"}
+          hidden={props.state.routes[props.state.index].name === "record"}
         />
       )}
       screenOptions={{
@@ -69,7 +69,7 @@ export default function TabsLayout() {
         * instead, each piece from its own edge.
         */}
       <Tabs.Screen
-        name="courir"
+        name="record"
         options={{
           title: "Courir",
           animation: "none",
