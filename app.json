@@ -31,8 +31,8 @@
         "expo-location",
         {
           "isIosBackgroundLocationEnabled": true,
-          "locationWhenInUsePermission": "Tread utilise ta position pour tracer ta course et mesurer ta distance.",
-          "locationAlwaysAndWhenInUsePermission": "Tread a besoin de ta position même écran verrouillé pour continuer à enregistrer ta course dans ta poche.",
+          "locationWhenInUsePermission": "Tread uses your location to draw your route and measure your distance.",
+          "locationAlwaysAndWhenInUsePermission": "Tread needs your location with the screen locked so it can keep recording while the phone is in your pocket.",
           "isAndroidBackgroundLocationEnabled": true,
           "isAndroidForegroundServiceEnabled": true
         }

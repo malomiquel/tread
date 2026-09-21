@@ -1,214 +1,219 @@
 /**
- * Calculs geographiques purs, sans dependance a React Native.
- * Tout ce qui touche a la distance, a l'allure et aux fractionnes vit ici,
- * pour etre teste avec Node sans appareil.
+ * Pure geographic maths, with no React Native dependency, so everything here
+ * can be exercised by plain Node. Distance, noise filtering, pace, splits and
+ * elevation all live in this file.
  */
 
-export interface Point {
-  /** Horodatage en millisecondes depuis l'epoque. */
+export interface TrackPoint {
+  /** Milliseconds since the epoch. */
   ts: number;
   lat: number;
   lng: number;
   alt: number | null;
-  /** Rayon d'incertitude en metres, tel que rapporte par le GPS. */
-  precision: number | null;
-  /** Vitesse rapportee par le GPS en m/s, quand elle existe. */
-  vitesse: number | null;
-  /** Numero de segment : change a chaque reprise apres une pause. */
+  /** Accuracy radius in metres, as reported by the GPS chip. */
+  accuracy: number | null;
+  /** Ground speed in m/s, when the chip reports one. */
+  speed: number | null;
+  /** Segment index, bumped on every resume so pauses never join up. */
   segment: number;
 }
 
-const RAYON_TERRE_M = 6371008.8;
+const EARTH_RADIUS_M = 6371008.8;
 
-/** Au-dela, le point est trop flou pour compter : typique d'un depart en interieur. */
-export const PRECISION_MAX_M = 30;
-/** 12 m/s, soit 43 km/h : aucun coureur, mais un saut GPS classique. */
-export const VITESSE_MAX_MS = 12;
-/** En dessous, c'est du bruit GPS a l'arret, pas du deplacement. */
-export const DEPLACEMENT_MIN_M = 1.5;
+/** Beyond this the fix is too vague to trust, typical of an indoor start. */
+export const MAX_ACCURACY_M = 30;
+/** 12 m/s is 43 km/h: no runner, but a very common GPS jump. */
+export const MAX_SPEED_MS = 12;
+/** Below this it is GPS jitter while standing still, not travel. */
+export const MIN_TRAVEL_M = 1.5;
 
-const rad = (deg: number) => (deg * Math.PI) / 180;
+const toRad = (deg: number) => (deg * Math.PI) / 180;
 
-/** Distance a vol d'oiseau entre deux points, en metres (formule de haversine). */
+/** Great-circle distance between two points, in metres (haversine). */
 export function distanceM(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
-  const dLat = rad(b.lat - a.lat);
-  const dLng = rad(b.lng - a.lng);
-  const s =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
-  return 2 * RAYON_TERRE_M * Math.asin(Math.min(1, Math.sqrt(s)));
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const h =
+    Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * EARTH_RADIUS_M * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
 /**
- * Decide si un point GPS merite d'entrer dans la trace.
- * Le point precedent est celui du meme segment, ou null en debut de segment.
+ * Decide whether a fix deserves a place in the track. `previous` is the last
+ * accepted point of the same segment, or null at the start of one.
  */
-export function accepterPoint(precedent: Point | null, p: Point): boolean {
-  if (p.precision !== null && p.precision > PRECISION_MAX_M) return false;
-  if (!precedent) return true;
-  const dt = (p.ts - precedent.ts) / 1000;
-  if (dt <= 0) return false;
-  const d = distanceM(precedent, p);
-  if (d < DEPLACEMENT_MIN_M) return false;
-  if (d / dt > VITESSE_MAX_MS) return false;
+export function isAcceptable(previous: TrackPoint | null, point: TrackPoint): boolean {
+  if (point.accuracy !== null && point.accuracy > MAX_ACCURACY_M) return false;
+  if (!previous) return true;
+  const elapsedS = (point.ts - previous.ts) / 1000;
+  if (elapsedS <= 0) return false;
+  const travelled = distanceM(previous, point);
+  if (travelled < MIN_TRAVEL_M) return false;
+  if (travelled / elapsedS > MAX_SPEED_MS) return false;
   return true;
 }
 
-/** Regroupe les points par segment, dans l'ordre. */
-export function segments(points: Point[]): Point[][] {
-  const groupes: Point[][] = [];
-  let courant: Point[] = [];
-  let numero: number | null = null;
-  for (const p of points) {
-    if (numero !== null && p.segment !== numero) {
-      if (courant.length) groupes.push(courant);
-      courant = [];
+/** Group points by segment, preserving order. */
+export function segments(points: TrackPoint[]): TrackPoint[][] {
+  const groups: TrackPoint[][] = [];
+  let current: TrackPoint[] = [];
+  let index: number | null = null;
+  for (const point of points) {
+    if (index !== null && point.segment !== index) {
+      if (current.length) groups.push(current);
+      current = [];
     }
-    numero = p.segment;
-    courant.push(p);
+    index = point.segment;
+    current.push(point);
   }
-  if (courant.length) groupes.push(courant);
-  return groupes;
+  if (current.length) groups.push(current);
+  return groups;
 }
 
-/** Distance cumulee en metres, sans jamais relier deux segments entre eux. */
-export function distanceTotaleM(points: Point[]): number {
+/** Cumulative distance in metres, never joining two segments together. */
+export function totalDistanceM(points: TrackPoint[]): number {
   let total = 0;
-  for (const seg of segments(points)) {
-    for (let i = 1; i < seg.length; i++) total += distanceM(seg[i - 1], seg[i]);
+  for (const segment of segments(points)) {
+    for (let i = 1; i < segment.length; i++) total += distanceM(segment[i - 1], segment[i]);
   }
   return total;
 }
 
-/** Allure moyenne en secondes par kilometre, ou null si trop court pour etre parlant. */
-export function allureSecParKm(distanceMetres: number, dureeS: number): number | null {
-  if (distanceMetres < 50 || dureeS <= 0) return null;
-  return dureeS / (distanceMetres / 1000);
+/** Average pace in seconds per kilometre, or null when the run is too short to mean anything. */
+export function paceSecPerKm(distanceMetres: number, durationS: number): number | null {
+  if (distanceMetres < 50 || durationS <= 0) return null;
+  return durationS / (distanceMetres / 1000);
 }
 
 /**
- * Allure sur les dernieres secondes, calculee sur le segment en cours.
- * Une fenetre de 30 s lisse le bruit GPS sans masquer un changement de rythme.
+ * Pace over the last few seconds of the current segment. A 30 second window
+ * smooths GPS noise without hiding a genuine change of rhythm.
  */
-export function allureInstantanee(points: Point[], maintenantTs: number, fenetreS = 30): number | null {
-  const segs = segments(points);
-  const seg = segs[segs.length - 1];
-  if (!seg || seg.length < 2) return null;
-  const depuis = maintenantTs - fenetreS * 1000;
-  const recents = seg.filter((p) => p.ts >= depuis);
-  if (recents.length < 2) return null;
-  let d = 0;
-  for (let i = 1; i < recents.length; i++) d += distanceM(recents[i - 1], recents[i]);
-  const dureeS = (recents[recents.length - 1].ts - recents[0].ts) / 1000;
-  if (d < 20 || dureeS <= 0) return null;
-  return dureeS / (d / 1000);
+export function currentPace(points: TrackPoint[], nowTs: number, windowS = 30): number | null {
+  const all = segments(points);
+  const segment = all[all.length - 1];
+  if (!segment || segment.length < 2) return null;
+
+  const since = nowTs - windowS * 1000;
+  const recent = segment.filter((p) => p.ts >= since);
+  if (recent.length < 2) return null;
+
+  let travelled = 0;
+  for (let i = 1; i < recent.length; i++) travelled += distanceM(recent[i - 1], recent[i]);
+  const elapsedS = (recent[recent.length - 1].ts - recent[0].ts) / 1000;
+  if (travelled < 20 || elapsedS <= 0) return null;
+  return elapsedS / (travelled / 1000);
 }
 
-export interface Fractionne {
-  /** 1 pour le premier kilometre, etc. */
+export interface Split {
+  /** 1 for the first kilometre, and so on. */
   km: number;
-  /** Duree de ce kilometre en secondes. */
-  dureeS: number;
-  /** Vrai pour le dernier morceau quand il fait moins d'un kilometre. */
-  partiel: boolean;
-  /** Distance reelle du morceau en metres, utile surtout pour le partiel. */
+  /** Duration of this kilometre in seconds. */
+  durationS: number;
+  /** True for the trailing chunk when it falls short of a kilometre. */
+  partial: boolean;
+  /** Actual length of the chunk in metres, mostly useful for the partial one. */
   distanceM: number;
 }
 
 /**
- * Temps au kilometre. Le passage de chaque borne est interpole a l'interieur
- * du segment qui la franchit, plutot qu'arrondi au point GPS le plus proche.
- * Les pauses ne comptent pas : on travaille segment par segment, en temps actif.
+ * Per-kilometre times. Each marker is interpolated inside the leg that crosses
+ * it rather than rounded to the nearest fix, which would shift every split by
+ * several seconds. Pauses are excluded: the walk works segment by segment, in
+ * active time only.
  */
-export function fractionnes(points: Point[]): Fractionne[] {
-  const resultat: Fractionne[] = [];
-  let cumul = 0;
-  let borne = 1000;
-  let tempsActif = 0; // secondes actives ecoulees au debut du segment courant
-  let tempsDerniereBorne = 0;
+export function splits(points: TrackPoint[]): Split[] {
+  const result: Split[] = [];
+  let covered = 0;
+  let marker = 1000;
+  let activeS = 0; // active seconds elapsed before the current segment
+  let lastMarkerS = 0;
 
-  for (const seg of segments(points)) {
-    const debutSeg = seg[0].ts;
-    for (let i = 1; i < seg.length; i++) {
-      const a = seg[i - 1];
-      const b = seg[i];
-      const d = distanceM(a, b);
-      const tA = tempsActif + (a.ts - debutSeg) / 1000;
-      const tB = tempsActif + (b.ts - debutSeg) / 1000;
-      let deja = cumul;
-      cumul += d;
-      while (cumul >= borne) {
-        const fraction = d > 0 ? (borne - deja) / d : 1;
-        const tBorne = tA + fraction * (tB - tA);
-        resultat.push({ km: borne / 1000, dureeS: tBorne - tempsDerniereBorne, partiel: false, distanceM: 1000 });
-        tempsDerniereBorne = tBorne;
-        deja = borne;
-        borne += 1000;
+  for (const segment of segments(points)) {
+    const segmentStart = segment[0].ts;
+    for (let i = 1; i < segment.length; i++) {
+      const from = segment[i - 1];
+      const to = segment[i];
+      const legM = distanceM(from, to);
+      const fromS = activeS + (from.ts - segmentStart) / 1000;
+      const toS = activeS + (to.ts - segmentStart) / 1000;
+
+      let before = covered;
+      covered += legM;
+      while (covered >= marker) {
+        const ratio = legM > 0 ? (marker - before) / legM : 1;
+        const markerS = fromS + ratio * (toS - fromS);
+        result.push({ km: marker / 1000, durationS: markerS - lastMarkerS, partial: false, distanceM: 1000 });
+        lastMarkerS = markerS;
+        before = marker;
+        marker += 1000;
       }
     }
-    tempsActif += (seg[seg.length - 1].ts - debutSeg) / 1000;
+    activeS += (segment[segment.length - 1].ts - segmentStart) / 1000;
   }
 
-  const reste = cumul - (borne - 1000);
-  if (reste > 50) {
-    resultat.push({ km: borne / 1000, dureeS: tempsActif - tempsDerniereBorne, partiel: true, distanceM: reste });
+  const remainder = covered - (marker - 1000);
+  if (remainder > 50) {
+    result.push({ km: marker / 1000, durationS: activeS - lastMarkerS, partial: true, distanceM: remainder });
   }
-  return resultat;
+  return result;
 }
 
 /**
- * Denivele positif cumule, en metres.
+ * Cumulative elevation gain in metres.
  *
- * Deux precautions, car l'altitude GPS est la mesure la moins fiable du lot.
- * D'abord une moyenne glissante, qui absorbe les oscillations d'un appareil
- * immobile : sans elle, un parcours parfaitement plat produirait des
- * centaines de metres de denivele. Ensuite une hysteresis, qui ne valide une
- * montee que lorsqu'elle depasse un seuil depuis le dernier point de
- * reference.
+ * Two precautions, because altitude is the least reliable figure the GPS
+ * gives us. First a moving average, which absorbs the wobble of a stationary
+ * device: without it a perfectly flat route would report hundreds of metres of
+ * climb. Then hysteresis, which only banks a climb once it clears a threshold
+ * above the last reference point.
  *
- * Le lissage rogne les extremites de la serie, donc sous-estime legerement
- * une montee courte. C'est le prix a payer : surestimer du bruit serait bien
- * pire que sous-estimer une cote de quelques metres.
+ * Smoothing trims the ends of the series and so slightly understates a short
+ * hill. That is the price worth paying: inventing elevation out of noise would
+ * be far worse than missing a few metres of a genuine climb.
  */
-export function denivelePositifM(points: Point[], seuilM = 4, fenetre = 5): number {
+export function elevationGainM(points: TrackPoint[], thresholdM = 4, window = 5): number {
   let total = 0;
-  for (const seg of segments(points)) {
-    const altitudes = seg.map((p) => p.alt).filter((a): a is number => a !== null);
+  for (const segment of segments(points)) {
+    const altitudes = segment.map((p) => p.alt).filter((a): a is number => a !== null);
     if (altitudes.length < 2) continue;
 
-    const lissees = altitudes.map((_, i) => {
-      const debut = Math.max(0, i - Math.floor(fenetre / 2));
-      const fin = Math.min(altitudes.length, debut + fenetre);
-      let somme = 0;
-      for (let j = debut; j < fin; j++) somme += altitudes[j];
-      return somme / (fin - debut);
+    const smoothed = altitudes.map((_, i) => {
+      const from = Math.max(0, i - Math.floor(window / 2));
+      const to = Math.min(altitudes.length, from + window);
+      let sum = 0;
+      for (let j = from; j < to; j++) sum += altitudes[j];
+      return sum / (to - from);
     });
 
-    let reference = lissees[0];
-    for (const a of lissees) {
-      const delta = a - reference;
-      if (delta >= seuilM) {
+    let reference = smoothed[0];
+    for (const altitude of smoothed) {
+      const delta = altitude - reference;
+      if (delta >= thresholdM) {
         total += delta;
-        reference = a;
-      } else if (delta <= -seuilM) {
-        reference = a;
+        reference = altitude;
+      } else if (delta <= -thresholdM) {
+        reference = altitude;
       }
     }
   }
   return total;
 }
 
-/** Duree du kilometre le plus rapide, en secondes, hors dernier morceau partiel. */
-export function meilleurKmS(points: Point[]): number | null {
-  const pleins = fractionnes(points).filter((f) => !f.partiel);
-  if (!pleins.length) return null;
-  return Math.min(...pleins.map((f) => f.dureeS));
+/** Duration of the fastest full kilometre in seconds, ignoring the partial chunk. */
+export function fastestKmS(points: TrackPoint[]): number | null {
+  const full = splits(points).filter((s) => !s.partial);
+  if (!full.length) return null;
+  return Math.min(...full.map((s) => s.durationS));
 }
 
-/** Rectangle englobant, pour cadrer la carte. */
-export function bornes(points: Point[]) {
+/** Bounding box, used to frame the map around a finished track. */
+export function bounds(points: TrackPoint[]) {
   if (!points.length) return null;
-  let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+  let minLat = Infinity;
+  let maxLat = -Infinity;
+  let minLng = Infinity;
+  let maxLng = -Infinity;
   for (const p of points) {
     if (p.lat < minLat) minLat = p.lat;
     if (p.lat > maxLat) maxLat = p.lat;

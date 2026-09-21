@@ -1,0 +1,203 @@
+import { useFocusEffect } from "expo-router";
+import { useCallback, useState } from "react";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { listRuns, personalRecords, type PersonalRecords, type Run } from "@/lib/db";
+import { formatDistance, formatDuration, formatElevation, formatPace } from "@/lib/format";
+import { colors, shadows } from "@/lib/theme";
+
+const WEEKS_SHOWN = 6;
+const DAY_MS = 86_400_000;
+
+/** Monday, midnight, of the week containing that instant. */
+function weekStart(ts: number): number {
+  const date = new Date(ts);
+  date.setHours(0, 0, 0, 0);
+  date.setDate(date.getDate() - ((date.getDay() + 6) % 7));
+  return date.getTime();
+}
+
+interface Week {
+  start: number;
+  distanceM: number;
+  durationS: number;
+  runs: number;
+}
+
+function byWeek(runs: Run[]): Week[] {
+  const weeks = new Map<number, Week>();
+  const thisWeek = weekStart(Date.now());
+
+  // Seed the empty weeks first: a week without a run must show as a bar at
+  // zero, not vanish from the chart.
+  for (let i = WEEKS_SHOWN - 1; i >= 0; i--) {
+    const start = thisWeek - i * 7 * DAY_MS;
+    weeks.set(start, { start, distanceM: 0, durationS: 0, runs: 0 });
+  }
+
+  for (const run of runs) {
+    const week = weeks.get(weekStart(run.startedAt));
+    if (!week) continue;
+    week.distanceM += run.distanceM;
+    week.durationS += run.durationS;
+    week.runs += 1;
+  }
+  return [...weeks.values()];
+}
+
+function RecordRow({ label, value, detail }: { label: string; value: string; detail?: string }) {
+  return (
+    <View style={styles.record}>
+      <View style={styles.recordLeft}>
+        <Text style={styles.recordLabel}>{label}</Text>
+        {detail ? <Text style={styles.recordDetail}>{detail}</Text> : null}
+      </View>
+      <Text style={styles.recordValue}>{value}</Text>
+    </View>
+  );
+}
+
+export default function ProgressScreen() {
+  const [weeks, setWeeks] = useState<Week[] | null>(null);
+  const [records, setRecords] = useState<PersonalRecords | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      Promise.all([listRuns(), personalRecords()])
+        .then(([runs, best]) => {
+          if (!active) return;
+          setWeeks(byWeek(runs));
+          setRecords(best);
+        })
+        .catch(() => undefined);
+      return () => {
+        active = false;
+      };
+    }, []),
+  );
+
+  if (!weeks || !records) return <SafeAreaView style={styles.screen} edges={["top"]} />;
+
+  const current = weeks[weeks.length - 1];
+  const peak = Math.max(...weeks.map((w) => w.distanceM), 1);
+
+  return (
+    <SafeAreaView style={styles.screen} edges={["top"]}>
+      <ScrollView contentContainerStyle={styles.content}>
+        <Text style={styles.title}>Progress</Text>
+
+        {records.totalRuns === 0 ? (
+          <Text style={styles.empty}>Nothing to show yet. Your stats build up run after run.</Text>
+        ) : (
+          <>
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>This week</Text>
+              <View style={styles.heroRow}>
+                <Text style={styles.hero}>{formatDistance(current.distanceM)}</Text>
+                <Text style={styles.heroUnit}>km</Text>
+              </View>
+              <Text style={styles.heroSub}>
+                {current.runs} run{current.runs > 1 ? "s" : ""} · {formatDuration(current.durationS)}
+              </Text>
+
+              <View style={styles.chart}>
+                {weeks.map((week, i) => (
+                  <View key={week.start} style={styles.column}>
+                    <View style={styles.barArea}>
+                      <View
+                        style={[
+                          styles.bar,
+                          { height: `${Math.max(2, (week.distanceM / peak) * 100)}%` },
+                          i === weeks.length - 1 && styles.barCurrent,
+                        ]}
+                      />
+                    </View>
+                    <Text style={styles.weekLabel}>
+                      {i === weeks.length - 1 ? "now" : `-${weeks.length - 1 - i}`}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+              <Text style={styles.caption}>Distance per week, last {WEEKS_SHOWN}</Text>
+            </View>
+
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Records</Text>
+              {records.longest && (
+                <RecordRow
+                  label="Longest run"
+                  value={`${formatDistance(records.longest.distanceM)} km`}
+                  detail={records.longest.name ?? undefined}
+                />
+              )}
+              {records.fastestKm?.fastestKmS != null && (
+                <RecordRow
+                  label="Fastest kilometre"
+                  value={formatPace(records.fastestKm.fastestKmS)}
+                  detail={records.fastestKm.name ?? undefined}
+                />
+              )}
+              {records.bestAvgPace?.avgPaceSKm != null && (
+                <RecordRow
+                  label="Best average pace"
+                  value={formatPace(records.bestAvgPace.avgPaceSKm)}
+                  detail="over 2 km or more"
+                />
+              )}
+              {records.mostElevation?.elevationGainM != null && records.mostElevation.elevationGainM > 0 && (
+                <RecordRow
+                  label="Most elevation"
+                  value={`${formatElevation(records.mostElevation.elevationGainM)} m`}
+                  detail={records.mostElevation.name ?? undefined}
+                />
+              )}
+            </View>
+
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>All time</Text>
+              <RecordRow label="Runs" value={String(records.totalRuns)} />
+              <RecordRow label="Distance" value={`${formatDistance(records.totalDistanceM)} km`} />
+              <RecordRow label="Time" value={formatDuration(records.totalDurationS)} />
+              <RecordRow label="Elevation" value={`${formatElevation(records.totalElevationM)} m`} />
+            </View>
+          </>
+        )}
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colors.background },
+  content: { padding: 20, gap: 14, paddingBottom: 32 },
+  title: { color: colors.text, fontSize: 20, fontWeight: "800", letterSpacing: -0.5 },
+  empty: { color: colors.muted, fontSize: 13, textAlign: "center", marginTop: 60, lineHeight: 20 },
+  card: { backgroundColor: colors.surface, borderRadius: 20, padding: 18, gap: 10, ...shadows.card },
+  cardTitle: {
+    color: colors.subtle, fontSize: 10, fontWeight: "600",
+    letterSpacing: 1, textTransform: "uppercase",
+  },
+  heroRow: { flexDirection: "row", alignItems: "baseline", gap: 5 },
+  hero: {
+    color: colors.text, fontSize: 40, fontWeight: "800",
+    letterSpacing: -1.8, fontVariant: ["tabular-nums"],
+  },
+  heroUnit: { color: colors.muted, fontSize: 15, fontWeight: "600" },
+  heroSub: { color: colors.muted, fontSize: 12, marginTop: -6, fontVariant: ["tabular-nums"] },
+  chart: { flexDirection: "row", alignItems: "flex-end", gap: 8, height: 90, marginTop: 6 },
+  column: { flex: 1, alignItems: "center", gap: 6 },
+  barArea: { flex: 1, width: "100%", justifyContent: "flex-end" },
+  bar: { width: "100%", borderRadius: 6, backgroundColor: colors.accentSoft },
+  barCurrent: { backgroundColor: colors.accent },
+  weekLabel: { color: colors.subtle, fontSize: 10, fontVariant: ["tabular-nums"] },
+  caption: { color: colors.subtle, fontSize: 10.5 },
+  record: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border,
+  },
+  recordLeft: { flex: 1, gap: 1 },
+  recordLabel: { color: colors.text, fontSize: 13, fontWeight: "500" },
+  recordDetail: { color: colors.subtle, fontSize: 11 },
+  recordValue: { color: colors.accent, fontSize: 15, fontWeight: "700", fontVariant: ["tabular-nums"] },
+});

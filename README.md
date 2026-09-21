@@ -1,26 +1,26 @@
 # Tread
 
-Application de course à pied avec enregistrement GPS en direct : distance,
-durée, allure instantanée et moyenne, trace sur carte, fractionnés au
-kilomètre, historique local. Expo SDK 57, React Native, TypeScript.
+A running app with live GPS recording: distance, duration, current and average
+pace, elevation gain, your route on a map, per-kilometre splits, personal
+records and local history. Expo SDK 57, React Native, TypeScript.
 
-## Lancer sur ton téléphone
+## Running it on your phone
 
 ```bash
 npm install
 npx expo start
 ```
 
-Scanne le QR code avec Expo Go. Tout fonctionne : GPS, carte, base locale.
-Une seule limite, l'écran doit rester allumé pendant la course, l'app s'en
-charge. Le GPS s'arrête avec l'écran dans Expo Go, c'est une contrainte du
-système, pas de l'app.
+Scan the QR code with Expo Go. Everything works: GPS, map, local database.
+One limitation only, the screen has to stay awake while you run, and the app
+takes care of that. GPS stops with the screen inside Expo Go; that is a system
+constraint, not an app one.
 
-## Obtenir le suivi écran verrouillé
+## Getting locked-screen tracking
 
-Expo Go ne propose pas la localisation en arrière-plan. Il faut un
-« development build », une version de l'app qui embarque les modules natifs.
-Sans Xcode sur la machine, il se fabrique dans le nuage :
+Expo Go does not offer background location. That needs a development build, a
+version of the app bundling the native modules. With no Xcode on this machine,
+it gets made in the cloud:
 
 ```bash
 npm install -g eas-cli
@@ -28,15 +28,15 @@ eas login
 eas build --profile development --platform ios
 ```
 
-Installe le résultat sur ton téléphone, puis `npx expo start` comme avant.
-L'app détecte d'elle-même que l'arrière-plan est disponible et bascule dessus.
-Tout est déjà configuré dans `app.json` : mode d'arrière-plan iOS, textes des
-demandes d'autorisation, service de premier plan Android.
+Install the result on your phone, then `npx expo start` as before. The app
+detects background availability on its own and switches over. Everything is
+already configured in `app.json`: iOS background mode, permission prompts, and
+the Android foreground service.
 
-## Vérifier sans appareil
+## Checking it without a device
 
 ```bash
-npm test          # calculs GPS, 9 tests
+npm test          # GPS maths, 14 tests
 npm run typecheck
 npx expo lint
 npx expo-doctor
@@ -45,58 +45,70 @@ npx expo-doctor
 ## Architecture
 
 ```
-src/lib/geo.ts        distance, filtrage, allure, fractionnés   pur, testé
-src/lib/suivi.ts      le traqueur : GPS, pauses, sauvegarde       magasin observable
-src/lib/bd.ts         SQLite local, migrations, reprise après plantage
-src/lib/format.ts     durée, allure, distance à la française
-src/app/(onglets)/    Courir, Historique
-src/app/course/[id]   détail d'une course
-src/components/Carte  trace sur Apple Plans ou Google Maps
+src/lib/geo.ts        distance, filtering, pace, splits, elevation   pure, tested
+src/lib/tracker.ts    the tracker: GPS, pauses, flushing to disk     external store
+src/lib/db.ts         local SQLite, migrations, crash recovery
+src/lib/location.ts   initial fix and one-off recentring
+src/lib/format.ts     duration, pace, distance for display
+src/app/(tabs)/       Run, Progress, History
+src/app/run/[id]      one run in detail
+src/components/       RunMap, Metric, Button
 ```
 
-## Décisions qui comptent
+## Decisions that matter
 
-**Le GPS ment, on le filtre.** Un point dont l'incertitude dépasse 30 m est
-ignoré, typique d'un départ en intérieur. Un point qui impliquerait plus de
-43 km/h est un saut GPS, pas un coureur. Un déplacement sous 1,5 m est du
-bruit à l'arrêt. Sans ces trois règles, une course de 5 km en affiche 5,8 et
-le tracé zigzague dans les immeubles.
+**GPS lies, so it gets filtered.** A fix whose accuracy exceeds 30 m is
+dropped, which is typical of an indoor start. A fix implying more than
+43 km/h is a GPS jump, not a runner. Movement under 1.5 m is jitter while
+standing still. Without those three rules a 5 km run reads as 5.8 km and the
+track zigzags through buildings.
 
-**Une pause coupe la trace.** Chaque reprise ouvre un nouveau segment. La
-distance ne relie jamais deux segments, sinon les 200 m marchés jusqu'au feu
-compteraient. La carte dessine une polyligne par segment, et les fractionnés
-travaillent en temps actif : une pause au kilomètre 3 n'allonge pas le
-kilomètre 3.
+**A pause cuts the track.** Every resume opens a new segment. Distance never
+joins two segments, otherwise the 200 m you walked to the traffic light would
+count. The map draws one polyline per segment, and splits work in active time,
+so a pause during kilometre 3 does not stretch kilometre 3.
 
-**Les bornes sont interpolées.** Le passage du kilomètre tombe entre deux
-points GPS. Arrondir au point le plus proche décale chaque temps de plusieurs
-secondes. On interpole à l'intérieur du segment qui franchit la borne.
+**Markers are interpolated.** A kilometre boundary falls between two fixes.
+Rounding to the nearest one shifts every split by several seconds, so the
+crossing is interpolated inside the leg that spans it.
 
-**L'allure instantanée lit 30 secondes.** Point à point, elle saute de 4'10 à
-6'30 à chaque relevé. Sur 30 s, elle reste lisible et réagit quand même à un
-changement de rythme en une dizaine de secondes.
+**Current pace reads 30 seconds.** Fix to fix it leaps from 4'10 to 6'30 on
+every update. Over 30 seconds it stays readable while still reacting to a
+genuine change of rhythm within about ten seconds.
 
-**Rien ne se perd.** La course est créée en base au départ, et les points
-sont écrits par lots de vingt. Si le système tue l'app au kilomètre 8, les
-points sont sur disque : au prochain lancement, la course est reconstituée
-et close avec ses vrais totaux.
+**Elevation is smoothed before it is measured.** Altitude is the least
+reliable figure the GPS gives us. A moving average absorbs the wobble of a
+stationary device, then hysteresis only banks a climb past a 4 m threshold.
+Smoothing understates a short hill slightly, which beats inventing hundreds of
+metres of climb on flat ground.
 
-**Deux couches GPS, un seul flux.** En build, la tâche de fond reçoit les
-positions même écran verrouillé. Dans Expo Go, un abonnement de premier plan
-prend le relais. Les deux appellent la même fonction, le reste de l'app ne
-sait pas laquelle est active.
+**Nothing is lost.** The run is created in the database at the start, and
+points are written in batches of twenty. If the system kills the app at
+kilometre 8, the points are on disk: the next launch rebuilds the run and
+closes it with its real totals.
 
-## Limites connues
+**Two GPS layers, one stream.** In a build, the background task receives fixes
+even with the screen locked. Inside Expo Go a foreground subscription takes
+over. Both call the same function, and the rest of the app never knows which
+one is live.
 
-- **Expo Go** : suivi écran allumé seulement, voir plus haut.
-- **Pas de synchronisation** : les courses restent sur le téléphone. La couche
-  base est isolée dans un fichier, prête pour Supabase.
-- **Pas de fréquence cardiaque** : il faudrait Apple Santé ou une ceinture.
-- **Android hors Expo Go** : Google Maps demande une clé d'API dans `app.json`.
+**Records are read in SQL.** Every run stores its own totals, including its
+fastest kilometre computed at the finish. Answering a ranking question never
+replays a single GPS point.
 
-## Suite possible
+## Known limitations
 
-1. Progression : volume hebdomadaire, records, évolution de l'allure.
-2. Import Apple Santé pour les courses faites avec une montre.
-3. Synchronisation Supabase et sauvegarde.
-4. Détection automatique des pauses aux feux rouges.
+- **Expo Go**: screen-on tracking only, see above.
+- **No sync**: runs stay on the phone. The database layer is isolated in one
+  file, ready for Supabase.
+- **No heart rate**: that would need Apple Health or a chest strap.
+- **Android outside Expo Go**: Google Maps needs an API key in `app.json`.
+- **The database file is still named `running.db`.** Renaming it would hide
+  runs already recorded on a device, for a purely cosmetic gain nobody sees.
+
+## Possible next steps
+
+1. Auto-pause at traffic lights.
+2. Apple Health import for runs recorded on a watch.
+3. Supabase sync and backup.
+4. Editable run names.

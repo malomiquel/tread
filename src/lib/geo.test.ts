@@ -1,113 +1,119 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  accepterPoint, allureInstantanee, allureSecParKm, denivelePositifM, distanceM, distanceTotaleM,
-  fractionnes, meilleurKmS, type Point,
+  bounds, currentPace, distanceM, elevationGainM, fastestKmS, isAcceptable,
+  paceSecPerKm, splits, totalDistanceM, type TrackPoint,
 } from "./geo.ts";
 
-const point = (ts: number, lat: number, lng: number, extra: Partial<Point> = {}): Point => ({
-  ts, lat, lng, alt: null, precision: 5, vitesse: null, segment: 0, ...extra,
+const at = (ts: number, lat: number, lng: number, extra: Partial<TrackPoint> = {}): TrackPoint => ({
+  ts, lat, lng, alt: null, accuracy: 5, speed: null, segment: 0, ...extra,
 });
 
-// Degres de latitude par metre, derives du meme rayon terrestre que geo.ts,
-// sinon 3 km de test font 2 996 m et le test echoue pour une mauvaise raison.
-const DEG_PAR_M = 180 / (Math.PI * 6371008.8);
+// Degrees of latitude per metre, derived from the same earth radius as geo.ts.
+// Approximating it would make a 3 km fixture measure 2996 m and fail the test
+// for the wrong reason.
+const DEG_PER_M = 180 / (Math.PI * 6371008.8);
 
-test("haversine : Paris-Lyon a 1 % pres", () => {
+/** A straight line due north at a constant speed, one point per step. */
+function straightLine(count: number, stepS = 1, speedMs = 3, segment = 0, startTs = 0): TrackPoint[] {
+  return Array.from({ length: count }, (_, i) =>
+    at(startTs + i * stepS * 1000, 48 + i * stepS * speedMs * DEG_PER_M, 2, { segment }));
+}
+
+test("haversine: Paris to Lyon within 1 percent", () => {
   const d = distanceM({ lat: 48.8566, lng: 2.3522 }, { lat: 45.764, lng: 4.8357 });
-  assert.ok(Math.abs(d - 392_000) < 4_000, `obtenu ${d}`);
+  assert.ok(Math.abs(d - 392_000) < 4_000, `got ${d}`);
 });
 
-test("haversine : 100 m plein nord", () => {
-  const d = distanceM({ lat: 48, lng: 2 }, { lat: 48 + 100 * DEG_PAR_M, lng: 2 });
+test("haversine: 100 m due north", () => {
+  const d = distanceM({ lat: 48, lng: 2 }, { lat: 48 + 100 * DEG_PER_M, lng: 2 });
   assert.ok(Math.abs(d - 100) < 0.5);
 });
 
-test("filtre : precision trop faible, saut impossible, bruit a l'arret", () => {
-  const a = point(0, 48, 2);
-  assert.equal(accepterPoint(null, point(0, 48, 2, { precision: 80 })), false, "precision 80 m rejetee");
-  assert.equal(accepterPoint(a, point(1000, 48 + 50 * DEG_PAR_M, 2)), false, "50 m en 1 s rejete");
-  assert.equal(accepterPoint(a, point(1000, 48 + 0.5 * DEG_PAR_M, 2)), false, "0,5 m rejete comme bruit");
-  assert.equal(accepterPoint(a, point(1000, 48 + 3 * DEG_PAR_M, 2)), true, "3 m en 1 s accepte");
-  assert.equal(accepterPoint(a, point(0, 48 + 3 * DEG_PAR_M, 2)), false, "meme horodatage rejete");
+test("filter: vague fix, impossible jump, and jitter while standing still", () => {
+  const origin = at(0, 48, 2);
+  assert.equal(isAcceptable(null, at(0, 48, 2, { accuracy: 80 })), false, "80 m accuracy rejected");
+  assert.equal(isAcceptable(origin, at(1000, 48 + 50 * DEG_PER_M, 2)), false, "50 m in 1 s rejected");
+  assert.equal(isAcceptable(origin, at(1000, 48 + 0.5 * DEG_PER_M, 2)), false, "0.5 m rejected as jitter");
+  assert.equal(isAcceptable(origin, at(1000, 48 + 3 * DEG_PER_M, 2)), true, "3 m in 1 s accepted");
+  assert.equal(isAcceptable(origin, at(0, 48 + 3 * DEG_PER_M, 2)), false, "same timestamp rejected");
 });
 
-/** Ligne droite vers le nord a 3 m/s exactement : 1 km toutes les 333,33 s. */
-function ligneDroite(nbPoints: number, pasS = 1, vitesse = 3, segment = 0, tsDebut = 0): Point[] {
-  return Array.from({ length: nbPoints }, (_, i) =>
-    point(tsDebut + i * pasS * 1000, 48 + i * pasS * vitesse * DEG_PAR_M, 2, { segment }));
-}
-
-test("distance totale : 3 km a 3 m/s", () => {
-  const d = distanceTotaleM(ligneDroite(1001));
-  assert.ok(Math.abs(d - 3000) < 3, `obtenu ${d}`);
+test("total distance: 3 km at 3 m/s", () => {
+  const d = totalDistanceM(straightLine(1001));
+  assert.ok(Math.abs(d - 3000) < 3, `got ${d}`);
 });
 
-test("distance totale : une pause ne relie pas les segments", () => {
-  const avant = ligneDroite(101, 1, 3, 0, 0);          // 300 m
-  // pendant la pause on a marche 500 m plus loin, puis on repart sur un nouveau segment
-  const apres = ligneDroite(101, 1, 3, 1, 600_000).map((p) => ({ ...p, lat: p.lat + 500 * DEG_PAR_M }));
-  const d = distanceTotaleM([...avant, ...apres]);
-  assert.ok(Math.abs(d - 600) < 3, `obtenu ${d}, la marche de 500 m ne doit pas compter`);
+test("total distance: a pause does not join two segments", () => {
+  const before = straightLine(101, 1, 3, 0, 0); // 300 m
+  // During the pause we walked 500 m away, then resumed on a new segment.
+  const after = straightLine(101, 1, 3, 1, 600_000).map((p) => ({ ...p, lat: p.lat + 500 * DEG_PER_M }));
+  const d = totalDistanceM([...before, ...after]);
+  assert.ok(Math.abs(d - 600) < 3, `got ${d}, the 500 m walk must not count`);
 });
 
-test("allure moyenne : 5 min/km", () => {
-  assert.equal(allureSecParKm(2000, 600), 300);
-  assert.equal(allureSecParKm(20, 600), null, "trop court");
+test("average pace: 5 min per km", () => {
+  assert.equal(paceSecPerKm(2000, 600), 300);
+  assert.equal(paceSecPerKm(20, 600), null, "too short to mean anything");
 });
 
-test("allure instantanee sur 30 s", () => {
-  const pts = ligneDroite(120);
-  const a = allureInstantanee(pts, pts[pts.length - 1].ts);
-  assert.ok(a !== null && Math.abs(a - 333.33) < 2, `obtenu ${a}`);
+test("current pace over a 30 second window", () => {
+  const points = straightLine(120);
+  const pace = currentPace(points, points[points.length - 1].ts);
+  assert.ok(pace !== null && Math.abs(pace - 333.33) < 2, `got ${pace}`);
 });
 
-test("fractionnes : bornes interpolees, dernier morceau partiel", () => {
-  // 2,5 km a 3 m/s : deux kilometres pleins de 333,3 s et un reste de 500 m
-  const f = fractionnes(ligneDroite(834));
-  assert.equal(f.length, 3);
-  assert.ok(Math.abs(f[0].dureeS - 333.33) < 1, `km1 ${f[0].dureeS}`);
-  assert.ok(Math.abs(f[1].dureeS - 333.33) < 1, `km2 ${f[1].dureeS}`);
-  assert.equal(f[2].partiel, true);
-  assert.ok(Math.abs(f[2].distanceM - 499) < 3, `reste ${f[2].distanceM}`);
+test("splits: markers interpolated, trailing chunk flagged partial", () => {
+  // 2.5 km at 3 m/s: two full kilometres of 333.3 s and a 500 m remainder.
+  const result = splits(straightLine(834));
+  assert.equal(result.length, 3);
+  assert.ok(Math.abs(result[0].durationS - 333.33) < 1, `km 1 took ${result[0].durationS}`);
+  assert.ok(Math.abs(result[1].durationS - 333.33) < 1, `km 2 took ${result[1].durationS}`);
+  assert.equal(result[2].partial, true);
+  assert.ok(Math.abs(result[2].distanceM - 499) < 3, `remainder ${result[2].distanceM}`);
 });
 
-test("fractionnes : la pause n'allonge pas le kilometre", () => {
-  const avant = ligneDroite(201, 1, 3, 0, 0);            // 600 m en 200 s
-  const apres = ligneDroite(201, 1, 3, 1, 900_000)       // reprise 15 min plus tard, 600 m en 200 s
-    .map((p) => ({ ...p, lat: p.lat + 600 * DEG_PAR_M }));
-  const f = fractionnes([...avant, ...apres]);
-  assert.ok(Math.abs(f[0].dureeS - 333.33) < 1, `km1 ${f[0].dureeS} : la pause a ete comptee`);
+test("splits: a pause does not stretch the kilometre it falls in", () => {
+  const before = straightLine(201, 1, 3, 0, 0);            // 600 m in 200 s
+  const after = straightLine(201, 1, 3, 1, 900_000)        // resumed 15 min later
+    .map((p) => ({ ...p, lat: p.lat + 600 * DEG_PER_M }));
+  const result = splits([...before, ...after]);
+  assert.ok(Math.abs(result[0].durationS - 333.33) < 1, `km 1 took ${result[0].durationS}, pause leaked in`);
 });
 
-test("denivele : le bruit d'altitude a l'arret ne compte pas", () => {
-  // Oscillation de 4 m crete a crete, typique d'un GPS immobile.
-  const pts = Array.from({ length: 60 }, (_, i) =>
-    point(i * 1000, 48 + i * 3 * DEG_PAR_M, 2, { alt: 100 + (i % 2 ? 2 : -2) }));
-  assert.equal(denivelePositifM(pts), 0, "un parcours plat ne doit produire aucun denivele");
+test("elevation: altitude jitter while standing still does not count", () => {
+  // 4 m peak to peak, typical of a stationary GPS.
+  const points = Array.from({ length: 60 }, (_, i) =>
+    at(i * 1000, 48 + i * 3 * DEG_PER_M, 2, { alt: 100 + (i % 2 ? 2 : -2) }));
+  assert.equal(elevationGainM(points), 0, "flat ground must report no climb");
 });
 
-test("denivele : une vraie montee est comptee, a 15 % pres", () => {
-  // 100 m de montee reguliere. Le lissage rogne les extremites, d'ou la
-  // tolerance : on verifie l'ordre de grandeur, pas une valeur exacte.
-  const pts = Array.from({ length: 101 }, (_, i) =>
-    point(i * 1000, 48 + i * 3 * DEG_PAR_M, 2, { alt: 100 + i }));
-  const d = denivelePositifM(pts);
-  assert.ok(d > 85 && d < 105, `obtenu ${d}, attendu autour de 100`);
+test("elevation: a real climb is counted, within 15 percent", () => {
+  // 100 m of steady climb. Smoothing trims the ends, hence the tolerance:
+  // we check the order of magnitude, not an exact figure.
+  const points = Array.from({ length: 101 }, (_, i) =>
+    at(i * 1000, 48 + i * 3 * DEG_PER_M, 2, { alt: 100 + i }));
+  const gain = elevationGainM(points);
+  assert.ok(gain > 85 && gain < 105, `got ${gain}, expected around 100`);
 });
 
-test("denivele : une descente ne se soustrait pas au positif", () => {
-  const monte = Array.from({ length: 51 }, (_, i) =>
-    point(i * 1000, 48 + i * 3 * DEG_PAR_M, 2, { alt: 100 + i }));
-  const descend = Array.from({ length: 51 }, (_, i) =>
-    point((51 + i) * 1000, 48 + (51 + i) * 3 * DEG_PAR_M, 2, { alt: 150 - i }));
-  const seul = denivelePositifM(monte);
-  const allerRetour = denivelePositifM([...monte, ...descend]);
-  assert.ok(Math.abs(allerRetour - seul) < 6, `montee seule ${seul}, aller-retour ${allerRetour}`);
+test("elevation: a descent is not subtracted from the gain", () => {
+  const up = Array.from({ length: 51 }, (_, i) =>
+    at(i * 1000, 48 + i * 3 * DEG_PER_M, 2, { alt: 100 + i }));
+  const down = Array.from({ length: 51 }, (_, i) =>
+    at((51 + i) * 1000, 48 + (51 + i) * 3 * DEG_PER_M, 2, { alt: 150 - i }));
+  const climbOnly = elevationGainM(up);
+  const roundTrip = elevationGainM([...up, ...down]);
+  assert.ok(Math.abs(roundTrip - climbOnly) < 6, `climb ${climbOnly}, round trip ${roundTrip}`);
 });
 
-test("meilleur kilometre : ignore le morceau partiel", () => {
-  const pts = ligneDroite(834); // 2,5 km : deux km pleins puis un reste
-  const m = meilleurKmS(pts);
-  assert.ok(m !== null && Math.abs(m - 333.33) < 1, `obtenu ${m}`);
+test("fastest kilometre ignores the partial chunk", () => {
+  const fastest = fastestKmS(straightLine(834)); // 2.5 km: two full km then a remainder
+  assert.ok(fastest !== null && Math.abs(fastest - 333.33) < 1, `got ${fastest}`);
+});
+
+test("bounds: null when empty, otherwise the enclosing box", () => {
+  assert.equal(bounds([]), null);
+  const box = bounds([at(0, 48, 2), at(1, 49, 3)]);
+  assert.deepEqual(box, { minLat: 48, maxLat: 49, minLng: 2, maxLng: 3 });
 });

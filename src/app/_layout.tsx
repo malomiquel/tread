@@ -1,55 +1,64 @@
-import "@/lib/suivi"; // definit la tache GPS de fond des le demarrage, hors de tout ecran
+import "@/lib/tracker"; // defines the background GPS task at startup, outside any screen
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
-import { initialiserBd } from "@/lib/bd";
-import { couleurs } from "@/lib/theme";
+import { initDb } from "@/lib/db";
+import { colors } from "@/lib/theme";
 
-export default function Racine() {
-  const [pret, setPret] = useState(false);
-  const [erreur, setErreur] = useState<string | null>(null);
+export default function RootLayout() {
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    initialiserBd()
-      .then(() => setPret(true))
-      .catch((e: unknown) => setErreur(e instanceof Error ? e.message : "Base de données inaccessible."));
+    initDb()
+      .then(() => setReady(true))
+      .catch((cause: unknown) => {
+        setError(cause instanceof Error ? cause.message : "The database is unavailable.");
+      });
   }, []);
 
-  if (erreur) {
+  if (error) {
     return (
-      <View style={styles.centre}>
-        <Text style={styles.erreur}>{erreur}</Text>
+      <View style={styles.centered}>
+        <Text style={styles.error}>{error}</Text>
       </View>
     );
   }
-  if (!pret) {
+
+  if (!ready) {
     return (
-      <View style={styles.centre}>
-        <ActivityIndicator color={couleurs.accent} />
+      <View style={styles.centered}>
+        <ActivityIndicator color={colors.accent} />
       </View>
     );
   }
 
   return (
     <>
-    <StatusBar style="dark" />
-    <Stack
-      screenOptions={{
-        headerStyle: { backgroundColor: couleurs.fond },
-        headerTintColor: couleurs.texte,
-        headerShadowVisible: false,
-        contentStyle: { backgroundColor: couleurs.fond },
-      }}
-    >
-      <Stack.Screen name="(onglets)" options={{ headerShown: false }} />
-      <Stack.Screen name="course/[id]" options={{ title: "Course" }} />
-    </Stack>
+      <StatusBar style="dark" />
+      <Stack
+        screenOptions={{
+          headerStyle: { backgroundColor: colors.background },
+          headerTintColor: colors.text,
+          headerShadowVisible: false,
+          contentStyle: { backgroundColor: colors.background },
+        }}
+      >
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="run/[id]" options={{ title: "Run" }} />
+      </Stack>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  centre: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: couleurs.fond, padding: 24 },
-  erreur: { color: couleurs.danger, textAlign: "center" },
+  centered: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.background,
+    padding: 24,
+  },
+  error: { color: colors.danger, textAlign: "center" },
 });

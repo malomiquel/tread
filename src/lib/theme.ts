@@ -1,38 +1,38 @@
 /**
- * Thème clair. Le fond n'est pas blanc pur mais un gris très léger : les
- * cartes blanches posées dessus se détachent alors d'elles-mêmes, sans avoir
- * besoin de bordures. Un seul accent, le vert, porte toute la donnée.
+ * Light theme. The canvas is not pure white but a very light grey, so the
+ * white cards laid on top separate themselves without needing borders. A
+ * single accent carries all of the data.
  */
-export const couleurs = {
-  fond: "#f4f5f7",
+export const colors = {
+  background: "#f4f5f7",
   surface: "#ffffff",
-  bordure: "rgba(15, 23, 42, 0.07)",
-  texte: "#0f172a",
-  attenue: "rgba(15, 23, 42, 0.58)",
-  discret: "rgba(15, 23, 42, 0.40)",
+  border: "rgba(15, 23, 42, 0.07)",
+  text: "#0f172a",
+  muted: "rgba(15, 23, 42, 0.58)",
+  subtle: "rgba(15, 23, 42, 0.40)",
   accent: "#16a34a",
-  accentTexte: "#ffffff",
-  accentDoux: "rgba(22, 163, 74, 0.12)",
-  pause: "#b45309",
+  accentText: "#ffffff",
+  accentSoft: "rgba(22, 163, 74, 0.12)",
+  warning: "#b45309",
   danger: "#dc2626",
-  dangerDoux: "rgba(220, 38, 38, 0.08)",
-  trace: "#16a34a",
+  dangerSoft: "rgba(220, 38, 38, 0.08)",
+  track: "#16a34a",
 } as const;
 
 /**
- * Ombres plutôt que bordures : une ombre s'adapte au fond sur lequel elle
- * tombe, une bordure trace un trait dur qui durcit toute l'interface.
- * shadow* couvre iOS, elevation couvre Android.
+ * Shadows rather than borders: a shadow adapts to whatever it falls on, a
+ * border draws a hard line that stiffens the whole interface.
+ * shadow* covers iOS, elevation covers Android.
  */
-export const ombres = {
-  carte: {
+export const shadows = {
+  card: {
     shadowColor: "#0f172a",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 10,
     elevation: 2,
   },
-  bouton: {
+  button: {
     shadowColor: "#0f172a",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.14,
