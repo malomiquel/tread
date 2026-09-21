@@ -8,6 +8,7 @@ import { Carte } from "@/components/Carte";
 import { Chiffre } from "@/components/Chiffre";
 import { formaterAllure, formaterDistance, formaterDuree } from "@/lib/format";
 import { allureInstantanee, allureSecParKm, distanceTotaleM } from "@/lib/geo";
+import { usePositionInitiale } from "@/lib/position";
 import { abandonner, demarrer, dureeActiveS, mettreEnPause, reprendre, terminer, useSuivi } from "@/lib/suivi";
 import { couleurs } from "@/lib/theme";
 
@@ -23,6 +24,7 @@ function EcranVeille() {
 export default function Courir() {
   const suivi = useSuivi();
   const router = useRouter();
+  const { position, autorisee } = usePositionInitiale();
   const [maintenant, setMaintenant] = useState(() => Date.now());
   const [clotureEnCours, setClotureEnCours] = useState(false);
 
@@ -37,6 +39,13 @@ export default function Courir() {
   const duree = dureeActiveS(suivi, maintenant);
   const allureMoy = allureSecParKm(distance, duree);
   const allureInst = suivi.etat === "en_cours" ? allureInstantanee(suivi.points, maintenant) : null;
+
+  // Au repos, on explique ou en est la localisation plutot que de laisser
+  // croire que la carte est cassee quand elle reste sur son cadrage par defaut.
+  const messageRepos =
+    autorisee === false ? "Localisation refusée, la carte ne peut pas te situer"
+    : position === null ? "Recherche de ta position…"
+    : "Le GPS démarre avec la course";
 
   const signal =
     suivi.precisionM === null ? "Recherche du GPS…"
@@ -71,8 +80,8 @@ export default function Courir() {
       {enCourse && <EcranVeille />}
       <View style={styles.entete}>
         <Text style={styles.titre}>{enCourse ? (suivi.etat === "en_pause" ? "En pause" : "Course en cours") : "Prêt à courir"}</Text>
-        <Text style={[styles.signal, suivi.precisionM !== null && suivi.precisionM > 30 && styles.signalFaible]}>
-          {enCourse ? signal : "Le GPS démarre avec la course"}
+        <Text style={[styles.signal, ((enCourse && suivi.precisionM !== null && suivi.precisionM > 30) || autorisee === false) && styles.signalFaible]}>
+          {enCourse ? signal : messageRepos}
           {enCourse && !suivi.modeFond ? " · écran maintenu allumé" : ""}
         </Text>
       </View>
@@ -86,7 +95,7 @@ export default function Courir() {
         </View>
       </View>
 
-      <Carte points={suivi.points} suivre style={styles.carte} />
+      <Carte points={suivi.points} suivre centreInitial={position} style={styles.carte} />
 
       {suivi.erreur && <Text style={styles.erreur}>{suivi.erreur}</Text>}
 
