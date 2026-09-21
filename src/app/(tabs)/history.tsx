@@ -3,7 +3,8 @@ import { useCallback, useState } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "@/components/Button";
-import { listRuns, type Run } from "@/lib/db";
+import { SwipeToDelete } from "@/components/SwipeToDelete";
+import { deleteRun, listRuns, type Run } from "@/lib/db";
 import { createDemoRun } from "@/lib/demo";
 import { formatDate, formatDistance, formatDuration, formatPace } from "@/lib/format";
 import { useTabBarSpace } from "@/lib/layout";
@@ -47,6 +48,21 @@ export default function HistoryScreen() {
     }
   }
 
+  /**
+   * The row leaves the list at once, then the database catches up. Waiting for
+   * the write would leave the row sitting there after the tap, which reads as
+   * a broken button.
+   */
+  async function remove(run: Run) {
+    setRuns((current) => (current ?? []).filter((item) => item.id !== run.id));
+    try {
+      await deleteRun(run.id);
+    } catch {
+      // The delete failed, so put the run back rather than pretend otherwise.
+      await reload();
+    }
+  }
+
   const totalM = (runs ?? []).reduce((total, run) => total + run.distanceM, 0);
 
   return (
@@ -83,6 +99,7 @@ export default function HistoryScreen() {
           )
         }
         renderItem={({ item }) => (
+          <SwipeToDelete label={item.name ?? "cette course"} onDelete={() => void remove(item)}>
           <Pressable
             onPress={() => router.push({ pathname: "/run/[id]", params: { id: String(item.id) } })}
             accessibilityRole="button"
@@ -100,6 +117,7 @@ export default function HistoryScreen() {
               <Text style={styles.km}> km</Text>
             </Text>
           </Pressable>
+          </SwipeToDelete>
         )}
       />
     </SafeAreaView>
@@ -123,6 +141,9 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 16,
     paddingHorizontal: GUTTER, paddingVertical: 15,
+    // Opaque on purpose: the delete action sits behind the row, and a
+    // transparent background would let its red show through.
+    backgroundColor: colors.background,
     borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline,
   },
   pressed: { backgroundColor: colors.sunken },

@@ -1,5 +1,6 @@
 import "@/lib/tracker"; // defines the background GPS task at startup, outside any screen
 import { Stack } from "expo-router";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
@@ -37,7 +38,9 @@ export default function RootLayout() {
   }
 
   return (
-    <>
+    // Required at the root for any gesture to be recognised. Expo Router does
+    // not mount it for us, and without it a swipe simply never fires.
+    <GestureHandlerRootView style={styles.root}>
       <StatusBar style="dark" />
       <Stack
         screenOptions={{
@@ -53,11 +56,12 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false, title: "Tread" }} />
         <Stack.Screen name="run/[id]" options={{ title: "Course", headerBackTitle: "Retour" }} />
       </Stack>
-    </>
+    </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
+  root: { flex: 1 },
   centered: {
     flex: 1,
     alignItems: "center",
