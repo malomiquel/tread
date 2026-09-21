@@ -31,7 +31,17 @@ function RunTabIcon({ color, size }: { color: ColorValue; size: number }) {
 export default function TabsLayout() {
   return (
     <Tabs
-      tabBar={(props) => <FloatingTabBar {...props} />}
+      /**
+       * No bar over the run screen. It is a map from edge to edge, and a bar
+       * floating across the bottom of it was the one thing between the runner
+       * and the ground they are covering. That screen carries its own way out
+       * instead, a chevron in the corner.
+       */
+      tabBar={(props) =>
+        props.state.routes[props.state.index].name === "index"
+          ? null
+          : <FloatingTabBar {...props} />
+      }
       screenOptions={{
         headerShown: false,
         sceneStyle: { backgroundColor: colors.background },

@@ -10,7 +10,7 @@ import { RunMap } from "@/components/RunMap";
 import { listRuns, type Run } from "@/lib/db";
 import { formatDistance, formatDuration, formatElevation, formatPace } from "@/lib/format";
 import { currentPace, elevationGainM, MAX_ACCURACY_M, paceSecPerKm, totalDistanceM } from "@/lib/geo";
-import { CONTROL_SIZE, useTabBarSpace } from "@/lib/layout";
+import { CONTROL_SIZE, CONTROLS_TOP, useTabBarBottom } from "@/lib/layout";
 import { useInitialLocation } from "@/lib/location";
 import { toggleSetting, useSettings } from "@/lib/settings";
 import { weekTotals } from "@/lib/stats";
@@ -72,7 +72,9 @@ export default function RecordScreen() {
   const router = useRouter();
   const { coords, granted } = useInitialLocation();
   const settings = useSettings();
-  const tabBarSpace = useTabBarSpace();
+  // The tab bar is hidden here, so the panel takes the room it used to leave
+  // for it and sits where the bar would have been.
+  const bottomInset = useTabBarBottom() + 8;
   const [now, setNow] = useState(() => Date.now());
   const [finishing, setFinishing] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -85,7 +87,7 @@ export default function RecordScreen() {
 
   // The right-hand column, read from the bottom up: the panel, then the map's
   // locate button, then the two settings.
-  const locateBottom = tabBarSpace + panelHeight + 12;
+  const locateBottom = bottomInset + panelHeight + 12;
   const togglesBottom = locateBottom + CONTROL_SIZE + 10;
 
   useEffect(() => {
@@ -157,6 +159,24 @@ export default function RecordScreen() {
       />
       {recording && <KeepAwake />}
 
+      {/* The way out, since the tab bar no longer offers one. Top left, in the
+          corner a back button lives in everywhere else, and in the same glass
+          as the map's own controls so it reads as part of the map rather than
+          as something dropped on top of it. */}
+      <View pointerEvents="box-none" style={styles.leave}>
+        <GlassPanel style={styles.leavePill}>
+          <Pressable
+            onPress={() => router.navigate("/history")}
+            accessibilityRole="button"
+            accessibilityLabel="Quitter l'écran de course"
+            hitSlop={8}
+            style={({ pressed }) => [styles.leaveButton, pressed && styles.pressed]}
+          >
+            <Ionicons name="chevron-back" size={22} color={colors.text} />
+          </Pressable>
+        </GlassPanel>
+      </View>
+
       {/* Cut to the same size as the map's own button just below, so the two
           read as one column rather than as two unrelated things that happen
           to be near each other. */}
@@ -177,7 +197,7 @@ export default function RecordScreen() {
       <View
         pointerEvents="box-none"
         onLayout={(event) => setPanelHeight(event.nativeEvent.layout.height)}
-        style={[styles.bottom, { bottom: tabBarSpace }]}
+        style={[styles.bottom, { bottom: bottomInset }]}
       >
         <GlassPanel style={styles.panel} interactive>
           {/* One row for the whole panel, so the button centres against
@@ -301,6 +321,12 @@ const styles = StyleSheet.create({
   // Right-aligned so the pills, the locate button and the panel's edge all
   // land on one line down the side of the screen.
   toggles: { position: "absolute", right: 12, alignItems: "flex-end", gap: 10 },
+  leave: { position: "absolute", top: CONTROLS_TOP, left: 12 },
+  leavePill: { borderRadius: CONTROL_SIZE / 2, padding: 0 },
+  leaveButton: {
+    width: CONTROL_SIZE, height: CONTROL_SIZE,
+    alignItems: "center", justifyContent: "center",
+  },
   togglePill: { borderRadius: CONTROL_SIZE / 2, padding: 0 },
   // Square, exactly the map button's size: the three sit in one column and
   // any difference between them would read as a mistake.
