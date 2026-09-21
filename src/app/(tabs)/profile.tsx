@@ -2,7 +2,6 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useFocusEffect, useRouter, useScrollToTop } from "expo-router";
 import { useCallback, useState, useRef } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import Animated, { FadeIn } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { buildLine } from "@/lib/build";
 import { listRuns, personalRecords, type PersonalRecords, type Run } from "@/lib/db";
@@ -104,7 +103,12 @@ export default function ProfileScreen() {
     <SafeAreaView style={styles.screen} edges={["top"]}>
       {/* Same arrival as the history: the page settles in rather than
           replacing what was there between two frames. */}
-      <Animated.View style={styles.fill} entering={FadeIn.duration(220)}>
+      {/* A plain view. The tab itself cross-fades this screen in, and a
+          second opacity animation on top of that one was not a second effect
+          but a second chance to fail: when the inner fade did not run to
+          completion the screen stayed at zero, which is the white page that
+          appeared on some tab changes and not others. */}
+      <View style={styles.fill}>
       <ScrollView ref={page} contentContainerStyle={[styles.content, { paddingBottom: tabBarSpace }]}>
         <Text style={styles.title}>Profil</Text>
         {records.totalRuns > 0 ? (
@@ -214,7 +218,7 @@ export default function ProfileScreen() {
             this with git log and it does. */}
         <Text style={styles.build}>{buildLine()}</Text>
       </ScrollView>
-      </Animated.View>
+      </View>
     </SafeAreaView>
   );
 }

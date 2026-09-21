@@ -5,7 +5,6 @@ import { useFocusEffect, useRouter, useScrollToTop } from "expo-router";
 import * as Sharing from "expo-sharing";
 import { useCallback, useState, useRef } from "react";
 import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
-import Animated, { FadeIn } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "@/components/Button";
 import { SwipeToDelete } from "@/components/SwipeToDelete";
@@ -201,7 +200,12 @@ export default function HistoryScreen() {
       {/* The page arrives rather than appearing: coming from a screen that
           just slid its own furniture away, a list that simply exists in the
           next frame reads as a cut. */}
-      <Animated.View style={styles.fill} entering={FadeIn.duration(220)}>
+      {/* A plain view. The tab itself cross-fades this screen in, and a
+          second opacity animation on top of that one was not a second effect
+          but a second chance to fail: when the inner fade did not run to
+          completion the screen stayed at zero, which is the white page that
+          appeared on some tab changes and not others. */}
+      <View style={styles.fill}>
       <View style={styles.header}>
         <View style={styles.headerText}>
           <Text style={styles.title}>Historique</Text>
@@ -289,7 +293,7 @@ export default function HistoryScreen() {
         )}
       />
 
-      </Animated.View>
+      </View>
 
     </SafeAreaView>
   );

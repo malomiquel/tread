@@ -2,7 +2,6 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useFocusEffect, useRouter, useScrollToTop } from "expo-router";
 import { useCallback, useState, useRef } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import Animated, { FadeIn } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { PlanSetup, type PlanDraft } from "@/components/PlanSetup";
 import { SessionDetail } from "@/components/SessionDetail";
@@ -203,9 +202,14 @@ export default function PlanScreen() {
   if (plan === null) {
     return (
       <SafeAreaView style={styles.screen} edges={["top"]}>
-        <Animated.View style={styles.fill} entering={FadeIn.duration(220)}>
+      {/* A plain view. The tab itself cross-fades this screen in, and a
+          second opacity animation on top of that one was not a second effect
+          but a second chance to fail: when the inner fade did not run to
+          completion the screen stayed at zero, which is the white page that
+          appeared on some tab changes and not others. */}
+        <View style={styles.fill}>
           <PlanSetup onCreate={(draft) => void create(draft)} />
-        </Animated.View>
+        </View>
       </SafeAreaView>
     );
   }
@@ -232,7 +236,7 @@ export default function PlanScreen() {
 
   return (
     <SafeAreaView style={styles.screen} edges={["top"]}>
-      <Animated.View style={styles.fill} entering={FadeIn.duration(220)}>
+      <View style={styles.fill}>
         <ScrollView ref={page} contentContainerStyle={[styles.content, { paddingBottom: tabBarSpace }]}>
           <View style={styles.head}>
             <Text style={styles.title}>{goal?.name ?? "Programme"}</Text>
@@ -320,7 +324,7 @@ export default function PlanScreen() {
             <Text style={styles.abandonLabel}>Abandonner le programme</Text>
           </Pressable>
         </ScrollView>
-      </Animated.View>
+      </View>
     </SafeAreaView>
   );
 }
