@@ -32,7 +32,10 @@
  * a prescription, and the app should never pretend otherwise.
  */
 
-import type { Session, Step } from "./workout";
+// The extension is spelled out because this is a value import, not a type
+// one: node runs these modules directly for the tests and resolves paths the
+// way the web does, without guessing at extensions.
+import { eased, type Session, type Step } from "./workout.ts";
 
 /** A race a plan can be built for. */
 export type Goal = "fiveK" | "tenK" | "half" | "marathon";
@@ -850,6 +853,38 @@ export function easeFactor(recent: readonly Exertion[]): number {
 /** The next thing to do, or null once the race is behind you. */
 export function nextSession(scheduled: ScheduledSession[]): ScheduledSession | null {
   return scheduled.find((s) => s.runId === null) ?? null;
+}
+
+/**
+ * What the run button should offer, given a programme.
+ *
+ * Going running and following a programme are the same act when one exists,
+ * and asking somebody to remember which screen to start from is asking them
+ * to do the filing. The next session due is what a plan is for; proposing
+ * anything else would make the programme something you consult rather than
+ * something you follow.
+ *
+ * Already eased if recent sessions were hard, because the session offered has
+ * to be the session that would be run — a proposal that ignores the easing
+ * would quietly undo it.
+ */
+export function nextToRun(
+  sessions: PlannedSession[],
+  done: Map<number, Done>,
+  days: readonly number[],
+  raceMs: number,
+  recent: readonly Exertion[],
+  todayMs: number,
+): { session: Session; order: number; at: number; kind: Kind } | null {
+  const next = nextSession(schedule(sessions, done, todayMs, raceMs, days));
+  if (!next) return null;
+  const factor = next.kind === "race" ? 1 : easeFactor(recent);
+  return {
+    session: factor < 1 ? eased(next.session, factor) : next.session,
+    order: next.order,
+    at: next.at,
+    kind: next.kind,
+  };
 }
 
 /** How much of the programme is behind you, 0 to 1. */

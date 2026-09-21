@@ -3,7 +3,7 @@ import { test } from "node:test";
 import {
   buildPlan, clampWeeks, daysBetween, enduranceExponent, equivalentTimeS, GOALS, goalById,
   loadOfWeek, pacesFrom,
-  easeFactor, longCeilingMin, longestReachedMin, LONG_PEAK_MIN, longMinutes, normaliseDays,
+  easeFactor, nextToRun, longCeilingMin, longestReachedMin, LONG_PEAK_MIN, longMinutes, normaliseDays,
   phaseOfWeek, planProgress, projectedTimeS, schedule, SLOT_DAYS, slotDates,
   startOfDay,
   type Done, type PlannedSession,
@@ -427,4 +427,35 @@ test("one hard session is training, two in a row is a pattern", () => {
 test("nothing said means nothing assumed", () => {
   assert.equal(easeFactor([]), 1);
   assert.equal(easeFactor([4]), 1);
+});
+
+
+test("the run button is offered the session a plan is waiting on", () => {
+  const sessions = plan();
+  const pick = nextToRun(sessions, new Map(), SLOT_DAYS[3], RACE, [], MONDAY)!;
+  assert.equal(pick.order, 1);
+  assert.equal(pick.session.name, sessions[0].session.name);
+});
+
+test("what is offered is what would actually be run, easing included", () => {
+  const sessions = plan();
+  const flat = nextToRun(sessions, new Map(), SLOT_DAYS[3], RACE, [], MONDAY)!;
+  const tired = nextToRun(sessions, new Map(), SLOT_DAYS[3], RACE, [5, 5], MONDAY)!;
+  // A proposal that ignored the easing would quietly undo it.
+  assert.notDeepEqual(tired.session.steps, flat.session.steps);
+  assert.ok(tired.session.steps.length < flat.session.steps.length);
+});
+
+test("a race is never eased, however hard the week was", () => {
+  const sessions = plan();
+  const done = new Map(sessions.slice(0, -1).map((s) => [s.order, { runId: s.order, at: MONDAY }]));
+  const pick = nextToRun(sessions, done, SLOT_DAYS[3], RACE, [5, 5], MONDAY)!;
+  assert.equal(pick.kind, "race");
+  assert.deepEqual(pick.session.steps, sessions.at(-1)!.session.steps);
+});
+
+test("a finished programme offers nothing rather than repeating itself", () => {
+  const sessions = plan();
+  const done = new Map(sessions.map((s) => [s.order, { runId: s.order, at: MONDAY }]));
+  assert.equal(nextToRun(sessions, done, SLOT_DAYS[3], RACE, [], MONDAY), null);
 });

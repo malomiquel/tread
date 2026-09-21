@@ -14,6 +14,8 @@ interface Props {
   targetSKm?: number | null;
   /** Offered only where the session can actually be started. */
   onStart?: () => void;
+  /** Offered where the proposal can be turned down in favour of running free. */
+  onFree?: () => void;
   onClose: () => void;
 }
 
@@ -40,7 +42,7 @@ function spans(session: Session): { label: string; from: number; to: number }[] 
  * to do into how much of this is left.
  */
 export function SessionDetail({
-  visible, session, currentIndex = null, targetSKm = null, onStart, onClose,
+  visible, session, currentIndex = null, targetSKm = null, onStart, onFree, onClose,
 }: Props) {
   if (!session) return null;
   const groups = spans(session);
@@ -110,6 +112,19 @@ export function SessionDetail({
                 <Text style={styles.startLabel}>Démarrer cette séance</Text>
               </Pressable>
             ) : null}
+
+            {/* Declining has to be as easy as accepting. A programme you can
+                only obey is one people leave rather than argue with, and a
+                run outside it is still a run. */}
+            {onFree ? (
+              <Pressable
+                onPress={onFree}
+                accessibilityRole="button"
+                style={({ pressed }) => [styles.free, pressed && styles.pressed]}
+              >
+                <Text style={styles.freeLabel}>Courir sans séance</Text>
+              </Pressable>
+            ) : null}
           </GlassPanel>
         </Pressable>
       </Pressable>
@@ -165,5 +180,7 @@ const styles = StyleSheet.create({
     marginTop: 12, borderRadius: 10, paddingVertical: 13, backgroundColor: colors.accent,
   },
   startLabel: { color: colors.accentText, fontSize: 16, fontFamily: font.semibold },
+  free: { alignItems: "center", paddingTop: 12, paddingBottom: 2 },
+  freeLabel: { color: colors.muted, fontSize: 14.5, fontFamily: font.semibold },
   pressed: { opacity: 0.85 },
 });

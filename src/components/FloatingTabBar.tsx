@@ -1,13 +1,17 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import * as Haptics from "expo-haptics";
 import { Tabs, useRouter } from "expo-router";
-import type { ComponentProps } from "react";
+import { useState, type ComponentProps } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, { Easing, useAnimatedStyle, withTiming } from "react-native-reanimated";
 import { GlassPanel } from "@/components/GlassPanel";
+import { SessionDetail } from "@/components/SessionDetail";
+import { activePlan, planDone, recentExertions } from "@/lib/db";
+import { nextToRun, startOfDay } from "@/lib/plan";
 import { TAB_BAR_HEIGHT, useTabBarBottom } from "@/lib/layout";
 import { colors, font } from "@/lib/theme";
 import { chooseSession, useTracker } from "@/lib/tracker";
+import type { Session } from "@/lib/workout";
 
 /**
  * A floating tab bar that hugs its own content.
@@ -45,15 +49,47 @@ export function FloatingTabBar({
   const router = useRouter();
   const tracker = useTracker();
   const recording = tracker.status !== "idle";
+  /** The session a programme is waiting on, once it has been asked for. */
+  const [proposal, setProposal] = useState<{ session: Session; order: number } | null>(null);
+
+  const startFree = () => {
+    setProposal(null);
+    // A free run starts free: a session left over from the last outing would
+    // otherwise be handed to somebody who asked for nothing.
+    chooseSession(null);
+    router.push("/record");
+  };
+
   /**
-   * Not over the programme.
+   * Going running, which is not always the same thing as starting from zero.
    *
-   * Every line on that screen already starts a run, and each of them starts
-   * the right one. A general button beside them would be the only way out of
-   * the plan that ignores it, sitting in the brightest colour on the screen —
-   * which is a strange thing for a programme to offer about itself.
+   * Where a programme is under way, the run it is waiting on is what this
+   * button means — asking somebody to remember which screen to start from is
+   * asking them to do the filing. The session is offered rather than started,
+   * because what it contains is worth reading first, and turning it down is
+   * one tap away.
    */
-  const offersRun = state.routes[state.index].name !== "plan";
+  const go = async () => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
+    // Already out there: the button is a way back to the run, not a new one.
+    if (recording) {
+      router.push("/record");
+      return;
+    }
+    try {
+      const plan = await activePlan();
+      if (!plan) return startFree();
+      const [done, recent] = await Promise.all([planDone(plan.id), recentExertions()]);
+      const next = nextToRun(
+        plan.sessions, done, plan.days, plan.raceAt, recent, startOfDay(Date.now()),
+      );
+      if (!next) return startFree();
+      setProposal({ session: next.session, order: next.order });
+    } catch {
+      // A programme that cannot be read is not a reason to stand still.
+      startFree();
+    }
+  };
 
   /**
    * Hidden by sliding out, not by unmounting.
@@ -122,13 +158,7 @@ export function FloatingTabBar({
    */
   const run = (
     <Pressable
-      onPress={() => {
-        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
-        // A free run starts free: a session left over from the last outing
-        // would otherwise be handed to somebody who asked for nothing.
-        if (!recording) chooseSession(null);
-        router.push("/record");
-      }}
+      onPress={() => void go()}
       accessibilityRole="button"
       accessibilityLabel={recording ? "Reprendre la course en cours" : "Démarrer une course"}
       style={({ pressed }) => [styles.run, recording && styles.runLive, pressed && styles.tabPressed]}
@@ -149,7 +179,7 @@ export function FloatingTabBar({
   const content = (
     <View style={styles.row}>
       {tabs.slice(0, half)}
-      {offersRun ? run : null}
+      {run}
       {tabs.slice(half)}
     </View>
   );
@@ -166,6 +196,19 @@ export function FloatingTabBar({
       <GlassPanel style={styles.pill} interactive>
         {content}
       </GlassPanel>
+
+      <SessionDetail
+        visible={proposal !== null}
+        session={proposal?.session ?? null}
+        onStart={() => {
+          if (!proposal) return;
+          chooseSession(proposal.session, proposal.order);
+          setProposal(null);
+          router.push("/record");
+        }}
+        onFree={startFree}
+        onClose={() => setProposal(null)}
+      />
     </Animated.View>
   );
 }
