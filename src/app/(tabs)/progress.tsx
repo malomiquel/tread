@@ -4,18 +4,11 @@ import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { listRuns, personalRecords, type PersonalRecords, type Run } from "@/lib/db";
 import { formatDistance, formatDuration, formatElevation, formatPace } from "@/lib/format";
+import { weekStart } from "@/lib/stats";
 import { colors, shadows } from "@/lib/theme";
 
 const WEEKS_SHOWN = 6;
 const DAY_MS = 86_400_000;
-
-/** Monday, midnight, of the week containing that instant. */
-function weekStart(ts: number): number {
-  const date = new Date(ts);
-  date.setHours(0, 0, 0, 0);
-  date.setDate(date.getDate() - ((date.getDay() + 6) % 7));
-  return date.getTime();
-}
 
 interface Week {
   start: number;
