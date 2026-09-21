@@ -3,7 +3,7 @@ import { Pedometer } from "expo-sensors";
 import * as TaskManager from "expo-task-manager";
 import { useSyncExternalStore } from "react";
 import { cadenceSpm } from "./cadence";
-import { createRun, finishRun, insertPoints } from "./db";
+import { createRun, finishRun, insertPoints, markPlanSessionDone } from "./db";
 import { syncRunToHealth } from "./health";
 import { autoName } from "./format";
 import { announceKilometre, announcePace, announceStep, stopSpeaking } from "./feedback";
@@ -15,7 +15,7 @@ import { reflectRun, stopRun, type RunProgress } from "./liveActivity";
 import { paceDrift } from "./pace";
 import { getSettings } from "./settings";
 import {
-  hasSinglePace, isPaced, sessionById, stepIsDone, stepLabel, type RanBlock,
+  hasSinglePace, isPaced, stepIsDone, stepLabel, type RanBlock, type Session,
 } from "./workout";
 
 export const TASK_NAME = "tread-gps-tracking";
@@ -37,8 +37,16 @@ export interface TrackerState {
   accuracyM: number | null;
   /** Last kilometre already announced, so it is never announced twice. */
   announcedKm: number;
-  /** The structured session being run, or null for a free run. */
-  sessionId: string | null;
+  /**
+   * The structured session being run, or null for a free run.
+   *
+   * The session itself rather than its name in the catalogue, because a plan
+   * generates its own: six repetitions in week three and eight in week nine
+   * are two different sessions that no fixed list could hold.
+   */
+  session: Session | null;
+  /** Its position in the programme, when it came from one. */
+  planOrder: number | null;
   /** Which block of it is under way. Past the last one, the session is done. */
   stepIndex: number;
   /** Distance and active time at which that block began. */
@@ -54,7 +62,7 @@ export interface TrackerState {
 const IDLE: TrackerState = {
   status: "idle", runId: null, points: [], segment: 0, startedAt: null,
   bankedS: 0, segmentStartedAt: null, announcedKm: 0,
-  sessionId: null, stepIndex: 0, stepStartM: 0, stepStartS: 0, blocks: [],
+  session: null, planOrder: null, stepIndex: 0, stepStartM: 0, stepStartS: 0, blocks: [],
   accuracyM: null, backgroundMode: false, error: null,
 };
 
@@ -166,9 +174,9 @@ function toPoint(location: Location.LocationObject): TrackPoint {
  * sessions mid-effort would leave the blocks already done belonging to a plan
  * that no longer exists.
  */
-export function chooseSession(id: string | null): void {
+export function chooseSession(session: Session | null, planOrder: number | null = null): void {
   if (state.status !== "idle") return;
-  publish({ sessionId: id });
+  publish({ session, planOrder });
 }
 
 /**
@@ -180,7 +188,7 @@ export function chooseSession(id: string | null): void {
  * otherwise never end.
  */
 function advanceSession(): void {
-  const session = sessionById(state.sessionId);
+  const { session } = state;
   if (!session || state.status !== "running") return;
   const step = session.steps[state.stepIndex];
   if (!step) return;
@@ -223,7 +231,7 @@ function checkPace(): void {
   // A session of varied efforts sets its own paces, and a target left over
   // from an earlier run would talk over it — correcting a recovery towards a
   // figure chosen for a repetition.
-  const session = sessionById(state.sessionId);
+  const { session } = state;
   if (session) {
     if (!hasSinglePace(session)) return;
     // Even then, only through the block the target was meant for. A long run
@@ -381,7 +389,7 @@ export async function start(): Promise<void> {
       stepIndex: 0, stepStartM: 0, stepStartS: 0, blocks: [],
       backgroundMode: false,
     });
-    const session = sessionById(state.sessionId);
+    const { session } = state;
     if (session) announceStep(stepLabel(session.steps[0]), getSettings().voice);
     // One clock for both: the session needs it because a block measured in
     // time must end without gps fixes, and the pace needs it because a runner
@@ -423,7 +431,7 @@ export function resume(): void {
  * the run was stopped.
  */
 function closingBlocks(endedAt: number): RanBlock[] {
-  const session = sessionById(state.sessionId);
+  const { session } = state;
   const step = session?.steps[state.stepIndex];
   if (!session || !step) return state.blocks;
 
@@ -464,12 +472,18 @@ export async function finish(): Promise<number | null> {
     elevationGainM: elevationGainM(points),
     fastestKmS: fastestKmS(points),
     cadenceSpm: cadence,
-    sessionId: state.sessionId,
+    sessionId: state.session?.id ?? null,
     // Including the block under way when the run was stopped: a session
     // abandoned halfway is still a session, and the work done in that last
     // repetition was done.
     blocks: closingBlocks(endedAt),
   });
+
+  // Tick the plan off only now. The run is on disk at this point, so a
+  // programme can never claim a session that was not recorded.
+  if (state.planOrder !== null) {
+    await markPlanSessionDone(state.planOrder, runId, endedAt).catch(() => undefined);
+  }
 
   // Apple Health is a mirror, and the run is already safe on disk, so the copy
   // is deliberately not awaited: a slow or refused HealthKit call must not
@@ -501,7 +515,7 @@ function reset(): void {
   stopRun();
   // The chosen session outlives the run: having just finished one set of
   // intervals, the last thing wanted is to have to choose it again.
-  state = { ...IDLE, sessionId: state.sessionId };
+  state = { ...IDLE, session: state.session, planOrder: state.planOrder };
   savedCount = 0;
   for (const listener of listeners) listener();
 }

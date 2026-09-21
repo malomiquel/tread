@@ -1,0 +1,298 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useState } from "react";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import Animated, { FadeIn } from "react-native-reanimated";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { PlanSetup, type PlanDraft } from "@/components/PlanSetup";
+import { activePlan, createPlan, deletePlan, planDone, type StoredPlan } from "@/lib/db";
+import { formatDuration, formatPace } from "@/lib/format";
+import { useTabBarSpace } from "@/lib/layout";
+import {
+  buildPlan, daysBetween, goalById, KIND_NAMES, nextSession, PHASE_NAMES, planProgress, schedule,
+  startOfDay, type Done, type ScheduledSession,
+} from "@/lib/plan";
+import { colors, font } from "@/lib/theme";
+import { chooseSession } from "@/lib/tracker";
+import { sessionMinutes } from "@/lib/workout";
+
+/** Displayed, indexed by `Date.getDay`. */
+const DAYS = ["dim.", "lun.", "mar.", "mer.", "jeu.", "ven.", "sam."];
+const MONTHS = [
+  "janv.", "févr.", "mars", "avr.", "mai", "juin",
+  "juil.", "août", "sept.", "oct.", "nov.", "déc.",
+];
+
+const dayName = (at: number): string => `${DAYS[new Date(at).getDay()]} ${new Date(at).getDate()}`;
+const dateName = (at: number): string =>
+  `${new Date(at).getDate()} ${MONTHS[new Date(at).getMonth()]}`;
+
+const ICONS: Record<string, React.ComponentProps<typeof Ionicons>["name"]> = {
+  easy: "walk",
+  long: "trail-sign",
+  interval: "flash",
+  tempo: "speedometer",
+  race: "flag",
+};
+
+function SessionRow({
+  entry, today, onStart,
+}: {
+  entry: ScheduledSession;
+  today: number;
+  onStart: (entry: ScheduledSession) => void;
+}) {
+  const done = entry.runId !== null;
+  const isToday = entry.at === today;
+  const minutes = sessionMinutes(entry.session);
+
+  return (
+    <Pressable
+      onPress={() => !done && onStart(entry)}
+      disabled={done}
+      accessibilityRole="button"
+      accessibilityLabel={`${entry.session.name}, ${dayName(entry.at)}`}
+      style={({ pressed }) => [styles.row, isToday && styles.rowToday, pressed && styles.pressed]}
+    >
+      <View style={[styles.mark, (done || entry.kind === "race") && styles.markFilled]}>
+        <Ionicons
+          name={done ? "checkmark" : ICONS[entry.kind]}
+          size={15}
+          color={done || entry.kind === "race" ? colors.accentText : colors.accent}
+        />
+      </View>
+      <View style={styles.rowBody}>
+        <Text style={[styles.rowName, done && styles.rowDone]} numberOfLines={1}>
+          {entry.session.name}
+        </Text>
+        <Text style={styles.rowDetail}>
+          {KIND_NAMES[entry.kind]} · {minutes} min · {formatPace(entry.targetSKm)}
+        </Text>
+      </View>
+      <Text style={[styles.rowDay, isToday && styles.rowDayToday]}>
+        {isToday ? "aujourd'hui" : dayName(entry.at)}
+      </Text>
+    </Pressable>
+  );
+}
+
+export default function PlanScreen() {
+  const [plan, setPlan] = useState<StoredPlan | null | undefined>(undefined);
+  const [done, setDone] = useState<Map<number, Done>>(new Map());
+  /** Read on arrival, never during a render. A day is not a pure value. */
+  const [today, setToday] = useState(0);
+  const tabBarSpace = useTabBarSpace();
+  const router = useRouter();
+
+  const load = useCallback(() => {
+    let live = true;
+    activePlan()
+      .then(async (found) => {
+        if (!live) return;
+        // On every arrival, so a plan left open overnight moves on with the
+        // calendar instead of still pointing at yesterday.
+        setToday(startOfDay(Date.now()));
+        setPlan(found);
+        setDone(found ? await planDone(found.id) : new Map());
+      })
+      .catch(() => live && setPlan(null));
+    return () => { live = false; };
+  }, []);
+
+  useFocusEffect(load);
+
+  async function create(draft: PlanDraft) {
+    const sessions = buildPlan(draft);
+    if (!sessions.length) return;
+    await createPlan({ ...draft, sessions });
+    load();
+  }
+
+  function abandon() {
+    Alert.alert(
+      "Abandonner le programme ?",
+      "Les courses déjà faites restent dans ton historique. Seul le programme disparaît.",
+      [
+        { text: "Annuler", style: "cancel" },
+        {
+          text: "Abandonner",
+          style: "destructive",
+          onPress: () => void deletePlan().then(load).catch(() => undefined),
+        },
+      ],
+    );
+  }
+
+  /**
+   * Hand the session to the tracker whole, with its place in the programme.
+   *
+   * Whole because a plan's sessions are generated — six repetitions in week
+   * three and eight in week nine — so there is no name in the catalogue to
+   * pass instead. Its order travels with it so that finishing the run ticks
+   * the right line off, and only once the run is safely written.
+   */
+  function startSession(entry: ScheduledSession) {
+    chooseSession(entry.session, entry.order);
+    router.push("/record");
+  }
+
+  if (plan === undefined || today === 0) return <SafeAreaView style={styles.screen} edges={["top"]} />;
+
+  if (plan === null) {
+    return (
+      <SafeAreaView style={styles.screen} edges={["top"]}>
+        <Animated.View style={styles.fill} entering={FadeIn.duration(220)}>
+          <PlanSetup onCreate={(draft) => void create(draft)} />
+        </Animated.View>
+      </SafeAreaView>
+    );
+  }
+
+  const goal = goalById(plan.goal);
+  const scheduled = schedule(plan.sessions, done, today, plan.raceAt, plan.perWeek);
+  const next = nextSession(scheduled);
+  const progress = planProgress(plan.sessions, done.size);
+  const daysLeft = daysBetween(today, plan.raceAt);
+
+  // Grouped by the week a session belongs to in the programme, not by the
+  // calendar week it landed in: what a runner is doing is week nine of a plan,
+  // whatever the sliding has done to the dates.
+  const weeks = [...new Set(scheduled.map((s) => s.week))].sort((a, b) => a - b);
+
+  return (
+    <SafeAreaView style={styles.screen} edges={["top"]}>
+      <Animated.View style={styles.fill} entering={FadeIn.duration(220)}>
+        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: tabBarSpace }]}>
+          <Text style={styles.title}>{goal?.name ?? "Programme"}</Text>
+          <Text style={styles.lede}>
+            {dateName(plan.raceAt)} · {daysLeft > 0 ? `dans ${daysLeft} jours` : "c'est aujourd'hui"}
+            {" · "}
+            {formatDuration(plan.targetTimeS)} visé
+          </Text>
+
+          <View style={styles.bar}>
+            <View style={[styles.barFill, { width: `${Math.round(progress * 100)}%` }]} />
+          </View>
+          <Text style={styles.caption}>
+            {done.size} séance{done.size > 1 ? "s" : ""} sur {plan.sessions.length}
+          </Text>
+
+          {next ? (
+            <Pressable
+              onPress={() => startSession(next)}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.next, pressed && styles.pressed]}
+            >
+              <View style={styles.nextBody}>
+                <Text style={styles.nextLabel}>
+                  {next.at <= today ? "À faire maintenant" : `Prochaine · ${dayName(next.at)}`}
+                </Text>
+                <Text style={styles.nextName}>{next.session.name}</Text>
+                <Text style={styles.nextDetail}>
+                  {KIND_NAMES[next.kind]} · {formatPace(next.targetSKm)} · semaine {next.week}
+                </Text>
+              </View>
+              <Ionicons name="play" size={20} color={colors.accentText} />
+            </Pressable>
+          ) : (
+            <Text style={styles.finished}>
+              {"Le programme est terminé. Il ne reste plus qu'à courir."}
+            </Text>
+          )}
+
+          {weeks.map((week) => {
+            const entries = scheduled.filter((s) => s.week === week);
+            return (
+              <View key={week} style={styles.week}>
+                <Text style={styles.weekTitle}>
+                  Semaine {week} · {PHASE_NAMES[entries[0].phase]}
+                </Text>
+                {entries.map((entry) => (
+                  <SessionRow key={entry.order} entry={entry} today={today} onStart={startSession} />
+                ))}
+              </View>
+            );
+          })}
+
+          <Pressable onPress={abandon} accessibilityRole="button" style={styles.abandon}>
+            <Text style={styles.abandonLabel}>Abandonner le programme</Text>
+          </Pressable>
+        </ScrollView>
+      </Animated.View>
+    </SafeAreaView>
+  );
+}
+
+const GUTTER = 20;
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colors.background },
+  fill: { flex: 1 },
+  content: {},
+  title: {
+    color: colors.text, fontSize: 32, fontFamily: font.bold,
+    letterSpacing: -0.6, paddingHorizontal: GUTTER, paddingTop: 10,
+  },
+  lede: {
+    color: colors.muted, fontFamily: font.regular, fontSize: 15,
+    paddingHorizontal: GUTTER, marginTop: 2,
+  },
+
+  bar: {
+    height: 4, borderRadius: 2, backgroundColor: colors.accentSoft,
+    marginHorizontal: GUTTER, marginTop: 16, overflow: "hidden",
+  },
+  barFill: { height: "100%", borderRadius: 2, backgroundColor: colors.accent },
+  caption: {
+    color: colors.subtle, fontSize: 13, fontFamily: font.regular,
+    paddingHorizontal: GUTTER, marginTop: 6,
+  },
+
+  next: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    marginHorizontal: GUTTER, marginTop: 18,
+    backgroundColor: colors.accent, borderRadius: 12, padding: 16,
+  },
+  nextBody: { flex: 1, gap: 1 },
+  nextLabel: {
+    color: colors.accentText, opacity: 0.75, fontSize: 12,
+    fontFamily: font.semibold, letterSpacing: 1.2, textTransform: "uppercase",
+  },
+  nextName: { color: colors.accentText, fontSize: 21, fontFamily: font.bold, letterSpacing: -0.3 },
+  nextDetail: { color: colors.accentText, opacity: 0.8, fontSize: 13.5, fontFamily: font.regular },
+  finished: {
+    color: colors.muted, fontFamily: font.regular, fontSize: 15.5,
+    paddingHorizontal: GUTTER, marginTop: 20, lineHeight: 22,
+  },
+
+  week: {
+    marginTop: 22, paddingTop: 14,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline,
+  },
+  weekTitle: {
+    color: colors.subtle, fontSize: 13, fontFamily: font.semibold,
+    letterSpacing: 1.4, textTransform: "uppercase",
+    paddingHorizontal: GUTTER, marginBottom: 4,
+  },
+
+  row: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    paddingHorizontal: GUTTER, paddingVertical: 10,
+  },
+  rowToday: { backgroundColor: colors.sunken },
+  mark: {
+    width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center",
+    backgroundColor: colors.accentSoft,
+  },
+  markFilled: { backgroundColor: colors.accent },
+  rowBody: { flex: 1, gap: 1 },
+  rowName: { color: colors.text, fontSize: 16.5, fontFamily: font.semibold },
+  rowDone: { color: colors.subtle, textDecorationLine: "line-through" },
+  rowDetail: { color: colors.subtle, fontSize: 13, fontFamily: font.regular },
+  rowDay: { color: colors.subtle, fontSize: 13, fontFamily: font.regular },
+  rowDayToday: { color: colors.accent, fontFamily: font.semibold },
+
+  abandon: { alignItems: "center", paddingVertical: 24 },
+  abandonLabel: { color: colors.danger, fontSize: 14.5, fontFamily: font.semibold },
+  pressed: { opacity: 0.85 },
+});

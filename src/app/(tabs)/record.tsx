@@ -273,7 +273,7 @@ export default function RecordScreen() {
    * this screen can say that, and mid-interval it is the only thing anyone
    * looks for.
    */
-  const session = sessionById(tracker.sessionId);
+  const session = tracker.session;
   const step = session?.steps[tracker.stepIndex] ?? null;
   const sessionLine = (() => {
     if (!session) return null;
@@ -463,8 +463,10 @@ export default function RecordScreen() {
 
       <SessionPicker
         visible={choosing}
-        chosen={tracker.sessionId}
-        onChoose={chooseSession}
+        chosen={tracker.session?.id ?? null}
+        // The picker offers the catalogue, so it deals in names; a session
+        // coming from a programme is handed over whole by the plan screen.
+        onChoose={(id) => chooseSession(sessionById(id))}
         onClose={() => setChoosing(false)}
       />
 

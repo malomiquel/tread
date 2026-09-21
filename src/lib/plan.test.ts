@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   buildPlan, clampWeeks, daysBetween, equivalentTimeS, GOALS, goalById, loadOfWeek, pacesFrom,
-  phaseOfWeek, planProgress, projectedTimeS, schedule, slotDates, startOfDay,
+  phaseOfWeek, planProgress, projectedTimeS, schedule, SLOT_DAYS, slotDates, startOfDay,
   type Done, type PlannedSession,
 } from "./plan.ts";
 
@@ -97,6 +97,48 @@ test("four days a week is four sessions a week", () => {
     assert.ok(kinds.includes("interval"), `week ${week} had no repetitions`);
     assert.ok(kinds.includes("tempo"), `week ${week} had no threshold`);
     assert.ok(kinds.includes("long"), `week ${week} had no long run`);
+  }
+});
+
+test("two days a week keeps the long run and the quality session", () => {
+  const sessions = buildPlan({ goal: "half", weeks: 12, perWeek: 2, targetTimeS: 5400 });
+  // Eleven ordinary weeks of two, then one short run and the race.
+  assert.equal(sessions.length, 11 * 2 + 2);
+  assert.equal(sessions.filter((s) => s.kind === "easy" && s.week < 12).length, 0);
+  for (let week = 1; week < 12; week += 1) {
+    const kinds = sessions.filter((s) => s.week === week).map((s) => s.kind);
+    assert.ok(kinds.includes("long"), `week ${week} lost its long run`);
+    assert.equal(kinds.length, 2);
+  }
+});
+
+test("one day a week is the long run, with speed kept alive every third", () => {
+  const sessions = buildPlan({ goal: "half", weeks: 12, perWeek: 1, targetTimeS: 5400 });
+  assert.equal(sessions.length, 11 + 1);
+  assert.equal(sessions.at(-1)!.kind, "race");
+  // Nothing to stay loose from at this volume, so race week is the race alone.
+  assert.equal(sessions.filter((s) => s.week === 12).length, 1);
+
+  const longs = sessions.filter((s) => s.kind === "long").length;
+  const quality = sessions.filter((s) => s.kind === "interval" || s.kind === "tempo").length;
+  assert.ok(longs > quality * 2, "the long run stopped being the backbone");
+  assert.ok(quality > 0, "a plan with no quality session at all");
+});
+
+test("every volume has a day to run it on, and sunday is always one", () => {
+  for (const perWeek of [1, 2, 3, 4] as const) {
+    assert.equal(SLOT_DAYS[perWeek].length, perWeek);
+    assert.ok(SLOT_DAYS[perWeek].includes(0), `${perWeek} a week has no sunday`);
+    assert.equal(new Set(SLOT_DAYS[perWeek]).size, perWeek);
+  }
+});
+
+test("a plan at any volume still fits the calendar it was built for", () => {
+  for (const perWeek of [1, 2, 3, 4] as const) {
+    const sessions = buildPlan({ goal: "half", weeks: 12, perWeek, targetTimeS: 5400 });
+    const scheduled = schedule(sessions, new Map(), MONDAY, RACE, perWeek);
+    assert.equal(scheduled.length, sessions.length, `${perWeek} a week lost sessions`);
+    assert.equal(scheduled.at(-1)!.kind, "race");
   }
 });
 

@@ -2,6 +2,7 @@ import { openDatabaseSync, type SQLiteDatabase } from "expo-sqlite";
 import { Platform } from "react-native";
 import { autoName } from "./format";
 import { elevationGainM, fastestKmS, paceSecPerKm, segments, totalDistanceM, type TrackPoint } from "./geo";
+import type { Done, Goal, PerWeek, PlannedSession } from "./plan";
 import type { RanBlock } from "./workout";
 
 /**
@@ -104,7 +105,38 @@ function parseBlocks(raw: string | null): RanBlock[] {
   }
 }
 
-const SCHEMA_VERSION = 7;
+const SCHEMA_VERSION = 8;
+
+/**
+ * The plan's two tables, written once and used twice — by a fresh install and
+ * by a device that already holds runs. They are worth stating together: the
+ * generated sessions are stored rather than regenerated, for the same reason
+ * a finished run keeps its own blocks. A programme that rewrote itself behind
+ * a runner because the generator was improved mid-plan would be worse than no
+ * programme at all.
+ *
+ * No date is stored anywhere here. Dates are laid out afresh on every read,
+ * which is what lets a missed week slide.
+ */
+const PLAN_TABLES = `
+  CREATE TABLE IF NOT EXISTS plans (
+    id INTEGER PRIMARY KEY,
+    goal TEXT NOT NULL,
+    race_at INTEGER NOT NULL,
+    weeks INTEGER NOT NULL,
+    per_week INTEGER NOT NULL,
+    target_time_s REAL NOT NULL,
+    created_at INTEGER NOT NULL,
+    sessions TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS plan_done (
+    plan_id INTEGER NOT NULL REFERENCES plans(id) ON DELETE CASCADE,
+    session_order INTEGER NOT NULL,
+    run_id INTEGER,
+    at INTEGER NOT NULL,
+    PRIMARY KEY (plan_id, session_order)
+  );
+`;
 
 export async function initDb(): Promise<void> {
   const db = getDb();
@@ -144,6 +176,7 @@ export async function initDb(): Promise<void> {
       );
       CREATE INDEX IF NOT EXISTS idx_points_run ON points(run_id, ts);
       CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+      ${PLAN_TABLES}
     `);
     version = SCHEMA_VERSION;
   }
@@ -202,6 +235,11 @@ export async function initDb(): Promise<void> {
   if (version < 7) {
     await db.execAsync("ALTER TABLE runs ADD COLUMN cadence_spm REAL");
     version = 7;
+  }
+
+  if (version < 8) {
+    await db.execAsync(PLAN_TABLES);
+    version = 8;
   }
 
   await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
@@ -415,4 +453,112 @@ async function recoverInterruptedRuns(): Promise<void> {
       fastestKmS: fastestKmS(stored.points),
     });
   }
+}
+
+
+/** A programme as it was generated, with the race it is aimed at. */
+export interface StoredPlan {
+  id: number;
+  goal: Goal;
+  raceAt: number;
+  weeks: number;
+  perWeek: PerWeek;
+  targetTimeS: number;
+  createdAt: number;
+  sessions: PlannedSession[];
+}
+
+interface PlanRow {
+  id: number;
+  goal: string;
+  race_at: number;
+  weeks: number;
+  per_week: number;
+  target_time_s: number;
+  created_at: number;
+  sessions: string;
+}
+
+/**
+ * The programme in progress, or null.
+ *
+ * One at a time, deliberately. Two overlapping plans would each tell you what
+ * to run today, and a runner with two coaches has none.
+ */
+export async function activePlan(): Promise<StoredPlan | null> {
+  const row = await getDb().getFirstAsync<PlanRow>(
+    "SELECT * FROM plans ORDER BY created_at DESC LIMIT 1",
+  );
+  if (!row) return null;
+  return {
+    id: row.id,
+    goal: row.goal as Goal,
+    raceAt: row.race_at,
+    weeks: row.weeks,
+    // Narrowed on the way out rather than trusted: the column is an integer
+    // and a plan written by an older build could hold anything.
+    perWeek: ([1, 2, 3, 4] as const).find((n) => n === row.per_week) ?? 3,
+    targetTimeS: row.target_time_s,
+    createdAt: row.created_at,
+    sessions: JSON.parse(row.sessions) as PlannedSession[],
+  };
+}
+
+export interface NewPlan {
+  goal: Goal;
+  raceAt: number;
+  weeks: number;
+  perWeek: PerWeek;
+  targetTimeS: number;
+  sessions: PlannedSession[];
+}
+
+/** Store a programme, replacing whatever it succeeds. */
+export async function createPlan(plan: NewPlan): Promise<number> {
+  const db = getDb();
+  // The runs themselves are never touched: what a plan replaces is the
+  // intention, not the training that was actually done.
+  await db.runAsync("DELETE FROM plans");
+  const result = await db.runAsync(
+    "INSERT INTO plans (goal, race_at, weeks, per_week, target_time_s, created_at, sessions) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    plan.goal, plan.raceAt, plan.weeks, plan.perWeek, plan.targetTimeS,
+    Date.now(), JSON.stringify(plan.sessions),
+  );
+  return Number(result.lastInsertRowId);
+}
+
+export async function deletePlan(): Promise<void> {
+  await getDb().runAsync("DELETE FROM plans");
+}
+
+/** Which sessions of a plan are behind you, by their order in it. */
+export async function planDone(planId: number): Promise<Map<number, Done>> {
+  const rows = await getDb().getAllAsync<{ session_order: number; run_id: number | null; at: number }>(
+    "SELECT session_order, run_id, at FROM plan_done WHERE plan_id = ?",
+    planId,
+  );
+  return new Map(rows.map((row) => [row.session_order, { runId: row.run_id ?? 0, at: row.at }]));
+}
+
+/**
+ * Tie a finished run to the session of the plan it was run for.
+ *
+ * The plan is looked up here rather than carried through the tracker, which
+ * has enough to hold during a run and no business knowing about programmes.
+ */
+export async function markPlanSessionDone(order: number, runId: number | null, at: number): Promise<void> {
+  const plan = await activePlan();
+  if (!plan) return;
+  await getDb().runAsync(
+    "INSERT OR REPLACE INTO plan_done (plan_id, session_order, run_id, at) VALUES (?, ?, ?, ?)",
+    plan.id, order, runId, at,
+  );
+}
+
+/** Undo that, for a session ticked off by mistake. */
+export async function unmarkPlanSessionDone(planId: number, order: number): Promise<void> {
+  await getDb().runAsync(
+    "DELETE FROM plan_done WHERE plan_id = ? AND session_order = ?",
+    planId, order,
+  );
 }

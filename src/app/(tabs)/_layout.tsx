@@ -28,6 +28,16 @@ function RunTabIcon({ color, size }: { color: ColorValue; size: number }) {
   );
 }
 
+/**
+ * Where the app opens, stated rather than inherited.
+ *
+ * Expo Router starts on the first screen declared, which used to be the
+ * history by happy accident. The plan is declared first now, so the landing
+ * has to be named explicitly or the app would open somewhere nobody asked
+ * for.
+ */
+export const unstable_settings = { initialRouteName: "index" };
+
 export default function TabsLayout() {
   return (
     <Tabs
@@ -50,23 +60,31 @@ export default function TabsLayout() {
         sceneStyle: { backgroundColor: colors.background },
       }}
     >
+      {/*
+        * First, because it answers the question the others cannot.
+        *
+        * The rest of the app reports what has happened — a run under way, a
+        * list of past ones, a chart of the whole. This one says what to do
+        * next, and someone opening the app before a run is usually asking
+        * exactly that.
+        */}
       <Tabs.Screen
-        name="index"
+        name="plan"
         options={{
-          title: "Historique",
+          title: "Plan",
           animation: "fade",
-          tabBarIcon: ({ color, size }) => <Ionicons name="list" size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name="calendar" size={size} color={color} />,
         }}
       />
       {/*
-        * In the middle: the section opened most often.
+        * Then the run itself, second of four and within a thumb's reach.
         *
-        * And the only one without a fade on arrival. The fade animates the
-        * whole scene's opacity on the native driver, and this screen is made
-        * almost entirely of native surfaces — the map and the glass panels —
-        * which simply stop drawing under an animated opacity. The screen
-        * arrived completely white. Its own furniture handles the arrival
-        * instead, each piece from its own edge.
+        * The only one without a fade on arrival. The fade animates the whole
+        * scene's opacity on the native driver, and this screen is made almost
+        * entirely of native surfaces — the map and the glass panels — which
+        * simply stop drawing under an animated opacity. The screen arrived
+        * completely white. Its own furniture handles the arrival instead,
+        * each piece from its own edge.
         */}
       <Tabs.Screen
         name="record"
@@ -74,6 +92,14 @@ export default function TabsLayout() {
           title: "Courir",
           animation: "none",
           tabBarIcon: ({ color, size }) => <RunTabIcon color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: "Historique",
+          animation: "fade",
+          tabBarIcon: ({ color, size }) => <Ionicons name="list" size={size} color={color} />,
         }}
       />
       <Tabs.Screen

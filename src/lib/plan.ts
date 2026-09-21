@@ -106,6 +106,17 @@ export function pacesFrom(goalDistanceM: number, goalTimeS: number): Paces | nul
   };
 }
 
+/**
+ * How many days a week the runner actually turns up.
+ *
+ * One and two are offered because they are what many people will really do,
+ * and a programme built for a rhythm nobody holds is worth nothing. What
+ * changes at low volume is not the plan's ambition but what it gives up: the
+ * easy run goes first, then the quality session, because the long run is the
+ * one that prepares a distance.
+ */
+export type PerWeek = 1 | 2 | 3 | 4;
+
 /** Where a week sits in the arc of the plan. */
 export type Phase = "base" | "build" | "peak" | "taper";
 
@@ -144,7 +155,7 @@ export interface PlannedSession {
 export interface PlanInput {
   goal: Goal;
   weeks: number;
-  perWeek: 3 | 4;
+  perWeek: PerWeek;
   /** The finish time the plan trains for. */
   targetTimeS: number;
 }
@@ -315,6 +326,41 @@ function raceSession(goal: GoalSpec, paces: Paces): Unplaced {
 }
 
 /**
+ * What an ordinary week holds, by volume.
+ *
+ * The order of sacrifice is deliberate. At four there is room for everything.
+ * At three the second quality session goes, so repetitions and threshold
+ * alternate week by week. At two the easy run goes, since a run whose only
+ * job is to add mileage is the first thing that stops earning its place. At
+ * one only the long run remains, interrupted every third week by a quality
+ * session — without it a runner loses all their speed, and with too much of
+ * it they never build the endurance the race asks for.
+ */
+function weekBody(
+  perWeek: PerWeek,
+  week: number,
+  phase: Phase,
+  load: number,
+  paces: Paces,
+  goal: Goal,
+): Unplaced[] {
+  const quality = week % 2 === 1
+    ? intervalSession(phase, load, paces)
+    : tempoSession(phase, load, paces);
+  const long = longSession(goal, load, paces);
+
+  if (perWeek === 1) return [week % 3 === 0 ? quality : long];
+  if (perWeek === 2) return [quality, long];
+  if (perWeek === 3) return [quality, easySession(load, paces), long];
+  return [
+    intervalSession(phase, load, paces),
+    easySession(load, paces),
+    tempoSession(phase, load, paces),
+    long,
+  ];
+}
+
+/**
  * The programme, as an ordered list of sessions without dates.
  *
  * Dates are deliberately absent. They belong to `schedule`, which lays this
@@ -328,7 +374,6 @@ export function buildPlan(input: PlanInput): PlannedSession[] {
   if (!paces) return [];
 
   const weeks = clampWeeks(goal, input.weeks);
-  const four = input.perWeek === 4;
   const sessions: PlannedSession[] = [];
   let order = 0;
 
@@ -336,23 +381,15 @@ export function buildPlan(input: PlanInput): PlannedSession[] {
     const phase = phaseOfWeek(week, weeks, goal.taperWeeks);
     const load = loadOfWeek(week, weeks, goal.taperWeeks);
 
-    // Race week is its own shape: two short runs to stay loose, then the race.
+    // Race week is its own shape at any volume: a couple of short runs to
+    // stay loose, then the race. At one session a week there is nothing to
+    // stay loose from, so it is the race alone.
     const body: Unplaced[] = week === weeks
-      ? [easySession(load, paces), easySession(load, paces), raceSession(goal, paces)]
-      : four
-        ? [
-            intervalSession(phase, load, paces),
-            easySession(load, paces),
-            tempoSession(phase, load, paces),
-            longSession(goal.id, load, paces),
-          ]
-        : [
-            // Three days a week leaves room for one quality session, so the
-            // two alternate rather than one of them never happening.
-            week % 2 === 1 ? intervalSession(phase, load, paces) : tempoSession(phase, load, paces),
-            easySession(load, paces),
-            longSession(goal.id, load, paces),
-          ];
+      ? [
+          ...Array.from({ length: Math.min(2, input.perWeek - 1) }, () => easySession(load, paces)),
+          raceSession(goal, paces),
+        ]
+      : weekBody(input.perWeek, week, phase, load, paces, goal.id);
 
     for (const part of body) {
       order += 1;
@@ -384,18 +421,21 @@ export function daysBetween(fromMs: number, toMs: number): number {
 /**
  * Which weekdays a plan runs on, as `Date.getDay` numbers.
  *
- * Tuesday and Thursday for quality with a day between them, Sunday for the
- * long run, Friday added when there are four. Monday and Saturday are left
- * alone on purpose: one of them is where a missed session actually gets made
- * up, and a plan that fills every day leaves nowhere to put a life.
+ * Sunday is the fixed point at every volume, because that is where the long
+ * run goes. Tuesday joins it, then Thursday, then Friday. Monday and Saturday
+ * are left alone on purpose even at four: one of them is where a missed
+ * session actually gets made up, and a plan that fills every day leaves
+ * nowhere to put a life.
  */
-export const SLOT_DAYS: Record<3 | 4, number[]> = {
+export const SLOT_DAYS: Record<PerWeek, number[]> = {
+  1: [0],
+  2: [2, 0],
   3: [2, 4, 0],
   4: [2, 4, 5, 0],
 };
 
 /** Every training day between two dates, race day excluded. */
-export function slotDates(fromMs: number, raceMs: number, perWeek: 3 | 4): number[] {
+export function slotDates(fromMs: number, raceMs: number, perWeek: PerWeek): number[] {
   const days = new Set(SLOT_DAYS[perWeek]);
   const race = startOfDay(raceMs);
   const slots: number[] = [];
@@ -432,7 +472,7 @@ export function schedule(
   done: Map<number, Done>,
   todayMs: number,
   raceMs: number,
-  perWeek: 3 | 4,
+  perWeek: PerWeek,
 ): ScheduledSession[] {
   const slots = slotDates(todayMs, raceMs, perWeek);
   const remaining = sessions.filter((s) => !done.has(s.order) && s.kind !== "race");
