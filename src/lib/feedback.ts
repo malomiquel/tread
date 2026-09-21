@@ -28,9 +28,12 @@ export function announceKilometre(km: number, splitS: number, spoken: boolean): 
   // The buzz fires whatever happens: it is the part that works with headphones
   // out, music playing, or the phone deep in a pocket.
   //
-  // Two taps, unhurried: a kilometre is a thing that happened, not a thing to
-  // do about it.
-  buzz(2, 150);
+  // One long rumble. There is no sustained buzz in the haptics API, only
+  // taps, so a run of them close enough together chains into one — spaced
+  // wider and it reads as counting rather than holding. Nothing else in the
+  // app lasts this long, which is the whole point: a kilometre is the event
+  // worth interrupting for.
+  buzz(8, 45);
   if (!spoken) return;
 
   const minutes = Math.floor(splitS / 60);
