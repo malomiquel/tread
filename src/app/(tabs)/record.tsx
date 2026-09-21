@@ -166,7 +166,16 @@ export default function RecordScreen() {
     [],
   );
 
-  const leave = () => router.navigate("/");
+  /**
+   * Back the way you came, whether that was a tab or a session from the plan.
+   *
+   * This used to walk to the history unconditionally, which was right only by
+   * accident: the history was the screen most people arrived from. Starting a
+   * session from the programme made it wrong, because leaving the run sent
+   * you somewhere you had never been. The fallback stays for the one case
+   * with nothing behind it — a cold start straight onto this screen.
+   */
+  const leave = () => (router.canGoBack() ? router.back() : router.navigate("/"));
 
   /**
    * The same swipe that goes back everywhere else in iOS, on a narrow strip
