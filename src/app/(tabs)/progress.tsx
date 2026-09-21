@@ -1,10 +1,9 @@
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { buildLine } from "@/lib/build";
-import { announceKilometre, announceStep } from "@/lib/feedback";
 import { listRuns, personalRecords, type PersonalRecords, type Run } from "@/lib/db";
 import { formatDistance, formatDuration, formatElevation, formatPace } from "@/lib/format";
 import { useTabBarSpace } from "@/lib/layout";
@@ -171,27 +170,6 @@ export default function ProgressScreen() {
             says nothing about the version of the source that produced it, so
             "am I still up to date?" has no answer from the device. Compare
             this with git log and it does. */}
-        {/* TEMPORAIRE — à supprimer. Toutes les vibrations de la course, pour
-            les sentir à l'arrêt. Le son est coupé : seul le motif compte.
-            L'allure n'en a pas et n'a donc pas de bouton. */}
-        <View style={styles.buzzes}>
-          {([
-            ["Kilomètre", "1 seul", () => announceKilometre(3, 312, false)],
-            ["Bloc", "2", () => announceStep("400 m rapide", false)],
-            ["Fin de séance", "3", () => announceStep(null, false)],
-          ] as const).map(([label, hint, fire]) => (
-            <Pressable
-              key={label}
-              onPress={fire}
-              accessibilityRole="button"
-              style={({ pressed }) => [styles.buzz, pressed && styles.buzzPressed]}
-            >
-              <Text style={styles.buzzLabel}>{label}</Text>
-              <Text style={styles.buzzHint}>{hint}</Text>
-            </Pressable>
-          ))}
-        </View>
-
         <Text style={styles.build}>{buildLine()}</Text>
       </ScrollView>
       </Animated.View>
@@ -239,18 +217,6 @@ const styles = StyleSheet.create({
   barCurrent: { backgroundColor: colors.accent },
   weekLabel: { color: colors.subtle, fontFamily: font.regular, fontSize: 13, fontVariant: ["tabular-nums"] },
   caption: { color: colors.subtle, fontSize: 13 },
-  buzzes: {
-    flexDirection: "row", flexWrap: "wrap", gap: 8, justifyContent: "center",
-    paddingTop: 24, paddingHorizontal: GUTTER,
-  },
-  buzz: {
-    alignItems: "center", gap: 1,
-    paddingHorizontal: 14, paddingVertical: 9, borderRadius: 6,
-    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline,
-  },
-  buzzPressed: { backgroundColor: colors.sunken },
-  buzzLabel: { color: colors.muted, fontSize: 13, fontFamily: font.semibold },
-  buzzHint: { color: colors.subtle, fontSize: 11, fontFamily: font.regular },
 
   build: {
     color: colors.subtle, fontFamily: font.regular, fontSize: 12,
