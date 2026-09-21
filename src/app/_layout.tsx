@@ -84,6 +84,7 @@ export default function RootLayout() {
             de la route, « (tabs) ». */}
         <Stack.Screen name="(tabs)" options={{ headerShown: false, title: "Tread" }} />
         <Stack.Screen name="run/[id]" options={{ title: "Course", headerBackTitle: "Retour" }} />
+        <Stack.Screen name="plan-method" options={{ title: "Méthode", headerBackTitle: "Retour" }} />
       </Stack>
     </GestureHandlerRootView>
   );

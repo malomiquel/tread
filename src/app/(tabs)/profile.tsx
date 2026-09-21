@@ -1,6 +1,7 @@
-import { useFocusEffect, useScrollToTop } from "expo-router";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { useFocusEffect, useRouter, useScrollToTop } from "expo-router";
 import { useCallback, useState, useRef } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { buildLine } from "@/lib/build";
@@ -67,6 +68,7 @@ export default function ProfileScreen() {
   const [weeks, setWeeks] = useState<Week[] | null>(null);
   const [records, setRecords] = useState<PersonalRecords | null>(null);
   const tabBarSpace = useTabBarSpace();
+  const router = useRouter();
 
   useFocusEffect(
     useCallback(() => {
@@ -182,6 +184,21 @@ export default function ProfileScreen() {
           </>
         )}
 
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>À propos</Text>
+          <Pressable
+            onPress={() => router.push("/plan-method")}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.link, pressed && styles.linkPressed]}
+          >
+            <View style={styles.linkText}>
+              <Text style={styles.recordLabel}>Comment les programmes sont construits</Text>
+              <Text style={styles.recordDetail}>Le calcul, et ce qui relève de mon jugement</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.subtle} />
+          </Pressable>
+        </View>
+
         {/* Which build this app was made from. An app on a phone otherwise
             says nothing about the version of the source that produced it, so
             "am I still up to date?" has no answer from the device. Compare
@@ -244,6 +261,13 @@ const styles = StyleSheet.create({
     color: colors.subtle, fontFamily: font.regular, fontSize: 12,
     textAlign: "center", paddingTop: 22, paddingBottom: 6, paddingHorizontal: GUTTER,
   },
+
+  link: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    gap: 12, paddingVertical: 9,
+  },
+  linkPressed: { opacity: 0.6 },
+  linkText: { flex: 1, gap: 1 },
 
   record: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",

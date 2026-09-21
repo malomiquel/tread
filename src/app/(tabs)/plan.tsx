@@ -177,7 +177,21 @@ export default function PlanScreen() {
     <SafeAreaView style={styles.screen} edges={["top"]}>
       <Animated.View style={styles.fill} entering={FadeIn.duration(220)}>
         <ScrollView ref={page} contentContainerStyle={[styles.content, { paddingBottom: tabBarSpace }]}>
-          <Text style={styles.title}>{goal?.name ?? "Programme"}</Text>
+          <View style={styles.head}>
+            <Text style={styles.title}>{goal?.name ?? "Programme"}</Text>
+            {/* The reasoning behind the plan, one tap from the plan itself.
+                Someone told what to run for three months is owed the why —
+                including which parts of it are only my judgement. */}
+            <Pressable
+              onPress={() => router.push("/plan-method")}
+              accessibilityRole="button"
+              accessibilityLabel="Comment ce programme est construit"
+              hitSlop={10}
+              style={({ pressed }) => [styles.method, pressed && styles.pressed]}
+            >
+              <Ionicons name="information-circle-outline" size={23} color={colors.subtle} />
+            </Pressable>
+          </View>
           <Text style={styles.lede}>
             {dateName(plan.raceAt)} · {daysLeft > 0 ? `dans ${daysLeft} jours` : "c'est aujourd'hui"}
             {" · "}
@@ -254,10 +268,14 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   fill: { flex: 1 },
   content: {},
-  title: {
-    color: colors.text, fontSize: 32, fontFamily: font.bold,
-    letterSpacing: -0.6, paddingHorizontal: GUTTER, paddingTop: 10,
+  head: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: GUTTER, paddingTop: 10,
   },
+  title: {
+    flex: 1, color: colors.text, fontSize: 32, fontFamily: font.bold, letterSpacing: -0.6,
+  },
+  method: { padding: 4 },
   lede: {
     color: colors.muted, fontFamily: font.regular, fontSize: 15,
     paddingHorizontal: GUTTER, marginTop: 2,
