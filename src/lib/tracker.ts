@@ -9,6 +9,7 @@ import {
   distanceM, elevationGainM, fastestKmS, isAcceptable, paceSecPerKm, splits, totalDistanceM,
   type TrackPoint,
 } from "./geo";
+import { reflectRun, stopRun, type RunProgress } from "./liveActivity";
 import { getSettings } from "./settings";
 
 export const TASK_NAME = "tread-gps-tracking";
@@ -62,8 +63,43 @@ let speedWindow: { ts: number; speed: number }[] = [];
 
 function publish(patch: Partial<TrackerState>): void {
   state = { ...state, ...patch };
+  // Hooked here rather than at each of the half-dozen places a run changes
+  // shape: this is the one road they all take, so the lock screen cannot fall
+  // out of step with the app. Most calls are throttled away inside.
+  reflectLiveActivity();
   for (const listener of listeners) listener();
 }
+
+/**
+ * Hand the current run to the lock screen.
+ *
+ * The clock is sent as the instant it should count from rather than as an
+ * elapsed time — the system then ticks on its own, without the app waking up
+ * every second to say what the phone can already work out. Pausing simply
+ * withdraws that instant, and resuming hands over a new one shifted forward
+ * by however long the pause lasted.
+ */
+function reflectLiveActivity(): void {
+  if (state.status === "idle") {
+    reflectRun("idle", "", () => EMPTY_PROGRESS);
+    return;
+  }
+  reflectRun(state.status, autoName(state.startedAt ?? Date.now()), (): RunProgress => {
+    const elapsedS = activeDurationS(state, Date.now());
+    const distanceM = totalDistanceM(state.points);
+    return {
+      clockOriginMs:
+        state.segmentStartedAt === null ? null : state.segmentStartedAt - state.bankedS * 1000,
+      elapsedS,
+      distanceM,
+      paceSKm: paceSecPerKm(distanceM, elapsedS),
+    };
+  });
+}
+
+const EMPTY_PROGRESS: RunProgress = {
+  clockOriginMs: null, elapsedS: 0, distanceM: 0, paceSKm: null,
+};
 
 export function subscribe(listener: () => void): () => void {
   listeners.add(listener);
@@ -329,6 +365,8 @@ export async function discard(): Promise<void> {
 }
 
 function reset(): void {
+  // reset bypasses publish, so the lock screen is cleared by hand here.
+  stopRun();
   state = IDLE;
   savedCount = 0;
   speedWindow = [];

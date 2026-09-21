@@ -5,6 +5,7 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { initDb } from "@/lib/db";
+import { clearStaleRun } from "@/lib/liveActivity";
 import { loadSettings } from "@/lib/settings";
 import { colors } from "@/lib/theme";
 
@@ -13,6 +14,10 @@ export default function RootLayout() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // An activity outlives the process that started it, so a run cut short by
+    // a crash or a swipe-away can leave a clock counting on the lock screen
+    // for a run that is long over. Launching is the moment to clear it.
+    clearStaleRun();
     initDb()
       .then(loadSettings)
       .then(() => setReady(true))

@@ -1,0 +1,7 @@
+{
+  "name": "live-activity",
+  "version": "1.0.0",
+  "description": "Live Activity de course pour l'écran verrouillé et la Dynamic Island",
+  "main": "index.ts",
+  "private": true
+}

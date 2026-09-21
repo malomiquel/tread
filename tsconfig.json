@@ -8,6 +8,9 @@
       ],
       "@/assets/*": [
         "./assets/*"
+      ],
+      "live-activity": [
+        "./modules/live-activity"
       ]
     },
     "allowImportingTsExtensions": true

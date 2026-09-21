@@ -13,7 +13,11 @@
     ],
     "ios": {
       "bundleIdentifier": "com.malomiquel.tread",
-      "supportsTablet": false
+      "supportsTablet": false,
+      "appleTeamId": "RJPC9JP6NY",
+      "infoPlist": {
+        "NSSupportsLiveActivities": true
+      }
     },
     "android": {
       "package": "com.malomiquel.tread",
@@ -59,7 +63,8 @@
           "background": false
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      "@bacons/apple-targets"
     ],
     "experiments": {
       "typedRoutes": true,
