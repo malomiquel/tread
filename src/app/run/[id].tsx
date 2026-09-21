@@ -444,7 +444,12 @@ export default function RunDetailScreen() {
           claiming to validate what is already recorded would be noise. */}
       {from ? (
         <View style={styles.validate}>
-          <Button label="Valider" onPress={validate} />
+          <Button label="Valider" onPress={validate} disabled={run.exertion === null} />
+          {run.exertion === null ? (
+            <Text style={styles.validateHint}>
+              {"Dis d'abord comment c'était : c'est la seule chose que ton programme ne peut pas deviner."}
+            </Text>
+          ) : null}
         </View>
       ) : null}
 
@@ -529,7 +534,18 @@ const styles = StyleSheet.create({
   name: { color: colors.text, fontSize: 32, fontFamily: font.bold, letterSpacing: -0.6 },
   date: { color: colors.subtle, fontSize: 16 },
 
-  validate: { paddingHorizontal: 20, paddingTop: 22 },
+  // Set apart from the export and delete pair below it: closing a run and
+  // disposing of one are not the same kind of act, and a button stacked
+  // against those two reads as a third member of the group.
+  validate: {
+    paddingHorizontal: GUTTER, paddingTop: 24, paddingBottom: 26, gap: 8,
+    marginBottom: 20,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.hairline,
+  },
+  validateHint: {
+    color: colors.subtle, fontFamily: font.regular, fontSize: 13,
+    lineHeight: 18, textAlign: "center",
+  },
   feelRow: { flexDirection: "row", gap: 8, paddingTop: 2 },
   feel: {
     flex: 1, aspectRatio: 1.6, alignItems: "center", justifyContent: "center", borderRadius: 8,
