@@ -92,7 +92,26 @@ export default function RootLayout() {
           * celle d'en dessous — qu'aucun onglet ne peut offrir, faute de
           * quoi que ce soit derrière lui à dévoiler.
           */}
-        <Stack.Screen name="record" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="record"
+          options={{
+            headerShown: false,
+            /*
+             * The system edge gesture never fired here: it wants the touch to
+             * begin inside about twenty points of the edge, and a map filling
+             * the screen claims that strip for its own panning first.
+             *
+             * `fullScreenGestureEnabled` hands the screen a pan of its own
+             * rather than borrowing the system's, and the response distance
+             * then confines it to a band down the left side — roughly the
+             * width the hand-written gesture used before, wide enough to
+             * catch and narrow enough to leave the map its ground.
+             */
+            gestureEnabled: true,
+            fullScreenGestureEnabled: true,
+            gestureResponseDistance: { start: 44 },
+          }}
+        />
         <Stack.Screen name="run/[id]" options={{ title: "Course", headerBackTitle: "Retour" }} />
         <Stack.Screen name="plan-method" options={{ title: "Méthode", headerBackTitle: "Retour" }} />
       </Stack>
