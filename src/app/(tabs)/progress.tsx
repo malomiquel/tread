@@ -3,6 +3,7 @@ import { useCallback, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { buildLine } from "@/lib/build";
 import { listRuns, personalRecords, type PersonalRecords, type Run } from "@/lib/db";
 import { formatDistance, formatDuration, formatElevation, formatPace } from "@/lib/format";
 import { useTabBarSpace } from "@/lib/layout";
@@ -164,6 +165,12 @@ export default function ProgressScreen() {
             </View>
           </>
         )}
+
+        {/* Which build this app was made from. An app on a phone otherwise
+            says nothing about the version of the source that produced it, so
+            "am I still up to date?" has no answer from the device. Compare
+            this with git log and it does. */}
+        <Text style={styles.build}>{buildLine()}</Text>
       </ScrollView>
       </Animated.View>
     </SafeAreaView>
@@ -210,6 +217,10 @@ const styles = StyleSheet.create({
   barCurrent: { backgroundColor: colors.accent },
   weekLabel: { color: colors.subtle, fontFamily: font.regular, fontSize: 13, fontVariant: ["tabular-nums"] },
   caption: { color: colors.subtle, fontSize: 13 },
+  build: {
+    color: colors.subtle, fontFamily: font.regular, fontSize: 12,
+    textAlign: "center", paddingTop: 22, paddingBottom: 6, paddingHorizontal: GUTTER,
+  },
 
   record: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",

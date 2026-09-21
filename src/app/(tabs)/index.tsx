@@ -1,566 +1,321 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useKeepAwake } from "expo-keep-awake";
-import { useFocusEffect, useIsFocused, useRouter } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import Animated, {
-  FadeIn, FadeOut, runOnJS, useAnimatedStyle, useDerivedValue, useSharedValue, withTiming,
-} from "react-native-reanimated";
+import * as DocumentPicker from "expo-document-picker";
+import { File, Paths } from "expo-file-system";
+import { useFocusEffect, useRouter } from "expo-router";
+import * as Sharing from "expo-sharing";
+import { useCallback, useState } from "react";
+import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import Animated, { FadeIn } from "react-native-reanimated";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Button } from "@/components/Button";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { GlassPanel } from "@/components/GlassPanel";
-import { Metric } from "@/components/Metric";
-import { RunMap } from "@/components/RunMap";
-import { SessionPicker } from "@/components/SessionPicker";
-import { listRuns, type Run } from "@/lib/db";
-import { formatDistance, formatDuration, formatElevation, formatPace } from "@/lib/format";
-import { currentPace, elevationGainM, MAX_ACCURACY_M, paceSecPerKm, totalDistanceM } from "@/lib/geo";
-import { CONTROL_SIZE, CONTROLS_TOP, useTabBarBottom } from "@/lib/layout";
-import { useInitialLocation } from "@/lib/location";
-import { toggleSetting, useSettings } from "@/lib/settings";
-import { weekTotals } from "@/lib/stats";
+import { SwipeToDelete } from "@/components/SwipeToDelete";
+import { archiveFileName, buildArchive } from "@/lib/archive";
+import { deleteRun, importRun, listRuns, readRun, type Run } from "@/lib/db";
+import { createDemoRun } from "@/lib/demo";
+import { formatDate, formatDistance, formatDuration, formatPace } from "@/lib/format";
+import { parseGpx } from "@/lib/gpx";
+import { forgetRunInHealth } from "@/lib/health";
+import { useTabBarSpace } from "@/lib/layout";
 import { colors, font } from "@/lib/theme";
-import {
-  activeDurationS, chooseSession, discard, finish, pause, resume, start, useTracker,
-} from "@/lib/tracker";
-import { sessionById, stepLabel, stepRemaining } from "@/lib/workout";
 
-/** How long the panel takes to change shape, and everything above it with it. */
-const GROW = { duration: 280 } as const;
-
-/** How long the screen's furniture takes to slide in from its edges. */
-const ARRIVE = { duration: 300 } as const;
-
-/**
- * The two heights the panel takes, stated rather than measured.
- *
- * Measuring it was tried at length and failed in a different way each time:
- * too early and the figure comes back short, from inside the clip and the
- * measurement feeds the constraint that produced it, off the glass and a
- * native surface reports its layout unreliably. Worse, every one of those
- * attempts made the panel draw itself once, be measured, and resize — which
- * is the empty box that flashed on arrival.
- *
- * Stated outright, the panel has its height in its first frame. Both figures
- * are deliberately a little generous: air at the bottom of a panel costs
- * nothing, a clipped distance costs the number you went out to get. They are
- * the two values to revisit if the type ever changes size again.
- */
-const PANEL_HEIGHT = { idle: 96, live: 146 } as const;
-
-/**
- * Holds the screen awake for as long as it is mounted. Inside Expo Go the GPS
- * stops with the screen, so this is only mounted while a run is recording.
- */
-function KeepAwake() {
-  useKeepAwake();
-  return null;
-}
-
-/** A round control sized for a panel laid over the map. */
-function RoundButton({
-  icon, label, onPress, primary = false, danger = false, size = 46, disabled = false,
-}: {
-  icon: React.ComponentProps<typeof Ionicons>["name"];
-  label: string;
-  onPress: () => void;
-  primary?: boolean;
-  danger?: boolean;
-  size?: number;
-  disabled?: boolean;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={{ disabled }}
-      hitSlop={6}
-      style={({ pressed }) => [
-        styles.round,
-        { width: size, height: size, borderRadius: size / 2 },
-        primary && styles.roundPrimary,
-        danger && styles.roundDanger,
-        pressed && styles.pressed,
-        disabled && styles.roundDisabled,
-      ]}
-    >
-      <Ionicons
-        name={icon}
-        size={Math.round(size * 0.45)}
-        color={primary ? colors.accentText : danger ? colors.danger : colors.text}
-        // A play triangle centred geometrically reads as off-centre: its mass
-        // sits left of its box.
-        style={icon === "play" ? styles.play : undefined}
-      />
-    </Pressable>
-  );
-}
-
-export default function RecordScreen() {
-  const tracker = useTracker();
+export default function HistoryScreen() {
+  const [runs, setRuns] = useState<Run[] | null>(null);
+  const [seeding, setSeeding] = useState(false);
   const router = useRouter();
-  const { coords, granted } = useInitialLocation();
-  const settings = useSettings();
-  // The tab bar is hidden here, so the panel takes the room it used to leave
-  // for it and sits where the bar would have been.
-  const bottomInset = useTabBarBottom() + 8;
-  const [now, setNow] = useState(() => Date.now());
-  const [finishing, setFinishing] = useState(false);
-  const [confirming, setConfirming] = useState(false);
-  const [choosing, setChoosing] = useState(false);
-  const [history, setHistory] = useState<Run[]>([]);
-  // Measured rather than assumed: the panel grows when a run starts, and the
-  // controls stacked above it have to move with it instead of being buried.
+  const tabBarSpace = useTabBarSpace();
+  const [pending, setPending] = useState<Run | null>(null);
+  const [archiving, setArchiving] = useState(false);
+  const [importing, setImporting] = useState(false);
 
+  const reload = useCallback(() => listRuns().then(setRuns).catch(() => setRuns([])), []);
 
-  /**
-   * Zero as the screen arrives, one once it has.
-   *
-   * A tab screen is mounted once and kept, so an entering animation would run
-   * on the first visit and never again. Remounting the pieces on focus made
-   * it play every time, but at the cost of a frame in which the panel existed
-   * and its contents did not — the empty box that flashed on arrival. Driving
-   * one value instead animates the same movement without taking anything
-   * apart.
-   */
-  const focused = useIsFocused();
-  const arrive = useSharedValue(1);
-  useEffect(() => {
-    if (!focused) return;
-    arrive.value = 0;
-    arrive.value = withTiming(1, ARRIVE);
-  }, [focused, arrive]);
-
-  const chevronArrive = useAnimatedStyle(
-    () => ({ transform: [{ translateY: (1 - arrive.value) * -30 }] }),
-    [],
-  );
-  const togglesArrive = useAnimatedStyle(
-    () => ({ transform: [{ translateX: (1 - arrive.value) * 34 }] }),
-    [],
-  );
-  const panelArrive = useAnimatedStyle(
-    () => ({ transform: [{ translateY: (1 - arrive.value) * 40 }] }),
-    [],
-  );
-
-  const leave = () => router.navigate("/history");
-
-  /**
-   * The same swipe that goes back everywhere else in iOS, on a narrow strip
-   * down the left edge.
-   *
-   * Only a strip, because the rest of the screen is a map and a map wants
-   * every drag it can get: a gesture spanning the whole width would make it
-   * impossible to pan the map westward. The width is roughly the one iOS uses
-   * for its own back gesture, so the habit is already there.
-   *
-   * It insists on a horizontal intent — a clear push right without much
-   * vertical wander — so a thumb brushing past on its way somewhere else does
-   * not throw you off the screen.
-   */
-  const swipeBack = Gesture.Pan()
-    .activeOffsetX(14)
-    .failOffsetY([-24, 24])
-    .onEnd((event) => {
-      if (event.translationX > 60 && event.velocityX > 0) runOnJS(leave)();
-    });
-
-  const recording = tracker.status !== "idle";
-
-  // The right-hand column, read from the bottom up: the panel, then the map's
-  // locate button, then the two settings.
-  /**
-   * Everything above the panel is placed from its measured height, and placed
-   * outright rather than eased into position.
-   *
-   * Easing was the mistake: the panel took its new height in a single frame
-   * while the buttons glided for a quarter of a second, so the two overlapped
-   * all the way. Moving them at once puts them a single frame apart — the one
-   * it takes to measure — which nobody can see, and nothing ever overlaps.
-   */
-  const target = PANEL_HEIGHT[recording ? "live" : "idle"];
-
-  /**
-   * The panel's live height, and the single figure every piece above it
-   * reads. One shared value is what makes them travel together instead of
-   * each setting off from its own idea of where the panel currently is.
-   */
-  const panelH = useSharedValue(target);
-  useEffect(() => {
-    panelH.value = withTiming(target, GROW);
-  }, [target, panelH]);
-
-  const grow = useAnimatedStyle(() => ({ height: panelH.value }), []);
-  const locateAbove = useDerivedValue(() => bottomInset + panelH.value + 12, [bottomInset]);
-  const togglesRise = useAnimatedStyle(() => ({ bottom: locateAbove.value + CONTROL_SIZE + 10 }), []);
-
-  useEffect(() => {
-    if (!recording) return;
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, [recording]);
-
+  // Reload whenever the tab regains focus: a run may have just finished.
   useFocusEffect(
     useCallback(() => {
       let active = true;
       listRuns()
-        .then((runs) => {
-          if (active) setHistory(runs);
+        .then((rows) => {
+          if (active) setRuns(rows);
         })
-        .catch(() => undefined);
+        .catch(() => {
+          if (active) setRuns([]);
+        });
       return () => {
         active = false;
       };
     }, []),
   );
 
-  const distance = totalDistanceM(tracker.points);
-  const duration = activeDurationS(tracker, now);
-  const avgPace = paceSecPerKm(distance, duration);
-  const pace = tracker.status === "running" ? currentPace(tracker.points, now) : null;
-  const elevation = elevationGainM(tracker.points);
-  const week = weekTotals(history);
-
-  const signal =
-    tracker.accuracyM === null ? "recherche du GPS"
-    : tracker.accuracyM <= 10 ? `GPS précis, ±${Math.round(tracker.accuracyM)} m`
-    : tracker.accuracyM <= 30 ? `GPS moyen, ±${Math.round(tracker.accuracyM)} m`
-    : `GPS faible, points ignorés`;
-
-  const idleSignal =
-    granted === false ? "localisation refusée"
-    : coords === null ? "acquisition du GPS"
-    : "GPS prêt";
-
-  const state = recording
-    ? tracker.status === "paused" ? "En pause" : "Course en cours"
-    : "Prêt à courir";
-
-  /**
-   * While a session is under way the status line is given over to it: which
-   * block, how many there are, and what is left of this one. Nothing else on
-   * this screen can say that, and mid-interval it is the only thing anyone
-   * looks for.
-   */
-  const session = sessionById(tracker.sessionId);
-  const step = session?.steps[tracker.stepIndex] ?? null;
-  const sessionLine = (() => {
-    if (!session) return null;
-    if (!recording) return `${session.name} · ${session.steps.length} blocs`;
-    if (!step) return `${session.name} · terminée`;
-    const reste = stepRemaining(
-      step,
-      distance - tracker.stepStartM,
-      activeDurationS(tracker, now) - tracker.stepStartS,
-    );
-    const encore = reste.metres !== null
-      ? `${Math.round(reste.metres)} m`
-      : formatDuration(Math.ceil(reste.seconds ?? 0));
-    return `${tracker.stepIndex + 1}/${session.steps.length} · ${stepLabel(step)} · ${encore}`;
-  })();
-
-  // The same threshold the tracker throws fixes away at, so the warning and
-  // the filter can never disagree about what counts as a poor signal.
-  const weakSignal =
-    (recording && tracker.accuracyM !== null && tracker.accuracyM > MAX_ACCURACY_M) || granted === false;
-
-  async function close() {
-    setConfirming(false);
-    setFinishing(true);
-    const id = await finish();
-    setFinishing(false);
-    if (id !== null) router.push({ pathname: "/run/[id]", params: { id: String(id) } });
+  // Only offered while the history is empty: it exists to show what a run
+  // looks like before you have run one, not to clutter a real history.
+  async function addDemo() {
+    if (seeding) return;
+    setSeeding(true);
+    try {
+      await createDemoRun();
+      await reload();
+    } finally {
+      setSeeding(false);
+    }
   }
 
-  const tooShort = distance < 100;
+  /**
+   * The row leaves the list at once, then the database catches up. Waiting for
+   * the write would leave the row sitting there after the tap, which reads as
+   * a broken button.
+   */
+  async function remove(run: Run) {
+    setPending(null);
+    setRuns((current) => (current ?? []).filter((item) => item.id !== run.id));
+    try {
+      // Removes the copy in Apple Health too, so that throwing a run away here
+      // does not leave a ghost of it there. Best effort, and silent.
+      await forgetRunInHealth(run);
+      await deleteRun(run.id);
+    } catch {
+      // The delete failed, so put the run back rather than pretend otherwise.
+      await reload();
+    }
+  }
+
+  /**
+   * Brings runs in from GPX files: an old app, another watch, or an archive
+   * this app wrote itself.
+   *
+   * Until now the door only opened outwards — runs could leave but never come
+   * back, so an export was a copy you could look at and not a backup you
+   * could restore. Several files at once, because an archive is rarely one
+   * run, and already-known runs are counted and skipped rather than refused
+   * with an error.
+   */
+  async function importGpx() {
+    if (importing) return;
+    setImporting(true);
+    try {
+      const choix = await DocumentPicker.getDocumentAsync({
+        // Loose on purpose: a GPX arrives declared as XML, as plain text or as
+        // nothing at all depending on where it was written.
+        type: ["application/gpx+xml", "application/xml", "text/xml", "*/*"],
+        multiple: true,
+        copyToCacheDirectory: true,
+      });
+      if (choix.canceled) return;
+
+      let ajoutees = 0;
+      let connues = 0;
+      let illisibles = 0;
+      for (const fichier of choix.assets) {
+        try {
+          const { name, points } = parseGpx(await new File(fichier.uri).text());
+          const id = await importRun(name, points);
+          if (id === null) connues += 1;
+          else ajoutees += 1;
+        } catch {
+          illisibles += 1;
+        }
+      }
+
+      await reload();
+      const details = [
+        ajoutees > 0 ? `${ajoutees} course${ajoutees > 1 ? "s" : ""} ajoutée${ajoutees > 1 ? "s" : ""}` : null,
+        connues > 0 ? `${connues} déjà connue${connues > 1 ? "s" : ""}` : null,
+        illisibles > 0 ? `${illisibles} illisible${illisibles > 1 ? "s" : ""}` : null,
+      ].filter(Boolean).join(" · ");
+      Alert.alert("Import terminé", details || "Aucune course dans ces fichiers.");
+    } catch (cause) {
+      Alert.alert("Import impossible", cause instanceof Error ? cause.message : "Erreur inattendue.");
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  /**
+   * Writes every run to one zip of GPX files and hands it to the share sheet.
+   *
+   * This is the only backup the app has: the runs live in a single database on
+   * this phone, and deleting the app takes them with it. Exporting them
+   * somewhere else is what makes that survivable.
+   */
+  async function exportAll() {
+    if (archiving || !runs?.length) return;
+    setArchiving(true);
+    try {
+      const loaded = [];
+      for (const run of runs) {
+        const stored = await readRun(run.id);
+        if (stored) loaded.push({ run: stored.run, points: stored.points });
+      }
+
+      const file = new File(Paths.cache, archiveFileName());
+      file.create({ overwrite: true });
+      file.write(await buildArchive(loaded), { encoding: "base64" });
+
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(file.uri, { mimeType: "application/zip", UTI: "public.zip-archive" });
+      } else {
+        Alert.alert("Partage indisponible", "Impossible d'ouvrir la feuille de partage sur cet appareil.");
+      }
+    } catch (cause) {
+      Alert.alert("Export impossible", cause instanceof Error ? cause.message : "Erreur inattendue.");
+    } finally {
+      setArchiving(false);
+    }
+  }
+
+  const totalM = (runs ?? []).reduce((total, run) => total + run.distanceM, 0);
 
   return (
-    <View style={styles.screen}>
-      {/* The map is the screen now, not something hidden behind a button. */}
-      <RunMap
-        points={tracker.points}
-        follow
-        initialCenter={coords}
-        controlsAbove={locateAbove}
-        controlsArrive={arrive}
-        style={styles.map}
-      />
-      {recording && <KeepAwake />}
-
-      <GestureDetector gesture={swipeBack}>
-        <View style={styles.backEdge} />
-      </GestureDetector>
-
-      {/* The way out, since the tab bar no longer offers one. Top left, in the
-          corner a back button lives in everywhere else, and in the same glass
-          as the map's own controls so it reads as part of the map rather than
-          as something dropped on top of it. */}
-      <Animated.View pointerEvents="box-none" style={[styles.leave, chevronArrive]}>
-        <GlassPanel style={styles.leavePill}>
+    <SafeAreaView style={styles.screen} edges={["top"]}>
+      {/* The page arrives rather than appearing: coming from a screen that
+          just slid its own furniture away, a list that simply exists in the
+          next frame reads as a cut. */}
+      <Animated.View style={styles.fill} entering={FadeIn.duration(220)}>
+      <View style={styles.header}>
+        <View style={styles.headerText}>
+          <Text style={styles.title}>Historique</Text>
+          {runs && runs.length > 0 && (
+            <Text style={styles.subtitle}>
+              {runs.length} course{runs.length > 1 ? "s" : ""} · {formatDistance(totalM)} km au total
+            </Text>
+          )}
+        </View>
+        <Pressable
+          onPress={() => void importGpx()}
+          disabled={importing}
+          accessibilityRole="button"
+          accessibilityLabel="Importer des courses depuis des fichiers GPX"
+          hitSlop={10}
+          style={({ pressed }) => [styles.export, pressed && styles.pressed]}
+        >
+          {importing ? (
+            <ActivityIndicator size="small" color={colors.accent} />
+          ) : (
+            <Ionicons name="add" size={22} color={colors.text} />
+          )}
+        </Pressable>
+        {runs && runs.length > 0 && (
           <Pressable
-            onPress={leave}
+            onPress={() => void exportAll()}
+            disabled={archiving}
             accessibilityRole="button"
-            accessibilityLabel="Quitter l'écran de course"
-            hitSlop={8}
-            style={({ pressed }) => [styles.leaveButton, pressed && styles.pressed]}
+            accessibilityLabel="Exporter toutes les courses"
+            hitSlop={10}
+            style={({ pressed }) => [styles.export, pressed && styles.pressed]}
           >
-            <Ionicons name="chevron-back" size={22} color={colors.text} />
+            {archiving ? (
+              <ActivityIndicator size="small" color={colors.accent} />
+            ) : (
+              <Ionicons name="share-outline" size={20} color={colors.text} />
+            )}
           </Pressable>
-        </GlassPanel>
-      </Animated.View>
+        )}
+      </View>
 
-      {/* Cut to the same size as the map's own button just below, so the two
-          read as one column rather than as two unrelated things that happen
-          to be near each other. */}
-      {/* Position outside, arrival inside: on one view the two animations
-          write to the same translation and fight over it, which shows up as
-          the buttons shivering as they land. */}
-      <Animated.View pointerEvents="box-none" style={[styles.toggles, togglesRise]}>
-        <Animated.View style={togglesArrive}>
-        <GlassPanel style={styles.togglePill}>
-          <Toggle
-            on={session !== null}
-            onPress={() => setChoosing(true)}
-            icon="list"
-            name="SÉANCE"
-            label="Choisir une séance d'entraînement"
-          />
-        </GlassPanel>
-        <GlassPanel style={styles.togglePill}>
-          <Toggle
-            on={settings.voice}
-            onPress={() => void toggleSetting("voice")}
-            icon={settings.voice ? "volume-high" : "volume-mute"}
-            name="VOIX"
-            label="Annonce vocale des kilomètres"
-          />
-        </GlassPanel>
-        </Animated.View>
-      </Animated.View>
-
-      {/* Sits above the tab bar rather than replacing it: the tab bar is how
-          you leave this screen, so it has to stay reachable. */}
-      <Animated.View
-        pointerEvents="box-none"
-        style={[styles.bottom, { bottom: bottomInset }, panelArrive]}
-      >
-        <Animated.View style={[styles.panelClip, grow]}>
-        <GlassPanel style={styles.panel} interactive>
-            {/* One row for the whole panel, so the button centres against
-                everything written beside it. */}
-            <View style={styles.panelRow}>
-              <View style={styles.panelMetrics}>
-                <Text
-                  style={[styles.state, weakSignal && styles.stateWeak, sessionLine && styles.stateSession]}
-                  numberOfLines={1}
-                >
-                  {sessionLine ?? `${state} · ${recording ? signal : idleSignal}`}
-                </Text>
-
-                {recording ? (
-                  // Two rows of two rather than four abreast: on a narrow phone
-                  // the single row fell to 46 points a column, which clipped the
-                  // unit off the pace.
-                  <View style={styles.metricStack}>
-                    <View style={styles.metricRow}>
-                      <Metric compact label="Distance" value={formatDistance(distance)} unit="km" />
-                      <Metric compact label="Durée" value={formatDuration(duration)} />
-                    </View>
-                    <View style={styles.metricRow}>
-                      <Metric compact label="Allure" value={formatPace(pace ?? avgPace)} unit="/km" />
-                      <Metric compact label="Dénivelé" value={formatElevation(elevation)} unit="m" />
-                    </View>
-                  </View>
-                ) : (
-                  // No entering animation on these: nested inside a panel that
-                  // is itself arriving, a child's own entering can be dropped
-                  // and leave the view stuck at the opacity it started from —
-                  // which is how the week's distance went missing entirely.
-                  <Metric
-                    compact
-                    label="Cette semaine"
-                    value={`${formatDistance(week.distanceM)} km`}
-                    unit={week.runs > 0 ? `· ${week.runs} sortie${week.runs > 1 ? "s" : ""}` : undefined}
-                  />
-                )}
-                {tracker.error && <Text style={styles.error}>{tracker.error}</Text>}
-              </View>
-
-              {/* A box of fixed size holding two layers that cross-fade in
-                  place. Laid out in flow instead, the arriving buttons pushed
-                  the leaving one aside on their way in — which is what made
-                  the play button look like it came back from below. */}
-              <View style={styles.panelControls}>
-                {!recording ? (
-                  <Animated.View
-                    key="rest"
-                    entering={FadeIn.duration(200)}
-                    exiting={FadeOut.duration(140)}
-                    style={styles.controlLayer}
-                  >
-                    <RoundButton icon="play" label="Démarrer" onPress={() => void start()} primary size={52} />
-                  </Animated.View>
-                ) : (
-                  <Animated.View
-                    key="running"
-                    entering={FadeIn.duration(200)}
-                    exiting={FadeOut.duration(140)}
-                    style={styles.controlLayer}
-                  >
-                    {tracker.status === "running" ? (
-                      <RoundButton icon="pause" label="Pause" onPress={pause} />
-                    ) : (
-                      <RoundButton icon="play" label="Reprendre" onPress={resume} primary />
-                    )}
-                    <RoundButton
-                      icon="stop"
-                      label="Terminer"
-                      onPress={() => setConfirming(true)}
-                      danger
-                      disabled={finishing}
-                    />
-                  </Animated.View>
-                )}
-              </View>
+      <FlatList
+        data={runs ?? []}
+        keyExtractor={(run) => String(run.id)}
+        contentContainerStyle={{ paddingBottom: tabBarSpace }}
+        ListEmptyComponent={
+          runs === null ? null : (
+            <View style={styles.emptyBlock}>
+              <Text style={styles.empty}>
+                Aucune course pour l&apos;instant. La première t&apos;attend dans l&apos;onglet Courir.
+              </Text>
+              <Button
+                label={seeding ? "Création…" : "Ajouter une course de démonstration"}
+                variant="secondary"
+                onPress={() => void addDemo()}
+                disabled={seeding}
+              />
+              <Text style={styles.emptyHint}>
+                Une sortie fictive de 5 km, pour voir le rendu. Supprimable depuis son détail.
+              </Text>
             </View>
-        </GlassPanel>
-        </Animated.View>
-      </Animated.View>
-
-      <SessionPicker
-        visible={choosing}
-        chosen={tracker.sessionId}
-        onChoose={chooseSession}
-        onClose={() => setChoosing(false)}
+          )
+        }
+        renderItem={({ item }) => (
+          <SwipeToDelete label={item.name ?? "cette course"} onDelete={() => setPending(item)}>
+          <Pressable
+            onPress={() => router.push({ pathname: "/run/[id]", params: { id: String(item.id) } })}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+          >
+            <View style={styles.rowLeft}>
+              <Text style={styles.name}>{item.name ?? formatDate(item.startedAt)}</Text>
+              {item.name ? <Text style={styles.when}>{formatDate(item.startedAt)}</Text> : null}
+              <Text style={styles.detail}>
+                {formatDuration(item.durationS)} · {formatPace(item.avgPaceSKm)} /km
+              </Text>
+            </View>
+            <Text style={styles.distance}>
+              {formatDistance(item.distanceM)}
+              <Text style={styles.km}> km</Text>
+            </Text>
+          </Pressable>
+          </SwipeToDelete>
+        )}
       />
+
+      </Animated.View>
 
       <ConfirmDialog
-        visible={confirming}
-        title={tooShort ? "Course très courte" : "Terminer la course ?"}
+        visible={pending !== null}
+        title="Supprimer cette course ?"
         message={
-          tooShort
-            ? "Moins de 100 m enregistrés. La garder quand même ?"
-            : `${formatDistance(distance)} km en ${formatDuration(duration)}.`
+          pending
+            ? `${pending.name ?? "Course"}, ${formatDistance(pending.distanceM)} km. Ses points GPS seront effacés et l'action est définitive.`
+            : undefined
         }
-        confirmLabel={tooShort ? "Garder" : "Terminer"}
-        cancelLabel={tooShort ? "Abandonner" : "Continuer"}
-        onConfirm={() => void close()}
-        onCancel={() => {
-          setConfirming(false);
-          if (tooShort) void discard();
-        }}
+        confirmLabel="Supprimer"
+        destructive
+        onConfirm={() => pending && void remove(pending)}
+        onCancel={() => setPending(null)}
       />
-    </View>
+    </SafeAreaView>
   );
 }
 
-/**
- * A switch in the settings pill: an icon over what it does.
- *
- * The icons carried the whole meaning before, and three of them side by side
- * told you nothing — a speaker, a pause sign and a heart are each ambiguous
- * enough on their own, and a setting nobody can name is a setting nobody
- * touches. The word says what it is, the colour says whether it is on.
- */
-function Toggle({
-  on, onPress, icon, name, label,
-}: {
-  on: boolean;
-  onPress: () => void;
-  icon: React.ComponentProps<typeof Ionicons>["name"];
-  /** The word shown under the icon. Short enough to sit over a map. */
-  name: string;
-  /** The whole sentence, for anyone listening rather than looking. */
-  label: string;
-}) {
-  const tint = on ? colors.accent : colors.subtle;
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="switch"
-      accessibilityState={{ checked: on }}
-      accessibilityLabel={label}
-      hitSlop={8}
-      style={({ pressed }) => [styles.toggle, pressed && styles.pressed]}
-    >
-      <Ionicons name={icon} size={18} color={tint} />
-      <Text style={[styles.toggleName, { color: tint }]}>{name}</Text>
-    </Pressable>
-  );
-}
+const GUTTER = 20;
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  map: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, borderRadius: 0 },
-
-  // Right-aligned so the pills, the locate button and the panel's edge all
-  // land on one line down the side of the screen.
-  toggles: { position: "absolute", right: 12, alignItems: "flex-end", gap: 10 },
-  backEdge: { position: "absolute", left: 0, top: 0, bottom: 0, width: 26 },
-  leave: { position: "absolute", top: CONTROLS_TOP, left: 12 },
-  leavePill: { borderRadius: CONTROL_SIZE / 2, padding: 0 },
-  leaveButton: {
-    width: CONTROL_SIZE, height: CONTROL_SIZE,
+  fill: { flex: 1 },
+  header: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8,
+    paddingHorizontal: GUTTER, paddingTop: 10, paddingBottom: 14,
+  },
+  headerText: { flex: 1 },
+  export: {
+    width: 40, height: 40, borderRadius: 20,
     alignItems: "center", justifyContent: "center",
+    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline,
   },
-  togglePill: { borderRadius: CONTROL_SIZE / 2, padding: 0 },
-  // Square, exactly the map button's size: the three sit in one column and
-  // any difference between them would read as a mistake.
-  toggle: {
-    width: CONTROL_SIZE, height: CONTROL_SIZE,
-    alignItems: "center", justifyContent: "center", gap: 1,
-  },
-  toggleName: { fontSize: 9, fontFamily: font.semibold, letterSpacing: 0.6 },
+  title: { color: colors.text, fontSize: 32, fontFamily: font.bold, letterSpacing: -0.6 },
+  subtitle: { color: colors.subtle, fontFamily: font.regular, fontSize: 15, marginTop: 3 },
 
-  bottom: { position: "absolute", left: 12, right: 12 },
-  panelClip: { borderRadius: 22, overflow: "hidden" },
-  // The glass crops its own content too: a parent's clip does not always hold
-  // a native surface's children in, and what escapes it lands outside the
-  // panel altogether.
-  // The glass fills the clip rather than sizing to its content, so its
-  // surface is always exactly the panel and never a shape inside it.
-  panel: {
-    flex: 1, borderRadius: 22, paddingHorizontal: 16, paddingVertical: 12,
-    overflow: "hidden",
-  },
-  state: { color: colors.muted, fontSize: 14.5, fontFamily: font.medium },
-  stateWeak: { color: colors.warning },
-  // A session line is instruction rather than commentary, so it is given
-  // the accent and the app's heavier face.
-  stateSession: { color: colors.accent, fontFamily: font.semibold },
-  panelRow: { flex: 1, flexDirection: "row", alignItems: "center", gap: 12 },
-  panelMetrics: { flex: 1, gap: 8, minWidth: 0 },
-  metricStack: { gap: 10 },
-  metricRow: { flexDirection: "row", gap: 12 },
-  // Wide enough for the two buttons of a run in progress, tall enough for the
-  // larger single one at rest: the box never changes, so nothing around it
-  // shifts when its contents do.
-  panelControls: { width: CONTROL_SIZE * 2 + 8, height: 52, flexShrink: 0 },
-  controlLayer: {
-    position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-  },
+  emptyBlock: { marginTop: 56, paddingHorizontal: GUTTER, gap: 18, alignItems: "stretch" },
+  empty: { color: colors.muted, fontFamily: font.regular, fontSize: 17.5, textAlign: "center", lineHeight: 27.5 },
+  emptyHint: { color: colors.subtle, fontFamily: font.regular, fontSize: 14.5, textAlign: "center", lineHeight: 22 },
 
-  // A real outline rather than a hairline. These buttons sit on glass over a
-  // map, where a third of a point at the palest grey in the palette simply
-  // disappeared — the pause read as an icon floating on the panel rather than
-  // as something to press.
-  round: {
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1.5,
-    borderColor: colors.subtle,
+  // A plain list separated by rules, the way a timetable or a statement is
+  // set. Boxing each run in its own floating card added nothing but noise.
+  row: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 16,
+    paddingHorizontal: GUTTER, paddingVertical: 15,
+    // Opaque on purpose: the delete action sits behind the row, and a
+    // transparent background would let its red show through.
+    backgroundColor: colors.background,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline,
   },
-  roundPrimary: { backgroundColor: colors.accent, borderColor: colors.accent },
-  // The ring carries the warning as much as the icon does, so it takes the
-  // full colour instead of a tenth of it.
-  roundDanger: { borderColor: colors.danger },
-  roundDisabled: { opacity: 0.35 },
-  pressed: { opacity: 0.55 },
-  play: { marginLeft: 2 },
-
-  error: { color: colors.danger, fontSize: 15 },
+  pressed: { backgroundColor: colors.sunken },
+  rowLeft: { flex: 1, gap: 3 },
+  name: { color: colors.text, fontSize: 20.5, fontFamily: font.semibold, letterSpacing: -0.2 },
+  when: { color: colors.subtle, fontSize: 14.5 },
+  detail: { color: colors.muted, fontFamily: font.regular, fontSize: 16, fontVariant: ["tabular-nums"] },
+  distance: {
+    color: colors.text, fontSize: 29, fontFamily: font.semibold,
+    letterSpacing: -0.8, fontVariant: ["tabular-nums"],
+  },
+  km: { color: colors.subtle, fontSize: 14.5, fontFamily: font.semibold, letterSpacing: 0 },
 });

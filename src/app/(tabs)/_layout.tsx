@@ -42,7 +42,7 @@ export default function TabsLayout() {
       tabBar={(props) => (
         <FloatingTabBar
           {...props}
-          hidden={props.state.routes[props.state.index].name === "index"}
+          hidden={props.state.routes[props.state.index].name === "courir"}
         />
       )}
       screenOptions={{
@@ -51,7 +51,7 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen
-        name="history"
+        name="index"
         options={{
           title: "Historique",
           animation: "fade",
@@ -69,7 +69,7 @@ export default function TabsLayout() {
         * propres éléments se chargent de l'arrivée, chacun depuis son bord.
         */}
       <Tabs.Screen
-        name="index"
+        name="courir"
         options={{
           title: "Courir",
           animation: "none",
