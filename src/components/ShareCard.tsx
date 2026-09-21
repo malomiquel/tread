@@ -1,5 +1,5 @@
 import { LinearGradient } from "expo-linear-gradient";
-import { forwardRef, type ReactNode } from "react";
+import { forwardRef } from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
 import type { Run } from "@/lib/db";
 import { formatDate, formatDistance, formatDuration, formatElevation, formatPace } from "@/lib/format";
@@ -44,10 +44,11 @@ const INK_FAINT = "rgba(255, 255, 255, 0.46)";
 
 interface Props {
   run: Run;
-  /** The map already rendered to a file, or null while it is being taken. */
+  /**
+   * The map already rendered to a file, or null while it is being drawn — in
+   * which case the card simply shows its own dark ground until it arrives.
+   */
   mapUri: string | null;
-  /** Shown in the map's place until that file exists. */
-  mapFallback?: ReactNode;
 }
 
 /** One figure over its label, as the rest of the app sets a metric. */
@@ -76,7 +77,7 @@ function Stat({ value, unit, label }: { value: string; unit?: string; label: str
  * the run was, and it is set large; the rest supports it. Giving every number
  * equal weight is what makes a share card look like a receipt.
  */
-export const ShareCard = forwardRef<View, Props>(function ShareCard({ run, mapUri, mapFallback }, ref) {
+export const ShareCard = forwardRef<View, Props>(function ShareCard({ run, mapUri }, ref) {
   const elevation = run.elevationGainM;
 
   return (
@@ -84,13 +85,9 @@ export const ShareCard = forwardRef<View, Props>(function ShareCard({ run, mapUr
     // Native flattens plain container views away, and a view that no longer
     // exists cannot be captured.
     <View ref={ref} collapsable={false} style={styles.card}>
-      <View style={StyleSheet.absoluteFill}>
-        {mapUri ? (
-          <Image source={{ uri: mapUri }} style={styles.mapImage} resizeMode="cover" />
-        ) : (
-          mapFallback
-        )}
-      </View>
+      {mapUri ? (
+        <Image source={{ uri: mapUri }} style={styles.mapImage} resizeMode="cover" />
+      ) : null}
 
       <LinearGradient
         colors={["rgba(0, 0, 0, 0.55)", "rgba(0, 0, 0, 0)"]}
@@ -142,7 +139,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#11161a",
     overflow: "hidden",
   },
-  mapImage: { width: "100%", height: "100%" },
+  mapImage: {
+    position: "absolute", top: 0, left: 0,
+    width: CARD_WIDTH, height: CARD_HEIGHT,
+  },
 
   topVeil: { position: "absolute", top: 0, left: 0, right: 0, height: 104 },
   bottomVeil: { position: "absolute", left: 0, right: 0, bottom: 0, height: 272 },

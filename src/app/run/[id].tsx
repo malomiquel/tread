@@ -9,12 +9,12 @@ import {
 import { Button } from "@/components/Button";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Metric } from "@/components/Metric";
-import { RunMap, type RunMapHandle } from "@/components/RunMap";
-import { CARD_HEIGHT, CARD_WIDTH, TRACK_LIFT, TRACK_MARGIN } from "@/components/ShareCard";
+import { CardMapSource, type CardMapHandle } from "@/components/CardMapSource";
+import { RunMap } from "@/components/RunMap";
 import { ShareRunSheet } from "@/components/ShareRunSheet";
 import { deleteRun, readRun, renameRun, type Run } from "@/lib/db";
 import { formatDate, formatDistance, formatDuration, formatElevation, formatPace } from "@/lib/format";
-import { regionAround, splits, type TrackPoint } from "@/lib/geo";
+import { splits, type TrackPoint } from "@/lib/geo";
 import { gpxFileName, toGpx } from "@/lib/gpx";
 import { forgetRunInHealth, healthAvailable, requestHealthAccess, syncRunToHealth } from "@/lib/health";
 import { colors, floatingShadow } from "@/lib/theme";
@@ -35,7 +35,7 @@ export default function RunDetailScreen() {
   const [hasHealth] = useState(healthAvailable);
   const [sharingImage, setSharingImage] = useState(false);
   const [cardMap, setCardMap] = useState<string | null>(null);
-  const shotMap = useRef<RunMapHandle>(null);
+  const cardMapSource = useRef<CardMapHandle>(null);
 
   useEffect(() => {
     let active = true;
@@ -134,15 +134,8 @@ export default function RunDetailScreen() {
    */
   function prepareCard() {
     if (cardMap || points.length === 0) return;
-    const region = regionAround(points, TRACK_MARGIN, TRACK_LIFT);
-    void shotMap.current
-      ?.takeSnapshot({
-        width: CARD_WIDTH,
-        height: CARD_HEIGHT,
-        region: region ?? undefined,
-        format: "png",
-        result: "file",
-      })
+    void cardMapSource.current
+      ?.render()
       .then(setCardMap)
       .catch(() => {
         /* the sheet will draw its own when opened */
@@ -218,13 +211,15 @@ export default function RunDetailScreen() {
       </View>
 
       <RunMap
-        ref={shotMap}
         points={points}
         fitAll
-        onReady={prepareCard}
         onToggleFullscreen={() => setMapExpanded(true)}
         style={styles.map}
       />
+
+      {points.length > 0 && (
+        <CardMapSource ref={cardMapSource} points={points} onReady={prepareCard} />
+      )}
 
       <Modal visible={mapExpanded} animationType="slide" onRequestClose={() => setMapExpanded(false)}>
         <View style={styles.fullMap}>

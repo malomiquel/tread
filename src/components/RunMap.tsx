@@ -1,10 +1,10 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, Pressable, StyleSheet, useColorScheme, View,
   type StyleProp, type ViewStyle,
 } from "react-native";
-import MapView, { Polyline, type SnapshotOptions } from "react-native-maps";
+import MapView, { Polyline } from "react-native-maps";
 import { bounds, regionAround, segments, type TrackPoint } from "@/lib/geo";
 import { CONTROLS_TOP } from "@/lib/layout";
 import { getCurrentCoords, type Coords } from "@/lib/location";
@@ -30,17 +30,7 @@ interface Props {
   controlsBottom?: number;
   /** Moves the controls to the top, for screens whose panel sits at the bottom. */
   controlsAtTop?: boolean;
-  /** Fired once the map is up and can be asked for a picture of itself. */
-  onReady?: () => void;
   style?: StyleProp<ViewStyle>;
-}
-
-/**
- * What a screen holding this map can ask of it. Only the picture, for now:
- * everything else the map does, it does on its own.
- */
-export interface RunMapHandle {
-  takeSnapshot: (config: SnapshotOptions) => Promise<string>;
 }
 
 const PARIS = { latitude: 48.8566, longitude: 2.3522, latitudeDelta: 0.05, longitudeDelta: 0.05 };
@@ -51,17 +41,11 @@ const RUNNER_ZOOM = 0.006;
  * One polyline per segment, so a pause never draws a line between where you
  * stopped and where you picked up again.
  */
-export const RunMap = forwardRef<RunMapHandle, Props>(function RunMap({
+export function RunMap({
   points, follow = false, fitAll = false, initialCenter = null,
-  onToggleFullscreen, fullscreen = false, controlsBottom = 12, controlsAtTop = false,
-  onReady, style,
-}, ref) {
+  onToggleFullscreen, fullscreen = false, controlsBottom = 12, controlsAtTop = false, style,
+}: Props) {
   const map = useRef<MapView>(null);
-
-  useImperativeHandle(ref, () => ({
-    takeSnapshot: (config) =>
-      map.current?.takeSnapshot(config) ?? Promise.reject(new Error("La carte n'est pas prête.")),
-  }), []);
   const scheme = useColorScheme() === "dark" ? "dark" : "light";
   const [locating, setLocating] = useState(false);
 
@@ -87,7 +71,6 @@ export const RunMap = forwardRef<RunMapHandle, Props>(function RunMap({
   }, [initialCenter, empty]);
 
   const frameTrack = () => {
-    onReady?.();
     const box = bounds(points);
     if (!fitAll || !box) return;
     map.current?.fitToCoordinates(
@@ -183,7 +166,7 @@ export const RunMap = forwardRef<RunMapHandle, Props>(function RunMap({
       </View>
     </View>
   );
-});
+}
 
 const styles = StyleSheet.create({
   container: { flex: 1, borderRadius: 4, overflow: "hidden", backgroundColor: colors.hairline },
