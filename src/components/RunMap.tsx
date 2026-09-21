@@ -5,7 +5,7 @@ import {
   type StyleProp, type ViewStyle,
 } from "react-native";
 import MapView, { Polyline } from "react-native-maps";
-import Animated, { useAnimatedStyle, withTiming } from "react-native-reanimated";
+import Animated, { useAnimatedStyle, type SharedValue } from "react-native-reanimated";
 import { bounds, regionAround, segments, type TrackPoint } from "@/lib/geo";
 import { CONTROL_SIZE, CONTROLS_TOP } from "@/lib/layout";
 import { getCurrentCoords, type Coords } from "@/lib/location";
@@ -31,6 +31,25 @@ interface Props {
   controlsBottom?: number;
   /** Moves the controls to the top, for screens whose panel sits at the bottom. */
   controlsAtTop?: boolean;
+  /**
+   * How the controls arrive, and what makes them arrive again. Screens that
+   * animate their own furniture in pass these so the map's buttons join the
+   * same arrival rather than being the one thing already in place.
+   */
+  /**
+   * Zero on arrival, one once arrived. The controls slide in from the right
+   * edge as it travels, joining the screen's own arrival instead of being
+   * the one thing already in place.
+   */
+  controlsArrive?: SharedValue<number>;
+  /**
+   * A live height for the panel these controls sit above, when the screen has
+   * one that changes. Given it, they ride it on the animation thread and stay
+   * exactly as far above the panel as it grows and shrinks.
+   */
+  controlsAbove?: SharedValue<number>;
+
+
   style?: StyleProp<ViewStyle>;
 }
 
@@ -44,10 +63,19 @@ const RUNNER_ZOOM = 0.006;
  */
 export function RunMap({
   points, follow = false, fitAll = false, initialCenter = null,
-  onToggleFullscreen, fullscreen = false, controlsBottom = 12, controlsAtTop = false, style,
+  onToggleFullscreen, fullscreen = false, controlsBottom = 12, controlsAtTop = false,
+  controlsArrive, controlsAbove, style,
 }: Props) {
   const map = useRef<MapView>(null);
   const scheme = useColorScheme() === "dark" ? "dark" : "light";
+
+  // Position and arrival stay on separate views: on one, the two animations
+  // write to the same translation and fight over it, which shows up as the
+  // buttons shivering as they land.
+  const ride = useAnimatedStyle(() => ({
+    bottom: controlsAbove ? controlsAbove.value : controlsBottom,
+    transform: [{ translateX: controlsArrive ? (1 - controlsArrive.value) * 34 : 0 }],
+  }), [controlsAbove, controlsArrive, controlsBottom]);
   const [locating, setLocating] = useState(false);
 
   const empty = points.length === 0;
@@ -101,17 +129,6 @@ export function RunMap({
   // A screen showing a finished run opens on the whole of it rather than
   // zoomed on its last step and jumping to the framing a moment later. While
   // recording it is the opposite: the camera stays close to where you are.
-  /**
-   * The controls follow the panel instead of jumping with it. Screens that lay
-   * a panel over the map move these buttons as it grows, and a step change of
-   * forty points mid-run reads as the interface breaking rather than as it
-   * making room.
-   */
-  const rise = useAnimatedStyle(
-    () => ({ bottom: withTiming(controlsBottom, { duration: 240 }) }),
-    [controlsBottom],
-  );
-
   const anchor = last ? { lat: last.lat, lng: last.lng } : initialCenter;
   const initialRegion =
     (fitAll ? regionAround(points) : null) ??
@@ -146,7 +163,8 @@ export function RunMap({
         ))}
       </MapView>
 
-      <Animated.View style={[styles.controls, controlsAtTop ? styles.controlsTop : rise]}>
+      <Animated.View style={[styles.controls, controlsAtTop ? styles.controlsTop : ride]}>
+        <View style={styles.controlStack}>
         {onToggleFullscreen && (
           <Pressable
             onPress={onToggleFullscreen}
@@ -175,6 +193,7 @@ export function RunMap({
           )}
         </Pressable>
         )}
+        </View>
       </Animated.View>
     </View>
   );
@@ -184,7 +203,8 @@ const styles = StyleSheet.create({
   container: { flex: 1, borderRadius: 4, overflow: "hidden", backgroundColor: colors.hairline },
   // The controls stack in one column so they never collide, whatever the
   // combination of buttons a screen asks for.
-  controls: { position: "absolute", right: 12, gap: 10 },
+  controls: { position: "absolute", right: 12 },
+  controlStack: { gap: 10 },
   controlsTop: { top: CONTROLS_TOP },
   control: {
     width: CONTROL_SIZE,

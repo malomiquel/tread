@@ -1,10 +1,10 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useKeepAwake } from "expo-keep-awake";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useIsFocused, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, {
-  FadeIn, FadeOut, LinearTransition, useAnimatedStyle, withTiming,
+  FadeIn, FadeOut, useAnimatedStyle, useDerivedValue, useSharedValue, withTiming,
 } from "react-native-reanimated";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { GlassPanel } from "@/components/GlassPanel";
@@ -19,6 +19,29 @@ import { toggleSetting, useSettings } from "@/lib/settings";
 import { weekTotals } from "@/lib/stats";
 import { colors, font } from "@/lib/theme";
 import { activeDurationS, discard, finish, pause, resume, start, useTracker } from "@/lib/tracker";
+
+/** How long the panel takes to change shape, and everything above it with it. */
+const GROW = { duration: 280 } as const;
+
+/** How long the screen's furniture takes to slide in from its edges. */
+const ARRIVE = { duration: 300 } as const;
+
+/**
+ * The two heights the panel takes, stated rather than measured.
+ *
+ * Measuring it was tried at length and failed in a different way each time:
+ * too early and the figure comes back short, from inside the clip and the
+ * measurement feeds the constraint that produced it, off the glass and a
+ * native surface reports its layout unreliably. Worse, every one of those
+ * attempts made the panel draw itself once, be measured, and resize — which
+ * is the empty box that flashed on arrival.
+ *
+ * Stated outright, the panel has its height in its first frame. Both figures
+ * are deliberately a little generous: air at the bottom of a panel costs
+ * nothing, a clipped distance costs the number you went out to get. They are
+ * the two values to revisit if the type ever changes size again.
+ */
+const PANEL_HEIGHT = { idle: 90, live: 140 } as const;
 
 /**
  * Holds the screen awake for as long as it is mounted. Inside Expo Go the GPS
@@ -84,21 +107,67 @@ export default function RecordScreen() {
   const [history, setHistory] = useState<Run[]>([]);
   // Measured rather than assumed: the panel grows when a run starts, and the
   // controls stacked above it have to move with it instead of being buried.
-  const [panelHeight, setPanelHeight] = useState(0);
+
+
+  /**
+   * Zero as the screen arrives, one once it has.
+   *
+   * A tab screen is mounted once and kept, so an entering animation would run
+   * on the first visit and never again. Remounting the pieces on focus made
+   * it play every time, but at the cost of a frame in which the panel existed
+   * and its contents did not — the empty box that flashed on arrival. Driving
+   * one value instead animates the same movement without taking anything
+   * apart.
+   */
+  const focused = useIsFocused();
+  const arrive = useSharedValue(1);
+  useEffect(() => {
+    if (!focused) return;
+    arrive.value = 0;
+    arrive.value = withTiming(1, ARRIVE);
+  }, [focused, arrive]);
+
+  const chevronArrive = useAnimatedStyle(
+    () => ({ transform: [{ translateY: (1 - arrive.value) * -30 }] }),
+    [],
+  );
+  const togglesArrive = useAnimatedStyle(
+    () => ({ transform: [{ translateX: (1 - arrive.value) * 34 }] }),
+    [],
+  );
+  const panelArrive = useAnimatedStyle(
+    () => ({ transform: [{ translateY: (1 - arrive.value) * 40 }] }),
+    [],
+  );
 
   const recording = tracker.status !== "idle";
 
   // The right-hand column, read from the bottom up: the panel, then the map's
   // locate button, then the two settings.
-  const locateBottom = bottomInset + panelHeight + 12;
-  const togglesBottom = locateBottom + CONTROL_SIZE + 10;
+  /**
+   * Everything above the panel is placed from its measured height, and placed
+   * outright rather than eased into position.
+   *
+   * Easing was the mistake: the panel took its new height in a single frame
+   * while the buttons glided for a quarter of a second, so the two overlapped
+   * all the way. Moving them at once puts them a single frame apart — the one
+   * it takes to measure — which nobody can see, and nothing ever overlaps.
+   */
+  const target = PANEL_HEIGHT[recording ? "live" : "idle"];
 
-  // Same easing as the map's own controls, so the whole right-hand column
-  // rises as one thing when the panel grows at the start of a run.
-  const togglesRise = useAnimatedStyle(
-    () => ({ bottom: withTiming(togglesBottom, { duration: 240 }) }),
-    [togglesBottom],
-  );
+  /**
+   * The panel's live height, and the single figure every piece above it
+   * reads. One shared value is what makes them travel together instead of
+   * each setting off from its own idea of where the panel currently is.
+   */
+  const panelH = useSharedValue(target);
+  useEffect(() => {
+    panelH.value = withTiming(target, GROW);
+  }, [target, panelH]);
+
+  const grow = useAnimatedStyle(() => ({ height: panelH.value }), []);
+  const locateAbove = useDerivedValue(() => bottomInset + panelH.value + 12, [bottomInset]);
+  const togglesRise = useAnimatedStyle(() => ({ bottom: locateAbove.value + CONTROL_SIZE + 10 }), []);
 
   useEffect(() => {
     if (!recording) return;
@@ -164,7 +233,8 @@ export default function RecordScreen() {
         points={tracker.points}
         follow
         initialCenter={coords}
-        controlsBottom={locateBottom}
+        controlsAbove={locateAbove}
+        controlsArrive={arrive}
         style={styles.map}
       />
       {recording && <KeepAwake />}
@@ -173,7 +243,7 @@ export default function RecordScreen() {
           corner a back button lives in everywhere else, and in the same glass
           as the map's own controls so it reads as part of the map rather than
           as something dropped on top of it. */}
-      <View pointerEvents="box-none" style={styles.leave}>
+      <Animated.View pointerEvents="box-none" style={[styles.leave, chevronArrive]}>
         <GlassPanel style={styles.leavePill}>
           <Pressable
             onPress={() => router.navigate("/history")}
@@ -185,12 +255,16 @@ export default function RecordScreen() {
             <Ionicons name="chevron-back" size={22} color={colors.text} />
           </Pressable>
         </GlassPanel>
-      </View>
+      </Animated.View>
 
       {/* Cut to the same size as the map's own button just below, so the two
           read as one column rather than as two unrelated things that happen
           to be near each other. */}
+      {/* Position outside, arrival inside: on one view the two animations
+          write to the same translation and fight over it, which shows up as
+          the buttons shivering as they land. */}
       <Animated.View pointerEvents="box-none" style={[styles.toggles, togglesRise]}>
+        <Animated.View style={togglesArrive}>
         <GlassPanel style={styles.togglePill}>
           <Toggle
             on={settings.voice}
@@ -200,92 +274,94 @@ export default function RecordScreen() {
             label="Annonce vocale des kilomètres"
           />
         </GlassPanel>
+        </Animated.View>
       </Animated.View>
 
       {/* Sits above the tab bar rather than replacing it: the tab bar is how
           you leave this screen, so it has to stay reachable. */}
-      <View
+      <Animated.View
         pointerEvents="box-none"
-        onLayout={(event) => setPanelHeight(event.nativeEvent.layout.height)}
-        style={[styles.bottom, { bottom: bottomInset }]}
+        style={[styles.bottom, { bottom: bottomInset }, panelArrive]}
       >
+        <Animated.View style={[styles.panelClip, grow]}>
         <GlassPanel style={styles.panel} interactive>
-          {/* One row for the whole panel, so the button centres against
-              everything written beside it. With the status line sitting above
-              the row instead, it was centred on the metrics alone and came
-              out visibly low. */}
-          <Animated.View layout={LinearTransition.duration(260)} style={styles.panelRow}>
-            <Animated.View layout={LinearTransition.duration(260)} style={styles.panelMetrics}>
-              <Text style={[styles.state, weakSignal && styles.stateWeak]} numberOfLines={1}>
-                {state} · {recording ? signal : idleSignal}
-              </Text>
+            {/* One row for the whole panel, so the button centres against
+                everything written beside it. */}
+            <View style={styles.panelRow}>
+              <View style={styles.panelMetrics}>
+                <Text style={[styles.state, weakSignal && styles.stateWeak]} numberOfLines={1}>
+                  {state} · {recording ? signal : idleSignal}
+                </Text>
 
-              {recording ? (
-                // Two rows of two rather than four abreast: on a narrow phone
-                // the single row fell to 46 points a column, which clipped the
-                // unit off the pace.
-                <Animated.View
-                  entering={FadeIn.duration(200)}
-                  exiting={FadeOut.duration(120)}
-                  style={styles.metricStack}
-                >
-                  <View style={styles.metricRow}>
-                    <Metric compact label="Distance" value={formatDistance(distance)} unit="km" />
-                    <Metric compact label="Durée" value={formatDuration(duration)} />
+                {recording ? (
+                  // Two rows of two rather than four abreast: on a narrow phone
+                  // the single row fell to 46 points a column, which clipped the
+                  // unit off the pace.
+                  <View style={styles.metricStack}>
+                    <View style={styles.metricRow}>
+                      <Metric compact label="Distance" value={formatDistance(distance)} unit="km" />
+                      <Metric compact label="Durée" value={formatDuration(duration)} />
+                    </View>
+                    <View style={styles.metricRow}>
+                      <Metric compact label="Allure" value={formatPace(pace ?? avgPace)} unit="/km" />
+                      <Metric compact label="Dénivelé" value={formatElevation(elevation)} unit="m" />
+                    </View>
                   </View>
-                  <View style={styles.metricRow}>
-                    <Metric compact label="Allure" value={formatPace(pace ?? avgPace)} unit="/km" />
-                    <Metric compact label="Dénivelé" value={formatElevation(elevation)} unit="m" />
-                  </View>
-                </Animated.View>
-              ) : (
-                <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(120)}>
+                ) : (
+                  // No entering animation on these: nested inside a panel that
+                  // is itself arriving, a child's own entering can be dropped
+                  // and leave the view stuck at the opacity it started from —
+                  // which is how the week's distance went missing entirely.
                   <Metric
-                  compact
-                  label="Cette semaine"
-                  value={`${formatDistance(week.distanceM)} km`}
-                  unit={week.runs > 0 ? `· ${week.runs} sortie${week.runs > 1 ? "s" : ""}` : undefined}
+                    compact
+                    label="Cette semaine"
+                    value={`${formatDistance(week.distanceM)} km`}
+                    unit={week.runs > 0 ? `· ${week.runs} sortie${week.runs > 1 ? "s" : ""}` : undefined}
                   />
-                </Animated.View>
-              )}
-              {tracker.error && <Text style={styles.error}>{tracker.error}</Text>}
-            </Animated.View>
+                )}
+                {tracker.error && <Text style={styles.error}>{tracker.error}</Text>}
+              </View>
 
-            <Animated.View layout={LinearTransition.duration(260)} style={styles.panelControls}>
-              {/* Each button fades in and out in place. They come and go as the
-                  run changes state, and swapping one for another between two
-                  frames reads as the panel flickering rather than as the same
-                  panel offering something else. */}
-              {!recording && (
-                <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(120)}>
-                  <RoundButton icon="play" label="Démarrer" onPress={() => void start()} primary size={52} />
-                </Animated.View>
-              )}
-              {tracker.status === "running" && (
-                <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(120)}>
-                  <RoundButton icon="pause" label="Pause" onPress={pause} />
-                </Animated.View>
-              )}
-              {tracker.status === "paused" && (
-                <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(120)}>
-                  <RoundButton icon="play" label="Reprendre" onPress={resume} primary />
-                </Animated.View>
-              )}
-              {recording && (
-                <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(120)}>
-                  <RoundButton
-                    icon="stop"
-                    label="Terminer"
-                    onPress={() => setConfirming(true)}
-                    danger
-                    disabled={finishing}
-                  />
-                </Animated.View>
-              )}
-            </Animated.View>
-          </Animated.View>
+              {/* A box of fixed size holding two layers that cross-fade in
+                  place. Laid out in flow instead, the arriving buttons pushed
+                  the leaving one aside on their way in — which is what made
+                  the play button look like it came back from below. */}
+              <View style={styles.panelControls}>
+                {!recording ? (
+                  <Animated.View
+                    key="rest"
+                    entering={FadeIn.duration(200)}
+                    exiting={FadeOut.duration(140)}
+                    style={styles.controlLayer}
+                  >
+                    <RoundButton icon="play" label="Démarrer" onPress={() => void start()} primary size={52} />
+                  </Animated.View>
+                ) : (
+                  <Animated.View
+                    key="running"
+                    entering={FadeIn.duration(200)}
+                    exiting={FadeOut.duration(140)}
+                    style={styles.controlLayer}
+                  >
+                    {tracker.status === "running" ? (
+                      <RoundButton icon="pause" label="Pause" onPress={pause} />
+                    ) : (
+                      <RoundButton icon="play" label="Reprendre" onPress={resume} primary />
+                    )}
+                    <RoundButton
+                      icon="stop"
+                      label="Terminer"
+                      onPress={() => setConfirming(true)}
+                      danger
+                      disabled={finishing}
+                    />
+                  </Animated.View>
+                )}
+              </View>
+            </View>
         </GlassPanel>
-      </View>
+        </Animated.View>
+      </Animated.View>
 
       <ConfirmDialog
         visible={confirming}
@@ -365,14 +441,30 @@ const styles = StyleSheet.create({
   toggleName: { fontSize: 9, fontFamily: font.semibold, letterSpacing: 0.6 },
 
   bottom: { position: "absolute", left: 12, right: 12 },
-  panel: { borderRadius: 22, paddingHorizontal: 16, paddingVertical: 12 },
+  panelClip: { borderRadius: 22, overflow: "hidden" },
+  // The glass crops its own content too: a parent's clip does not always hold
+  // a native surface's children in, and what escapes it lands outside the
+  // panel altogether.
+  // The glass fills the clip rather than sizing to its content, so its
+  // surface is always exactly the panel and never a shape inside it.
+  panel: {
+    flex: 1, borderRadius: 22, paddingHorizontal: 16, paddingVertical: 12,
+    overflow: "hidden",
+  },
   state: { color: colors.muted, fontSize: 14.5, fontFamily: font.medium },
   stateWeak: { color: colors.warning },
-  panelRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  panelRow: { flex: 1, flexDirection: "row", alignItems: "center", gap: 12 },
   panelMetrics: { flex: 1, gap: 8, minWidth: 0 },
   metricStack: { gap: 10 },
   metricRow: { flexDirection: "row", gap: 12 },
-  panelControls: { flexDirection: "row", gap: 8, flexShrink: 0 },
+  // Wide enough for the two buttons of a run in progress, tall enough for the
+  // larger single one at rest: the box never changes, so nothing around it
+  // shifts when its contents do.
+  panelControls: { width: CONTROL_SIZE * 2 + 8, height: 52, flexShrink: 0 },
+  controlLayer: {
+    position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+  },
 
   round: {
     alignItems: "center",

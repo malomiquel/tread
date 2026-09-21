@@ -49,7 +49,10 @@ export function FloatingTabBar({
    * and brings it back from the same direction.
    */
   const slide = useAnimatedStyle(() => ({
-    opacity: withTiming(hidden ? 0 : 1, SLIDE),
+    // Moved, never faded. The pill is real glass on iOS, and a native material
+    // asked to draw at partial opacity stops compositing what is behind it —
+    // it flickers through the transition as a pane with no backing. Sliding
+    // the whole thing past the edge needs no fade anyway.
     transform: [{ translateY: withTiming(hidden ? TAB_BAR_HEIGHT + bottom + 24 : 0, SLIDE) }],
   }), [hidden, bottom]);
 

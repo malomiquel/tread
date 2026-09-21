@@ -54,14 +54,25 @@ export default function TabsLayout() {
         name="history"
         options={{
           title: "Historique",
+          animation: "fade",
           tabBarIcon: ({ color, size }) => <Ionicons name="list" size={size} color={color} />,
         }}
       />
-      {/* Au milieu : c'est la section qu'on ouvre le plus souvent. */}
+      {/*
+        * Au milieu : c'est la section qu'on ouvre le plus souvent.
+        *
+        * Et la seule sans fondu à l'arrivée. Le fondu anime l'opacité de la
+        * scène entière avec le pilote natif, or cet écran est presque
+        * entièrement fait de surfaces natives — la carte et les panneaux de
+        * verre — et une surface native sous une opacité animée cesse
+        * simplement de se dessiner. L'écran arrivait entièrement blanc. Ses
+        * propres éléments se chargent de l'arrivée, chacun depuis son bord.
+        */}
       <Tabs.Screen
         name="index"
         options={{
           title: "Courir",
+          animation: "none",
           tabBarIcon: ({ color, size }) => <RunTabIcon color={color} size={size} />,
         }}
       />
@@ -69,6 +80,7 @@ export default function TabsLayout() {
         name="progress"
         options={{
           title: "Progression",
+          animation: "fade",
           tabBarIcon: ({ color, size }) => <Ionicons name="stats-chart" size={size} color={color} />,
         }}
       />
