@@ -318,6 +318,27 @@ test("a plan started on time fits its calendar exactly", () => {
   assert.equal(scheduled.at(-1)!.at, startOfDay(RACE));
 });
 
+test("a programme set up on a training day starts that day", () => {
+  // The defect this replaced: picking monday and setting the plan up on a
+  // monday put the first session seven days away.
+  const sessions = buildPlan({ goal: "half", weeks: 12, perWeek: 1, targetTimeS: 5400, longestMin: 60 });
+  const scheduled = schedule(sessions, new Map(), MONDAY, RACE, [1]);
+  assert.equal(new Date(MONDAY).getDay(), 1);
+  assert.equal(scheduled[0].at, startOfDay(MONDAY), "the first session was not today");
+  assert.equal(scheduled.at(-1)!.kind, "race");
+});
+
+test("a spare day never pushes the whole plan back a week", () => {
+  // Whatever the rounding leaves over, nothing waits for it.
+  for (const perWeek of [1, 2, 3, 4] as const) {
+    const sessions = buildPlan({ goal: "half", weeks: 12, perWeek, targetTimeS: 5400, longestMin: 60 });
+    const days = SLOT_DAYS[perWeek];
+    const scheduled = schedule(sessions, new Map(), MONDAY, RACE, days);
+    const firstSlot = slotDates(MONDAY, RACE, days)[0];
+    assert.equal(scheduled[0].at, firstSlot, `${perWeek} a week waited for nothing`);
+  }
+});
+
 test("what is left slides towards the race instead of piling up behind", () => {
   // Two weeks gone by, nothing done.
   const late = new Date(2026, 0, 19).getTime();

@@ -696,13 +696,21 @@ export interface ScheduledSession extends PlannedSession {
 /**
  * Lay the sessions still to do onto the days still left.
  *
- * The sliding rule, and the reason no date is ever stored. Whatever remains
- * is packed against the race rather than counted forward from the start, so
- * the sharpening always ends up where it has to be — the days before the
- * race — however much of the plan went by untouched. When more sessions
- * remain than there are days to hold them, the earliest are dropped rather
- * than crammed in: missing the foundation costs some of your ceiling, while
- * skipping the sharpening costs you the race itself.
+ * The sliding rule, and the reason no date is ever stored.
+ *
+ * What remains starts on the first training day available, today included.
+ * An earlier version packed everything against the race instead, which was
+ * right when there was too much to fit and wrong the rest of the time: one
+ * spare slot anywhere and the whole plan shifted a week later, so a runner
+ * who set up a monday programme on a monday was told to start the monday
+ * after.
+ *
+ * The sharpening still lands where it has to, because it is the front that
+ * gives way. When more sessions remain than there are days to hold them the
+ * earliest are dropped rather than crammed in: missing the foundation costs
+ * some of your ceiling, skipping the sharpening costs you the race itself.
+ * And once anything has been dropped there is no slack left, so the last
+ * session sits against the race by arithmetic rather than by rule.
  */
 export function schedule(
   sessions: PlannedSession[],
@@ -714,10 +722,9 @@ export function schedule(
   const slots = slotDates(todayMs, raceMs, days);
   const remaining = sessions.filter((s) => !done.has(s.order) && s.kind !== "race");
   const kept = remaining.slice(Math.max(0, remaining.length - slots.length));
-  const first = slots.length - kept.length;
 
   const placed = new Map<number, number>();
-  kept.forEach((session, i) => placed.set(session.order, slots[first + i]));
+  kept.forEach((session, i) => placed.set(session.order, slots[i]));
 
   const out: ScheduledSession[] = [];
   for (const session of sessions) {
