@@ -49,6 +49,8 @@ interface Props {
    * which case the card simply shows its own dark ground until it arrives.
    */
   mapUri: string | null;
+  /** "Chartres, France", or null when it could not be looked up. */
+  place?: string | null;
 }
 
 /** One figure over its label, as the rest of the app sets a metric. */
@@ -77,7 +79,7 @@ function Stat({ value, unit, label }: { value: string; unit?: string; label: str
  * the run was, and it is set large; the rest supports it. Giving every number
  * equal weight is what makes a share card look like a receipt.
  */
-export const ShareCard = forwardRef<View, Props>(function ShareCard({ run, mapUri }, ref) {
+export const ShareCard = forwardRef<View, Props>(function ShareCard({ run, mapUri, place = null }, ref) {
   const elevation = run.elevationGainM;
 
   return (
@@ -110,8 +112,13 @@ export const ShareCard = forwardRef<View, Props>(function ShareCard({ run, mapUr
       </View>
 
       <View style={styles.footer}>
-        <Text style={styles.name} numberOfLines={1}>{run.name ?? "Course"}</Text>
-        <Text style={styles.date} numberOfLines={1}>{formatDate(run.startedAt)}</Text>
+        {/* No name. A picture of a run is read in a second, and a line saying
+            "Course du soir" spends that second on the only thing in the frame
+            the distance and the map have not already said. The date earns its
+            place by being unrepeatable; so does where it happened. */}
+        <Text style={styles.date} numberOfLines={1}>
+          {formatDate(run.startedAt)}{place ? ` · ${place}` : ""}
+        </Text>
 
         <View style={styles.heroRow}>
           <Text style={styles.hero}>{formatDistance(run.distanceM)}</Text>

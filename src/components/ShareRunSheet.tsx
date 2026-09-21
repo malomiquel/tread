@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, Alert, Modal, Platform, Pressable, StyleSheet, Text, TurboModuleRegistry,
   View,
@@ -9,6 +9,7 @@ import { CardMapSource, type CardMapHandle } from "@/components/CardMapSource";
 import { CARD_HEIGHT, CARD_WIDTH, ShareCard } from "@/components/ShareCard";
 import type { Run } from "@/lib/db";
 import type { TrackPoint } from "@/lib/geo";
+import { placeName } from "@/lib/location";
 import { colors, floatingShadow, font } from "@/lib/theme";
 
 type ViewShot = typeof import("react-native-view-shot");
@@ -91,6 +92,19 @@ function Sheet({ run, points, preparedMapUri, onClose }: Omit<Props, "visible">)
   // Seeded rather than derived: the body is mounted afresh each time the sheet
   // opens, so whatever was ready at that moment is simply where it starts.
   const [mapUri, setMapUri] = useState<string | null>(preparedMapUri ?? null);
+  /** Where the run started, once the lookup answers. Null is a fine answer. */
+  const [place, setPlace] = useState<string | null>(null);
+
+  // Looked up from the first fix rather than the last: a run that ends
+  // somewhere else started here, and where you set off is what you would say
+  // if somebody asked.
+  useEffect(() => {
+    let live = true;
+    const start = points[0];
+    if (!start) return;
+    void placeName(start.lat, start.lng).then((found) => live && setPlace(found));
+    return () => { live = false; };
+  }, [points]);
   const [sharing, setSharing] = useState(false);
 
   /** Only ever runs when the screen underneath did not get there first. */
@@ -135,7 +149,7 @@ function Sheet({ run, points, preparedMapUri, onClose }: Omit<Props, "visible">)
       {/* Stops a tap on the card from closing the sheet. */}
       <Pressable onPress={() => undefined} style={styles.stack}>
         <View style={styles.cardShadow}>
-          <ShareCard ref={card} run={run} mapUri={mapUri} />
+          <ShareCard ref={card} run={run} mapUri={mapUri} place={place} />
         </View>
 
         <View style={styles.actions}>

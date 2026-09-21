@@ -80,3 +80,25 @@ export async function getCurrentCoords(): Promise<Coords | null> {
   const fix = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
   return { lat: fix.coords.latitude, lng: fix.coords.longitude };
 }
+
+
+/**
+ * Where a run happened, as a person would say it: "Chartres, France".
+ *
+ * Reverse geocoding goes through Apple or Google depending on the platform,
+ * so it needs the network and can simply decline. Null then, and whatever
+ * shows this says the date alone rather than an apology — a place name is a
+ * pleasant detail on a picture, never information the run depends on.
+ */
+export async function placeName(lat: number, lng: number): Promise<string | null> {
+  try {
+    const [found] = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+    if (!found) return null;
+    // A town on its own is ambiguous the moment the picture leaves the
+    // country it was taken in, and a country on its own says nothing.
+    const town = found.city ?? found.subregion ?? found.region;
+    return [town, found.country].filter(Boolean).join(", ") || null;
+  } catch {
+    return null;
+  }
+}
