@@ -53,7 +53,7 @@ function RecordRow({ label, value, detail }: { label: string; value: string; det
   );
 }
 
-export default function ProgressScreen() {
+export default function ProfileScreen() {
   /**
    * Tapping the section you are already in walks back to the top.
    *
@@ -95,7 +95,13 @@ export default function ProgressScreen() {
           replacing what was there between two frames. */}
       <Animated.View style={styles.fill} entering={FadeIn.duration(220)}>
       <ScrollView ref={page} contentContainerStyle={[styles.content, { paddingBottom: tabBarSpace }]}>
-        <Text style={styles.title}>Progression</Text>
+        <Text style={styles.title}>Profil</Text>
+        {records.totalRuns > 0 ? (
+          <Text style={styles.lede}>
+            {records.totalRuns} course{records.totalRuns > 1 ? "s" : ""} ·{" "}
+            {formatDistance(records.totalDistanceM)} km · {formatDuration(records.totalDurationS)}
+          </Text>
+        ) : null}
 
         {records.totalRuns === 0 ? (
           <Text style={styles.empty}>
@@ -195,7 +201,13 @@ const styles = StyleSheet.create({
   content: {},
   title: {
     color: colors.text, fontSize: 32, fontFamily: font.bold,
-    letterSpacing: -0.6, paddingHorizontal: GUTTER, paddingTop: 10, paddingBottom: 14,
+    letterSpacing: -0.6, paddingHorizontal: GUTTER, paddingTop: 10,
+  },
+  // The one line that says who this is: everything below it is the detail.
+  lede: {
+    color: colors.muted, fontFamily: font.regular, fontSize: 15,
+    paddingHorizontal: GUTTER, marginTop: 2, paddingBottom: 12,
+    fontVariant: ["tabular-nums"],
   },
   empty: {
     color: colors.muted, fontFamily: font.regular, fontSize: 16.5, textAlign: "center",

@@ -102,12 +102,19 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size }) => <Ionicons name="list" size={size} color={color} />,
         }}
       />
+      {/*
+        * The progression lives in here rather than in a section of its own.
+        *
+        * Statistics are not a place you go, they are something you have — and
+        * a profile is the drawer everything of that kind belongs in, with
+        * room for what comes next without inventing another tab for it.
+        */}
       <Tabs.Screen
-        name="progress"
+        name="profile"
         options={{
-          title: "Progression",
+          title: "Profil",
           animation: "fade",
-          tabBarIcon: ({ color, size }) => <Ionicons name="stats-chart" size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name="person" size={size} color={color} />,
         }}
       />
     </Tabs>
