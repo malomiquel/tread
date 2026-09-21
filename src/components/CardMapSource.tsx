@@ -1,5 +1,5 @@
 import { forwardRef, useImperativeHandle, useRef } from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, View, useColorScheme} from "react-native";
 import MapView, { Polyline } from "react-native-maps";
 import { CARD_HEIGHT, CARD_WIDTH, TRACK_LIFT, TRACK_MARGIN } from "@/components/ShareCard";
 import { regionAround, segments, type TrackPoint } from "@/lib/geo";
@@ -46,6 +46,18 @@ export const CardMapSource = forwardRef<CardMapHandle, Props>(function CardMapSo
   { points, onReady },
   ref,
 ) {
+  /*
+   * The track follows the appearance, because the map does.
+   *
+   * It was pinned to the light variant — the dark cobalt — while the map
+   * underneath went dark with the phone, which is how a route came out
+   * almost invisible on a picture meant to be shown to people. Pinning the
+   * map instead would be better still, since a shared image ought not to
+   * depend on the sender's settings, but this version of react-native-maps
+   * offers no way to ask.
+   */
+  const scheme = useColorScheme() === "dark" ? "dark" : "light";
+
   const map = useRef<MapView>(null);
   const region = regionAround(points, TRACK_MARGIN, TRACK_LIFT);
 
@@ -77,7 +89,7 @@ export const CardMapSource = forwardRef<CardMapHandle, Props>(function CardMapSo
           <Polyline
             key={track[0].ts}
             coordinates={track.map((p) => ({ latitude: p.lat, longitude: p.lng }))}
-            strokeColor={literalColors.track.light}
+            strokeColor={literalColors.track[scheme]}
             strokeWidth={CARD_STROKE}
             lineCap="round"
             lineJoin="round"

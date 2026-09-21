@@ -168,11 +168,10 @@ const styles = StyleSheet.create({
   brandName: { color: INK, fontSize: 19, fontFamily: font.extrabold, letterSpacing: 3.4 },
 
   footer: { position: "absolute", left: GUTTER, right: GUTTER, bottom: 18 },
-  // Set as a title rather than as a caption: it is the run's own name, and
-  // squeezing it into small tracked capitals beside the date made both
   // unreadable at the size these pictures are actually looked at.
-  name: { color: INK, fontSize: 25, fontFamily: font.bold, letterSpacing: -0.4 },
-  date: { color: INK_SOFT, fontSize: 15, fontFamily: font.medium, marginTop: 2 },
+  // The one caption left, so it carries a little more weight than a caption
+  // usually would.
+  date: { color: INK_SOFT, fontSize: 17, fontFamily: font.medium },
 
   heroRow: { flexDirection: "row", alignItems: "baseline", gap: 4, marginTop: 9 },
   hero: {
