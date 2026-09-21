@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { formatEnergy, formatSpeed } from "./format.ts";
-import { timeAgo, weekStart, weekTotals } from "./stats.ts";
+import { timeAgo, weeklyVolumeKm, weekStart, weekTotals } from "./stats.ts";
 
 const run = (startedAt: number, distanceM = 5000, durationS = 1500) =>
   ({
@@ -65,4 +65,34 @@ test("formatSpeed reads a pace the other way round", () => {
 test("formatEnergy refuses to pretend to a decimal", () => {
   assert.equal(formatEnergy(412.6), "413");
   assert.equal(formatEnergy(0), "0");
+});
+
+
+const DAY_MS = 86_400_000;
+/** Wednesday 23 September 2026. */
+const WEDNESDAY = new Date(2026, 8, 23, 12, 0).getTime();
+
+test("weekly volume averages over the weeks, not over the outings", () => {
+  // Four runs of ten kilometres, all inside the eight weeks before this one.
+  const runs = [1, 2, 3, 4].map((n) => run(WEDNESDAY - n * 7 * DAY_MS, 10_000));
+  // Forty kilometres spread over eight weeks, whatever weeks were skipped.
+  assert.equal(weeklyVolumeKm(runs, WEDNESDAY, 8), 5);
+});
+
+test("a week off counts as a week, because the figure describes a habit", () => {
+  const busy = [1, 2].map((n) => run(WEDNESDAY - n * 7 * DAY_MS, 20_000));
+  const spread = [1, 5].map((n) => run(WEDNESDAY - n * 7 * DAY_MS, 20_000));
+  // The same forty kilometres either way: nobody is flattered for bunching.
+  assert.equal(weeklyVolumeKm(busy, WEDNESDAY, 8), weeklyVolumeKm(spread, WEDNESDAY, 8));
+});
+
+test("the week under way is left out of the average", () => {
+  // A single run today would otherwise read as a whole week of training.
+  assert.equal(weeklyVolumeKm([run(WEDNESDAY - DAY_MS, 12_000)], WEDNESDAY, 8), null);
+});
+
+test("no runs means no figure rather than a zero", () => {
+  assert.equal(weeklyVolumeKm([], WEDNESDAY, 8), null);
+  // And runs older than the window do not count.
+  assert.equal(weeklyVolumeKm([run(WEDNESDAY - 200 * DAY_MS)], WEDNESDAY, 8), null);
 });

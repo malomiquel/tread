@@ -20,6 +20,8 @@ const SECTIONS: { title: string; body: string[] }[] = [
       "Tout part du temps que tu vises, pas de celui que tu as déjà fait. Un programme entraîne le coureur que tu comptes être le jour de la course — c'est sa raison d'être. Le chrono est simplement prérempli depuis ta meilleure sortie pour que la projection démarre du réel.",
       "De ce temps, une formule déduit ton équivalent sur les autres distances : le temps grandit un peu plus vite que la distance. Doubler les kilomètres coûte plus que doubler les minutes.",
       "Ce « un peu plus vite » s'accentue avec la distance : faible sur 5 km, marqué sur marathon. Une valeur fixe décrivait des coureurs qui s'entraînent énormément, et donnait 3 h 04 au marathon pour quelqu'un qui court le 10 km en 40 minutes. La réponse honnête est plus proche de 3 h 29.",
+      "Ton volume hebdomadaire entre aussi dans le calcul. Deux coureurs au même chrono sur 10 km n'ont pas le même marathon : celui qui court beaucoup perd nettement moins sur la distance. L'app mesure ce volume sur tes huit dernières semaines, semaines sans course comprises — et si elle n'a rien à mesurer, elle prend l'hypothèse la plus prudente plutôt que la moyenne.",
+      "Ça ne joue que sur les longues distances. Personne ne voit son 5 km décidé par son kilométrage hebdomadaire.",
       "Les allures d'entraînement se calent ensuite sur l'allure marathon : environ une minute dix plus lent pour un footing, quarante-cinq secondes pour une sortie longue.",
     ],
   },
@@ -62,7 +64,7 @@ const LEVELS: { tag: string; tone: "solid" | "soft" | "mine"; body: string }[] =
   {
     tag: "Publié",
     tone: "solid",
-    body: "La formule de projection vient de Riegel (1981), et sa correction pour les coureurs amateurs de Vickers et Vertosick (2016). La forme de l'affûtage suit une méta-analyse de Bosquet (2007) : environ deux semaines à volume fortement réduit, intensité maintenue, pour à peu près trois pour cent de performance. La répartition d'intensité suit les travaux de Seiler.",
+    body: "La formule de projection vient de Riegel (1981), et sa correction pour les coureurs amateurs de Vickers et Vertosick (2016). La forme de l'affûtage suit une méta-analyse de Bosquet (2007) : environ deux semaines à volume fortement réduit, intensité maintenue, pour à peu près trois pour cent de performance. La répartition d'intensité suit les travaux de Seiler. L'effet du volume hebdomadaire sur la projection vient du même travail de 2016 — c'est la forme mesurée d'une idée que Greg McMillan a popularisée bien avant, celle des profils de coureurs.",
   },
   {
     tag: "Convention",
@@ -72,7 +74,7 @@ const LEVELS: { tag: string; tone: "solid" | "soft" | "mine"; body: string }[] =
   {
     tag: "Choisi",
     tone: "mine",
-    body: "Tout le reste, et c'est la majorité des chiffres : les bascules entre phases, la courbe de charge, les plafonds, la composition exacte des séances. Ils sont cohérents entre eux et ressemblent à ce que produisent les plans du commerce. Aucune étude ne dit ces nombres-là.",
+    body: "Tout le reste, et c'est la majorité des chiffres : les bascules entre phases, la courbe de charge, les plafonds, la composition exacte des séances, et l'ampleur exacte de la correction par le volume — les études en donnent le sens, pas le coefficient. Ils sont cohérents entre eux et ressemblent à ce que produisent les plans du commerce. Aucune étude ne dit ces nombres-là.",
   },
 ];
 

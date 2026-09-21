@@ -42,3 +42,25 @@ export function timeAgo(ts: number, now = Date.now()): string {
   const weeks = Math.round(days / 7);
   return weeks === 1 ? "il y a une semaine" : `il y a ${weeks} semaines`;
 }
+
+
+/**
+ * Kilometres a week, averaged over the recent past.
+ *
+ * Weeks without a run count as zero, deliberately. The figure is meant to
+ * describe a habit, not a best effort, and averaging only over the weeks
+ * somebody turned up would flatter everyone who trains in bursts — which is
+ * the exact population it matters most not to flatter.
+ *
+ * The current week is left out: it is almost always partial, and a Monday
+ * reading would say the habit had collapsed.
+ */
+export function weeklyVolumeKm(runs: Run[], nowMs = Date.now(), weeks = 8): number | null {
+  if (weeks < 1) return null;
+  const thisWeek = weekStart(nowMs);
+  const from = thisWeek - weeks * 7 * 86_400_000;
+  const counted = runs.filter((run) => run.startedAt >= from && run.startedAt < thisWeek);
+  if (counted.length === 0) return null;
+  const metres = counted.reduce((total, run) => total + run.distanceM, 0);
+  return metres / 1000 / weeks;
+}

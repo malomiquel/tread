@@ -53,6 +53,33 @@ test("the flat exponent was optimistic, and measurably so", () => {
   assert.ok(marathon < 2400 * 4.2195 ** 1.2);
 });
 
+test("running more costs less over distance", () => {
+  // The idea McMillan made popular and the papers since have measured: the
+  // same ten kilometre time does not mean the same marathon.
+  const low = enduranceExponent(42_195, 15);
+  const middling = enduranceExponent(42_195, 40);
+  const high = enduranceExponent(42_195, 80);
+  assert.ok(low > middling && middling > high, `${low} ${middling} ${high}`);
+
+  const slowest = equivalentTimeS(10_000, 2400, 42_195, 15)!;
+  const quickest = equivalentTimeS(10_000, 2400, 42_195, 80)!;
+  // Worth something a runner would notice, without inventing a new person.
+  const gap = (slowest - quickest) / 60;
+  assert.ok(gap > 15 && gap < 60, `${gap} min apart`);
+});
+
+test("volume decides nothing over a short race", () => {
+  // Nobody's five kilometres is settled by how much they run in a week.
+  assert.equal(enduranceExponent(5000, 15), enduranceExponent(5000, 80));
+  assert.equal(equivalentTimeS(5000, 1200, 5000, 15), equivalentTimeS(5000, 1200, 5000, 80));
+});
+
+test("an unknown volume is treated as a cautious one, never an average one", () => {
+  // A runner with no history must not be handed a fast runner's paces.
+  assert.ok(enduranceExponent(42_195, 0) >= enduranceExponent(42_195, 40));
+  assert.ok(enduranceExponent(42_195, Number.NaN) >= enduranceExponent(42_195, 40));
+});
+
 test("a projection can be walked back to where it came from", () => {
   // The pace ladder projects one target out to four distances. If the
   // conversion were not reversible those four would describe four different

@@ -87,27 +87,82 @@ const ENDURANCE_ANCHORS: readonly (readonly [metres: number, exponent: number])[
 ];
 
 /**
+ * The weekly volume the anchors above describe.
+ *
+ * CHOSEN. Forty kilometres a week is the middle of the recreational range,
+ * and the point at which the volume correction does nothing at all.
+ */
+const REFERENCE_WEEKLY_KM = 40;
+
+/**
+ * How training volume bends the exponent, by kilometres a week.
+ *
+ * PUBLISHED in direction, CHOSEN in size. Vickers and Vertosick find weekly
+ * volume is a real term in how much a runner slows over distance: the more
+ * you run, the less the marathon costs you relative to your ten. It is the
+ * measurable form of an idea McMillan made popular long before — that two
+ * runners with the same ten kilometre time do not have the same marathon,
+ * one being built for speed and the other for distance.
+ *
+ * What the papers do not hand over is a coefficient to paste in, so these
+ * three points are mine. They are worth roughly twenty minutes either side
+ * of a four hour marathon, which is about the spread the literature implies
+ * and small enough not to invent a runner who does not exist.
+ */
+const VOLUME_ANCHORS: readonly (readonly [weeklyKm: number, shift: number])[] = [
+  [15, 0.035],
+  [REFERENCE_WEEKLY_KM, 0],
+  [80, -0.03],
+];
+
+function volumeShift(weeklyKm: number): number {
+  if (!Number.isFinite(weeklyKm) || weeklyKm <= 0) return VOLUME_ANCHORS[0][1];
+  const first = VOLUME_ANCHORS[0];
+  const last = VOLUME_ANCHORS[VOLUME_ANCHORS.length - 1];
+  if (weeklyKm <= first[0]) return first[1];
+  if (weeklyKm >= last[0]) return last[1];
+
+  for (let i = 1; i < VOLUME_ANCHORS.length; i += 1) {
+    const [lowKm, lowShift] = VOLUME_ANCHORS[i - 1];
+    const [highKm, highShift] = VOLUME_ANCHORS[i];
+    if (weeklyKm <= highKm) {
+      const along = (Math.log(weeklyKm) - Math.log(lowKm)) / (Math.log(highKm) - Math.log(lowKm));
+      return lowShift + (highShift - lowShift) * along;
+    }
+  }
+  return last[1];
+}
+
+/**
  * How steeply time grows with distance around a given race length.
  *
  * Interpolated on log distance, because five to ten kilometres is the same
  * kind of step as ten to twenty — not a quarter of the step from ten to
  * forty, which is what interpolating on plain metres would claim.
  */
-export function enduranceExponent(distanceM: number): number {
+export function enduranceExponent(distanceM: number, weeklyKm = REFERENCE_WEEKLY_KM): number {
   const first = ENDURANCE_ANCHORS[0];
   const last = ENDURANCE_ANCHORS[ENDURANCE_ANCHORS.length - 1];
-  if (!(distanceM > first[0])) return first[1];
-  if (distanceM >= last[0]) return last[1];
 
-  for (let i = 1; i < ENDURANCE_ANCHORS.length; i += 1) {
-    const [lowM, lowN] = ENDURANCE_ANCHORS[i - 1];
-    const [highM, highN] = ENDURANCE_ANCHORS[i];
-    if (distanceM <= highM) {
-      const along = (Math.log(distanceM) - Math.log(lowM)) / (Math.log(highM) - Math.log(lowM));
-      return lowN + (highN - lowN) * along;
+  const base = (() => {
+    if (!(distanceM > first[0])) return first[1];
+    if (distanceM >= last[0]) return last[1];
+    for (let i = 1; i < ENDURANCE_ANCHORS.length; i += 1) {
+      const [lowM, lowN] = ENDURANCE_ANCHORS[i - 1];
+      const [highM, highN] = ENDURANCE_ANCHORS[i];
+      if (distanceM <= highM) {
+        const along = (Math.log(distanceM) - Math.log(lowM)) / (Math.log(highM) - Math.log(lowM));
+        return lowN + (highN - lowN) * along;
+      }
     }
-  }
-  return last[1];
+    return last[1];
+  })();
+
+  // Scaled by how far up the ladder the distance sits, so volume counts for
+  // everything over a marathon and nothing over five kilometres — which is
+  // right, because nobody's five is decided by how much they run in a week.
+  const reach = (base - first[1]) / (last[1] - first[1]);
+  return base + reach * volumeShift(weeklyKm);
 }
 
 /**
@@ -124,11 +179,12 @@ export function equivalentTimeS(
   refDistanceM: number,
   refTimeS: number,
   targetDistanceM: number,
+  weeklyKm = REFERENCE_WEEKLY_KM,
 ): number | null {
   if (![refDistanceM, refTimeS, targetDistanceM].every((n) => Number.isFinite(n) && n > 0)) {
     return null;
   }
-  const exponent = enduranceExponent(Math.max(refDistanceM, targetDistanceM));
+  const exponent = enduranceExponent(Math.max(refDistanceM, targetDistanceM), weeklyKm);
   return refTimeS * (targetDistanceM / refDistanceM) ** exponent;
 }
 
@@ -155,9 +211,13 @@ export interface Paces {
  * The projection stays anchored in reality all the same, because the target
  * time is itself prefilled from your best run.
  */
-export function pacesFrom(goalDistanceM: number, goalTimeS: number): Paces | null {
+export function pacesFrom(
+  goalDistanceM: number,
+  goalTimeS: number,
+  weeklyKm = REFERENCE_WEEKLY_KM,
+): Paces | null {
   const at = (distanceM: number): number | null => {
-    const time = equivalentTimeS(goalDistanceM, goalTimeS, distanceM);
+    const time = equivalentTimeS(goalDistanceM, goalTimeS, distanceM, weeklyKm);
     return time === null ? null : (time / distanceM) * 1000;
   };
   const fiveK = at(5000);
@@ -243,6 +303,8 @@ export interface PlanInput {
    * how a beginner ends up handed a ninety minute run in their first week.
    */
   longestMin: number;
+  /** Kilometres a week today, measured or declared. */
+  weeklyKm: number;
 }
 
 /** Weeks a plan may run for, given its race. */
@@ -580,7 +642,7 @@ function weekBody(
 export function buildPlan(input: PlanInput): PlannedSession[] {
   const goal = goalById(input.goal);
   if (!goal) return [];
-  const paces = pacesFrom(goal.distanceM, input.targetTimeS);
+  const paces = pacesFrom(goal.distanceM, input.targetTimeS, input.weeklyKm);
   if (!paces) return [];
 
   const weeks = clampWeeks(goal, input.weeks);

@@ -2,7 +2,7 @@ import * as Haptics from "expo-haptics";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useScrollToTop } from "expo-router";
-import { personalRecords } from "@/lib/db";
+import { listRuns, personalRecords } from "@/lib/db";
 import { formatDuration, formatPace } from "@/lib/format";
 import { useTabBarSpace } from "@/lib/layout";
 import {
@@ -10,6 +10,7 @@ import {
   longCeilingMin, longestReachedMin, SLOT_DAYS, startOfDay,
   type Goal, type GoalSpec, type PerWeek,
 } from "@/lib/plan";
+import { weeklyVolumeKm } from "@/lib/stats";
 import { colors, font } from "@/lib/theme";
 
 const DAY_MS = 86_400_000;
@@ -208,6 +209,8 @@ export interface PlanDraft {
   targetTimeS: number;
   /** The runner's longest run today, in minutes. */
   longestMin: number;
+  /** Kilometres a week today. */
+  weeklyKm: number;
 }
 
 /**
@@ -234,6 +237,10 @@ export function PlanSetup({ onCreate }: { onCreate: (draft: PlanDraft) => void }
   const [reference, setReference] = useState<{ distanceM: number; durationS: number } | null>(null);
   /** Minutes of the longest run, once history has answered or the runner has. */
   const [longestMin, setLongestMin] = useState<number | null>(null);
+  /** Kilometres a week as actually recorded, when there are runs to measure. */
+  const [measuredKm, setMeasuredKm] = useState<number | null>(null);
+  /** What the runner says instead, which always wins. */
+  const [declaredKm, setDeclaredKm] = useState<number | null>(null);
   /** Read after mount, never during a render: today is not a pure value. */
   const [today, setToday] = useState(0);
   // The bar floats over the screen rather than pushing it up, so the last
@@ -254,6 +261,20 @@ export function PlanSetup({ onCreate }: { onCreate: (draft: PlanDraft) => void }
 
   // The best real performance on record, which is what makes the first
   // suggested time a projection rather than a number out of the air.
+  // Measured over eight weeks, zeros included: the figure describes a habit,
+  // not a best effort.
+  useEffect(() => {
+    let live = true;
+    listRuns()
+      .then((runs) => {
+        if (!live) return;
+        const volume = weeklyVolumeKm(runs);
+        if (volume !== null) setMeasuredKm(Math.max(5, Math.round(volume / 5) * 5));
+      })
+      .catch(() => undefined);
+    return () => { live = false; };
+  }, []);
+
   useEffect(() => {
     let live = true;
     personalRecords()
@@ -275,14 +296,18 @@ export function PlanSetup({ onCreate }: { onCreate: (draft: PlanDraft) => void }
   // Derived rather than stored. Moving from a ten to a marathon must not
   // leave the ten's time behind, and an effect chasing that would be a second
   // source of truth for one number.
+  // No history to measure means the cautious end, not the middle. An
+  // optimistic guess here becomes three months of paces nobody can hold.
+  const weeklyKm = declaredKm ?? measuredKm ?? 20;
+
   const suggested = useMemo(() => {
     const projected = reference
-      ? equivalentTimeS(reference.distanceM, reference.durationS, goal.distanceM)
+      ? equivalentTimeS(reference.distanceM, reference.durationS, goal.distanceM, weeklyKm)
       : null;
     // Snapped to the same grid the buttons move on, so the first tap never
     // has to first tidy up an odd number before it can change anything.
     return Math.round((projected ?? goal.defaultTimeS) / stepS) * stepS;
-  }, [goal, reference, stepS]);
+  }, [goal, reference, stepS, weeklyKm]);
   const targetTimeS = override ?? suggested;
 
   const earliest = today + goal.minWeeks * 7 * DAY_MS;
@@ -299,10 +324,10 @@ export function PlanSetup({ onCreate }: { onCreate: (draft: PlanDraft) => void }
   const reached = weeks === null
     ? null
     : longestReachedMin(goalId, weeks, goal.taperWeeks, longest, targetTimeS / 60);
-  const paces = pacesFrom(goal.distanceM, targetTimeS);
+  const paces = pacesFrom(goal.distanceM, targetTimeS, weeklyKm);
   const ready = chosen !== null && weeks !== null && paces !== null && days.length === perWeek;
   const sessions = ready
-    ? buildPlan({ goal: goalId, weeks, perWeek, targetTimeS, longestMin: longest }).length
+    ? buildPlan({ goal: goalId, weeks, perWeek, targetTimeS, longestMin: longest, weeklyKm }).length
     : 0;
 
   // One frame, before the clock has been read.
@@ -439,6 +464,29 @@ export function PlanSetup({ onCreate }: { onCreate: (draft: PlanDraft) => void }
         </Text>
       ) : null}
 
+      <Text style={styles.section}>Ton volume actuel</Text>
+      <Text style={styles.hint}>
+        {measuredKm !== null && declaredKm === null
+          ? "Mesuré sur tes huit dernières semaines, semaines sans course comprises."
+          : "Deux coureurs au même chrono sur 10 km n'ont pas le même marathon : celui qui court beaucoup perd moins sur la distance. Sans données, je pars au plus prudent."}
+      </Text>
+      <View style={styles.stepper}>
+        <HoldButton
+          label="−"
+          accessibilityLabel="Moins de volume"
+          onStep={() => setDeclaredKm((current) => Math.max(5, (current ?? weeklyKm) - 5))}
+        />
+        <View style={styles.target}>
+          <Text style={styles.targetValue}>{weeklyKm} km</Text>
+          <Text style={styles.targetDetail}>par semaine</Text>
+        </View>
+        <HoldButton
+          label="+"
+          accessibilityLabel="Plus de volume"
+          onStep={() => setDeclaredKm((current) => Math.min(200, (current ?? weeklyKm) + 5))}
+        />
+      </View>
+
       <Text style={styles.section}>Temps visé</Text>
       <Text style={styles.hint}>
         {reference
@@ -495,7 +543,7 @@ export function PlanSetup({ onCreate }: { onCreate: (draft: PlanDraft) => void }
           if (!ready) return;
           onCreate({
             goal: goalId, raceAt: chosen, weeks, perWeek, days, targetTimeS,
-            longestMin: longest,
+            longestMin: longest, weeklyKm,
           });
         }}
         disabled={!ready}
