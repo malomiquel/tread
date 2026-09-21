@@ -12,11 +12,13 @@ import { Metric } from "@/components/Metric";
 import { CardMapSource, type CardMapHandle } from "@/components/CardMapSource";
 import { RunMap } from "@/components/RunMap";
 import { canShareImage, ShareRunSheet } from "@/components/ShareRunSheet";
-import { deleteRun, readRun, renameRun, type Run } from "@/lib/db";
+import { EXERTION_NAMES, type Exertion } from "@/lib/plan";
+import { deleteRun, readRun, renameRun, type Run, setRunExertion,
+} from "@/lib/db";
 import {
   formatDate, formatDistance, formatDuration, formatElevation, formatEnergy, formatPace, formatSpeed,
 } from "@/lib/format";
-import { splits, type TrackPoint } from "@/lib/geo";
+import { elevationProfile, splits, type TrackPoint } from "@/lib/geo";
 import { sessionById, type RanBlock } from "@/lib/workout";
 import { gpxFileName, toGpx } from "@/lib/gpx";
 import { estimateActiveEnergyKcal } from "@/lib/energy";
@@ -105,6 +107,7 @@ export default function RunDetailScreen() {
 
   const { run, points } = data;
   const kilometres = splits(points);
+  const profile = elevationProfile(points);
   const fastest = kilometres
     .filter((split) => !split.partial)
     .reduce<number | null>((best, split) => (best === null || split.durationS < best ? split.durationS : best), null);
@@ -296,6 +299,71 @@ export default function RunDetailScreen() {
         </View>
       </Modal>
 
+      {/* The one thing in this screen the phone could not have measured, and
+          the only way a programme ever learns it asked too much. Offered on
+          every run, not only planned ones: what a run cost you is true of the
+          run, whoever asked for it. */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Ressenti</Text>
+        <View style={styles.feelRow}>
+          {([1, 2, 3, 4, 5] as const).map((level) => {
+            const on = run.exertion === level;
+            return (
+              <Pressable
+                key={level}
+                onPress={() => {
+                  // Tapping the answer already given takes it back, so a
+                  // mistaken tap is not permanent.
+                  const next: Exertion | null = on ? null : level;
+                  setData({ run: { ...run, exertion: next }, points });
+                  void setRunExertion(run.id, next).catch(() => undefined);
+                }}
+                accessibilityRole="button"
+                accessibilityState={{ selected: on }}
+                accessibilityLabel={EXERTION_NAMES[level]}
+                style={({ pressed }) => [styles.feel, on && styles.feelOn, pressed && styles.sharePressed]}
+              >
+                <Text style={[styles.feelLabel, on && styles.feelLabelOn]}>{level}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        <Text style={styles.feelName}>
+          {run.exertion === null
+            ? "Comment c'était ? Deux séances dures d'affilée et ton programme s'allège."
+            : EXERTION_NAMES[run.exertion]}
+        </Text>
+      </View>
+
+      {profile.length > 1 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Profil</Text>
+          {/* Drawn as columns from the lowest point of the run rather than
+              from sea level: a hundred metres of climbing matters, the
+              altitude it happened at does not. */}
+          <View style={styles.profile}>
+            {profile.map((point, i) => {
+              const low = Math.min(...profile.map((p) => p.altitudeM));
+              const high = Math.max(...profile.map((p) => p.altitudeM));
+              const share = (point.altitudeM - low) / Math.max(1, high - low);
+              return (
+                <View key={i} style={styles.profileSlot}>
+                  <View style={[styles.profileBar, { height: `${8 + share * 92}%` }]} />
+                </View>
+              );
+            })}
+          </View>
+          <View style={styles.profileScale}>
+            <Text style={styles.profileMark}>
+              {formatElevation(Math.min(...profile.map((p) => p.altitudeM)))} m
+            </Text>
+            <Text style={styles.profileMark}>
+              {formatElevation(Math.max(...profile.map((p) => p.altitudeM)))} m
+            </Text>
+          </View>
+        </View>
+      )}
+
       {run.blocks.length > 0 && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>
@@ -438,6 +506,26 @@ const styles = StyleSheet.create({
   sharePressed: { backgroundColor: colors.sunken },
   name: { color: colors.text, fontSize: 32, fontFamily: font.bold, letterSpacing: -0.6 },
   date: { color: colors.subtle, fontSize: 16 },
+
+  feelRow: { flexDirection: "row", gap: 8, paddingTop: 2 },
+  feel: {
+    flex: 1, aspectRatio: 1.6, alignItems: "center", justifyContent: "center", borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline,
+  },
+  feelOn: { backgroundColor: colors.accent, borderColor: colors.accent },
+  feelLabel: { color: colors.muted, fontSize: 17, fontFamily: font.semibold },
+  feelLabelOn: { color: colors.accentText },
+  feelName: { color: colors.subtle, fontSize: 13.5, fontFamily: font.regular, paddingTop: 6 },
+
+  profile: {
+    flexDirection: "row", alignItems: "flex-end", gap: 1, height: 68, paddingTop: 4,
+  },
+  profileSlot: { flex: 1, height: "100%", justifyContent: "flex-end" },
+  profileBar: { width: "100%", backgroundColor: colors.accentSoft, borderRadius: 1 },
+  profileScale: { flexDirection: "row", justifyContent: "space-between", paddingTop: 4 },
+  profileMark: {
+    color: colors.subtle, fontSize: 12, fontFamily: font.regular, fontVariant: ["tabular-nums"],
+  },
 
   section: {
     paddingHorizontal: GUTTER, paddingVertical: 18, gap: 14,

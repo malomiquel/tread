@@ -52,6 +52,15 @@ const SECTIONS: { title: string; body: string[] }[] = [
     ],
   },
   {
+    title: "Ce que tu peux lui dire",
+    body: [
+      "Après chaque course, une question : c'était comment, de très facile à très dur. C'est la seule information de l'app que le téléphone ne peut pas mesurer.",
+      "Si deux séances d'affilée te paraissent dures, le programme retire 15 % de ce qu'il demande — 30 % si les deux étaient très dures. Ce sont les répétitions qui sautent en premier, jamais l'échauffement : arriver froid sur une séance allégée serait le pire des deux mondes.",
+      "Une seule séance dure ne déclenche rien. C'est l'entraînement qui fonctionne normalement, et s'alléger après chaque sortie difficile ne construirait jamais rien.",
+      "Rien n'est réécrit dans le programme : l'allègement s'applique à l'affichage, et disparaît dès qu'une séance te semble plus facile.",
+    ],
+  },
+  {
     title: "Les dates",
     body: [
       "Aucune date n'est enregistrée. Le calendrier est recalculé chaque fois que tu ouvres l'onglet, à partir des jours que tu as choisis.",

@@ -6,16 +6,18 @@ import Animated, { FadeIn } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { PlanSetup, type PlanDraft } from "@/components/PlanSetup";
 import { SessionDetail } from "@/components/SessionDetail";
-import { activePlan, createPlan, deletePlan, planDone, type StoredPlan } from "@/lib/db";
+import {
+  activePlan, createPlan, deletePlan, planDone, recentExertions, type StoredPlan,
+} from "@/lib/db";
 import { formatDuration, formatPace } from "@/lib/format";
 import { useTabBarSpace } from "@/lib/layout";
 import {
   buildPlan, daysBetween, goalById, KIND_NAMES, nextSession, PHASE_NAMES, planProgress, schedule,
-  startOfDay, type Done, type ScheduledSession,
+  easeFactor, startOfDay, type Done, type Exertion, type ScheduledSession,
 } from "@/lib/plan";
 import { colors, font } from "@/lib/theme";
 import { chooseSession } from "@/lib/tracker";
-import { sessionMinutes } from "@/lib/workout";
+import { eased, sessionMinutes } from "@/lib/workout";
 
 /** Displayed, indexed by `Date.getDay`. */
 const DAYS = ["dim.", "lun.", "mar.", "mer.", "jeu.", "ven.", "sam."];
@@ -94,6 +96,8 @@ export default function PlanScreen() {
   const [today, setToday] = useState(0);
   /** The session being looked at, before deciding to run it. */
   const [viewing, setViewing] = useState<ScheduledSession | null>(null);
+  /** How the last few sessions felt, newest first. */
+  const [recent, setRecent] = useState<Exertion[]>([]);
   const tabBarSpace = useTabBarSpace();
   const router = useRouter();
 
@@ -107,6 +111,7 @@ export default function PlanScreen() {
         setToday(startOfDay(Date.now()));
         setPlan(found);
         setDone(found ? await planDone(found.id) : new Map());
+        setRecent(await recentExertions());
       })
       .catch(() => live && setPlan(null));
     return () => { live = false; };
@@ -163,7 +168,16 @@ export default function PlanScreen() {
   }
 
   const goal = goalById(plan.goal);
-  const scheduled = schedule(plan.sessions, done, today, plan.raceAt, plan.days);
+  const factor = easeFactor(recent);
+  // Applied on the way out, never written back. The stored plan stays the
+  // intention it was; what changes is what is asked of you this week, which
+  // is the same reasoning that keeps the dates out of the database.
+  //
+  // A race is never eased. Nothing done is either: it is already behind you.
+  const scheduled = schedule(plan.sessions, done, today, plan.raceAt, plan.days).map((entry) =>
+    factor < 1 && entry.runId === null && entry.kind !== "race"
+      ? { ...entry, session: eased(entry.session, factor) }
+      : entry);
   const next = nextSession(scheduled);
   const progress = planProgress(plan.sessions, done.size);
   const daysLeft = daysBetween(today, plan.raceAt);
@@ -204,6 +218,12 @@ export default function PlanScreen() {
           <Text style={styles.caption}>
             {done.size} séance{done.size > 1 ? "s" : ""} sur {plan.sessions.length}
           </Text>
+
+          {factor < 1 ? (
+            <Text style={styles.eased}>
+              {`Tes deux dernières séances t'ont paru dures, donc le programme en retire ${Math.round((1 - factor) * 100)} %. Il reprendra son cours dès qu'une séance te semblera plus facile.`}
+            </Text>
+          ) : null}
 
           {next ? (
             <Pressable
@@ -291,6 +311,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: GUTTER, marginTop: 6,
   },
 
+  eased: {
+    color: colors.warning, fontFamily: font.regular, fontSize: 13.5,
+    lineHeight: 19, paddingHorizontal: GUTTER, paddingTop: 10,
+  },
   next: {
     flexDirection: "row", alignItems: "center", gap: 12,
     marginHorizontal: GUTTER, marginTop: 18,
