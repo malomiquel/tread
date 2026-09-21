@@ -3,12 +3,12 @@ import SwiftUI
 import WidgetKit
 
 /**
- The app's green, as two literals rather than a shared token: a widget
+ The app's cobalt, as two literals rather than a shared token: a widget
  extension is a separate binary and cannot reach into the app's JavaScript
  palette. These are the same values as `accent` in src/lib/theme.ts.
  */
-private let accentLight = Color(red: 0.059, green: 0.478, blue: 0.239)
-private let accentDark = Color(red: 0.255, green: 0.710, blue: 0.451)
+private let accentLight = Color(red: 0.000, green: 0.278, blue: 0.671)
+private let accentDark = Color(red: 0.435, green: 0.659, blue: 1.000)
 
 /**
  Barlow Condensed, the app's own face, carried inside this extension.

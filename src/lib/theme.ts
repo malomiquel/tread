@@ -32,13 +32,13 @@ export const colors = {
   subtle: dual("rgba(16, 16, 16, 0.42)", "rgba(242, 242, 243, 0.44)"),
   // Dark needs a lighter green to stay legible, and dark text on top of it:
   // white on a green pale enough to read against near black fails contrast.
-  accent: dual("#0f7a3d", "#41b573"),
-  accentText: dual("#ffffff", "#07130b"),
-  accentSoft: dual("rgba(15, 122, 61, 0.12)", "rgba(65, 181, 115, 0.18)"),
+  accent: dual("#0047ab", "#6fa8ff"),
+  accentText: dual("#ffffff", "#04101f"),
+  accentSoft: dual("rgba(0, 71, 171, 0.12)", "rgba(111, 168, 255, 0.18)"),
   warning: dual("#9a5b06", "#d69a3e"),
   danger: dual("#b3261e", "#f08078"),
   dangerSoft: dual("rgba(179, 38, 30, 0.10)", "rgba(240, 128, 120, 0.16)"),
-  track: dual("#0f7a3d", "#4cc47f"),
+  track: dual("#0047ab", "#6fa8ff"),
   /** Behind a dialog. Heavier in the dark, where a light veil reads as fog. */
   scrim: dual("rgba(16, 16, 16, 0.4)", "rgba(0, 0, 0, 0.6)"),
 } as const;
@@ -65,12 +65,24 @@ export const font = {
 } as const;
 
 /**
+ * Cobalt, chosen where the colour actually has to work rather than on a
+ * swatch: the track is drawn on a map. The green it replaces vanished into
+ * the first park a run crossed — parks are green.
+ *
+ * Measured rather than eyeballed. White on it clears eight to one, so the
+ * play button carries its icon comfortably rather than barely. And it sits
+ * far from every colour a map puts underneath it — roughly twice the
+ * distance at which two colours start being confused — including water,
+ * which it beats on both depth and saturation. The blues that failed did so
+ * for one of two reasons: too pale to hold white text, or the exact blue of
+ * a river.
+ *
  * Literal pairs, for native components that demand a concrete colour string
  * and cannot resolve a dynamic one: the map's polyline is drawn by MapKit,
  * not by React Native, so it never sees the system appearance.
  */
 export const literalColors = {
-  track: { light: "#0f7a3d", dark: "#4cc47f" },
+  track: { light: "#0047ab", dark: "#6fa8ff" },
 } as const;
 
 /**
