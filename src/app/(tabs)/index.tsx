@@ -177,24 +177,12 @@ export default function RecordScreen() {
         </View>
       </View>
 
-      <View style={styles.centreStage}>
-        {!recording && (
-          <Pressable
-            onPress={() => void start()}
-            accessibilityRole="button"
-            accessibilityLabel="Démarrer la course"
-            style={({ pressed }) => [styles.startButton, pressed && styles.startPressed]}
-          >
-            <Ionicons name="play" size={42} color={colors.accentText} style={styles.startIcon} />
-            <Text style={styles.startLabel}>Démarrer</Text>
-          </Pressable>
-        )}
-      </View>
+      <View style={styles.spacer} />
 
       {tracker.error && <Text style={styles.error}>{tracker.error}</Text>}
 
-      {recording && (
       <View style={styles.actions}>
+        {!recording && <Button label="Démarrer" onPress={() => void start()} />}
         {tracker.status === "running" && (
           <>
             <Button label="Pause" variant="secondary" onPress={pause} />
@@ -208,7 +196,6 @@ export default function RecordScreen() {
           </>
         )}
       </View>
-      )}
     </SafeAreaView>
   );
 }
@@ -267,25 +254,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   row: { flexDirection: "row", gap: 12, paddingTop: 2 },
-  centreStage: { flex: 1, alignItems: "center", justifyContent: "center" },
-  startButton: {
-    width: 176,
-    height: 176,
-    borderRadius: 88,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 2,
-    backgroundColor: colors.accent,
-    ...shadows.button,
-    shadowColor: colors.accent,
-    shadowOpacity: 0.32,
-    shadowRadius: 24,
-  },
-  startPressed: { transform: [{ scale: 0.96 }], opacity: 0.92 },
-  // The play triangle looks off-centre when centred geometrically, because its
-  // mass sits left of its bounding box. A couple of points to the right fixes it.
-  startIcon: { marginLeft: 6 },
-  startLabel: { color: colors.accentText, fontSize: 16, fontWeight: "700", letterSpacing: 0.2 },
+  spacer: { flex: 1 },
   expandedScreen: { flex: 1, backgroundColor: colors.background },
   // No radius in full screen: rounded corners on an edge-to-edge map read as
   // a rendering fault rather than a deliberate shape.
