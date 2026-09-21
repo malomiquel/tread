@@ -2,10 +2,11 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import * as Haptics from "expo-haptics";
 import { useKeepAwake } from "expo-keep-awake";
 import { useFocusEffect, useIsFocused, useRouter } from "expo-router";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useCallback, useEffect, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, {
-  FadeIn, FadeOut, useAnimatedStyle, useDerivedValue, useSharedValue, withTiming,
+  FadeIn, FadeOut, runOnJS, useAnimatedStyle, useDerivedValue, useSharedValue, withTiming,
 } from "react-native-reanimated";
 import { GlassPanel } from "@/components/GlassPanel";
 import { Metric } from "@/components/Metric";
@@ -178,19 +179,24 @@ export default function RecordScreen() {
   const leave = () => (router.canGoBack() ? router.back() : router.navigate("/"));
 
 
-  /*
-   * No gesture of our own: the navigator's is the one that moves the page.
+  /**
+   * Our own back swipe, on a narrow strip down the left edge.
    *
-   * What the strip below does is keep the map's hands off the left edge.
-   * MKMapView claims a touch starting there for its own panning, and wins it
-   * before the screen-edge recogniser upstairs ever sees it — which is why
-   * the swipe worked on a run sheet, where the map is one section among
-   * several, and not here, where it is the whole screen.
+   * The navigator's gesture never fires here. It wants the touch to begin
+   * within about twenty points of the edge, and a map filling the screen
+   * claims that strip for its own panning first — which is exactly why this
+   * strip existed before, sitting above the map rather than under it.
    *
-   * An inert view is enough. It answers nothing and starts nothing; it simply
-   * stands between the map and that band, leaving the touch to the navigator,
-   * which then drags the page and uncovers what is beneath.
+   * So it is a threshold again, not a drag: the screen does not follow the
+   * finger. That is the part the native gesture would have given for free,
+   * and it is not worth a back swipe that does not work.
    */
+  const swipeBack = Gesture.Pan()
+    .activeOffsetX(14)
+    .failOffsetY([-24, 24])
+    .onEnd((event) => {
+      if (event.translationX > 60 && event.velocityX > 0) runOnJS(leave)();
+    });
 
 
   const recording = tracker.status !== "idle";
@@ -354,7 +360,9 @@ export default function RecordScreen() {
       />
       {recording && <KeepAwake />}
 
-      <View style={styles.backEdge} />
+      <GestureDetector gesture={swipeBack}>
+        <View style={styles.backEdge} />
+      </GestureDetector>
 
       {/* The way out, since the tab bar no longer offers one. Top left, in the
           corner a back button lives in everywhere else, and in the same glass
@@ -571,10 +579,7 @@ function Toggle({
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   map: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, borderRadius: 0 },
-  // Above the map, which is the whole point: below it, the map eats the
-  // touch the navigator needs. Roughly the width iOS uses for its own back
-  // gesture, so the habit is already there, and narrow enough that panning
-  // the map westward is still possible from anywhere else.
+  // Above the map, which is the whole point: below it, the map eats the drag.
   backEdge: { position: "absolute", left: 0, top: 0, bottom: 0, width: 26 },
 
   // Right-aligned so the pills, the locate button and the panel's edge all
