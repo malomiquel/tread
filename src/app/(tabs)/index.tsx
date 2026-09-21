@@ -183,12 +183,14 @@ export default function RecordScreen() {
             on={settings.voice}
             onPress={() => void toggleSetting("voice")}
             icon={settings.voice ? "volume-high" : "volume-mute"}
+            name="VOIX"
             label="Annonce vocale des kilomètres"
           />
           <Toggle
             on={settings.autoPause}
             onPress={() => void toggleSetting("autoPause")}
             icon="pause-circle"
+            name="PAUSE AUTO"
             label="Pause automatique à l'arrêt"
           />
           {hasHealth && (
@@ -196,6 +198,7 @@ export default function RecordScreen() {
               on={settings.healthSync}
               onPress={() => void toggleHealth()}
               icon={settings.healthSync ? "heart" : "heart-outline"}
+              name="SANTÉ"
               label="Envoyer les courses vers Apple Santé"
             />
           )}
@@ -282,15 +285,26 @@ export default function RecordScreen() {
   );
 }
 
-/** A flat icon switch for the settings pill. */
+/**
+ * A switch in the settings pill: an icon over what it does.
+ *
+ * The icons carried the whole meaning before, and three of them side by side
+ * told you nothing — a speaker, a pause sign and a heart are each ambiguous
+ * enough on their own, and a setting nobody can name is a setting nobody
+ * touches. The word says what it is, the colour says whether it is on.
+ */
 function Toggle({
-  on, onPress, icon, label,
+  on, onPress, icon, name, label,
 }: {
   on: boolean;
   onPress: () => void;
   icon: React.ComponentProps<typeof Ionicons>["name"];
+  /** The word shown under the icon. Short enough to sit over a map. */
+  name: string;
+  /** The whole sentence, for anyone listening rather than looking. */
   label: string;
 }) {
+  const tint = on ? colors.accent : colors.subtle;
   return (
     <Pressable
       onPress={onPress}
@@ -300,7 +314,8 @@ function Toggle({
       hitSlop={8}
       style={({ pressed }) => [styles.toggle, pressed && styles.pressed]}
     >
-      <Ionicons name={icon} size={19} color={on ? colors.accent : colors.subtle} />
+      <Ionicons name={icon} size={18} color={tint} />
+      <Text style={[styles.toggleName, { color: tint }]}>{name}</Text>
     </Pressable>
   );
 }
@@ -310,8 +325,15 @@ const styles = StyleSheet.create({
   map: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, borderRadius: 0 },
 
   topLeft: { position: "absolute", top: CONTROLS_TOP, left: 12 },
-  togglePill: { flexDirection: "row", gap: 2, borderRadius: 21, padding: 2 },
-  toggle: { width: 38, height: 38, alignItems: "center", justifyContent: "center" },
+  togglePill: { flexDirection: "row", gap: 2, borderRadius: 16, padding: 3 },
+  // Height fixed rather than left to its contents: the pill has to come out
+  // at the same 42 points as the map's own buttons across the way, or the two
+  // clusters stop reading as a pair.
+  toggle: {
+    minWidth: 42, height: 36, paddingHorizontal: 7,
+    alignItems: "center", justifyContent: "center", gap: 1,
+  },
+  toggleName: { fontSize: 9.5, fontFamily: font.semibold, letterSpacing: 0.8 },
 
   bottom: { position: "absolute", left: 12, right: 12 },
   panel: { borderRadius: 22, paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
