@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Tabs } from "expo-router";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, View, type ColorValue } from "react-native";
 import { colors } from "@/lib/theme";
 import { useTracker } from "@/lib/tracker";
 
@@ -12,7 +12,9 @@ import { useTracker } from "@/lib/tracker";
  * it does is move between sections. A badge reports state without promising
  * an action.
  */
-function RunTabIcon({ color, size }: { color: string; size: number }) {
+// La couleur fournie par la barre d'onglets est une ColorValue, pas une
+// simple chaîne : elle peut être une valeur opaque de la plateforme.
+function RunTabIcon({ color, size }: { color: ColorValue; size: number }) {
   const tracker = useTracker();
   return (
     <View>
