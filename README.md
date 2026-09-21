@@ -1,4 +1,4 @@
-# Running
+# Tread
 
 Application de course à pied avec enregistrement GPS en direct : distance,
 durée, allure instantanée et moyenne, trace sur carte, fractionnés au

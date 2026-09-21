@@ -25,6 +25,9 @@ function obtenirBd(): SQLiteDatabase {
       "Le suivi de course n'est pas disponible sur web : le GPS et le stockage local demandent l'app mobile (iOS ou Android).",
     );
   }
+  // Le fichier garde son nom d'origine malgre le renommage de l'app en
+  // Tread : le renommer rendrait invisibles les courses deja enregistrees
+  // sur un appareil, pour un gain purement cosmetique et invisible.
   if (!instance) instance = openDatabaseSync("running.db");
   return instance;
 }

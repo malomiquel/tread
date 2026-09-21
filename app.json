@@ -1,20 +1,20 @@
 {
   "expo": {
-    "name": "Running",
-    "slug": "running",
+    "name": "Tread",
+    "slug": "tread",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "running",
+    "scheme": "tread",
     "userInterfaceStyle": "dark",
     "platforms": ["ios", "android"],
     "ios": {
       "icon": "./assets/expo.icon",
-      "bundleIdentifier": "com.malomiquel.running",
+      "bundleIdentifier": "com.malomiquel.tread",
       "supportsTablet": false
     },
     "android": {
-      "package": "com.malomiquel.running",
+      "package": "com.malomiquel.tread",
       "adaptiveIcon": {
         "backgroundColor": "#0b1120",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -31,8 +31,8 @@
         "expo-location",
         {
           "isIosBackgroundLocationEnabled": true,
-          "locationWhenInUsePermission": "Running utilise ta position pour tracer ta course et mesurer ta distance.",
-          "locationAlwaysAndWhenInUsePermission": "Running a besoin de ta position même écran verrouillé pour continuer à enregistrer ta course dans ta poche.",
+          "locationWhenInUsePermission": "Tread utilise ta position pour tracer ta course et mesurer ta distance.",
+          "locationAlwaysAndWhenInUsePermission": "Tread a besoin de ta position même écran verrouillé pour continuer à enregistrer ta course dans ta poche.",
           "isAndroidBackgroundLocationEnabled": true,
           "isAndroidForegroundServiceEnabled": true
         }

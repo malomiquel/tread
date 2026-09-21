@@ -4,7 +4,7 @@ import { useSyncExternalStore } from "react";
 import { ajouterPoints, creerCourse, terminerCourse } from "./bd";
 import { accepterPoint, allureSecParKm, distanceTotaleM, type Point } from "./geo";
 
-export const NOM_TACHE = "running-suivi-gps";
+export const NOM_TACHE = "tread-suivi-gps";
 
 export type EtatSuivi = "inactif" | "en_cours" | "en_pause";
 
