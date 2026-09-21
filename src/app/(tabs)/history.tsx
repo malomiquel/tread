@@ -6,12 +6,14 @@ import { Button } from "@/components/Button";
 import { listRuns, type Run } from "@/lib/db";
 import { createDemoRun } from "@/lib/demo";
 import { formatDate, formatDistance, formatDuration, formatPace } from "@/lib/format";
+import { useTabBarSpace } from "@/lib/layout";
 import { colors } from "@/lib/theme";
 
 export default function HistoryScreen() {
   const [runs, setRuns] = useState<Run[] | null>(null);
   const [seeding, setSeeding] = useState(false);
   const router = useRouter();
+  const tabBarSpace = useTabBarSpace();
 
   const reload = useCallback(() => listRuns().then(setRuns).catch(() => setRuns([])), []);
 
@@ -61,6 +63,7 @@ export default function HistoryScreen() {
       <FlatList
         data={runs ?? []}
         keyExtractor={(run) => String(run.id)}
+        contentContainerStyle={{ paddingBottom: tabBarSpace }}
         ListEmptyComponent={
           runs === null ? null : (
             <View style={styles.emptyBlock}>

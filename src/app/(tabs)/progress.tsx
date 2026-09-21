@@ -4,6 +4,7 @@ import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { listRuns, personalRecords, type PersonalRecords, type Run } from "@/lib/db";
 import { formatDistance, formatDuration, formatElevation, formatPace } from "@/lib/format";
+import { useTabBarSpace } from "@/lib/layout";
 import { weekStart } from "@/lib/stats";
 import { colors } from "@/lib/theme";
 
@@ -53,6 +54,7 @@ function RecordRow({ label, value, detail }: { label: string; value: string; det
 export default function ProgressScreen() {
   const [weeks, setWeeks] = useState<Week[] | null>(null);
   const [records, setRecords] = useState<PersonalRecords | null>(null);
+  const tabBarSpace = useTabBarSpace();
 
   useFocusEffect(
     useCallback(() => {
@@ -77,7 +79,7 @@ export default function ProgressScreen() {
 
   return (
     <SafeAreaView style={styles.screen} edges={["top"]}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: tabBarSpace }]}>
         <Text style={styles.title}>Progression</Text>
 
         {records.totalRuns === 0 ? (
@@ -167,7 +169,7 @@ const GUTTER = 20;
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  content: { paddingBottom: 32 },
+  content: {},
   title: {
     color: colors.text, fontSize: 24, fontWeight: "700",
     letterSpacing: -0.6, paddingHorizontal: GUTTER, paddingTop: 10, paddingBottom: 14,

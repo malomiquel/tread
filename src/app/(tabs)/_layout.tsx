@@ -1,7 +1,9 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Tabs } from "expo-router";
 import { StyleSheet, View, type ColorValue } from "react-native";
-import { colors } from "@/lib/theme";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { TAB_BAR_GAP, TAB_BAR_HEIGHT, TAB_BAR_INSET } from "@/lib/layout";
+import { colors, floatingShadow } from "@/lib/theme";
 import { useTracker } from "@/lib/tracker";
 
 /**
@@ -12,8 +14,6 @@ import { useTracker } from "@/lib/tracker";
  * it does is move between sections. A badge reports state without promising
  * an action.
  */
-// La couleur fournie par la barre d'onglets est une ColorValue, pas une
-// simple chaîne : elle peut être une valeur opaque de la plateforme.
 function RunTabIcon({ color, size }: { color: ColorValue; size: number }) {
   const tracker = useTracker();
   return (
@@ -30,13 +30,20 @@ function RunTabIcon({ color, size }: { color: ColorValue; size: number }) {
 }
 
 export default function TabsLayout() {
+  const insets = useSafeAreaInsets();
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.subtle,
-        tabBarStyle: { backgroundColor: colors.background, borderTopColor: colors.hairline },
+        // Floating rather than docked: inset from both sides, which is what
+        // centres it, and lifted clear of the bottom edge.
+        tabBarStyle: [styles.bar, { bottom: insets.bottom + TAB_BAR_GAP }],
+        tabBarItemStyle: styles.item,
+        tabBarLabelStyle: styles.label,
+        tabBarIconStyle: styles.icon,
         sceneStyle: { backgroundColor: colors.background },
       }}
     >
@@ -67,6 +74,30 @@ export default function TabsLayout() {
 }
 
 const styles = StyleSheet.create({
+  bar: {
+    position: "absolute",
+    left: TAB_BAR_INSET,
+    right: TAB_BAR_INSET,
+    height: TAB_BAR_HEIGHT,
+    borderRadius: TAB_BAR_HEIGHT / 2,
+    backgroundColor: colors.background,
+    // A docked bar is separated by its top rule; a floating one has nothing
+    // above it, so the rule would read as a stray line.
+    borderTopWidth: 0,
+    // A hairline all round keeps the pill legible against a white page, where
+    // a shadow alone would leave its edge vague.
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hairline,
+    paddingHorizontal: 6,
+    ...floatingShadow,
+    shadowOpacity: 0.1,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+  },
+  item: { paddingTop: 8, paddingBottom: 6 },
+  icon: { marginTop: 0 },
+  label: { fontSize: 10, fontWeight: "600", letterSpacing: 0.1, marginTop: 1 },
   badge: {
     position: "absolute",
     top: -2,

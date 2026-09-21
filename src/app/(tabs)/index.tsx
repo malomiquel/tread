@@ -10,6 +10,7 @@ import { RunMap } from "@/components/RunMap";
 import { listRuns, type Run } from "@/lib/db";
 import { formatDistance, formatDuration, formatElevation, formatPace } from "@/lib/format";
 import { currentPace, elevationGainM, paceSecPerKm, totalDistanceM } from "@/lib/geo";
+import { useTabBarSpace } from "@/lib/layout";
 import { useInitialLocation } from "@/lib/location";
 import { toggleSetting, useSettings } from "@/lib/settings";
 import { timeAgo, weekTotals } from "@/lib/stats";
@@ -62,6 +63,7 @@ export default function RecordScreen() {
   const [finishing, setFinishing] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [history, setHistory] = useState<Run[]>([]);
+  const tabBarSpace = useTabBarSpace();
 
   const recording = tracker.status !== "idle";
 
@@ -245,7 +247,7 @@ export default function RecordScreen() {
 
       {tracker.error && <Text style={styles.error}>{tracker.error}</Text>}
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: tabBarSpace }]}>
         <View style={styles.toggles}>
           <Toggle
             on={settings.voice}
@@ -309,7 +311,6 @@ const styles = StyleSheet.create({
   footer: {
     paddingHorizontal: GUTTER,
     paddingTop: 14,
-    paddingBottom: 12,
     gap: 14,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.hairline,
