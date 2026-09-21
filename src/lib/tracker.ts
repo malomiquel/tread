@@ -357,7 +357,11 @@ export async function finish(): Promise<number | null> {
   // is deliberately not awaited: a slow or refused HealthKit call must not
   // hold up the summary screen. The run's own page reports whether the copy
   // landed, and offers to send it again.
-  if (getSettings().healthSync) void syncRunToHealth(runId);
+  //
+  // No setting guards this any more. Permission is the only gate that matters,
+  // and iOS already owns it — a second switch inside the app could only ever
+  // disagree with the one in Settings, or quietly countermand a yes.
+  void syncRunToHealth(runId);
 
   reset();
   return runId;

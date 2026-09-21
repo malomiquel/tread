@@ -9,6 +9,7 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { initDb } from "@/lib/db";
+import { requestHealthAccess } from "@/lib/health";
 import { clearStaleRun } from "@/lib/liveActivity";
 import { loadSettings } from "@/lib/settings";
 import { colors } from "@/lib/theme";
@@ -31,6 +32,12 @@ export default function RootLayout() {
     // a crash or a swipe-away can leave a clock counting on the lock screen
     // for a run that is long over. Launching is the moment to clear it.
     clearStaleRun();
+    // Asked once, at the start, rather than hidden behind a switch somewhere.
+    // iOS shows its sheet the first time and silently remembers the answer
+    // afterwards, so this is a no-op on every later launch. It is not awaited:
+    // whatever the answer, it changes nothing about opening the app, and a
+    // refusal simply means runs stay in Tread alone.
+    void requestHealthAccess();
     initDb()
       .then(loadSettings)
       .then(() => setReady(true))

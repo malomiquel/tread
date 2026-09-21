@@ -19,7 +19,10 @@ import {
 import { splits, type TrackPoint } from "@/lib/geo";
 import { gpxFileName, toGpx } from "@/lib/gpx";
 import { estimateActiveEnergyKcal } from "@/lib/energy";
-import { forgetRunInHealth, healthAvailable, readBodyMassKg, requestHealthAccess, syncRunToHealth } from "@/lib/health";
+import {
+  forgetRunInHealth, healthAvailable, readBodyMassKg, requestHealthAccess, sharingRefused,
+  syncRunToHealth,
+} from "@/lib/health";
 import { colors, floatingShadow, font } from "@/lib/theme";
 
 type Loaded = { run: Run; points: TrackPoint[] };
@@ -121,9 +124,14 @@ export default function RunDetailScreen() {
       const asked = await requestHealthAccess();
       const uuid = asked ? await syncRunToHealth(run.id) : null;
       if (!uuid) {
+        // Only one of these two is a permission problem, and telling someone
+        // to go change a setting that is already right is its own small
+        // betrayal.
         Alert.alert(
           "Santé n'a rien reçu",
-          "Tread n'a pas le droit d'écrire tes courses. Tu peux le lui donner dans Réglages › Santé › Accès aux données › Tread.",
+          sharingRefused()
+            ? "Tread n'a pas le droit d'écrire tes courses. Tu peux le lui donner dans Réglages › Santé › Accès aux données › Tread."
+            : "L'envoi a échoué. Réessaie dans un instant.",
         );
         return;
       }

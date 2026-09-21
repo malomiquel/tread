@@ -6,14 +6,9 @@ export interface Settings {
   voice: boolean;
   /** Pause on its own when you stop moving, resume when you set off again. */
   autoPause: boolean;
-  /**
-   * Copy each finished run into Apple Health. Off until asked for: it sends
-   * data out of the app, so it is the user's call rather than a default.
-   */
-  healthSync: boolean;
 }
 
-const DEFAULTS: Settings = { voice: true, autoPause: true, healthSync: false };
+const DEFAULTS: Settings = { voice: true, autoPause: true };
 
 /**
  * Settings live in SQLite but are read synchronously from a cache, because
@@ -34,7 +29,6 @@ export async function loadSettings(): Promise<void> {
     publish({
       voice: stored.voice ? stored.voice === "true" : DEFAULTS.voice,
       autoPause: stored.autoPause ? stored.autoPause === "true" : DEFAULTS.autoPause,
-      healthSync: stored.healthSync ? stored.healthSync === "true" : DEFAULTS.healthSync,
     });
   } catch {
     // Unreadable settings are not worth failing a launch over.
