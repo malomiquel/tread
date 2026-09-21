@@ -4,11 +4,9 @@ import { readSettings, writeSetting } from "./db";
 export interface Settings {
   /** Speak each kilometre out loud. The buzz happens either way. */
   voice: boolean;
-  /** Pause on its own when you stop moving, resume when you set off again. */
-  autoPause: boolean;
 }
 
-const DEFAULTS: Settings = { voice: true, autoPause: true };
+const DEFAULTS: Settings = { voice: true };
 
 /**
  * Settings live in SQLite but are read synchronously from a cache, because
@@ -28,7 +26,6 @@ export async function loadSettings(): Promise<void> {
     const stored = await readSettings();
     publish({
       voice: stored.voice ? stored.voice === "true" : DEFAULTS.voice,
-      autoPause: stored.autoPause ? stored.autoPause === "true" : DEFAULTS.autoPause,
     });
   } catch {
     // Unreadable settings are not worth failing a launch over.

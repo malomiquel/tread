@@ -23,12 +23,6 @@ export function announceKilometre(km: number, splitS: number, spoken: boolean): 
   Speech.speak(`Kilomètre ${km}. ${time}`, { language: "fr-FR", rate: 1 });
 }
 
-/** Spoken confirmation when the app pauses or resumes on its own. */
-export function announceAutoPause(paused: boolean, spoken: boolean): void {
-  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
-  if (!spoken) return;
-  Speech.speak(paused ? "Pause" : "Reprise", { language: "fr-FR" });
-}
 
 /** Silence any pending speech, on finishing or discarding a run. */
 export function stopSpeaking(): void {

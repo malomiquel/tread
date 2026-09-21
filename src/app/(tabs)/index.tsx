@@ -127,9 +127,7 @@ export default function RecordScreen() {
     : "GPS prêt";
 
   const state = recording
-    ? tracker.status === "paused"
-      ? tracker.autoPaused ? "Pause automatique" : "En pause"
-      : "Course en cours"
+    ? tracker.status === "paused" ? "En pause" : "Course en cours"
     : "Prêt à courir";
 
   // The same threshold the tracker throws fixes away at, so the warning and
@@ -159,12 +157,9 @@ export default function RecordScreen() {
       />
       {recording && <KeepAwake />}
 
-      {/* Each setting in its own pill rather than two halves of one: they
-          switch different things, and joining them made a single control with
-          two states out of what is really two controls. Stacked, and cut to
-          the same size as the map's own button, so the three read as one
-          column rather than as three unrelated things that happen to be near
-          each other. */}
+      {/* Cut to the same size as the map's own button just below, so the two
+          read as one column rather than as two unrelated things that happen
+          to be near each other. */}
       <View pointerEvents="box-none" style={[styles.toggles, { bottom: togglesBottom }]}>
         <GlassPanel style={styles.togglePill}>
           <Toggle
@@ -173,15 +168,6 @@ export default function RecordScreen() {
             icon={settings.voice ? "volume-high" : "volume-mute"}
             name="VOIX"
             label="Annonce vocale des kilomètres"
-          />
-        </GlassPanel>
-        <GlassPanel style={styles.togglePill}>
-          <Toggle
-            on={settings.autoPause}
-            onPress={() => void toggleSetting("autoPause")}
-            icon="pause-circle"
-            name="AUTO"
-            label="Pause automatique à l'arrêt"
           />
         </GlassPanel>
       </View>
@@ -194,12 +180,16 @@ export default function RecordScreen() {
         style={[styles.bottom, { bottom: tabBarSpace }]}
       >
         <GlassPanel style={styles.panel} interactive>
-          <Text style={[styles.state, weakSignal && styles.stateWeak]} numberOfLines={1}>
-            {state} · {recording ? signal : idleSignal}
-          </Text>
-
+          {/* One row for the whole panel, so the button centres against
+              everything written beside it. With the status line sitting above
+              the row instead, it was centred on the metrics alone and came
+              out visibly low. */}
           <View style={styles.panelRow}>
             <View style={styles.panelMetrics}>
+              <Text style={[styles.state, weakSignal && styles.stateWeak]} numberOfLines={1}>
+                {state} · {recording ? signal : idleSignal}
+              </Text>
+
               {recording ? (
                 // Two rows of two rather than four abreast: on a narrow phone
                 // the single row fell to 46 points a column, which clipped the
@@ -222,6 +212,7 @@ export default function RecordScreen() {
                   unit={week.runs > 0 ? `· ${week.runs} sortie${week.runs > 1 ? "s" : ""}` : undefined}
                 />
               )}
+              {tracker.error && <Text style={styles.error}>{tracker.error}</Text>}
             </View>
 
             <View style={styles.panelControls}>
@@ -245,8 +236,6 @@ export default function RecordScreen() {
               )}
             </View>
           </View>
-
-          {tracker.error && <Text style={styles.error}>{tracker.error}</Text>}
         </GlassPanel>
       </View>
 
@@ -322,11 +311,11 @@ const styles = StyleSheet.create({
   toggleName: { fontSize: 9, fontFamily: font.semibold, letterSpacing: 0.6 },
 
   bottom: { position: "absolute", left: 12, right: 12 },
-  panel: { borderRadius: 22, paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
+  panel: { borderRadius: 22, paddingHorizontal: 16, paddingVertical: 12 },
   state: { color: colors.muted, fontSize: 14.5, fontFamily: font.medium },
   stateWeak: { color: colors.warning },
   panelRow: { flexDirection: "row", alignItems: "center", gap: 12 },
-  panelMetrics: { flex: 1, gap: 10, minWidth: 0 },
+  panelMetrics: { flex: 1, gap: 8, minWidth: 0 },
   metricRow: { flexDirection: "row", gap: 12 },
   panelControls: { flexDirection: "row", gap: 8, flexShrink: 0 },
 
