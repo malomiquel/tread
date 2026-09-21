@@ -1,11 +1,13 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
 import * as Haptics from "expo-haptics";
-import { Tabs } from "expo-router";
+import { Tabs, useRouter } from "expo-router";
 import type { ComponentProps } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, { Easing, useAnimatedStyle, withTiming } from "react-native-reanimated";
 import { GlassPanel } from "@/components/GlassPanel";
 import { TAB_BAR_HEIGHT, useTabBarBottom } from "@/lib/layout";
 import { colors, font } from "@/lib/theme";
+import { chooseSession, useTracker } from "@/lib/tracker";
 
 /**
  * A floating tab bar that hugs its own content.
@@ -40,6 +42,9 @@ export function FloatingTabBar({
   state, descriptors, navigation,
 }: TabBarProps) {
   const bottom = useTabBarBottom();
+  const router = useRouter();
+  const tracker = useTracker();
+  const recording = tracker.status !== "idle";
 
   /**
    * Hidden by sliding out, not by unmounting.
@@ -93,7 +98,48 @@ export function FloatingTabBar({
     );
   });
 
-  const content = <View style={styles.row}>{tabs}</View>;
+  /**
+   * Running, kept in the bar rather than floating beside it.
+   *
+   * It is the thing this app is for, so it is present wherever you are
+   * instead of on one screen out of three. Inside the same glass as the
+   * sections, and filled rather than tinted, because it is not a fourth place
+   * to go — it starts something, and a control that acts has no business
+   * looking like a control that navigates.
+   *
+   * It also carries what the old tab's badge carried. A run you can no longer
+   * see from the bar is a run easy to forget you left recording, so the
+   * button changes colour and shape rather than staying the same in both.
+   */
+  const run = (
+    <Pressable
+      onPress={() => {
+        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
+        // A free run starts free: a session left over from the last outing
+        // would otherwise be handed to somebody who asked for nothing.
+        if (!recording) chooseSession(null);
+        router.push("/record");
+      }}
+      accessibilityRole="button"
+      accessibilityLabel={recording ? "Reprendre la course en cours" : "Démarrer une course"}
+      style={({ pressed }) => [styles.run, recording && styles.runLive, pressed && styles.tabPressed]}
+    >
+      <Ionicons
+        name={recording ? "radio-button-on" : "play"}
+        size={20}
+        color={colors.accentText}
+        style={recording ? undefined : styles.play}
+      />
+    </Pressable>
+  );
+
+  const content = (
+    <View style={styles.row}>
+      {tabs}
+      <View style={styles.divider} />
+      {run}
+    </View>
+  );
 
   return (
     <Animated.View
@@ -123,7 +169,9 @@ const styles = StyleSheet.create({
   },
   row: { flexDirection: "row", alignItems: "center" },
   tab: {
-    minWidth: 76,
+    // A shade narrower than before: the run button has to fit beside three of
+    // these on the smallest phone still supported.
+    minWidth: 70,
     height: TAB_BAR_HEIGHT,
     alignItems: "center",
     justifyContent: "center",
@@ -131,5 +179,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   tabPressed: { opacity: 0.55 },
+  divider: {
+    width: StyleSheet.hairlineWidth, height: 26, marginHorizontal: 7,
+    backgroundColor: colors.hairline,
+  },
+  run: {
+    width: 44, height: 44, borderRadius: 22,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: colors.accent,
+  },
+  runLive: { backgroundColor: colors.warning },
+  // A play triangle centred geometrically reads as off-centre: its mass sits
+  // left of its box.
+  play: { marginLeft: 2 },
   label: { fontSize: 13, fontFamily: font.semibold, letterSpacing: 0.1 },
 });

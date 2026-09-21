@@ -14,9 +14,8 @@ import { createDemoRun } from "@/lib/demo";
 import { formatDate, formatDistance, formatDuration, formatPace } from "@/lib/format";
 import { parseGpx } from "@/lib/gpx";
 import { forgetRunInHealth } from "@/lib/health";
-import { TAB_BAR_HEIGHT, useTabBarBottom, useTabBarSpace } from "@/lib/layout";
-import { colors, floatingShadow, font } from "@/lib/theme";
-import { chooseSession, useTracker } from "@/lib/tracker";
+import { useTabBarSpace } from "@/lib/layout";
+import { colors, font } from "@/lib/theme";
 
 export default function HistoryScreen() {
   /**
@@ -34,9 +33,6 @@ export default function HistoryScreen() {
   const [seeding, setSeeding] = useState(false);
   const router = useRouter();
   const tabBarSpace = useTabBarSpace();
-  const tabBarBottom = useTabBarBottom();
-  const tracker = useTracker();
-  const recording = tracker.status !== "idle";
   const [archiving, setArchiving] = useState(false);
   const [importing, setImporting] = useState(false);
 
@@ -230,7 +226,10 @@ export default function HistoryScreen() {
           {importing ? (
             <ActivityIndicator size="small" color={colors.accent} />
           ) : (
-            <Ionicons name="add" size={22} color={colors.text} />
+            // A plus sign beside a list of runs reads as "add a run", which
+            // is the one thing this button does not do. An arrow coming in
+            // says where the runs come from: a file.
+            <Ionicons name="download-outline" size={21} color={colors.text} />
           )}
         </Pressable>
         {runs && runs.length > 0 && (
@@ -301,36 +300,6 @@ export default function HistoryScreen() {
 
       </View>
 
-      {/*
-        * The way into a run, now that running is not a tab.
-        *
-        * It also has to report a run already under way, which the tab's badge
-        * used to do — a screen you can no longer see from a bar is a screen
-        * easy to forget you left recording. So the button says which of the
-        * two it is rather than looking the same in both.
-        */}
-      <Pressable
-        onPress={() => {
-          // A free run starts free: a session left over from the last outing
-          // would otherwise be handed to somebody who asked for nothing.
-          if (!recording) chooseSession(null);
-          router.push("/record");
-        }}
-        accessibilityRole="button"
-        style={({ pressed }) => [
-          styles.start,
-          { bottom: tabBarBottom + TAB_BAR_HEIGHT + 14 },
-          recording && styles.startLive,
-          pressed && styles.startPressed,
-        ]}
-      >
-        <Ionicons
-          name={recording ? "radio-button-on" : "play"}
-          size={17}
-          color={colors.accentText}
-        />
-        <Text style={styles.startLabel}>{recording ? "Course en cours" : "Courir"}</Text>
-      </Pressable>
 
     </SafeAreaView>
   );
@@ -339,15 +308,6 @@ export default function HistoryScreen() {
 const GUTTER = 20;
 
 const styles = StyleSheet.create({
-  start: {
-    position: "absolute", right: 16,
-    flexDirection: "row", alignItems: "center", gap: 8,
-    paddingHorizontal: 18, paddingVertical: 13, borderRadius: 26,
-    backgroundColor: colors.accent, ...floatingShadow,
-  },
-  startLive: { backgroundColor: colors.warning },
-  startPressed: { opacity: 0.88 },
-  startLabel: { color: colors.accentText, fontSize: 16, fontFamily: font.semibold },
 
   screen: { flex: 1, backgroundColor: colors.background },
   fill: { flex: 1 },
