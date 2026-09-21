@@ -67,12 +67,20 @@ export default function TabsLayout() {
         }}
       />
       {/*
-        * The progression lives in here rather than in a section of its own.
+        * Last, and deliberately light.
         *
-        * Statistics are not a place you go, they are something you have — and
-        * a profile is the drawer everything of that kind belongs in, with
-        * room for what comes next without inventing another tab for it.
+        * Who this runner is, how the programmes are built, which build of the
+        * app this is. It is also what makes the bar even, which is what lets
+        * the run button sit in the middle of it rather than off to one side.
         */}
+      <Tabs.Screen
+        name="progress"
+        options={{
+          title: "Progression",
+          animation: "none",
+          tabBarIcon: ({ color, size }) => <Ionicons name="stats-chart" size={size} color={color} />,
+        }}
+      />
       <Tabs.Screen
         name="profile"
         options={{

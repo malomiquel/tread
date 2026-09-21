@@ -142,11 +142,15 @@ export function FloatingTabBar({
     </Pressable>
   );
 
+  // Split down the middle, with the button in the gap. Four sections is what
+  // makes that possible at all — with three there is no middle to put it in
+  // without cutting one of them in half.
+  const half = Math.ceil(tabs.length / 2);
   const content = (
     <View style={styles.row}>
-      {tabs}
-      {offersRun ? <View style={styles.divider} /> : null}
+      {tabs.slice(0, half)}
       {offersRun ? run : null}
+      {tabs.slice(half)}
     </View>
   );
 
@@ -167,33 +171,30 @@ export function FloatingTabBar({
 }
 
 const styles = StyleSheet.create({
-  anchor: { position: "absolute", left: 0, right: 0, alignItems: "center" },
-  // No fixed width: the pill is exactly as wide as the tabs it holds.
+  anchor: { position: "absolute", left: 0, right: 0, alignItems: "center", paddingHorizontal: 12 },
+  // Full width now, rather than exactly as wide as its contents. Five things
+  // sized by their contents overflow a small phone; five things sharing the
+  // width fit any of them.
   pill: {
+    alignSelf: "stretch",
     flexDirection: "row",
     height: TAB_BAR_HEIGHT,
     borderRadius: TAB_BAR_HEIGHT / 2,
     overflow: "hidden",
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
   },
-  row: { flexDirection: "row", alignItems: "center" },
+  row: { flex: 1, flexDirection: "row", alignItems: "center" },
   tab: {
-    // A shade narrower than before: the run button has to fit beside three of
-    // these on the smallest phone still supported.
-    minWidth: 70,
+    flex: 1,
     height: TAB_BAR_HEIGHT,
     alignItems: "center",
     justifyContent: "center",
     gap: 3,
-    paddingHorizontal: 10,
+    paddingHorizontal: 2,
   },
   tabPressed: { opacity: 0.55 },
-  divider: {
-    width: StyleSheet.hairlineWidth, height: 26, marginHorizontal: 7,
-    backgroundColor: colors.hairline,
-  },
   run: {
-    width: 44, height: 44, borderRadius: 22,
+    width: 46, height: 46, borderRadius: 23, marginHorizontal: 6,
     alignItems: "center", justifyContent: "center",
     backgroundColor: colors.accent,
   },
@@ -201,5 +202,5 @@ const styles = StyleSheet.create({
   // A play triangle centred geometrically reads as off-centre: its mass sits
   // left of its box.
   play: { marginLeft: 2 },
-  label: { fontSize: 13, fontFamily: font.semibold, letterSpacing: 0.1 },
+  label: { fontSize: 11, fontFamily: font.semibold, letterSpacing: 0 },
 });
