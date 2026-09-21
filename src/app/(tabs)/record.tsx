@@ -1,4 +1,5 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
+import * as Haptics from "expo-haptics";
 import { useKeepAwake } from "expo-keep-awake";
 import { useFocusEffect, useIsFocused, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
@@ -69,9 +70,28 @@ function RoundButton({
   size?: number;
   disabled?: boolean;
 }) {
+  /*
+   * The tap answered under the finger.
+   *
+   * This is the Taptic Engine, and it is the only place in the app that uses
+   * it: everything a run has to say goes through the vibration motor instead,
+   * because that has to be felt through a sleeve or a pocket. Here the finger
+   * is already on the glass, so the lightest thing the phone can do is
+   * enough — and anything heavier would be mistaken for the run talking.
+   *
+   * The weight follows what the press commits to. Starting or resuming sets
+   * you moving and ending opens the way out, so both land; a pause is
+   * momentary and undone by the next tap, so it barely does.
+   */
+  const weight =
+    primary || danger ? Haptics.ImpactFeedbackStyle.Medium : Haptics.ImpactFeedbackStyle.Light;
+
   return (
     <Pressable
-      onPress={onPress}
+      onPress={() => {
+        void Haptics.impactAsync(weight).catch(() => undefined);
+        onPress();
+      }}
       disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={label}
