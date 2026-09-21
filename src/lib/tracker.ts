@@ -4,12 +4,13 @@ import { useSyncExternalStore } from "react";
 import { createRun, finishRun, insertPoints } from "./db";
 import { syncRunToHealth } from "./health";
 import { autoName } from "./format";
-import { announceKilometre, announceStep, stopSpeaking } from "./feedback";
+import { announceKilometre, announcePace, announceStep, stopSpeaking } from "./feedback";
 import {
-  elevationGainM, fastestKmS, isAcceptable, paceSecPerKm, splits, totalDistanceM,
+  currentPace, elevationGainM, fastestKmS, isAcceptable, paceSecPerKm, splits, totalDistanceM,
   type TrackPoint,
 } from "./geo";
 import { reflectRun, stopRun, type RunProgress } from "./liveActivity";
+import { paceDrift } from "./pace";
 import { getSettings } from "./settings";
 import { sessionById, stepIsDone, stepLabel, type RanBlock } from "./workout";
 
@@ -61,7 +62,20 @@ const listeners = new Set<() => void>();
 let subscription: Location.LocationSubscription | null = null;
 let savedCount = 0;
 let writeQueue: Promise<void> = Promise.resolve();
-let sessionTicker: ReturnType<typeof setInterval> | null = null;
+let runTicker: ReturnType<typeof setInterval> | null = null;
+let lastPaceWord = 0;
+
+/**
+ * How often the target pace may be mentioned, and how long a run must have
+ * been going before it is mentioned at all.
+ *
+ * Sparse on purpose. The pace reading is a thirty second average, so a
+ * correction repeated faster than that would be reacting to the same
+ * information twice — and a voice that keeps telling you the same thing is a
+ * voice you stop hearing.
+ */
+const PACE_WORD_EVERY_MS = 45_000;
+const PACE_WORD_AFTER_MS = 60_000;
 
 function publish(patch: Partial<TrackerState>): void {
   state = { ...state, ...patch };
@@ -192,6 +206,27 @@ function advanceSession(): void {
   announceStep(nextStep ? stepLabel(nextStep) : null, getSettings().voice);
 }
 
+/**
+ * Say how far off the target pace the run has drifted, when it has.
+ *
+ * Runs for a free run as much as a structured one: a pace to hold is the
+ * runner's own, not the session's.
+ */
+function checkPace(): void {
+  const { targetPaceSKm, voice } = getSettings();
+  if (state.status !== "running" || targetPaceSKm === null) return;
+
+  const now = Date.now();
+  if (state.startedAt !== null && now - state.startedAt < PACE_WORD_AFTER_MS) return;
+  if (now - lastPaceWord < PACE_WORD_EVERY_MS) return;
+
+  const drift = paceDrift(currentPace(state.points, now), targetPaceSKm);
+  if (drift === null) return;
+
+  lastPaceWord = now;
+  announcePace(drift, voice);
+}
+
 /** Announce a kilometre the moment it is completed, once and only once. */
 function announceIfKilometre(): void {
   const km = Math.floor(totalDistanceM(state.points) / 1000);
@@ -308,10 +343,15 @@ export async function start(): Promise<void> {
       backgroundMode: false,
     });
     const session = sessionById(state.sessionId);
-    if (session) {
-      announceStep(stepLabel(session.steps[0]), getSettings().voice);
-      sessionTicker = setInterval(advanceSession, 1000);
-    }
+    if (session) announceStep(stepLabel(session.steps[0]), getSettings().voice);
+    // One clock for both: the session needs it because a block measured in
+    // time must end without gps fixes, and the pace needs it because a runner
+    // drifting off target produces no event of their own.
+    lastPaceWord = 0;
+    runTicker = setInterval(() => {
+      advanceSession();
+      checkPace();
+    }, 1000);
     publish({ backgroundMode: await startGps() });
   } catch (cause) {
     await stopGps();
@@ -412,9 +452,9 @@ export async function discard(): Promise<void> {
 }
 
 function reset(): void {
-  if (sessionTicker) {
-    clearInterval(sessionTicker);
-    sessionTicker = null;
+  if (runTicker) {
+    clearInterval(runTicker);
+    runTicker = null;
   }
   // reset bypasses publish, so the lock screen is cleared by hand here.
   stopRun();

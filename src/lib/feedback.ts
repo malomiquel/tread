@@ -40,6 +40,24 @@ export function announceStep(label: string | null, spoken: boolean): void {
   Speech.speak(label ?? "Séance terminée", { language: "fr-FR", rate: 1 });
 }
 
+/**
+ * How far off the target pace you are, said out loud.
+ *
+ * Only the gap, never the pace itself: mid-effort, "twelve seconds too slow"
+ * is an instruction you can act on, while "five minutes forty-two a
+ * kilometre" is arithmetic you have to do first.
+ */
+export function announcePace(driftS: number, spoken: boolean): void {
+  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+  if (!spoken) return;
+  const seconds = Math.abs(driftS);
+  const sens = driftS > 0 ? "trop lent" : "trop rapide";
+  Speech.speak(`${seconds} seconde${seconds > 1 ? "s" : ""} ${sens}`, {
+    language: "fr-FR",
+    rate: 1,
+  });
+}
+
 /** Silence any pending speech, on finishing or discarding a run. */
 export function stopSpeaking(): void {
   void Speech.stop().catch(() => undefined);

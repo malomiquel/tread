@@ -17,7 +17,7 @@ import { formatDistance, formatDuration, formatElevation, formatPace } from "@/l
 import { currentPace, elevationGainM, MAX_ACCURACY_M, paceSecPerKm, totalDistanceM } from "@/lib/geo";
 import { CONTROL_SIZE, CONTROLS_TOP, useTabBarBottom } from "@/lib/layout";
 import { useInitialLocation } from "@/lib/location";
-import { toggleSetting, useSettings } from "@/lib/settings";
+import { toggleVoice, useSettings } from "@/lib/settings";
 import { weekTotals } from "@/lib/stats";
 import { colors, font } from "@/lib/theme";
 import {
@@ -325,7 +325,7 @@ export default function RecordScreen() {
         <Animated.View style={[styles.toggleStack, togglesArrive]}>
           <GlassPanel style={styles.togglePill}>
             <Toggle
-              on={session !== null}
+              on={session !== null || settings.targetPaceSKm !== null}
               onPress={() => setChoosing(true)}
               icon="list"
               name="SÉANCE"
@@ -335,7 +335,7 @@ export default function RecordScreen() {
           <GlassPanel style={styles.togglePill}>
             <Toggle
               on={settings.voice}
-              onPress={() => void toggleSetting("voice")}
+              onPress={() => void toggleVoice()}
               icon={settings.voice ? "volume-high" : "volume-mute"}
               name="VOIX"
               label="Annonce vocale des kilomètres"

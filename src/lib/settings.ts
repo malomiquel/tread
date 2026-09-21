@@ -4,9 +4,17 @@ import { readSettings, writeSetting } from "./db";
 export interface Settings {
   /** Speak each kilometre out loud. The buzz happens either way. */
   voice: boolean;
+  /**
+   * The pace to hold, in seconds per kilometre, or null to run free.
+   *
+   * Kept in settings rather than on the session, because a target belongs to
+   * the runner and not to the plan: the same five-by-four-hundred is a
+   * different session at four minutes a kilometre than at six.
+   */
+  targetPaceSKm: number | null;
 }
 
-const DEFAULTS: Settings = { voice: true };
+const DEFAULTS: Settings = { voice: true, targetPaceSKm: null };
 
 /**
  * Settings live in SQLite but are read synchronously from a cache, because
@@ -26,6 +34,7 @@ export async function loadSettings(): Promise<void> {
     const stored = await readSettings();
     publish({
       voice: stored.voice ? stored.voice === "true" : DEFAULTS.voice,
+      targetPaceSKm: readTarget(stored.targetPaceSKm),
     });
   } catch {
     // Unreadable settings are not worth failing a launch over.
@@ -46,17 +55,32 @@ export function useSettings(): Settings {
   return useSyncExternalStore(subscribeSettings, getSettings, getSettings);
 }
 
-/** Flip one setting, updating the cache first so the interface reacts at once. */
-export async function toggleSetting(key: keyof Settings): Promise<void> {
-  await setSetting(key, !current[key]);
+/**
+ * A stored pace, or null. Anything unreadable reads as no target, because a
+ * wrong target would have the app correct a runner towards a number nobody
+ * chose.
+ */
+function readTarget(raw: string | undefined): number | null {
+  if (!raw || raw === "null") return null;
+  const seconds = Number(raw);
+  return Number.isFinite(seconds) && seconds > 0 ? seconds : null;
 }
 
-/** Set one setting outright, for the cases where the new value is not a flip. */
-export async function setSetting(key: keyof Settings, value: boolean): Promise<void> {
-  const next = { ...current, [key]: value };
+/** Speak the kilometres, or stop speaking them. */
+export async function toggleVoice(): Promise<void> {
+  await store({ ...current, voice: !current.voice }, "voice", String(!current.voice));
+}
+
+/** Set the pace to hold, or null to run free. */
+export async function setTargetPace(seconds: number | null): Promise<void> {
+  await store({ ...current, targetPaceSKm: seconds }, "targetPaceSKm", String(seconds));
+}
+
+/** The cache moves first, so the interface reacts before the disk answers. */
+async function store(next: Settings, key: string, value: string): Promise<void> {
   publish(next);
   try {
-    await writeSetting(key, String(value));
+    await writeSetting(key, value);
   } catch {
     /* the change still holds for this session */
   }
