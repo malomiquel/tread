@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  buildPlan, clampWeeks, daysBetween, equivalentTimeS, GOALS, goalById, loadOfWeek, pacesFrom,
+  buildPlan, clampWeeks, daysBetween, enduranceExponent, equivalentTimeS, GOALS, goalById,
+  loadOfWeek, pacesFrom,
   longCeilingMin, longestReachedMin, LONG_PEAK_MIN, longMinutes, normaliseDays, phaseOfWeek, planProgress, projectedTimeS, schedule, SLOT_DAYS, slotDates,
   startOfDay,
   type Done, type PlannedSession,
@@ -19,13 +20,48 @@ test("a race day twelve weeks out is twelve weeks of days away", () => {
   assert.equal(new Date(RACE).getDay(), 0);
 });
 
-test("Riegel stretches time faster than distance", () => {
+test("time stretches faster than distance", () => {
   const halfTime = equivalentTimeS(10_000, 2400, 21_097)!;
-  // Forty minutes over ten kilometres is about an hour and twenty-eight over
-  // a half, which is where the published tables put it.
-  assert.ok(halfTime > 5200 && halfTime < 5400, `${halfTime}`);
+  // Forty minutes over ten kilometres is a little over an hour and a half.
+  assert.ok(halfTime > 5300 && halfTime < 5600, `${halfTime}`);
   // Never merely proportional: twice the distance costs more than twice.
   assert.ok(halfTime > 2400 * 2.1097);
+});
+
+test("the further the race, the more it costs to get there", () => {
+  assert.equal(enduranceExponent(5000), 1.06);
+  assert.equal(enduranceExponent(42_195), 1.15);
+  // Below and above the anchors it holds rather than running away.
+  assert.equal(enduranceExponent(1500), 1.06);
+  assert.equal(enduranceExponent(100_000), 1.15);
+
+  let previous = 0;
+  for (const metres of [3000, 5000, 8000, 10_000, 15_000, 21_097, 30_000, 42_195]) {
+    const exponent = enduranceExponent(metres);
+    assert.ok(exponent >= previous, `${metres} went backwards`);
+    previous = exponent;
+  }
+});
+
+test("the flat exponent was optimistic, and measurably so", () => {
+  // The defect this replaced: a forty minute ten kilometre runner was handed
+  // a three hour four marathon, and three months of training paces to match.
+  const marathon = equivalentTimeS(10_000, 2400, 42_195)!;
+  const flat = 2400 * 4.2195 ** 1.06;
+  assert.ok(marathon > flat + 20 * 60, `only ${Math.round((marathon - flat) / 60)} min slower`);
+  // And still inside what the papers describe rather than off on its own.
+  assert.ok(marathon < 2400 * 4.2195 ** 1.2);
+});
+
+test("a projection can be walked back to where it came from", () => {
+  // The pace ladder projects one target out to four distances. If the
+  // conversion were not reversible those four would describe four different
+  // runners.
+  for (const [from, to] of [[10_000, 42_195], [21_097, 5000], [5000, 21_097]] as const) {
+    const there = equivalentTimeS(from, 2400, to)!;
+    const back = equivalentTimeS(to, there, from)!;
+    assert.ok(Math.abs(back - 2400) < 0.001, `${from} to ${to} came back as ${back}`);
+  }
 });
 
 test("Riegel refuses nonsense rather than returning it", () => {

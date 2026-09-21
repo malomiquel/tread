@@ -4,6 +4,32 @@
  * Everything here is pure. A plan is a decision about the next three months
  * of someone's legs, so it has to be provable rather than merely plausible,
  * and that means no clock, no database and no navigation in this file.
+ *
+ * ## Where the numbers come from
+ *
+ * Every constant below carries one of three tags, because they are not worth
+ * the same and a reader cannot tell them apart by looking. Most of this file
+ * is the third kind.
+ *
+ * - **PUBLISHED** — traceable to a paper, named in place. Riegel's exponent
+ *   and its correction for recreational runners; the shape of the taper,
+ *   after Bosquet's meta-analysis (Med Sci Sports Exerc, 2007), which finds
+ *   roughly two weeks at forty to sixty percent of volume, intensity held,
+ *   worth about three percent of performance; the intensity split, after
+ *   Seiler's work on polarised training.
+ *
+ * - **CONVENTION** — what coaches broadly agree on, without a trial behind
+ *   it. The weekly increase, the easy week every fourth, the refusal to run
+ *   the race distance in training. Some of it is actively unproven: Buist
+ *   (Am J Sports Med, 2008) randomised novice runners onto a graded
+ *   programme and found no reduction in injuries at all.
+ *
+ * - **CHOSEN** — I picked it. It is consistent with the rest and looks like
+ *   what commercial plans produce, and no study says the number.
+ *
+ * What none of it accounts for: injury history, age, sleep, life load,
+ * terrain, heart rate. A generated plan is a defensible starting point, not
+ * a prescription, and the app should never pretend otherwise.
  */
 
 import type { Session, Step } from "./workout";
@@ -35,17 +61,65 @@ export const goalById = (id: string | null): GoalSpec | null =>
   GOALS.find((g) => g.id === id) ?? null;
 
 /**
- * Riegel's exponent.
+ * The endurance exponent, and why it is not one number.
  *
- * The endurance term in T₂ = T₁ × (D₂/D₁)^n. At 1.06 it says that doubling
- * the distance costs a little more than doubling the time, which is what
- * every set of race tables agrees on and roughly what any runner finds out
- * the hard way. It holds well between 1500 m and the marathon and drifts
- * outside that, which is exactly the range this app offers.
+ * PUBLISHED, with a published correction. Riegel (American Scientist, 1981)
+ * fits T₂ = T₁ × (D₂/D₁)^n to race records and lands on n = 1.06. That value
+ * describes the runners those records came from — people who race often and
+ * train a great deal — and it is measurably optimistic for everybody else.
+ * Vickers and Vertosick (BMC Sports Science, 2016) fit the same shape to
+ * recreational runners and find the exponent climbs with distance and falls
+ * with weekly volume, landing nearer 1.1 to 1.2 over a marathon.
+ *
+ * The practical consequence of the flat 1.06 was a marathon pace roughly
+ * twenty five minutes too quick off a ten kilometre time, handed to somebody
+ * as the pace to train at for three months.
+ *
+ * So the exponent rises with the distance instead. The anchors below are
+ * CHOSEN inside the range those papers describe; nothing states 1.10 for a
+ * half. What is not arbitrary is the direction: further always costs more.
  */
-const RIEGEL_EXPONENT = 1.06;
+const ENDURANCE_ANCHORS: readonly (readonly [metres: number, exponent: number])[] = [
+  [5_000, 1.06],
+  [10_000, 1.07],
+  [21_097, 1.1],
+  [42_195, 1.15],
+];
 
-/** What the same runner would be expected to do over another distance. */
+/**
+ * How steeply time grows with distance around a given race length.
+ *
+ * Interpolated on log distance, because five to ten kilometres is the same
+ * kind of step as ten to twenty — not a quarter of the step from ten to
+ * forty, which is what interpolating on plain metres would claim.
+ */
+export function enduranceExponent(distanceM: number): number {
+  const first = ENDURANCE_ANCHORS[0];
+  const last = ENDURANCE_ANCHORS[ENDURANCE_ANCHORS.length - 1];
+  if (!(distanceM > first[0])) return first[1];
+  if (distanceM >= last[0]) return last[1];
+
+  for (let i = 1; i < ENDURANCE_ANCHORS.length; i += 1) {
+    const [lowM, lowN] = ENDURANCE_ANCHORS[i - 1];
+    const [highM, highN] = ENDURANCE_ANCHORS[i];
+    if (distanceM <= highM) {
+      const along = (Math.log(distanceM) - Math.log(lowM)) / (Math.log(highM) - Math.log(lowM));
+      return lowN + (highN - lowN) * along;
+    }
+  }
+  return last[1];
+}
+
+/**
+ * What the same runner would be expected to do over another distance.
+ *
+ * The exponent is taken from the longer of the two distances, whichever way
+ * the conversion runs. That is what makes the pair reversible — a ten
+ * projected to a marathon and back again returns the ten it started from —
+ * and reversibility is not a nicety here: the pace ladder is built by
+ * projecting one target out to four distances, and a set of paces that
+ * disagreed with itself would have the runner chasing two different races.
+ */
 export function equivalentTimeS(
   refDistanceM: number,
   refTimeS: number,
@@ -54,7 +128,8 @@ export function equivalentTimeS(
   if (![refDistanceM, refTimeS, targetDistanceM].every((n) => Number.isFinite(n) && n > 0)) {
     return null;
   }
-  return refTimeS * (targetDistanceM / refDistanceM) ** RIEGEL_EXPONENT;
+  const exponent = enduranceExponent(Math.max(refDistanceM, targetDistanceM));
+  return refTimeS * (targetDistanceM / refDistanceM) ** exponent;
 }
 
 /** Every pace a plan needs, in seconds per kilometre. */
@@ -92,10 +167,13 @@ export function pacesFrom(goalDistanceM: number, goalTimeS: number): Paces | nul
   if (fiveK === null || tenK === null || half === null || marathon === null) return null;
 
   return {
-    // Easy running is defined off marathon pace rather than off any race
-    // result, because that is the pace a body can repeat day after day. A
-    // minute and a bit slower is the range every coaching tradition lands on,
-    // arrived at from different directions.
+    // PUBLISHED in spirit, CHOSEN in figure. That most training should sit
+    // well below race intensity is Seiler's polarised distribution, and a
+    // minute or so slower than marathon pace is where Daniels' easy pace
+    // falls. The exact seventy and forty five are mine.
+    //
+    // Defined off marathon pace rather than off any race result, because
+    // that is the pace a body can repeat day after day.
     easy: marathon + 70,
     long: marathon + 45,
     marathon,
@@ -176,6 +254,10 @@ export function clampWeeks(goal: GoalSpec, weeks: number): number {
 /**
  * Which phase a week belongs to.
  *
+ * CHOSEN: the forty and seventy five percent marks are mine. The ordering —
+ * foundation, then development, then race-specific work — is CONVENTION,
+ * and about as settled as coaching gets.
+ *
  * The taper is counted back from the race, so it is never eaten by a short
  * plan: what shrinks when there are only eight weeks is the foundation, which
  * can be shortened, and not the sharpening, which cannot.
@@ -190,6 +272,11 @@ export function phaseOfWeek(week: number, weeks: number, taperWeeks: number): Ph
 
 /**
  * How hard a week leans, as a multiplier on its volume.
+ *
+ * CHOSEN for the climb from 0.7 to 1.0 and the 0.75 of an easy week.
+ * CONVENTION for stepping back every fourth. PUBLISHED for the taper, which
+ * lands where Bosquet's meta-analysis puts it: a steep drop in volume over
+ * the last two weeks with the intensity left alone.
  *
  * Every fourth week steps back. Fitness is built while recovering from work,
  * not while doing it, and a plan that only ever climbs produces a runner who
@@ -222,7 +309,8 @@ function durationName(minutes: number): string {
 /**
  * Longest run the plan would build to, in minutes, by race.
  *
- * A ceiling, not an aim. What a runner actually reaches depends on where they
+ * CHOSEN. These are four numbers I picked to resemble what mainstream plans
+ * build towards. A ceiling, not an aim. What a runner actually reaches depends on where they
  * started, and most people will never touch these figures — which is correct.
  */
 export const LONG_PEAK_MIN: Record<Goal, number> = {
@@ -235,18 +323,26 @@ export const LONG_PEAK_MIN: Record<Goal, number> = {
 /**
  * How much the long run may grow week on week.
  *
- * Eight percent, which is the conservative end of the rule every coach
- * repeats. The rule exists because connective tissue adapts far more slowly
- * than the heart and lungs do: the reason you can run the extra half hour is
- * exactly the reason you should not.
+ * CONVENTION, and weak convention at that. Everybody repeats ten percent a
+ * week; Buist randomised novices onto exactly such a graded programme and
+ * found no fewer injuries than the ungraded one. Eight is the cautious end
+ * of a rule that has not earned its certainty.
+ *
+ * The reasoning behind it is sound even where the number is not: connective
+ * tissue adapts far more slowly than the heart and lungs, so the fact that
+ * you can run the extra half hour is exactly the reason not to.
  */
 const LONG_GROWTH = 1.08;
 
-/** The shortest long run worth calling one. */
+/** CHOSEN: the shortest long run worth calling one. */
 const LONG_FLOOR_MIN = 20;
 
 /**
  * The most of the race a long run may ever cover.
+ *
+ * CONVENTION. Every serious marathon plan stops around thirty two kilometres
+ * or three hours, and no trial establishes it — the reasoning is a recovery
+ * cost that buys nothing. The percentages are CHOSEN to land there.
  *
  * You do not run the race before the race. Covering the distance in training
  * buys nothing that a shorter run has not already bought, and costs weeks of
@@ -360,8 +456,10 @@ function longSession(minutes: number, paces: Paces): Unplaced {
 }
 
 function intervalSession(phase: Phase, load: number, paces: Paces): Unplaced {
-  // Repetitions lengthen as the plan goes on: short and sharp to build speed
-  // while there is time, longer and closer to race pace once there is not.
+  // CHOSEN, all of it — the distances, the recoveries, the counts. The shape
+  // is CONVENTION: repetitions lengthen as the plan goes on, short and sharp
+  // to build speed while there is time, longer and closer to race pace once
+  // there is not.
   const shape = phase === "base"
     ? { metres: 400, recovery: 200, base: 5 }
     : phase === "build"
@@ -389,8 +487,9 @@ function intervalSession(phase: Phase, load: number, paces: Paces): Unplaced {
 }
 
 function tempoSession(phase: Phase, load: number, paces: Paces): Unplaced {
-  // Threshold work consolidates: fewer, longer blocks as race day nears,
-  // until it is simply the pace, held for a stretch.
+  // CHOSEN. The direction is CONVENTION: threshold work consolidates into
+  // fewer, longer blocks as race day nears, until it is simply the pace held
+  // for a stretch.
   const blocks = phase === "peak" ? 2 : 3;
   const minutes = Math.round(phase === "peak" ? 12 + 8 * load : 6 + 4 * load);
 
@@ -434,6 +533,9 @@ function raceSession(goal: GoalSpec, paces: Paces): Unplaced {
 
 /**
  * What an ordinary week holds, by volume.
+ *
+ * CHOSEN. The one-a-week arrangement in particular — a quality session every
+ * third week — has nothing behind it but the reasoning written here.
  *
  * The order of sacrifice is deliberate. At four there is room for everything.
  * At three the second quality session goes, so repetitions and threshold
@@ -538,6 +640,8 @@ export function daysBetween(fromMs: number, toMs: number): number {
 /**
  * The days a plan proposes, as `Date.getDay` numbers, before anyone says
  * otherwise.
+ *
+ * CHOSEN, and only a default — the runner picks their own.
  *
  * Sunday is the fixed point at every volume, because that is where the long
  * run goes. Tuesday joins it, then Thursday, then Friday. Monday and Saturday
