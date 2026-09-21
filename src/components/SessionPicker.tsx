@@ -5,7 +5,9 @@ import { formatPace } from "@/lib/format";
 import { clampTarget, TARGET_MAX_S, TARGET_MIN_S, TARGET_STEP_S } from "@/lib/pace";
 import { setTargetPace, useSettings } from "@/lib/settings";
 import { colors, floatingShadow, font } from "@/lib/theme";
-import { SESSIONS, sessionMinutes, stepLabel, type Session } from "@/lib/workout";
+import {
+  hasSinglePace, SESSIONS, sessionById, sessionMinutes, stepLabel, type Session,
+} from "@/lib/workout";
 
 interface Props {
   visible: boolean;
@@ -31,7 +33,7 @@ function summary(session: Session): string {
  * dash clears it, because running free has to be as easy to choose as running
  * to a number.
  */
-function TargetPace() {
+function TargetPace({ session }: { session: Session | null }) {
   const { targetPaceSKm } = useSettings();
   const set = targetPaceSKm !== null;
 
@@ -39,6 +41,21 @@ function TargetPace() {
     const from = targetPaceSKm ?? 5 * 60 + 30;
     void setTargetPace(clampTarget(from + by));
   };
+
+  // A session that asks for several efforts already says what each block is
+  // for, and one figure across all of them would be asking a runner to sprint
+  // their recovery. The row explains itself rather than disappearing, so the
+  // setting is never simply missing.
+  if (session && !hasSinglePace(session)) {
+    return (
+      <View style={styles.pace}>
+        <View style={styles.rowText}>
+          <Text style={styles.name}>Allure cible</Text>
+          <Text style={styles.detail}>Fixée par les blocs de la séance</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.pace}>
@@ -134,7 +151,7 @@ export function SessionPicker({ visible, chosen, onChoose, onClose }: Props) {
               {row(null, "Course libre", "Aucun bloc, aucune annonce")}
               {SESSIONS.map((s) => row(s.id, s.name, summary(s)))}
             </ScrollView>
-            <TargetPace />
+            <TargetPace session={sessionById(chosen)} />
           </GlassPanel>
         </Pressable>
       </Pressable>

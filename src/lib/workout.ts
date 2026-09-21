@@ -145,5 +145,17 @@ export const SESSIONS: Session[] = [
   },
 ];
 
+/**
+ * True when every block of a session asks for the same effort.
+ *
+ * A single pace can only cover a run that asks for a single pace. A session
+ * alternating warm-up, repetitions and recovery already says what each block
+ * is for, and holding one figure across all of them would be asking a runner
+ * to sprint their recovery.
+ */
+export function hasSinglePace(session: Session): boolean {
+  return session.steps.every((step) => step.effort === session.steps[0].effort);
+}
+
 export const sessionById = (id: string | null): Session | null =>
   SESSIONS.find((s) => s.id === id) ?? null;

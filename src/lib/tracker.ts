@@ -12,7 +12,9 @@ import {
 import { reflectRun, stopRun, type RunProgress } from "./liveActivity";
 import { paceDrift } from "./pace";
 import { getSettings } from "./settings";
-import { sessionById, stepIsDone, stepLabel, type RanBlock } from "./workout";
+import {
+  hasSinglePace, sessionById, stepIsDone, stepLabel, type RanBlock,
+} from "./workout";
 
 export const TASK_NAME = "tread-gps-tracking";
 
@@ -215,6 +217,12 @@ function advanceSession(): void {
 function checkPace(): void {
   const { targetPaceSKm, voice } = getSettings();
   if (state.status !== "running" || targetPaceSKm === null) return;
+
+  // A session of varied efforts sets its own paces, and a target left over
+  // from an earlier run would talk over it — correcting a recovery towards a
+  // figure chosen for a repetition.
+  const session = sessionById(state.sessionId);
+  if (session && !hasSinglePace(session)) return;
 
   const now = Date.now();
   if (state.startedAt !== null && now - state.startedAt < PACE_WORD_AFTER_MS) return;

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  SESSIONS, sessionById, sessionMinutes, stepIsDone, stepLabel, stepRemaining,
+  hasSinglePace, SESSIONS, sessionById, sessionMinutes, stepIsDone, stepLabel, stepRemaining,
 } from "./workout.ts";
 
 test("a distance block ends on distance, whatever the clock says", () => {
@@ -50,4 +50,12 @@ test("a session is found by its identifier, and only then", () => {
   assert.equal(sessionById("400")?.name, "5 × 400 m");
   assert.equal(sessionById("inexistante"), null);
   assert.equal(sessionById(null), null);
+});
+
+test("a session asks for one pace only when every block wants the same effort", () => {
+  const steady = SESSIONS.find((s) => s.id === "footing")!;
+  const varied = SESSIONS.find((s) => s.id === "400")!;
+
+  assert.equal(hasSinglePace(steady), true, "a plain run asks for one pace");
+  assert.equal(hasSinglePace(varied), false, "repetitions ask for several");
 });
