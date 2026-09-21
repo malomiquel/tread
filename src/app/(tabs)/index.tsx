@@ -83,7 +83,7 @@ function RoundButton({
     >
       <Ionicons
         name={icon}
-        size={20}
+        size={18}
         color={primary ? colors.accentText : danger ? colors.danger : colors.text}
         // A play triangle centred geometrically reads as off-centre: its mass
         // sits left of its box.
@@ -217,9 +217,9 @@ export default function RecordScreen() {
               at the bottom, where the floating tab bar covered them. */}
           <GlassPanel style={styles.banner} interactive>
             <View style={styles.bannerMetrics}>
-              <Metric label="Distance" value={formatDistance(distance)} unit="km" />
-              <Metric label="Durée" value={formatDuration(duration)} />
-              <Metric label="Allure" value={formatPace(pace ?? avgPace)} unit="/km" />
+              <Metric compact label="Distance" value={formatDistance(distance)} unit="km" />
+              <Metric compact label="Durée" value={formatDuration(duration)} />
+              <Metric compact label="Allure" value={formatPace(pace ?? avgPace)} unit="/km" />
             </View>
             <View style={styles.bannerControls}>
               {!recording && (
@@ -257,11 +257,16 @@ export default function RecordScreen() {
       </View>
 
       {recording ? (
-        <View style={styles.section}>
+        // Running, the figures are the whole point of the screen, so they take
+        // the whole height rather than huddling under the header.
+        <View style={[styles.section, styles.sectionFill]}>
           <Metric label="Distance" value={formatDistance(distance)} unit="km" large />
           <View style={styles.row}>
             <Metric label="Durée" value={formatDuration(duration)} />
-            <Metric label="Allure" value={formatPace(pace ?? avgPace)} unit="/km" />
+            <Metric label="Allure" value={formatPace(pace ?? avgPace)} unit="/km" align="right" />
+          </View>
+          <View style={styles.row}>
+            <Metric label="Allure moyenne" value={formatPace(avgPace)} unit="/km" />
             <Metric label="Dénivelé" value={formatElevation(elevation)} unit="m" align="right" />
           </View>
         </View>
@@ -300,7 +305,7 @@ export default function RecordScreen() {
         </>
       )}
 
-      <View style={styles.spacer} />
+      {!recording && <View style={styles.spacer} />}
 
       {tracker.error && <Text style={styles.error}>{tracker.error}</Text>}
 
@@ -346,6 +351,7 @@ const styles = StyleSheet.create({
     borderTopColor: colors.hairline,
   },
   row: { flexDirection: "row", gap: 16 },
+  sectionFill: { flex: 1, justifyContent: "space-evenly", paddingVertical: 24 },
   label: {
     color: colors.subtle, fontSize: 10, fontWeight: "600",
     letterSpacing: 1.4, textTransform: "uppercase",
@@ -383,10 +389,10 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", gap: 14,
     borderRadius: 20, paddingHorizontal: 16, paddingVertical: 12,
   },
-  bannerMetrics: { flex: 1, flexDirection: "row", gap: 10 },
-  bannerControls: { flexDirection: "row", gap: 8 },
+  bannerMetrics: { flex: 1, flexDirection: "row", gap: 12, minWidth: 0 },
+  bannerControls: { flexDirection: "row", gap: 8, flexShrink: 0 },
   round: {
-    width: 44, height: 44, borderRadius: 22,
+    width: 40, height: 40, borderRadius: 20,
     alignItems: "center", justifyContent: "center",
     borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline,
   },
