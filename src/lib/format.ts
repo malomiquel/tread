@@ -23,6 +23,25 @@ export function formaterAllure(secParKm: number | null): string {
   return `${m}'${String(s === 60 ? 0 : s).padStart(2, "0")}"`;
 }
 
+export function formaterDenivele(m: number): string {
+  return String(Math.round(m));
+}
+
+/**
+ * Nom donne par defaut a une sortie, d'apres son heure de depart.
+ * Strava fait de meme, et c'est ce qui rend une liste de courses lisible :
+ * « Course matinale » se retient mieux qu'une date.
+ */
+export function nomAutomatique(ts: number): string {
+  const h = new Date(ts).getHours();
+  if (h < 5) return "Course nocturne";
+  if (h < 11) return "Course matinale";
+  if (h < 14) return "Sortie du midi";
+  if (h < 18) return "Course de l'après-midi";
+  if (h < 22) return "Course du soir";
+  return "Course nocturne";
+}
+
 export function formaterDate(ts: number): string {
   return new Date(ts).toLocaleDateString("fr-FR", {
     weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",

@@ -44,7 +44,8 @@ export default function Historique() {
             style={({ pressed }) => [styles.ligne, pressed && styles.presse]}
           >
             <View style={styles.gauche}>
-              <Text style={styles.date}>{formaterDate(item.debut)}</Text>
+              <Text style={styles.date}>{item.nom ?? formaterDate(item.debut)}</Text>
+              {item.nom ? <Text style={styles.quand}>{formaterDate(item.debut)}</Text> : null}
               <Text style={styles.detail}>{formaterDuree(item.duree_s)} · {formaterAllure(item.allure_moy_s_km)} /km</Text>
             </View>
             <Text style={styles.distance}>{formaterDistance(item.distance_m)} <Text style={styles.km}>km</Text></Text>
@@ -69,6 +70,7 @@ const styles = StyleSheet.create({
   presse: { transform: [{ scale: 0.98 }], opacity: 0.9 },
   gauche: { gap: 3 },
   date: { color: couleurs.texte, fontSize: 14, fontWeight: "600", textTransform: "capitalize" },
+  quand: { color: couleurs.discret, fontSize: 11, textTransform: "capitalize" },
   detail: { color: couleurs.attenue, fontSize: 12, fontVariant: ["tabular-nums"] },
   distance: { color: couleurs.accent, fontSize: 19, fontWeight: "700", fontVariant: ["tabular-nums"] },
   km: { color: couleurs.attenue, fontSize: 11.5, fontWeight: "500" },

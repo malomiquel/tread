@@ -18,6 +18,10 @@ export default function Onglets() {
         options={{ title: "Courir", tabBarIcon: ({ color, size }) => <Ionicons name="play-circle" size={size} color={color} /> }}
       />
       <Tabs.Screen
+        name="progression"
+        options={{ title: "Progression", tabBarIcon: ({ color, size }) => <Ionicons name="stats-chart" size={size} color={color} /> }}
+      />
+      <Tabs.Screen
         name="historique"
         options={{ title: "Historique", tabBarIcon: ({ color, size }) => <Ionicons name="list" size={size} color={color} /> }}
       />

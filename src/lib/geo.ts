@@ -156,6 +156,55 @@ export function fractionnes(points: Point[]): Fractionne[] {
   return resultat;
 }
 
+/**
+ * Denivele positif cumule, en metres.
+ *
+ * Deux precautions, car l'altitude GPS est la mesure la moins fiable du lot.
+ * D'abord une moyenne glissante, qui absorbe les oscillations d'un appareil
+ * immobile : sans elle, un parcours parfaitement plat produirait des
+ * centaines de metres de denivele. Ensuite une hysteresis, qui ne valide une
+ * montee que lorsqu'elle depasse un seuil depuis le dernier point de
+ * reference.
+ *
+ * Le lissage rogne les extremites de la serie, donc sous-estime legerement
+ * une montee courte. C'est le prix a payer : surestimer du bruit serait bien
+ * pire que sous-estimer une cote de quelques metres.
+ */
+export function denivelePositifM(points: Point[], seuilM = 4, fenetre = 5): number {
+  let total = 0;
+  for (const seg of segments(points)) {
+    const altitudes = seg.map((p) => p.alt).filter((a): a is number => a !== null);
+    if (altitudes.length < 2) continue;
+
+    const lissees = altitudes.map((_, i) => {
+      const debut = Math.max(0, i - Math.floor(fenetre / 2));
+      const fin = Math.min(altitudes.length, debut + fenetre);
+      let somme = 0;
+      for (let j = debut; j < fin; j++) somme += altitudes[j];
+      return somme / (fin - debut);
+    });
+
+    let reference = lissees[0];
+    for (const a of lissees) {
+      const delta = a - reference;
+      if (delta >= seuilM) {
+        total += delta;
+        reference = a;
+      } else if (delta <= -seuilM) {
+        reference = a;
+      }
+    }
+  }
+  return total;
+}
+
+/** Duree du kilometre le plus rapide, en secondes, hors dernier morceau partiel. */
+export function meilleurKmS(points: Point[]): number | null {
+  const pleins = fractionnes(points).filter((f) => !f.partiel);
+  if (!pleins.length) return null;
+  return Math.min(...pleins.map((f) => f.dureeS));
+}
+
 /** Rectangle englobant, pour cadrer la carte. */
 export function bornes(points: Point[]) {
   if (!points.length) return null;

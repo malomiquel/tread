@@ -2,7 +2,8 @@ import * as Location from "expo-location";
 import * as TaskManager from "expo-task-manager";
 import { useSyncExternalStore } from "react";
 import { ajouterPoints, creerCourse, terminerCourse } from "./bd";
-import { accepterPoint, allureSecParKm, distanceTotaleM, type Point } from "./geo";
+import { nomAutomatique } from "./format";
+import { accepterPoint, allureSecParKm, denivelePositifM, distanceTotaleM, meilleurKmS, type Point } from "./geo";
 
 export const NOM_TACHE = "tread-suivi-gps";
 
@@ -192,7 +193,13 @@ export async function terminer(): Promise<number | null> {
   await enregistrer();
   const distance = distanceTotaleM(points);
   await terminerCourse(courseId, {
-    fin: maintenant, distance_m: distance, duree_s: Math.round(duree), allure_moy_s_km: allureSecParKm(distance, duree),
+    fin: maintenant,
+    distance_m: distance,
+    duree_s: Math.round(duree),
+    allure_moy_s_km: allureSecParKm(distance, duree),
+    nom: nomAutomatique(etat.debutTs ?? maintenant),
+    denivele_m: denivelePositifM(points),
+    meilleur_km_s: meilleurKmS(points),
   });
   etat = INITIAL;
   pointsEnregistres = 0;

@@ -5,7 +5,7 @@ import { Bouton } from "@/components/Bouton";
 import { Carte } from "@/components/Carte";
 import { Chiffre } from "@/components/Chiffre";
 import { lireCourse, supprimerCourse, type Course } from "@/lib/bd";
-import { formaterAllure, formaterDate, formaterDistance, formaterDuree } from "@/lib/format";
+import { formaterAllure, formaterDate, formaterDenivele, formaterDistance, formaterDuree } from "@/lib/format";
 import { fractionnes, type Point } from "@/lib/geo";
 import { couleurs, ombres } from "@/lib/theme";
 
@@ -40,7 +40,10 @@ export default function DetailCourse() {
 
   return (
     <ScrollView style={styles.ecran} contentContainerStyle={styles.contenu}>
-      <Text style={styles.date}>{formaterDate(course.debut)}</Text>
+      <View style={styles.enteteCourse}>
+        {course.nom ? <Text style={styles.nom}>{course.nom}</Text> : null}
+        <Text style={styles.date}>{formaterDate(course.debut)}</Text>
+      </View>
 
       <View style={styles.mesures}>
         <Chiffre libelle="Distance" valeur={formaterDistance(course.distance_m)} unite="km" grand />
@@ -48,6 +51,14 @@ export default function DetailCourse() {
           <Chiffre libelle="Durée" valeur={formaterDuree(course.duree_s)} />
           <Chiffre libelle="Allure moyenne" valeur={formaterAllure(course.allure_moy_s_km)} unite="/km" />
         </View>
+        {course.denivele_m !== null && (
+          <View style={styles.rangee}>
+            <Chiffre libelle="Dénivelé positif" valeur={formaterDenivele(course.denivele_m)} unite="m" />
+            {course.meilleur_km_s !== null ? (
+              <Chiffre libelle="Meilleur km" valeur={formaterAllure(course.meilleur_km_s)} unite="/km" />
+            ) : null}
+          </View>
+        )}
       </View>
 
       <Carte points={points} cadrer style={styles.carte} />
@@ -81,6 +92,8 @@ const styles = StyleSheet.create({
   ecran: { flex: 1, backgroundColor: couleurs.fond },
   contenu: { padding: 20, gap: 18, paddingBottom: 40 },
   centre: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: couleurs.fond },
+  enteteCourse: { gap: 2 },
+  nom: { color: couleurs.texte, fontSize: 20, fontWeight: "800", letterSpacing: -0.5 },
   date: { color: couleurs.attenue, fontSize: 13, textTransform: "capitalize" },
   mesures: {
     gap: 16,

@@ -6,8 +6,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Bouton } from "@/components/Bouton";
 import { Carte } from "@/components/Carte";
 import { Chiffre } from "@/components/Chiffre";
-import { formaterAllure, formaterDistance, formaterDuree } from "@/lib/format";
-import { allureInstantanee, allureSecParKm, distanceTotaleM } from "@/lib/geo";
+import { formaterAllure, formaterDenivele, formaterDistance, formaterDuree } from "@/lib/format";
+import { allureInstantanee, allureSecParKm, denivelePositifM, distanceTotaleM } from "@/lib/geo";
 import { usePositionInitiale } from "@/lib/position";
 import { abandonner, demarrer, dureeActiveS, mettreEnPause, reprendre, terminer, useSuivi } from "@/lib/suivi";
 import { couleurs, ombres } from "@/lib/theme";
@@ -39,6 +39,7 @@ export default function Courir() {
   const duree = dureeActiveS(suivi, maintenant);
   const allureMoy = allureSecParKm(distance, duree);
   const allureInst = suivi.etat === "en_cours" ? allureInstantanee(suivi.points, maintenant) : null;
+  const denivele = denivelePositifM(suivi.points);
 
   // Au repos, on explique ou en est la localisation plutot que de laisser
   // croire que la carte est cassee quand elle reste sur son cadrage par defaut.
@@ -91,7 +92,10 @@ export default function Courir() {
         <View style={styles.rangee}>
           <Chiffre libelle="Durée" valeur={formaterDuree(duree)} />
           <Chiffre libelle="Allure" valeur={formaterAllure(allureInst ?? allureMoy)} unite="/km" />
-          <Chiffre libelle="Moyenne" valeur={formaterAllure(allureMoy)} unite="/km" />
+        </View>
+        <View style={styles.rangee}>
+          <Chiffre libelle="Allure moyenne" valeur={formaterAllure(allureMoy)} unite="/km" />
+          <Chiffre libelle="Dénivelé" valeur={formaterDenivele(denivele)} unite="m" />
         </View>
       </View>
 

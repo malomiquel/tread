@@ -1,6 +1,7 @@
 import { openDatabaseSync, type SQLiteDatabase } from "expo-sqlite";
 import { Platform } from "react-native";
-import { allureSecParKm, distanceTotaleM, segments, type Point } from "./geo";
+import { nomAutomatique } from "./format";
+import { allureSecParKm, denivelePositifM, distanceTotaleM, meilleurKmS, segments, type Point } from "./geo";
 
 /**
  * Connexion unique, ouverte a la premiere utilisation reelle plutot qu'au
@@ -39,9 +40,13 @@ export interface Course {
   distance_m: number;
   duree_s: number;
   allure_moy_s_km: number | null;
+  nom: string | null;
+  denivele_m: number | null;
+  /** Durée du kilomètre le plus rapide de cette course, en secondes. */
+  meilleur_km_s: number | null;
 }
 
-const VERSION = 1;
+const VERSION = 2;
 
 export async function initialiserBd(): Promise<void> {
   const db = obtenirBd();
@@ -74,6 +79,16 @@ export async function initialiserBd(): Promise<void> {
     `);
     version = 1;
   }
+  if (version < 2) {
+    // Colonnes ajoutées après coup : une base déjà créée en version 1 les
+    // reçoit par ALTER, une base neuve passe par le même chemin.
+    await db.execAsync(`
+      ALTER TABLE courses ADD COLUMN nom TEXT;
+      ALTER TABLE courses ADD COLUMN denivele_m REAL;
+      ALTER TABLE courses ADD COLUMN meilleur_km_s REAL;
+    `);
+    version = 2;
+  }
   await db.execAsync(`PRAGMA user_version = ${VERSION}`);
   await finaliserCoursesInterrompues();
 }
@@ -96,14 +111,62 @@ export async function ajouterPoints(courseId: number, points: Point[]): Promise<
   });
 }
 
-export async function terminerCourse(
-  id: number,
-  totaux: { fin: number; distance_m: number; duree_s: number; allure_moy_s_km: number | null },
-): Promise<void> {
+export interface TotauxCourse {
+  fin: number;
+  distance_m: number;
+  duree_s: number;
+  allure_moy_s_km: number | null;
+  nom: string;
+  denivele_m: number;
+  meilleur_km_s: number | null;
+}
+
+export async function terminerCourse(id: number, t: TotauxCourse): Promise<void> {
   await obtenirBd().runAsync(
-    "UPDATE courses SET fin = ?, distance_m = ?, duree_s = ?, allure_moy_s_km = ? WHERE id = ?",
-    totaux.fin, totaux.distance_m, totaux.duree_s, totaux.allure_moy_s_km, id,
+    "UPDATE courses SET fin = ?, distance_m = ?, duree_s = ?, allure_moy_s_km = ?, nom = ?, denivele_m = ?, meilleur_km_s = ? WHERE id = ?",
+    t.fin, t.distance_m, t.duree_s, t.allure_moy_s_km, t.nom, t.denivele_m, t.meilleur_km_s, id,
   );
+}
+
+export async function renommerCourse(id: number, nom: string): Promise<void> {
+  await obtenirBd().runAsync("UPDATE courses SET nom = ? WHERE id = ?", nom.trim() || null, id);
+}
+
+export interface Records {
+  totalCourses: number;
+  totalDistanceM: number;
+  totalDureeS: number;
+  totalDeniveleM: number;
+  plusLongue: Course | null;
+  meilleurKm: Course | null;
+  plusRapide: Course | null;
+  plusDeDenivele: Course | null;
+}
+
+/**
+ * Les records se lisent en SQL parce que chaque course stocke deja ses
+ * propres totaux : inutile de relire les millions de points GPS pour savoir
+ * quel kilometre fut le plus rapide.
+ */
+export async function records(): Promise<Records> {
+  const db = obtenirBd();
+  const cumul = await db.getFirstAsync<{
+    n: number; distance: number | null; duree: number | null; denivele: number | null;
+  }>(
+    "SELECT COUNT(*) AS n, SUM(distance_m) AS distance, SUM(duree_s) AS duree, SUM(denivele_m) AS denivele FROM courses WHERE fin IS NOT NULL",
+  );
+  const un = (sql: string) => db.getFirstAsync<Course>(sql);
+  return {
+    totalCourses: cumul?.n ?? 0,
+    totalDistanceM: cumul?.distance ?? 0,
+    totalDureeS: cumul?.duree ?? 0,
+    totalDeniveleM: cumul?.denivele ?? 0,
+    plusLongue: await un("SELECT * FROM courses WHERE fin IS NOT NULL ORDER BY distance_m DESC LIMIT 1"),
+    meilleurKm: await un("SELECT * FROM courses WHERE fin IS NOT NULL AND meilleur_km_s IS NOT NULL ORDER BY meilleur_km_s ASC LIMIT 1"),
+    // Un record d'allure sur 400 m ne veut rien dire : on exige 2 km.
+    plusRapide: await un("SELECT * FROM courses WHERE fin IS NOT NULL AND distance_m >= 2000 AND allure_moy_s_km IS NOT NULL ORDER BY allure_moy_s_km ASC LIMIT 1"),
+    plusDeDenivele: await un("SELECT * FROM courses WHERE fin IS NOT NULL AND denivele_m IS NOT NULL ORDER BY denivele_m DESC LIMIT 1"),
+  };
 }
 
 export async function listerCourses(): Promise<Course[]> {
@@ -149,6 +212,9 @@ async function finaliserCoursesInterrompues(): Promise<void> {
       distance_m: distance,
       duree_s: Math.round(duree),
       allure_moy_s_km: allureSecParKm(distance, duree),
+      nom: nomAutomatique(c.debut),
+      denivele_m: denivelePositifM(lu.points),
+      meilleur_km_s: meilleurKmS(lu.points),
     });
   }
 }

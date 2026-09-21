@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  accepterPoint, allureInstantanee, allureSecParKm, distanceM, distanceTotaleM, fractionnes, type Point,
+  accepterPoint, allureInstantanee, allureSecParKm, denivelePositifM, distanceM, distanceTotaleM,
+  fractionnes, meilleurKmS, type Point,
 } from "./geo.ts";
 
 const point = (ts: number, lat: number, lng: number, extra: Partial<Point> = {}): Point => ({
@@ -77,4 +78,36 @@ test("fractionnes : la pause n'allonge pas le kilometre", () => {
     .map((p) => ({ ...p, lat: p.lat + 600 * DEG_PAR_M }));
   const f = fractionnes([...avant, ...apres]);
   assert.ok(Math.abs(f[0].dureeS - 333.33) < 1, `km1 ${f[0].dureeS} : la pause a ete comptee`);
+});
+
+test("denivele : le bruit d'altitude a l'arret ne compte pas", () => {
+  // Oscillation de 4 m crete a crete, typique d'un GPS immobile.
+  const pts = Array.from({ length: 60 }, (_, i) =>
+    point(i * 1000, 48 + i * 3 * DEG_PAR_M, 2, { alt: 100 + (i % 2 ? 2 : -2) }));
+  assert.equal(denivelePositifM(pts), 0, "un parcours plat ne doit produire aucun denivele");
+});
+
+test("denivele : une vraie montee est comptee, a 15 % pres", () => {
+  // 100 m de montee reguliere. Le lissage rogne les extremites, d'ou la
+  // tolerance : on verifie l'ordre de grandeur, pas une valeur exacte.
+  const pts = Array.from({ length: 101 }, (_, i) =>
+    point(i * 1000, 48 + i * 3 * DEG_PAR_M, 2, { alt: 100 + i }));
+  const d = denivelePositifM(pts);
+  assert.ok(d > 85 && d < 105, `obtenu ${d}, attendu autour de 100`);
+});
+
+test("denivele : une descente ne se soustrait pas au positif", () => {
+  const monte = Array.from({ length: 51 }, (_, i) =>
+    point(i * 1000, 48 + i * 3 * DEG_PAR_M, 2, { alt: 100 + i }));
+  const descend = Array.from({ length: 51 }, (_, i) =>
+    point((51 + i) * 1000, 48 + (51 + i) * 3 * DEG_PAR_M, 2, { alt: 150 - i }));
+  const seul = denivelePositifM(monte);
+  const allerRetour = denivelePositifM([...monte, ...descend]);
+  assert.ok(Math.abs(allerRetour - seul) < 6, `montee seule ${seul}, aller-retour ${allerRetour}`);
+});
+
+test("meilleur kilometre : ignore le morceau partiel", () => {
+  const pts = ligneDroite(834); // 2,5 km : deux km pleins puis un reste
+  const m = meilleurKmS(pts);
+  assert.ok(m !== null && Math.abs(m - 333.33) < 1, `obtenu ${m}`);
 });
