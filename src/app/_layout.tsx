@@ -92,7 +92,7 @@ export default function RootLayout() {
           * celle d'en dessous — qu'aucun onglet ne peut offrir, faute de
           * quoi que ce soit derrière lui à dévoiler.
           */}
-        <Stack.Screen name="record" options={{ headerShown: false }} />
+        <Stack.Screen name="record" options={{ headerShown: false, gestureEnabled: true }} />
         <Stack.Screen name="run/[id]" options={{ title: "Course", headerBackTitle: "Retour" }} />
         <Stack.Screen name="plan-method" options={{ title: "Méthode", headerBackTitle: "Retour" }} />
       </Stack>
