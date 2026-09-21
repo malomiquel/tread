@@ -748,14 +748,25 @@ export function slotDates(fromMs: number, raceMs: number, days: readonly number[
 }
 
 export interface Done {
-  runId: number;
+  /**
+   * The run that settled it, or null when it was simply passed over.
+   *
+   * Skipping and running are both ways of putting a session behind you, and
+   * the plan treats them alike — but a log claiming you ran something you
+   * declined would be a lie told by your own app, so the two stay
+   * distinguishable everywhere they are shown.
+   */
+  runId: number | null;
   at: number;
 }
 
 export interface ScheduledSession extends PlannedSession {
   /** Midnight of the day it falls on. */
   at: number;
+  /** The run that settled it: null both for a skipped one and a pending one. */
   runId: number | null;
+  /** True once it is behind you, however it got there. */
+  settled: boolean;
 }
 
 /**
@@ -795,16 +806,16 @@ export function schedule(
   for (const session of sessions) {
     const finished = done.get(session.order);
     if (finished) {
-      out.push({ ...session, at: startOfDay(finished.at), runId: finished.runId });
+      out.push({ ...session, at: startOfDay(finished.at), runId: finished.runId, settled: true });
       continue;
     }
     if (session.kind === "race") {
-      out.push({ ...session, at: startOfDay(raceMs), runId: null });
+      out.push({ ...session, at: startOfDay(raceMs), runId: null, settled: false });
       continue;
     }
     const at = placed.get(session.order);
     // Absent means dropped: more was missed than the remaining days can hold.
-    if (at !== undefined) out.push({ ...session, at, runId: null });
+    if (at !== undefined) out.push({ ...session, at, runId: null, settled: false });
   }
   return out.sort((a, b) => a.at - b.at || a.order - b.order);
 }
@@ -852,7 +863,7 @@ export function easeFactor(recent: readonly Exertion[]): number {
 
 /** The next thing to do, or null once the race is behind you. */
 export function nextSession(scheduled: ScheduledSession[]): ScheduledSession | null {
-  return scheduled.find((s) => s.runId === null) ?? null;
+  return scheduled.find((s) => !s.settled) ?? null;
 }
 
 /**
@@ -885,6 +896,17 @@ export function nextToRun(
     at: next.at,
     kind: next.kind,
   };
+}
+
+/**
+ * Sessions actually run, as opposed to merely settled.
+ *
+ * What a progress bar should count. Skipping a session moves the programme
+ * on, and pretending it also moved the runner on would make the one number
+ * they glance at the least honest thing on the screen.
+ */
+export function ranCount(done: Map<number, Done>): number {
+  return [...done.values()].filter((entry) => entry.runId !== null).length;
 }
 
 /** How much of the programme is behind you, 0 to 1. */

@@ -10,6 +10,7 @@ import { Button } from "@/components/Button";
 import { Metric } from "@/components/Metric";
 import { CardMapSource, type CardMapHandle } from "@/components/CardMapSource";
 import { RunMap } from "@/components/RunMap";
+import { PlanAttachment } from "@/components/PlanAttachment";
 import { canShareImage, ShareRunSheet } from "@/components/ShareRunSheet";
 import { EXERTION_NAMES, type Exertion } from "@/lib/plan";
 import { deleteRun, readRun, renameRun, type Run, setRunExertion, planSessionOfRun,
@@ -418,6 +419,21 @@ export default function RunDetailScreen() {
             : EXERTION_NAMES[run.exertion]}
         </Text>
       </View>
+
+      {/* Right under the exertion, because both answer the same question in
+          different words: what this run was, beyond the numbers the phone
+          collected by itself. */}
+      <PlanAttachment
+        runId={run.id}
+        durationS={run.durationS}
+        // The delete warning has to know too: detaching here changes what
+        // deleting the run would give back.
+        onChange={() => {
+          void planSessionOfRun(run.id)
+            .then((linked) => setPlanLinked(linked !== null))
+            .catch(() => undefined);
+        }}
+      />
 
       {profile.length > 1 && (
         <View style={styles.section}>

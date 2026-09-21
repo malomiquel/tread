@@ -6,12 +6,14 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { PlanSetup, type PlanDraft } from "@/components/PlanSetup";
 import { SessionDetail } from "@/components/SessionDetail";
 import {
-  activePlan, createPlan, deletePlan, planDone, recentExertions, type StoredPlan,
+  activePlan, createPlan, deletePlan, markPlanSessionDone, planDone, recentExertions,
+  type StoredPlan,
 } from "@/lib/db";
 import { formatDuration, formatPace } from "@/lib/format";
 import { useTabBarSpace } from "@/lib/layout";
 import {
-  buildPlan, daysBetween, goalById, KIND_NAMES, nextSession, PHASE_NAMES, planProgress, schedule,
+  buildPlan, daysBetween, goalById, KIND_NAMES, nextSession, PHASE_NAMES, planProgress, ranCount,
+  schedule,
   easeFactor, startOfDay, type Done, type Exertion, type ScheduledSession,
 } from "@/lib/plan";
 import { colors, font } from "@/lib/theme";
@@ -55,7 +57,8 @@ function SessionRow({
   today: number;
   onPress: (entry: ScheduledSession) => void;
 }) {
-  const done = entry.runId !== null;
+  const done = entry.settled;
+  const skipped = entry.settled && entry.runId === null;
   const isToday = entry.at === today;
   const minutes = sessionMinutes(entry.session);
 
@@ -64,15 +67,17 @@ function SessionRow({
       onPress={() => onPress(entry)}
       accessibilityRole="button"
       accessibilityLabel={
-        done
-          ? `${entry.session.name}, faite le ${dayName(entry.at)}, voir la course`
-          : `${entry.session.name}, ${dayName(entry.at)}`
+        skipped
+          ? `${entry.session.name}, passée`
+          : done
+            ? `${entry.session.name}, faite le ${dayName(entry.at)}, voir la course`
+            : `${entry.session.name}, ${dayName(entry.at)}`
       }
       style={({ pressed }) => [styles.row, isToday && styles.rowToday, pressed && styles.pressed]}
     >
       <View style={[styles.mark, (done || entry.kind === "race") && styles.markFilled]}>
         <Ionicons
-          name={done ? "checkmark" : ICONS[entry.kind]}
+          name={skipped ? "remove" : done ? "checkmark" : ICONS[entry.kind]}
           size={15}
           color={done || entry.kind === "race" ? colors.accentText : colors.accent}
         />
@@ -82,7 +87,7 @@ function SessionRow({
           {entry.session.name}
         </Text>
         <Text style={styles.rowDetail}>
-          {KIND_NAMES[entry.kind]} · {minutes} min · {formatPace(entry.targetSKm)}
+          {skipped ? "Passée" : KIND_NAMES[entry.kind]} · {minutes} min · {formatPace(entry.targetSKm)}
         </Text>
       </View>
       <Text style={[styles.rowDay, isToday && styles.rowDayToday]}>
@@ -90,7 +95,7 @@ function SessionRow({
       </Text>
       {/* A done session leads somewhere, so it says so. Without the chevron
           nothing suggests the line is still worth touching. */}
-      {done ? <Ionicons name="chevron-forward" size={15} color={colors.subtle} /> : null}
+      {done && !skipped ? <Ionicons name="chevron-forward" size={15} color={colors.subtle} /> : null}
     </Pressable>
   );
 }
@@ -179,6 +184,21 @@ export default function PlanScreen() {
     setViewing(entry);
   }
 
+  /**
+   * Put a session behind you without running it.
+   *
+   * Reporting it indefinitely was the only option before: the programme
+   * would offer it again every day until the calendar ran out of room for
+   * it. That is right for a footing nobody fancied on a tuesday and wrong
+   * for a session that does not suit — a hill workout with no hills,
+   * repetitions on a sore tendon. It is recorded as passed rather than done,
+   * so nothing later claims you ran it.
+   */
+  function skipSession(entry: ScheduledSession) {
+    setViewing(null);
+    void markPlanSessionDone(entry.order, null).then(load).catch(() => undefined);
+  }
+
   function startSession(entry: ScheduledSession) {
     setViewing(null);
     chooseSession(entry.session, entry.order);
@@ -226,7 +246,8 @@ export default function PlanScreen() {
       ? { ...entry, session: eased(entry.session, factor) }
       : entry);
   const next = nextSession(scheduled);
-  const progress = planProgress(plan.sessions, done.size);
+  const ran = ranCount(done);
+  const progress = planProgress(plan.sessions, ran);
   const daysLeft = daysBetween(today, plan.raceAt);
 
   // Grouped by the week a session belongs to in the programme, not by the
@@ -263,7 +284,8 @@ export default function PlanScreen() {
             <View style={[styles.barFill, { width: `${Math.round(progress * 100)}%` }]} />
           </View>
           <Text style={styles.caption}>
-            {done.size} séance{done.size > 1 ? "s" : ""} sur {plan.sessions.length}
+            {ran} séance{ran > 1 ? "s" : ""} sur {plan.sessions.length}
+            {done.size > ran ? ` · ${done.size - ran} passée${done.size - ran > 1 ? "s" : ""}` : ""}
           </Text>
 
           {factor < 1 ? (
@@ -317,6 +339,7 @@ export default function PlanScreen() {
             session={viewing?.session ?? null}
             targetSKm={viewing?.targetSKm ?? null}
             onStart={() => viewing && startSession(viewing)}
+            onSkip={viewing && viewing.kind !== "race" ? () => skipSession(viewing) : undefined}
             onClose={() => setViewing(null)}
           />
 

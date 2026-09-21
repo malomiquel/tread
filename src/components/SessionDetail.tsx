@@ -16,6 +16,8 @@ interface Props {
   onStart?: () => void;
   /** Offered where the proposal can be turned down in favour of running free. */
   onFree?: () => void;
+  /** Offered where the session can be put behind you without being run. */
+  onSkip?: () => void;
   onClose: () => void;
 }
 
@@ -42,7 +44,7 @@ function spans(session: Session): { label: string; from: number; to: number }[] 
  * to do into how much of this is left.
  */
 export function SessionDetail({
-  visible, session, currentIndex = null, targetSKm = null, onStart, onFree, onClose,
+  visible, session, currentIndex = null, targetSKm = null, onStart, onFree, onSkip, onClose,
 }: Props) {
   if (!session) return null;
   const groups = spans(session);
@@ -116,6 +118,16 @@ export function SessionDetail({
             {/* Declining has to be as easy as accepting. A programme you can
                 only obey is one people leave rather than argue with, and a
                 run outside it is still a run. */}
+            {onSkip ? (
+              <Pressable
+                onPress={onSkip}
+                accessibilityRole="button"
+                style={({ pressed }) => [styles.free, pressed && styles.pressed]}
+              >
+                <Text style={styles.skipLabel}>Passer cette séance</Text>
+              </Pressable>
+            ) : null}
+
             {onFree ? (
               <Pressable
                 onPress={onFree}
@@ -182,5 +194,6 @@ const styles = StyleSheet.create({
   startLabel: { color: colors.accentText, fontSize: 16, fontFamily: font.semibold },
   free: { alignItems: "center", paddingTop: 12, paddingBottom: 2 },
   freeLabel: { color: colors.muted, fontSize: 14.5, fontFamily: font.semibold },
+  skipLabel: { color: colors.warning, fontSize: 14.5, fontFamily: font.semibold },
   pressed: { opacity: 0.85 },
 });

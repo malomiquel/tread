@@ -629,7 +629,7 @@ export async function planDone(planId: number): Promise<Map<number, Done>> {
     "SELECT session_order, run_id, at FROM plan_done WHERE plan_id = ?",
     planId,
   );
-  return new Map(rows.map((row) => [row.session_order, { runId: row.run_id ?? 0, at: row.at }]));
+  return new Map(rows.map((row) => [row.session_order, { runId: row.run_id, at: row.at }]));
 }
 
 /**
@@ -638,13 +638,31 @@ export async function planDone(planId: number): Promise<Map<number, Done>> {
  * The plan is looked up here rather than carried through the tracker, which
  * has enough to hold during a run and no business knowing about programmes.
  */
-export async function markPlanSessionDone(order: number, runId: number | null, at: number): Promise<void> {
+export async function markPlanSessionDone(
+  order: number,
+  runId: number | null,
+  // Defaulted here rather than asked of every caller. Only the tracker has a
+  // moment worth naming — the instant the run ended — and a screen settling a
+  // session by hand means now, which it should not have to say, still less
+  // read the clock inside a render to do so.
+  at: number = Date.now(),
+): Promise<void> {
   const plan = await activePlan();
   if (!plan) return;
-  await getDb().runAsync(
+  const db = getDb();
+  // One session per run. The primary key already stops a session being
+  // settled twice; nothing stopped a run settling two of them, which is how
+  // a single outing could have ticked off a week.
+  if (runId !== null) await db.runAsync("DELETE FROM plan_done WHERE run_id = ?", runId);
+  await db.runAsync(
     "INSERT OR REPLACE INTO plan_done (plan_id, session_order, run_id, at) VALUES (?, ?, ?, ?)",
     plan.id, order, runId, at,
   );
+}
+
+/** Undo a link, leaving the run alone and the session to be done again. */
+export async function detachRunFromPlan(runId: number): Promise<void> {
+  await getDb().runAsync("DELETE FROM plan_done WHERE run_id = ?", runId);
 }
 
 /** Undo that, for a session ticked off by mistake. */
