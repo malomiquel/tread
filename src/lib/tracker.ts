@@ -204,7 +204,7 @@ async function startGps(): Promise<boolean> {
           foregroundService: {
             notificationTitle: "Course en cours",
             notificationBody: "Le suivi GPS continue, même écran verrouillé.",
-            notificationColor: "#0047ab",
+            notificationColor: "#00348f",
           },
         });
         return true;

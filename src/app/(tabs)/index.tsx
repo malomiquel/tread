@@ -3,8 +3,9 @@ import { useKeepAwake } from "expo-keep-awake";
 import { useFocusEffect, useIsFocused, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
-  FadeIn, FadeOut, useAnimatedStyle, useDerivedValue, useSharedValue, withTiming,
+  FadeIn, FadeOut, runOnJS, useAnimatedStyle, useDerivedValue, useSharedValue, withTiming,
 } from "react-native-reanimated";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { GlassPanel } from "@/components/GlassPanel";
@@ -140,6 +141,28 @@ export default function RecordScreen() {
     [],
   );
 
+  const leave = () => router.navigate("/history");
+
+  /**
+   * The same swipe that goes back everywhere else in iOS, on a narrow strip
+   * down the left edge.
+   *
+   * Only a strip, because the rest of the screen is a map and a map wants
+   * every drag it can get: a gesture spanning the whole width would make it
+   * impossible to pan the map westward. The width is roughly the one iOS uses
+   * for its own back gesture, so the habit is already there.
+   *
+   * It insists on a horizontal intent — a clear push right without much
+   * vertical wander — so a thumb brushing past on its way somewhere else does
+   * not throw you off the screen.
+   */
+  const swipeBack = Gesture.Pan()
+    .activeOffsetX(14)
+    .failOffsetY([-24, 24])
+    .onEnd((event) => {
+      if (event.translationX > 60 && event.velocityX > 0) runOnJS(leave)();
+    });
+
   const recording = tracker.status !== "idle";
 
   // The right-hand column, read from the bottom up: the panel, then the map's
@@ -239,6 +262,10 @@ export default function RecordScreen() {
       />
       {recording && <KeepAwake />}
 
+      <GestureDetector gesture={swipeBack}>
+        <View style={styles.backEdge} />
+      </GestureDetector>
+
       {/* The way out, since the tab bar no longer offers one. Top left, in the
           corner a back button lives in everywhere else, and in the same glass
           as the map's own controls so it reads as part of the map rather than
@@ -246,7 +273,7 @@ export default function RecordScreen() {
       <Animated.View pointerEvents="box-none" style={[styles.leave, chevronArrive]}>
         <GlassPanel style={styles.leavePill}>
           <Pressable
-            onPress={() => router.navigate("/history")}
+            onPress={leave}
             accessibilityRole="button"
             accessibilityLabel="Quitter l'écran de course"
             hitSlop={8}
@@ -425,6 +452,7 @@ const styles = StyleSheet.create({
   // Right-aligned so the pills, the locate button and the panel's edge all
   // land on one line down the side of the screen.
   toggles: { position: "absolute", right: 12, alignItems: "flex-end", gap: 10 },
+  backEdge: { position: "absolute", left: 0, top: 0, bottom: 0, width: 26 },
   leave: { position: "absolute", top: CONTROLS_TOP, left: 12 },
   leavePill: { borderRadius: CONTROL_SIZE / 2, padding: 0 },
   leaveButton: {

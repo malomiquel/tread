@@ -7,7 +7,7 @@ import WidgetKit
  extension is a separate binary and cannot reach into the app's JavaScript
  palette. These are the same values as `accent` in src/lib/theme.ts.
  */
-private let accentLight = Color(red: 0.000, green: 0.278, blue: 0.671)
+private let accentLight = Color(red: 0.000, green: 0.204, blue: 0.561)
 private let accentDark = Color(red: 0.435, green: 0.659, blue: 1.000)
 
 /**

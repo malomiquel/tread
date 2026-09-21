@@ -22,7 +22,7 @@
     "android": {
       "package": "com.malomiquel.tread",
       "adaptiveIcon": {
-        "backgroundColor": "#0047ab",
+        "backgroundColor": "#00348f",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
