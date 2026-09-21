@@ -15,7 +15,7 @@ import { CONTROLS_TOP, useTabBarSpace } from "@/lib/layout";
 import { useInitialLocation } from "@/lib/location";
 import { setSetting, toggleSetting, useSettings } from "@/lib/settings";
 import { weekTotals } from "@/lib/stats";
-import { colors } from "@/lib/theme";
+import { colors, font } from "@/lib/theme";
 import { activeDurationS, discard, finish, pause, resume, start, useTracker } from "@/lib/tracker";
 
 /**
@@ -313,7 +313,7 @@ const styles = StyleSheet.create({
 
   bottom: { position: "absolute", left: 12, right: 12 },
   panel: { borderRadius: 22, paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
-  state: { color: colors.muted, fontSize: 11.5, fontWeight: "500" },
+  state: { color: colors.muted, fontSize: 11.5, fontFamily: font.medium },
   stateWeak: { color: colors.warning },
   panelRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   panelMetrics: { flex: 1, gap: 10, minWidth: 0 },

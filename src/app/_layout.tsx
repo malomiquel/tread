@@ -1,4 +1,8 @@
 import "@/lib/tracker"; // defines the background GPS task at startup, outside any screen
+import {
+  BarlowCondensed_400Regular, BarlowCondensed_500Medium, BarlowCondensed_600SemiBold,
+  BarlowCondensed_700Bold, BarlowCondensed_800ExtraBold, useFonts,
+} from "@expo-google-fonts/barlow-condensed";
 import { Stack } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
@@ -11,6 +15,15 @@ import { colors } from "@/lib/theme";
 
 export default function RootLayout() {
   const [ready, setReady] = useState(false);
+  // Nothing is drawn before the faces are in: text rendered in the system
+  // font and then reflowed a frame later is a visible stutter on every launch.
+  const [fontsReady] = useFonts({
+    BarlowCondensed_400Regular,
+    BarlowCondensed_500Medium,
+    BarlowCondensed_600SemiBold,
+    BarlowCondensed_700Bold,
+    BarlowCondensed_800ExtraBold,
+  });
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -34,7 +47,7 @@ export default function RootLayout() {
     );
   }
 
-  if (!ready) {
+  if (!ready || !fontsReady) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator color={colors.accent} />

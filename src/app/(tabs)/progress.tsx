@@ -6,7 +6,7 @@ import { listRuns, personalRecords, type PersonalRecords, type Run } from "@/lib
 import { formatDistance, formatDuration, formatElevation, formatPace } from "@/lib/format";
 import { useTabBarSpace } from "@/lib/layout";
 import { weekStart } from "@/lib/stats";
-import { colors } from "@/lib/theme";
+import { colors, font } from "@/lib/theme";
 
 const WEEKS_SHOWN = 6;
 const DAY_MS = 86_400_000;
@@ -171,11 +171,11 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: {},
   title: {
-    color: colors.text, fontSize: 24, fontWeight: "700",
+    color: colors.text, fontSize: 24, fontFamily: font.bold,
     letterSpacing: -0.6, paddingHorizontal: GUTTER, paddingTop: 10, paddingBottom: 14,
   },
   empty: {
-    color: colors.muted, fontSize: 13.5, textAlign: "center",
+    color: colors.muted, fontFamily: font.regular, fontSize: 13.5, textAlign: "center",
     marginTop: 56, lineHeight: 21, paddingHorizontal: GUTTER,
   },
 
@@ -186,23 +186,23 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline,
   },
   cardTitle: {
-    color: colors.subtle, fontSize: 10, fontWeight: "600",
+    color: colors.subtle, fontSize: 10, fontFamily: font.semibold,
     letterSpacing: 1.4, textTransform: "uppercase",
   },
   heroRow: { flexDirection: "row", alignItems: "baseline", gap: 5 },
   hero: {
-    color: colors.text, fontSize: 56, fontWeight: "700",
-    letterSpacing: -2.6, fontVariant: ["tabular-nums"],
+    color: colors.text, fontSize: 56, fontFamily: font.bold,
+    letterSpacing: -1.17, fontVariant: ["tabular-nums"],
   },
-  heroUnit: { color: colors.subtle, fontSize: 15, fontWeight: "600" },
-  heroSub: { color: colors.muted, fontSize: 12.5, marginTop: -4, fontVariant: ["tabular-nums"] },
+  heroUnit: { color: colors.subtle, fontSize: 15, fontFamily: font.semibold },
+  heroSub: { color: colors.muted, fontFamily: font.regular, fontSize: 12.5, marginTop: -4, fontVariant: ["tabular-nums"] },
 
   chart: { flexDirection: "row", alignItems: "flex-end", gap: 8, height: 84, marginTop: 8 },
   column: { flex: 1, alignItems: "center", gap: 6 },
   barArea: { flex: 1, width: "100%", justifyContent: "flex-end" },
   bar: { width: "100%", borderRadius: 2, backgroundColor: colors.accentSoft },
   barCurrent: { backgroundColor: colors.accent },
-  weekLabel: { color: colors.subtle, fontSize: 10, fontVariant: ["tabular-nums"] },
+  weekLabel: { color: colors.subtle, fontFamily: font.regular, fontSize: 10, fontVariant: ["tabular-nums"] },
   caption: { color: colors.subtle, fontSize: 11 },
 
   record: {
@@ -213,6 +213,6 @@ const styles = StyleSheet.create({
   recordLabel: { color: colors.text, fontSize: 13.5 },
   recordDetail: { color: colors.subtle, fontSize: 11.5 },
   recordValue: {
-    color: colors.text, fontSize: 15.5, fontWeight: "600", fontVariant: ["tabular-nums"],
+    color: colors.text, fontSize: 15.5, fontFamily: font.semibold, fontVariant: ["tabular-nums"],
   },
 });

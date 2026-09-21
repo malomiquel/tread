@@ -7,7 +7,7 @@ import { CardMapSource, type CardMapHandle } from "@/components/CardMapSource";
 import { CARD_HEIGHT, CARD_WIDTH, ShareCard } from "@/components/ShareCard";
 import type { Run } from "@/lib/db";
 import type { TrackPoint } from "@/lib/geo";
-import { colors, floatingShadow } from "@/lib/theme";
+import { colors, floatingShadow, font } from "@/lib/theme";
 
 interface Props {
   visible: boolean;
@@ -129,5 +129,5 @@ const styles = StyleSheet.create({
   cardShadow: { width: CARD_WIDTH, height: CARD_HEIGHT, ...floatingShadow },
   actions: { flexDirection: "row", alignItems: "center", gap: 10 },
   waiting: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14 },
-  waitingText: { color: colors.background, fontSize: 12, fontWeight: "500" },
+  waitingText: { color: colors.background, fontSize: 12, fontFamily: font.medium },
 });

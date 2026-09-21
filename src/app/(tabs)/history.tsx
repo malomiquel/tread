@@ -14,7 +14,7 @@ import { createDemoRun } from "@/lib/demo";
 import { formatDate, formatDistance, formatDuration, formatPace } from "@/lib/format";
 import { forgetRunInHealth } from "@/lib/health";
 import { useTabBarSpace } from "@/lib/layout";
-import { colors } from "@/lib/theme";
+import { colors, font } from "@/lib/theme";
 
 export default function HistoryScreen() {
   const [runs, setRuns] = useState<Run[] | null>(null);
@@ -215,12 +215,12 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
     borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline,
   },
-  title: { color: colors.text, fontSize: 24, fontWeight: "700", letterSpacing: -0.6 },
-  subtitle: { color: colors.subtle, fontSize: 12, marginTop: 3 },
+  title: { color: colors.text, fontSize: 24, fontFamily: font.bold, letterSpacing: -0.6 },
+  subtitle: { color: colors.subtle, fontFamily: font.regular, fontSize: 12, marginTop: 3 },
 
   emptyBlock: { marginTop: 56, paddingHorizontal: GUTTER, gap: 18, alignItems: "stretch" },
-  empty: { color: colors.muted, fontSize: 13.5, textAlign: "center", lineHeight: 21 },
-  emptyHint: { color: colors.subtle, fontSize: 11.5, textAlign: "center", lineHeight: 17 },
+  empty: { color: colors.muted, fontFamily: font.regular, fontSize: 13.5, textAlign: "center", lineHeight: 21 },
+  emptyHint: { color: colors.subtle, fontFamily: font.regular, fontSize: 11.5, textAlign: "center", lineHeight: 17 },
 
   // A plain list separated by rules, the way a timetable or a statement is
   // set. Boxing each run in its own floating card added nothing but noise.
@@ -234,12 +234,12 @@ const styles = StyleSheet.create({
   },
   pressed: { backgroundColor: colors.sunken },
   rowLeft: { flex: 1, gap: 3 },
-  name: { color: colors.text, fontSize: 15.5, fontWeight: "600", letterSpacing: -0.2 },
+  name: { color: colors.text, fontSize: 15.5, fontFamily: font.semibold, letterSpacing: -0.2 },
   when: { color: colors.subtle, fontSize: 11.5 },
-  detail: { color: colors.muted, fontSize: 12.5, fontVariant: ["tabular-nums"] },
+  detail: { color: colors.muted, fontFamily: font.regular, fontSize: 12.5, fontVariant: ["tabular-nums"] },
   distance: {
-    color: colors.text, fontSize: 22, fontWeight: "600",
+    color: colors.text, fontSize: 22, fontFamily: font.semibold,
     letterSpacing: -0.8, fontVariant: ["tabular-nums"],
   },
-  km: { color: colors.subtle, fontSize: 11.5, fontWeight: "600", letterSpacing: 0 },
+  km: { color: colors.subtle, fontSize: 11.5, fontFamily: font.semibold, letterSpacing: 0 },
 });

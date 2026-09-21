@@ -44,6 +44,27 @@ export const colors = {
 } as const;
 
 /**
+ * Barlow Condensed, by weight.
+ *
+ * A condensed face because the app is almost entirely numbers, and numbers
+ * set narrow read as pace: it is the typography of a stopwatch and a start
+ * list rather than of a paragraph. It also buys back width, which is why the
+ * figures could shrink without losing any of their presence.
+ *
+ * Each weight is its own file with its own name, so weight is chosen by
+ * picking a family here rather than by asking for a fontWeight. Asking for
+ * one on top would have the system smear a synthetic bold over an already
+ * bold face.
+ */
+export const font = {
+  regular: "BarlowCondensed_400Regular",
+  medium: "BarlowCondensed_500Medium",
+  semibold: "BarlowCondensed_600SemiBold",
+  bold: "BarlowCondensed_700Bold",
+  extrabold: "BarlowCondensed_800ExtraBold",
+} as const;
+
+/**
  * Literal pairs, for native components that demand a concrete colour string
  * and cannot resolve a dynamic one: the map's polyline is drawn by MapKit,
  * not by React Native, so it never sees the system appearance.

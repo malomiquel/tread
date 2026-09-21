@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, Text, type StyleProp, type ViewStyle } from "react-native";
-import { colors } from "@/lib/theme";
+import { colors, font } from "@/lib/theme";
 
 type Variant = "primary" | "secondary" | "danger";
 
@@ -57,7 +57,7 @@ const styles = StyleSheet.create({
   danger: { backgroundColor: colors.background, borderWidth: 1, borderColor: colors.dangerSoft },
   pressed: { opacity: 0.6 },
   disabled: { opacity: 0.35 },
-  label: { color: colors.text, fontSize: 14, fontWeight: "600", letterSpacing: 0.3 },
-  labelPrimary: { color: colors.accentText, fontWeight: "700" },
+  label: { color: colors.text, fontSize: 14, fontFamily: font.semibold, letterSpacing: 0.3 },
+  labelPrimary: { color: colors.accentText, fontFamily: font.bold },
   labelDanger: { color: colors.danger },
 });

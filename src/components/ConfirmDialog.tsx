@@ -1,6 +1,6 @@
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { Button } from "@/components/Button";
-import { colors, floatingShadow } from "@/lib/theme";
+import { colors, floatingShadow, font } from "@/lib/theme";
 
 interface Props {
   visible: boolean;
@@ -63,7 +63,7 @@ const styles = StyleSheet.create({
     gap: 10,
     ...floatingShadow,
   },
-  title: { color: colors.text, fontSize: 16.5, fontWeight: "700", letterSpacing: -0.2 },
-  message: { color: colors.muted, fontSize: 13.5, lineHeight: 20 },
+  title: { color: colors.text, fontSize: 16.5, fontFamily: font.bold, letterSpacing: -0.2 },
+  message: { color: colors.muted, fontFamily: font.regular, fontSize: 13.5, lineHeight: 20 },
   actions: { flexDirection: "row", gap: 10, marginTop: 8 },
 });

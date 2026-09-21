@@ -3,7 +3,7 @@ import type { ComponentProps } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { GlassPanel } from "@/components/GlassPanel";
 import { TAB_BAR_HEIGHT, useTabBarBottom } from "@/lib/layout";
-import { colors } from "@/lib/theme";
+import { colors, font } from "@/lib/theme";
 
 /**
  * A floating tab bar that hugs its own content.
@@ -95,5 +95,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   tabPressed: { opacity: 0.55 },
-  label: { fontSize: 10, fontWeight: "600", letterSpacing: 0.1 },
+  label: { fontSize: 10, fontFamily: font.semibold, letterSpacing: 0.1 },
 });

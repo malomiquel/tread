@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View } from "react-native";
-import { colors } from "@/lib/theme";
+import { colors, font } from "@/lib/theme";
 
 interface Props {
   label: string;
@@ -49,7 +49,7 @@ const styles = StyleSheet.create({
   label: {
     color: colors.subtle,
     fontSize: 10,
-    fontWeight: "600",
+    fontFamily: font.semibold,
     letterSpacing: 1.4,
     textTransform: "uppercase",
   },
@@ -58,14 +58,14 @@ const styles = StyleSheet.create({
   value: {
     color: colors.text,
     fontSize: 28,
-    fontWeight: "600",
+    fontFamily: font.semibold,
     letterSpacing: -0.9,
     fontVariant: ["tabular-nums"],
   },
-  large: { fontSize: 76, fontWeight: "700", letterSpacing: -4, lineHeight: 78 },
-  valueCompact: { fontSize: 17, letterSpacing: -0.4 },
-  labelCompact: { fontSize: 9, letterSpacing: 0.9 },
+  large: { fontSize: 76, fontFamily: font.bold, letterSpacing: -1.8, lineHeight: 78 },
+  valueCompact: { fontFamily: font.regular, fontSize: 17, letterSpacing: -0.4 },
+  labelCompact: { fontFamily: font.regular, fontSize: 9, letterSpacing: 0.9 },
   unitCompact: { fontSize: 10 },
-  unit: { color: colors.subtle, fontSize: 12, fontWeight: "600" },
+  unit: { color: colors.subtle, fontSize: 12, fontFamily: font.semibold },
   unitLarge: { fontSize: 18 },
 });

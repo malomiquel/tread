@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "dependencies": {
     "@bacons/apple-targets": "^5.0.0",
+    "@expo-google-fonts/barlow-condensed": "^0.4.1",
     "@expo/ui": "~57.0.19",
     "@expo/vector-icons": "^15.0.2",
     "@kingstinct/react-native-healthkit": "^16.0.0",

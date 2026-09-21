@@ -5,7 +5,7 @@ import ReanimatedSwipeable, {
   type SwipeableMethods,
 } from "react-native-gesture-handler/ReanimatedSwipeable";
 import Animated, { useAnimatedStyle, type SharedValue } from "react-native-reanimated";
-import { colors } from "@/lib/theme";
+import { colors, font } from "@/lib/theme";
 
 const ACTION_WIDTH = 92;
 
@@ -94,5 +94,5 @@ const styles = StyleSheet.create({
     backgroundColor: colors.danger,
   },
   actionPressed: { opacity: 0.75 },
-  actionLabel: { color: colors.accentText, fontSize: 11, fontWeight: "600" },
+  actionLabel: { color: colors.accentText, fontSize: 11, fontFamily: font.semibold },
 });

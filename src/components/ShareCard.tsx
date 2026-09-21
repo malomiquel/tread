@@ -3,7 +3,7 @@ import { forwardRef } from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
 import type { Run } from "@/lib/db";
 import { formatDate, formatDistance, formatDuration, formatElevation, formatPace } from "@/lib/format";
-import { literalColors } from "@/lib/theme";
+import { font, literalColors } from "@/lib/theme";
 
 /**
  * The card is laid out at a fixed size rather than filling its container, so
@@ -158,33 +158,33 @@ const styles = StyleSheet.create({
     width: 10, height: 10, borderRadius: 5,
     backgroundColor: literalColors.track.dark,
   },
-  brandName: { color: INK, fontSize: 15, fontWeight: "800", letterSpacing: 3.4 },
+  brandName: { color: INK, fontSize: 15, fontFamily: font.extrabold, letterSpacing: 3.4 },
 
   footer: { position: "absolute", left: GUTTER, right: GUTTER, bottom: 18 },
   // Set as a title rather than as a caption: it is the run's own name, and
   // squeezing it into small tracked capitals beside the date made both
   // unreadable at the size these pictures are actually looked at.
-  name: { color: INK, fontSize: 19, fontWeight: "700", letterSpacing: -0.4 },
-  date: { color: INK_SOFT, fontSize: 12, fontWeight: "500", marginTop: 2 },
+  name: { color: INK, fontSize: 19, fontFamily: font.bold, letterSpacing: -0.4 },
+  date: { color: INK_SOFT, fontSize: 12, fontFamily: font.medium, marginTop: 2 },
 
-  heroRow: { flexDirection: "row", alignItems: "baseline", gap: 5, marginTop: 10 },
+  heroRow: { flexDirection: "row", alignItems: "baseline", gap: 4, marginTop: 9 },
   hero: {
-    color: INK, fontSize: 58, fontWeight: "700",
-    letterSpacing: -3, fontVariant: ["tabular-nums"],
+    color: INK, fontSize: 46, fontFamily: font.bold,
+    letterSpacing: -0.99, fontVariant: ["tabular-nums"],
   },
-  heroUnit: { color: INK_SOFT, fontSize: 16, fontWeight: "700", letterSpacing: -0.2 },
+  heroUnit: { color: INK_SOFT, fontSize: 13, fontFamily: font.bold, letterSpacing: -0.2 },
 
   // A rule under the hero, the way the app separates its own sections.
   stats: {
-    flexDirection: "row", gap: 26, marginTop: 14, paddingTop: 13,
+    flexDirection: "row", gap: 24, marginTop: 12, paddingTop: 11,
     borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "rgba(255, 255, 255, 0.24)",
   },
   stat: { gap: 2 },
   statValueRow: { flexDirection: "row", alignItems: "baseline", gap: 2 },
   statValue: {
-    color: INK, fontSize: 20, fontWeight: "600",
-    letterSpacing: -0.5, fontVariant: ["tabular-nums"],
+    color: INK, fontSize: 16.5, fontFamily: font.semibold,
+    letterSpacing: -0.4, fontVariant: ["tabular-nums"],
   },
-  statUnit: { color: INK_FAINT, fontSize: 10.5, fontWeight: "600" },
-  statLabel: { color: INK_FAINT, fontSize: 8.5, fontWeight: "700", letterSpacing: 1.3 },
+  statUnit: { color: INK_FAINT, fontSize: 9, fontFamily: font.semibold },
+  statLabel: { color: INK_FAINT, fontSize: 7.5, fontFamily: font.bold, letterSpacing: 1.2 },
 });
