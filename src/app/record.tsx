@@ -4,7 +4,7 @@ import { useKeepAwake } from "expo-keep-awake";
 import { useFocusEffect, useIsFocused, useRouter } from "expo-router";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useCallback, useEffect, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import Animated, {
   FadeIn, FadeOut, runOnJS, useAnimatedStyle, useDerivedValue, useSharedValue, withTiming,
 } from "react-native-reanimated";
@@ -178,6 +178,16 @@ export default function RecordScreen() {
    */
   const leave = () => (router.canGoBack() ? router.back() : router.navigate("/"));
 
+  const { width } = useWindowDimensions();
+  /** How far the screen has been dragged towards the right, in points. */
+  const dragX = useSharedValue(0);
+  const dragged = useAnimatedStyle(() => ({ transform: [{ translateX: dragX.value }] }), []);
+
+  // Never arrive already pushed aside — a gesture abandoned by a call coming
+  // in would otherwise leave the screen sitting off the edge, which looks
+  // exactly like a blank one.
+  useFocusEffect(useCallback(() => { dragX.set(0); }, [dragX]));
+
 
   /**
    * Our own back swipe, on a narrow strip down the left edge.
@@ -202,8 +212,18 @@ export default function RecordScreen() {
   const swipeBack = Gesture.Pan()
     .activeOffsetX(14)
     .failOffsetY([-24, 24])
+    .onUpdate((event) => {
+      dragX.set(Math.min(width, Math.max(0, event.translationX)));
+    })
     .onEnd((event) => {
-      if (event.translationX > 60 && event.velocityX > 0) runOnJS(leave)();
+      if (event.translationX > 80 || event.velocityX > 700) {
+        // Carried the rest of the way, then popped. Leaving first and
+        // snapping back would play the stack's own pop animation over a
+        // screen that had already jumped home.
+        dragX.set(withTiming(width, { duration: 170 }, () => runOnJS(leave)()));
+        return;
+      }
+      dragX.set(withTiming(0, { duration: 180 }));
     });
 
 
@@ -355,7 +375,12 @@ export default function RecordScreen() {
   const tooShort = distance < 100;
 
   return (
-    <View style={styles.screen}>
+    // Translated, never faded: an animated opacity is what the map and the
+    // glass refuse to composite under. What the translation uncovers is the
+    // tab this screen was pushed from, which is why the route below asks for
+    // a transparent background — without it, dragging would reveal this
+    // screen's own backdrop and look like a blank sheet.
+    <Animated.View style={[styles.screen, dragged]}>
       {/* The map is the screen now, not something hidden behind a button. */}
       <RunMap
         points={tracker.points}
@@ -542,7 +567,7 @@ export default function RecordScreen() {
         onClose={() => setChoosing(false)}
       />
 
-    </View>
+    </Animated.View>
   );
 }
 

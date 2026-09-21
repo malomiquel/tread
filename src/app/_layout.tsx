@@ -92,7 +92,16 @@ export default function RootLayout() {
           * celle d'en dessous — qu'aucun onglet ne peut offrir, faute de
           * quoi que ce soit derrière lui à dévoiler.
           */}
-        <Stack.Screen name="record" options={{ headerShown: false }} />
+        {/*
+          * Transparent, so that dragging this screen aside uncovers the tab
+          * it was pushed from rather than its own backdrop. The screen below
+          * is a live view controller sitting in the stack; all that stood
+          * between it and being seen was an opaque sheet of paint.
+          */}
+        <Stack.Screen
+          name="record"
+          options={{ headerShown: false, contentStyle: { backgroundColor: "transparent" } }}
+        />
         <Stack.Screen name="run/[id]" options={{ title: "Course", headerBackTitle: "Retour" }} />
         <Stack.Screen name="plan-method" options={{ title: "Méthode", headerBackTitle: "Retour" }} />
       </Stack>
