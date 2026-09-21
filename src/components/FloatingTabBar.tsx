@@ -1,6 +1,7 @@
 import { Tabs } from "expo-router";
 import type { ComponentProps } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import Animated, { Easing, useAnimatedStyle, withTiming } from "react-native-reanimated";
 import { GlassPanel } from "@/components/GlassPanel";
 import { TAB_BAR_HEIGHT, useTabBarBottom } from "@/lib/layout";
 import { colors, font } from "@/lib/theme";
@@ -26,8 +27,31 @@ import { colors, font } from "@/lib/theme";
  */
 type TabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>["tabBar"]>>[0];
 
-export function FloatingTabBar({ state, descriptors, navigation }: TabBarProps) {
+/**
+ * Long enough to be seen leaving, short enough not to be waited for. The
+ * curve is decelerating: the bar sets off at once and settles, rather than
+ * easing into motion, which is what makes it read as getting out of the way
+ * rather than as a thing being played at you.
+ */
+const SLIDE = { duration: 240, easing: Easing.out(Easing.cubic) };
+
+export function FloatingTabBar({
+  state, descriptors, navigation, hidden = false,
+}: TabBarProps & { hidden?: boolean }) {
   const bottom = useTabBarBottom();
+
+  /**
+   * Hidden by sliding out, not by unmounting.
+   *
+   * A bar that simply stops being rendered leaves a hole in the same frame
+   * the new screen arrives in, and the eye reads that as a glitch rather than
+   * as a change of place. Sliding it down past the edge says where it went,
+   * and brings it back from the same direction.
+   */
+  const slide = useAnimatedStyle(() => ({
+    opacity: withTiming(hidden ? 0 : 1, SLIDE),
+    transform: [{ translateY: withTiming(hidden ? TAB_BAR_HEIGHT + bottom + 24 : 0, SLIDE) }],
+  }), [hidden, bottom]);
 
   const tabs = state.routes.map((route, index) => {
     const { options } = descriptors[route.key];
@@ -62,16 +86,18 @@ export function FloatingTabBar({ state, descriptors, navigation }: TabBarProps) 
   const content = <View style={styles.row}>{tabs}</View>;
 
   return (
-    <View
+    <Animated.View
       // box-none: the bar catches taps, the empty space beside it does not, so
-      // the screen underneath stays usable right up to the pill's edge.
-      pointerEvents="box-none"
-      style={[styles.anchor, { bottom }]}
+      // the screen underneath stays usable right up to the pill's edge. While
+      // it is away it catches nothing at all, or it would answer taps aimed at
+      // the map it is sliding off.
+      pointerEvents={hidden ? "none" : "box-none"}
+      style={[styles.anchor, { bottom }, slide]}
     >
       <GlassPanel style={styles.pill} interactive>
         {content}
       </GlassPanel>
-    </View>
+    </Animated.View>
   );
 }
 

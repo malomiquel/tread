@@ -35,16 +35,24 @@ export default function TabsLayout() {
        * No bar over the run screen. It is a map from edge to edge, and a bar
        * floating across the bottom of it was the one thing between the runner
        * and the ground they are covering. That screen carries its own way out
-       * instead, a chevron in the corner.
+       * instead, a chevron in the corner. It is told to hide rather than left
+       * unrendered, so that it can slide away and come back instead of
+       * blinking out of existence as the screen changes.
        */
-      tabBar={(props) =>
-        props.state.routes[props.state.index].name === "index"
-          ? null
-          : <FloatingTabBar {...props} />
-      }
+      tabBar={(props) => (
+        <FloatingTabBar
+          {...props}
+          hidden={props.state.routes[props.state.index].name === "index"}
+        />
+      )}
       screenOptions={{
         headerShown: false,
         sceneStyle: { backgroundColor: colors.background },
+        // The screens cross-fade instead of being swapped in place. Between
+        // two ordinary tabs it barely registers; arriving on the run screen,
+        // where the bar is leaving at the same moment, it is the difference
+        // between a transition and a jump cut.
+        animation: "fade",
       }}
     >
       <Tabs.Screen
