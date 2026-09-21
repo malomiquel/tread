@@ -10,11 +10,15 @@ import { Platform, Vibration } from "react-native";
  */
 const BUZZ_MS = 400;
 
-/** Barely a pause: consecutive buzzes run together into one rattle. */
-const TIGHT_MS = 420;
-
-/** Long enough to hear the silence, so the buzzes are counted, not felt as one. */
-const WIDE_MS = 900;
+/**
+ * Interval between the start of one buzz and the next.
+ *
+ * It has to clear BUZZ_MS with room to spare. Buzzes were spaced 420ms for a
+ * 400ms buzz, and the system ignores a trigger arriving while the motor is
+ * already running, so every pattern quietly lost one: three read as two, two
+ * read as one. The silence between is what makes them countable.
+ */
+const GAP_MS = 650;
 
 /**
  * A pattern of motor buzzes.
@@ -90,13 +94,12 @@ export function announceKilometre(km: number, splitS: number, spoken: boolean): 
  * change is.
  */
 export function announceStep(label: string | null, spoken: boolean): void {
-  // A change of block rattles: three buzzes run together, which is the most
-  // insistent thing the motor can do, because it is the one moment that asks
-  // you to change what your legs are doing this second. The end of a session
-  // asks for nothing, so it gets two spaced buzzes instead — the pause
-  // between them is the point.
-  if (label) buzz(3, TIGHT_MS);
-  else buzz(2, WIDE_MS);
+  // Two for a change of block, three for the end of the session. The count
+  // rises with how final the thing is, not with how urgently it must be acted
+  // on: a block change is one of many and comes back in a few minutes, the
+  // end comes once and closes everything.
+  if (label) buzz(2, GAP_MS);
+  else buzz(3, GAP_MS);
   if (!spoken) return;
   Speech.speak(label ?? "Séance terminée", { language: "fr-FR", rate: 1 });
 }
@@ -109,11 +112,10 @@ export function announceStep(label: string | null, spoken: boolean): void {
  * kilometre" is arithmetic you have to do first.
  */
 export function announcePace(driftS: number, spoken: boolean): void {
-  // Two buzzes run together. This one should be the gentlest of the four and
-  // instead it cannot be: the motor has no quiet setting, and the single buzz
-  // is already spoken for by the kilometre. It is told apart from a change of
-  // block only by being a shorter rattle.
-  buzz(2, TIGHT_MS);
+  // A single buzz, the shortest thing the motor can say — which is all a
+  // nudge deserves. It is the same as a kilometre, and the two are told apart
+  // only by what the voice says next.
+  buzz(1);
   if (!spoken) return;
   const seconds = Math.abs(driftS);
   const sens = driftS > 0 ? "trop lent" : "trop rapide";

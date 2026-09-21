@@ -177,9 +177,9 @@ export default function ProgressScreen() {
         <View style={styles.buzzes}>
           {([
             ["Kilomètre", "1 seul", () => announceKilometre(3, 312, false)],
-            ["Bloc", "3 serrés", () => announceStep("400 m rapide", false)],
-            ["Fin de séance", "2 espacés", () => announceStep(null, false)],
-            ["Allure", "2 serrés", () => announcePace(12, false)],
+            ["Bloc", "2", () => announceStep("400 m rapide", false)],
+            ["Fin de séance", "3", () => announceStep(null, false)],
+            ["Allure", "1 seul", () => announcePace(12, false)],
           ] as const).map(([label, hint, fire]) => (
             <Pressable
               key={label}
