@@ -2,18 +2,19 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { File, Paths } from "expo-file-system";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Sharing from "expo-sharing";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { Button } from "@/components/Button";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Metric } from "@/components/Metric";
-import { RunMap } from "@/components/RunMap";
+import { RunMap, type RunMapHandle } from "@/components/RunMap";
+import { CARD_WIDTH, MAP_HEIGHT } from "@/components/ShareCard";
 import { ShareRunSheet } from "@/components/ShareRunSheet";
 import { deleteRun, readRun, renameRun, type Run } from "@/lib/db";
 import { formatDate, formatDistance, formatDuration, formatElevation, formatPace } from "@/lib/format";
-import { splits, type TrackPoint } from "@/lib/geo";
+import { regionAround, splits, type TrackPoint } from "@/lib/geo";
 import { gpxFileName, toGpx } from "@/lib/gpx";
 import { forgetRunInHealth, healthAvailable, requestHealthAccess, syncRunToHealth } from "@/lib/health";
 import { colors, floatingShadow } from "@/lib/theme";
@@ -33,6 +34,8 @@ export default function RunDetailScreen() {
   const [syncing, setSyncing] = useState(false);
   const [hasHealth] = useState(healthAvailable);
   const [sharingImage, setSharingImage] = useState(false);
+  const [cardMap, setCardMap] = useState<string | null>(null);
+  const shotMap = useRef<RunMapHandle>(null);
 
   useEffect(() => {
     let active = true;
@@ -119,6 +122,33 @@ export default function RunDetailScreen() {
     }
   }
 
+  /**
+   * Draws the map for the share picture as soon as this screen has one to
+   * draw, long before anyone asks to share.
+   *
+   * The wait is unavoidable — a map asked for its picture fetches and redraws
+   * its own copy rather than reusing what is on screen, which takes a second
+   * or two — but it need not be spent in front of the user. Spent here, while
+   * they read their splits, it is spent for nothing they notice, and the
+   * share sheet opens already finished.
+   */
+  function prepareCard() {
+    if (cardMap || points.length === 0) return;
+    const region = regionAround(points);
+    void shotMap.current
+      ?.takeSnapshot({
+        width: CARD_WIDTH,
+        height: MAP_HEIGHT,
+        region: region ?? undefined,
+        format: "png",
+        result: "file",
+      })
+      .then(setCardMap)
+      .catch(() => {
+        /* the sheet will draw its own when opened */
+      });
+  }
+
   async function saveName() {
     const next = draftName.trim();
     setRenaming(false);
@@ -188,8 +218,10 @@ export default function RunDetailScreen() {
       </View>
 
       <RunMap
+        ref={shotMap}
         points={points}
         fitAll
+        onReady={prepareCard}
         onToggleFullscreen={() => setMapExpanded(true)}
         style={styles.map}
       />
@@ -268,6 +300,7 @@ export default function RunDetailScreen() {
         visible={sharingImage}
         run={run}
         points={points}
+        preparedMapUri={cardMap}
         onClose={() => setSharingImage(false)}
       />
 

@@ -15,6 +15,12 @@ interface Props {
   visible: boolean;
   run: Run;
   points: TrackPoint[];
+  /**
+   * The map, already rendered by the screen underneath while the user was
+   * reading it. Supplied, the sheet opens finished; absent — the picture
+   * failed, or arrived late — it falls back to drawing its own.
+   */
+  preparedMapUri?: string | null;
   onClose: () => void;
 }
 
@@ -27,10 +33,12 @@ interface Props {
  * along the way, which is right anyway since the phone may have switched to
  * dark in the meantime.
  */
-export function ShareRunSheet({ visible, run, points, onClose }: Props) {
+export function ShareRunSheet({ visible, run, points, preparedMapUri, onClose }: Props) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      {visible ? <Sheet run={run} points={points} onClose={onClose} /> : null}
+      {visible ? (
+        <Sheet run={run} points={points} preparedMapUri={preparedMapUri} onClose={onClose} />
+      ) : null}
     </Modal>
   );
 }
@@ -55,11 +63,13 @@ const SETTLE_MS = 400;
  * always draws. And because the swap happens before the button becomes
  * available, what is shared is exactly what was on screen.
  */
-function Sheet({ run, points, onClose }: Omit<Props, "visible">) {
+function Sheet({ run, points, preparedMapUri, onClose }: Omit<Props, "visible">) {
   const scheme = useColorScheme() === "dark" ? "dark" : "light";
   const map = useRef<MapView>(null);
   const card = useRef<View>(null);
-  const [mapUri, setMapUri] = useState<string | null>(null);
+  // Seeded rather than derived: the body is mounted afresh each time the sheet
+  // opens, so whatever was ready at that moment is simply where it starts.
+  const [mapUri, setMapUri] = useState<string | null>(preparedMapUri ?? null);
   const [sharing, setSharing] = useState(false);
 
   const tracks = segments(points);
