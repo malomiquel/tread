@@ -92,7 +92,33 @@ export default function RootLayout() {
           * celle d'en dessous — qu'aucun onglet ne peut offrir, faute de
           * quoi que ce soit derrière lui à dévoiler.
           */}
-        <Stack.Screen name="record" options={{ headerShown: false, gestureEnabled: true }} />
+        <Stack.Screen
+          name="record"
+          options={{
+            headerShown: false,
+            /*
+             * Two things stood between this screen and its back gesture, and
+             * fixing either alone left the other in place.
+             *
+             * The first is the hidden header: on iOS, a navigation bar that
+             * is not shown takes UIKit's interactive pop gesture with it, and
+             * `gestureEnabled` cannot revive what no longer exists — it only
+             * permits. `fullScreenGestureEnabled` swaps in a recogniser of
+             * react-native-screens' own, which owes the header nothing.
+             *
+             * The second is the map, which claims any touch beginning at the
+             * edge for its own panning. That is what the inert strip on the
+             * screen itself is for.
+             *
+             * The response distance then keeps this gesture in a band down
+             * the left side, so the map keeps every drag that does not start
+             * against the edge.
+             */
+            gestureEnabled: true,
+            fullScreenGestureEnabled: true,
+            gestureResponseDistance: { start: 30 },
+          }}
+        />
         <Stack.Screen name="run/[id]" options={{ title: "Course", headerBackTitle: "Retour" }} />
         <Stack.Screen name="plan-method" options={{ title: "Méthode", headerBackTitle: "Retour" }} />
       </Stack>
