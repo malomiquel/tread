@@ -54,9 +54,9 @@ export default function RecordScreen() {
   // While idle, say where the location stands rather than let the default
   // framing look like a broken map.
   const idleMessage =
-    granted === false ? "Localisation refusée, la carte ne peut pas te situer"
-    : coords === null ? "Recherche de ta position…"
-    : "Le GPS démarre avec la course";
+    granted === false ? "Localisation refusée, la course ne pourra pas être tracée"
+    : coords === null ? "Acquisition du GPS…"
+    : "GPS prêt, le suivi démarre avec la course";
 
   const weakSignal = (recording && tracker.accuracyM !== null && tracker.accuracyM > 30) || granted === false;
 
@@ -145,7 +145,8 @@ export default function RecordScreen() {
         </Text>
       </View>
 
-      {/* Deux réglages, posés là où ils servent plutôt que dans un écran à part. */}
+      {/* Les réglages sont posés là où ils servent, plutôt que dans un écran
+          à part que personne n'ouvrirait en courant. */}
       <View style={styles.toggles}>
         <Toggle
           on={settings.voice}
@@ -159,6 +160,7 @@ export default function RecordScreen() {
           icon="pause-circle"
           label="Pause automatique à l'arrêt"
         />
+        <Toggle action on={false} onPress={() => setExpanded(true)} icon="map" label="Voir la carte" />
       </View>
       </View>
 
@@ -174,13 +176,7 @@ export default function RecordScreen() {
         </View>
       </View>
 
-      <RunMap
-        points={tracker.points}
-        follow
-        initialCenter={coords}
-        onToggleFullscreen={() => setExpanded(true)}
-        style={styles.map}
-      />
+      <View style={styles.spacer} />
 
       {tracker.error && <Text style={styles.error}>{tracker.error}</Text>}
 
@@ -203,20 +199,25 @@ export default function RecordScreen() {
   );
 }
 
-/** A small round switch, on or off, with its state shown by colour. */
+/**
+ * A small round control. On or off by default, with its state shown by
+ * colour; `action` turns it into a plain button instead, because announcing a
+ * one-shot action as a switch misleads anyone using a screen reader.
+ */
 function Toggle({
-  on, onPress, icon, label,
+  on, onPress, icon, label, action = false,
 }: {
   on: boolean;
   onPress: () => void;
   icon: React.ComponentProps<typeof Ionicons>["name"];
   label: string;
+  action?: boolean;
 }) {
   return (
     <Pressable
       onPress={onPress}
-      accessibilityRole="switch"
-      accessibilityState={{ checked: on }}
+      accessibilityRole={action ? "button" : "switch"}
+      accessibilityState={action ? undefined : { checked: on }}
       accessibilityLabel={label}
       hitSlop={8}
       style={({ pressed }) => [styles.toggle, on && styles.toggleOn, pressed && styles.togglePressed]}
@@ -252,7 +253,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   row: { flexDirection: "row", gap: 12, paddingTop: 2 },
-  map: { flex: 1, minHeight: 200, borderRadius: 20 },
+  spacer: { flex: 1 },
   expandedScreen: { flex: 1, backgroundColor: colors.background },
   // No radius in full screen: rounded corners on an edge-to-edge map read as
   // a rendering fault rather than a deliberate shape.
