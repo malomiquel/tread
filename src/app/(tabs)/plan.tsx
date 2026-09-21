@@ -149,7 +149,7 @@ export default function PlanScreen() {
   }
 
   const goal = goalById(plan.goal);
-  const scheduled = schedule(plan.sessions, done, today, plan.raceAt, plan.perWeek);
+  const scheduled = schedule(plan.sessions, done, today, plan.raceAt, plan.days);
   const next = nextSession(scheduled);
   const progress = planProgress(plan.sessions, done.size);
   const daysLeft = daysBetween(today, plan.raceAt);

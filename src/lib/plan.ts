@@ -419,13 +419,17 @@ export function daysBetween(fromMs: number, toMs: number): number {
 }
 
 /**
- * Which weekdays a plan runs on, as `Date.getDay` numbers.
+ * The days a plan proposes, as `Date.getDay` numbers, before anyone says
+ * otherwise.
  *
  * Sunday is the fixed point at every volume, because that is where the long
  * run goes. Tuesday joins it, then Thursday, then Friday. Monday and Saturday
- * are left alone on purpose even at four: one of them is where a missed
- * session actually gets made up, and a plan that fills every day leaves
- * nowhere to put a life.
+ * are left alone even at four: one of them is where a missed session actually
+ * gets made up, and a plan that fills every day leaves nowhere to put a life.
+ *
+ * All of it is only a suggestion. A runner who works Sundays needs a
+ * programme that knows it, and a plan landing on days somebody cannot train
+ * is a plan they stop opening.
  */
 export const SLOT_DAYS: Record<PerWeek, number[]> = {
   1: [0],
@@ -434,13 +438,25 @@ export const SLOT_DAYS: Record<PerWeek, number[]> = {
   4: [2, 4, 5, 0],
 };
 
+/**
+ * Chosen days, made safe to schedule against.
+ *
+ * Stored days come back from a database and from older versions of this app,
+ * so they are checked rather than trusted: anything that is not the right
+ * count of real, distinct weekdays falls back to the suggestion.
+ */
+export function normaliseDays(days: readonly number[] | null | undefined, perWeek: PerWeek): number[] {
+  const clean = [...new Set((days ?? []).filter((d) => Number.isInteger(d) && d >= 0 && d <= 6))];
+  return clean.length === perWeek ? clean.sort((a, b) => a - b) : SLOT_DAYS[perWeek];
+}
+
 /** Every training day between two dates, race day excluded. */
-export function slotDates(fromMs: number, raceMs: number, perWeek: PerWeek): number[] {
-  const days = new Set(SLOT_DAYS[perWeek]);
+export function slotDates(fromMs: number, raceMs: number, days: readonly number[]): number[] {
+  const wanted = new Set(days);
   const race = startOfDay(raceMs);
   const slots: number[] = [];
   for (let day = startOfDay(fromMs); day < race; day += DAY_MS) {
-    if (days.has(new Date(day).getDay())) slots.push(day);
+    if (wanted.has(new Date(day).getDay())) slots.push(day);
   }
   return slots;
 }
@@ -472,9 +488,9 @@ export function schedule(
   done: Map<number, Done>,
   todayMs: number,
   raceMs: number,
-  perWeek: PerWeek,
+  days: readonly number[],
 ): ScheduledSession[] {
-  const slots = slotDates(todayMs, raceMs, perWeek);
+  const slots = slotDates(todayMs, raceMs, days);
   const remaining = sessions.filter((s) => !done.has(s.order) && s.kind !== "race");
   const kept = remaining.slice(Math.max(0, remaining.length - slots.length));
   const first = slots.length - kept.length;

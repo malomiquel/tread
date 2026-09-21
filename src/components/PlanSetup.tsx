@@ -6,14 +6,22 @@ import { formatDuration, formatPace } from "@/lib/format";
 import { useTabBarSpace } from "@/lib/layout";
 import {
   buildPlan, clampWeeks, daysBetween, equivalentTimeS, GOALS, pacesFrom, projectedTimeS,
-  startOfDay, type Goal, type GoalSpec, type PerWeek,
+  SLOT_DAYS, startOfDay, type Goal, type GoalSpec, type PerWeek,
 } from "@/lib/plan";
 import { colors, font } from "@/lib/theme";
 
 const DAY_MS = 86_400_000;
 
-/** Displayed. Monday first, because that is where a training week starts. */
+/**
+ * Displayed. Monday first, because that is where a training week starts.
+ *
+ * The labels and the `Date.getDay` numbers are kept side by side rather than
+ * derived from each other: the week the calendar counts in starts on Sunday,
+ * the week a runner lives in starts on Monday, and writing the mapping out
+ * once is cheaper than converting between them at every use.
+ */
 const WEEKDAYS = ["L", "M", "M", "J", "V", "S", "D"];
+const WEEKDAY_NUMBERS = [1, 2, 3, 4, 5, 6, 0];
 const MONTHS = [
   "janvier", "février", "mars", "avril", "mai", "juin",
   "juillet", "août", "septembre", "octobre", "novembre", "décembre",
@@ -183,6 +191,8 @@ export interface PlanDraft {
   raceAt: number;
   weeks: number;
   perWeek: PerWeek;
+  /** Weekdays to train on, as `Date.getDay` numbers. */
+  days: number[];
   targetTimeS: number;
 }
 
@@ -202,6 +212,7 @@ export function PlanSetup({ onCreate }: { onCreate: (draft: PlanDraft) => void }
   const [goalId, setGoalId] = useState<Goal>("half");
   const [raceAt, setRaceAt] = useState<number | null>(null);
   const [perWeek, setPerWeek] = useState<PerWeek>(2);
+  const [days, setDays] = useState<number[]>(SLOT_DAYS[2]);
   /** Set only once the runner moves the figure; null leaves the suggestion. */
   const [override, setOverride] = useState<number | null>(null);
   const [month, setMonth] = useState(() => new Date());
@@ -257,7 +268,7 @@ export function PlanSetup({ onCreate }: { onCreate: (draft: PlanDraft) => void }
 
   const weeks = chosen === null ? null : clampWeeks(goal, daysBetween(today, chosen) / 7);
   const paces = pacesFrom(goal.distanceM, targetTimeS);
-  const ready = chosen !== null && weeks !== null && paces !== null;
+  const ready = chosen !== null && weeks !== null && paces !== null && days.length === perWeek;
   const sessions = ready ? buildPlan({ goal: goalId, weeks, perWeek, targetTimeS }).length : 0;
 
   // One frame, before the clock has been read.
@@ -317,10 +328,49 @@ export function PlanSetup({ onCreate }: { onCreate: (draft: PlanDraft) => void }
 
       <Text style={styles.section}>Séances par semaine</Text>
       <View style={styles.row}>
-        <Choice label="1" detail="la sortie longue" on={perWeek === 1} onPress={() => setPerWeek(1)} />
-        <Choice label="2" detail="le minimum qui prépare" on={perWeek === 2} onPress={() => setPerWeek(2)} />
-        <Choice label="3" detail="confortable" on={perWeek === 3} onPress={() => setPerWeek(3)} />
-        <Choice label="4" detail="si tu cours déjà beaucoup" on={perWeek === 4} onPress={() => setPerWeek(4)} />
+        {([
+          [1, "la sortie longue"],
+          [2, "le minimum qui prépare"],
+          [3, "confortable"],
+          [4, "si tu cours déjà beaucoup"],
+        ] as const).map(([count, detail]) => (
+          <Choice
+            key={count}
+            label={String(count)}
+            detail={detail}
+            on={perWeek === count}
+            // Changing the rhythm re-proposes days that match it, rather than
+            // leaving a count that no longer adds up for the runner to fix.
+            onPress={() => { setPerWeek(count); setDays(SLOT_DAYS[count]); }}
+          />
+        ))}
+      </View>
+
+      <Text style={styles.section}>Quels jours</Text>
+      <Text style={styles.hint}>
+        {days.length === perWeek
+          ? "Les séances tomberont sur ces jours, et les rattrapages entre eux."
+          : `Il en faut ${perWeek} — ${days.length} ${days.length > 1 ? "choisis" : "choisi"}.`}
+      </Text>
+      <View style={styles.daysRow}>
+        {WEEKDAY_NUMBERS.map((number, i) => {
+          const on = days.includes(number);
+          return (
+            <Pressable
+              key={number}
+              onPress={() =>
+                setDays((current) =>
+                  current.includes(number)
+                    ? current.filter((d) => d !== number)
+                    : [...current, number].sort((a, b) => a - b))}
+              accessibilityRole="button"
+              accessibilityState={{ selected: on }}
+              style={[styles.dayPick, on && styles.dayPickOn]}
+            >
+              <Text style={[styles.dayPickLabel, on && styles.dayPickLabelOn]}>{WEEKDAYS[i]}</Text>
+            </Pressable>
+          );
+        })}
       </View>
 
       <Text style={styles.section}>Temps visé</Text>
@@ -377,14 +427,18 @@ export function PlanSetup({ onCreate }: { onCreate: (draft: PlanDraft) => void }
       <Pressable
         onPress={() => {
           if (!ready) return;
-          onCreate({ goal: goalId, raceAt: chosen, weeks, perWeek, targetTimeS });
+          onCreate({ goal: goalId, raceAt: chosen, weeks, perWeek, days, targetTimeS });
         }}
         disabled={!ready}
         accessibilityRole="button"
         style={({ pressed }) => [styles.create, !ready && styles.createOff, pressed && styles.pressed]}
       >
         <Text style={[styles.createLabel, !ready && styles.createLabelOff]}>
-          {ready ? `Créer ${weeks} semaines · ${sessions} séances` : "Choisis une date"}
+          {ready
+            ? `Créer ${weeks} semaines · ${sessions} séances`
+            : chosen === null
+              ? "Choisis une date"
+              : `Choisis ${perWeek} jour${perWeek > 1 ? "s" : ""}`}
         </Text>
       </Pressable>
     </ScrollView>
@@ -434,6 +488,15 @@ const styles = StyleSheet.create({
   dayLabel: { color: colors.text, fontSize: 15, fontFamily: font.regular, fontVariant: ["tabular-nums"] },
   dayOut: { color: colors.subtle, opacity: 0.35 },
   dayPickedLabel: { color: colors.accentText, fontFamily: font.semibold },
+
+  daysRow: { flexDirection: "row", gap: 6 },
+  dayPick: {
+    flex: 1, aspectRatio: 1, alignItems: "center", justifyContent: "center", borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline,
+  },
+  dayPickOn: { backgroundColor: colors.accent, borderColor: colors.accent },
+  dayPickLabel: { color: colors.text, fontSize: 15, fontFamily: font.semibold },
+  dayPickLabelOn: { color: colors.accentText },
 
   stepper: { flexDirection: "row", alignItems: "center", gap: 12 },
   step: {

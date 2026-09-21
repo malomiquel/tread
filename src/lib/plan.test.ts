@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   buildPlan, clampWeeks, daysBetween, equivalentTimeS, GOALS, goalById, loadOfWeek, pacesFrom,
-  phaseOfWeek, planProgress, projectedTimeS, schedule, SLOT_DAYS, slotDates, startOfDay,
+  normaliseDays, phaseOfWeek, planProgress, projectedTimeS, schedule, SLOT_DAYS, slotDates,
+  startOfDay,
   type Done, type PlannedSession,
 } from "./plan.ts";
 
@@ -133,10 +134,34 @@ test("every volume has a day to run it on, and sunday is always one", () => {
   }
 });
 
+test("chosen days are honoured, and nonsense falls back to the suggestion", () => {
+  // Someone who works Sundays and trains Monday and Wednesday.
+  const mine = [1, 3];
+  const slots = slotDates(MONDAY, RACE, mine);
+  assert.ok(slots.every((day) => mine.includes(new Date(day).getDay())));
+  assert.ok(slots.length > 20);
+
+  assert.deepEqual(normaliseDays([5, 1], 2), [1, 5]);
+  // Wrong count, duplicates, and days that are not days.
+  assert.deepEqual(normaliseDays([1], 2), SLOT_DAYS[2]);
+  assert.deepEqual(normaliseDays([1, 1], 2), SLOT_DAYS[2]);
+  assert.deepEqual(normaliseDays([1, 9], 2), SLOT_DAYS[2]);
+  assert.deepEqual(normaliseDays(null, 3), SLOT_DAYS[3]);
+});
+
+test("a plan scheduled on its own days still ends on the race", () => {
+  const sessions = buildPlan({ goal: "half", weeks: 12, perWeek: 2, targetTimeS: 5400 });
+  const scheduled = schedule(sessions, new Map(), MONDAY, RACE, [1, 3]);
+  assert.equal(scheduled.at(-1)!.kind, "race");
+  assert.equal(scheduled.at(-1)!.at, startOfDay(RACE));
+  assert.ok(scheduled.filter((s) => s.kind !== "race")
+    .every((s) => [1, 3].includes(new Date(s.at).getDay())));
+});
+
 test("a plan at any volume still fits the calendar it was built for", () => {
   for (const perWeek of [1, 2, 3, 4] as const) {
     const sessions = buildPlan({ goal: "half", weeks: 12, perWeek, targetTimeS: 5400 });
-    const scheduled = schedule(sessions, new Map(), MONDAY, RACE, perWeek);
+    const scheduled = schedule(sessions, new Map(), MONDAY, RACE, SLOT_DAYS[perWeek]);
     assert.equal(scheduled.length, sessions.length, `${perWeek} a week lost sessions`);
     assert.equal(scheduled.at(-1)!.kind, "race");
   }
@@ -172,7 +197,7 @@ test("an impossible target yields no plan rather than a broken one", () => {
 });
 
 test("training days are the days the plan says, and never race day", () => {
-  const slots = slotDates(MONDAY, RACE, 3);
+  const slots = slotDates(MONDAY, RACE, SLOT_DAYS[3]);
   assert.ok(slots.every((day) => [2, 4, 0].includes(new Date(day).getDay())));
   assert.ok(slots.every((day) => day < startOfDay(RACE)));
   assert.equal(slots.length, 35);
@@ -184,7 +209,7 @@ const plan = (): PlannedSession[] =>
   buildPlan({ goal: "half", weeks: 12, perWeek: 3, targetTimeS: 5400 });
 
 test("a plan started on time fits its calendar exactly", () => {
-  const scheduled = schedule(plan(), new Map(), MONDAY, RACE, 3);
+  const scheduled = schedule(plan(), new Map(), MONDAY, RACE, SLOT_DAYS[3]);
   assert.equal(scheduled.length, 36, "sessions were dropped from a plan that fits");
   assert.equal(scheduled.at(-1)!.kind, "race");
   assert.equal(scheduled.at(-1)!.at, startOfDay(RACE));
@@ -193,7 +218,7 @@ test("a plan started on time fits its calendar exactly", () => {
 test("what is left slides towards the race instead of piling up behind", () => {
   // Two weeks gone by, nothing done.
   const late = new Date(2026, 0, 19).getTime();
-  const scheduled = schedule(plan(), new Map(), late, RACE, 3);
+  const scheduled = schedule(plan(), new Map(), late, RACE, SLOT_DAYS[3]);
 
   assert.ok(scheduled.every((s) => s.at >= startOfDay(late)), "a session was left in the past");
   // The six sessions there is no longer room for went from the front.
@@ -207,7 +232,7 @@ test("what is left slides towards the race instead of piling up behind", () => {
 
 test("skipping the foundation is what costs you, never the taper", () => {
   const veryLate = new Date(2026, 2, 2).getTime();
-  const scheduled = schedule(plan(), new Map(), veryLate, RACE, 3);
+  const scheduled = schedule(plan(), new Map(), veryLate, RACE, SLOT_DAYS[3]);
   const weeks = scheduled.map((s) => s.week);
   assert.ok(Math.min(...weeks) > 6, `kept week ${Math.min(...weeks)}`);
   assert.equal(scheduled.at(-1)!.kind, "race");
@@ -216,7 +241,7 @@ test("skipping the foundation is what costs you, never the taper", () => {
 test("a finished session keeps the day it was actually run", () => {
   const ranAt = new Date(2026, 0, 6, 18, 30).getTime();
   const done = new Map<number, Done>([[1, { runId: 42, at: ranAt }]]);
-  const scheduled = schedule(plan(), done, MONDAY, RACE, 3);
+  const scheduled = schedule(plan(), done, MONDAY, RACE, SLOT_DAYS[3]);
 
   const first = scheduled.find((s) => s.order === 1)!;
   assert.equal(first.runId, 42);

@@ -2,7 +2,7 @@ import { openDatabaseSync, type SQLiteDatabase } from "expo-sqlite";
 import { Platform } from "react-native";
 import { autoName } from "./format";
 import { elevationGainM, fastestKmS, paceSecPerKm, segments, totalDistanceM, type TrackPoint } from "./geo";
-import type { Done, Goal, PerWeek, PlannedSession } from "./plan";
+import { normaliseDays, type Done, type Goal, type PerWeek, type PlannedSession } from "./plan";
 import type { RanBlock } from "./workout";
 
 /**
@@ -105,7 +105,7 @@ function parseBlocks(raw: string | null): RanBlock[] {
   }
 }
 
-const SCHEMA_VERSION = 8;
+const SCHEMA_VERSION = 9;
 
 /**
  * The plan's two tables, written once and used twice — by a fresh install and
@@ -127,7 +127,8 @@ const PLAN_TABLES = `
     per_week INTEGER NOT NULL,
     target_time_s REAL NOT NULL,
     created_at INTEGER NOT NULL,
-    sessions TEXT NOT NULL
+    sessions TEXT NOT NULL,
+    days TEXT
   );
   CREATE TABLE IF NOT EXISTS plan_done (
     plan_id INTEGER NOT NULL REFERENCES plans(id) ON DELETE CASCADE,
@@ -240,6 +241,13 @@ export async function initDb(): Promise<void> {
   if (version < 8) {
     await db.execAsync(PLAN_TABLES);
     version = 8;
+  }
+
+  if (version < 9) {
+    // The tables are created above with the column already present, so this
+    // only has anything to do on a device that ran version 8.
+    await db.execAsync("ALTER TABLE plans ADD COLUMN days TEXT").catch(() => undefined);
+    version = 9;
   }
 
   await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
@@ -465,6 +473,8 @@ export interface StoredPlan {
   perWeek: PerWeek;
   targetTimeS: number;
   createdAt: number;
+  /** Weekdays the runner picked, as `Date.getDay` numbers. */
+  days: number[];
   sessions: PlannedSession[];
 }
 
@@ -477,6 +487,18 @@ interface PlanRow {
   target_time_s: number;
   created_at: number;
   sessions: string;
+  days: string | null;
+}
+
+/** Stored json that may predate the column, or have been written by hand. */
+function safeDays(raw: string | null): number[] {
+  if (!raw) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((d): d is number => typeof d === "number") : [];
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -490,16 +512,19 @@ export async function activePlan(): Promise<StoredPlan | null> {
     "SELECT * FROM plans ORDER BY created_at DESC LIMIT 1",
   );
   if (!row) return null;
+  // Narrowed once, because both the days and their count depend on it.
+  const perWeek = ([1, 2, 3, 4] as const).find((n) => n === row.per_week) ?? 3;
   return {
     id: row.id,
     goal: row.goal as Goal,
     raceAt: row.race_at,
     weeks: row.weeks,
-    // Narrowed on the way out rather than trusted: the column is an integer
-    // and a plan written by an older build could hold anything.
-    perWeek: ([1, 2, 3, 4] as const).find((n) => n === row.per_week) ?? 3,
+    perWeek,
     targetTimeS: row.target_time_s,
     createdAt: row.created_at,
+    // Checked on the way out rather than trusted: a plan written before the
+    // days were choosable has none, and falls back to the suggestion.
+    days: normaliseDays(safeDays(row.days), perWeek),
     sessions: JSON.parse(row.sessions) as PlannedSession[],
   };
 }
@@ -510,6 +535,7 @@ export interface NewPlan {
   weeks: number;
   perWeek: PerWeek;
   targetTimeS: number;
+  days: number[];
   sessions: PlannedSession[];
 }
 
@@ -520,9 +546,9 @@ export async function createPlan(plan: NewPlan): Promise<number> {
   // intention, not the training that was actually done.
   await db.runAsync("DELETE FROM plans");
   const result = await db.runAsync(
-    "INSERT INTO plans (goal, race_at, weeks, per_week, target_time_s, created_at, sessions) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO plans (goal, race_at, weeks, per_week, target_time_s, created_at, sessions, days) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
     plan.goal, plan.raceAt, plan.weeks, plan.perWeek, plan.targetTimeS,
-    Date.now(), JSON.stringify(plan.sessions),
+    Date.now(), JSON.stringify(plan.sessions), JSON.stringify(plan.days),
   );
   return Number(result.lastInsertRowId);
 }
