@@ -10,6 +10,7 @@ import { Button } from "@/components/Button";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Metric } from "@/components/Metric";
 import { RunMap } from "@/components/RunMap";
+import { ShareRunSheet } from "@/components/ShareRunSheet";
 import { deleteRun, readRun, renameRun, type Run } from "@/lib/db";
 import { formatDate, formatDistance, formatDuration, formatElevation, formatPace } from "@/lib/format";
 import { splits, type TrackPoint } from "@/lib/geo";
@@ -31,6 +32,7 @@ export default function RunDetailScreen() {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [hasHealth] = useState(healthAvailable);
+  const [sharingImage, setSharingImage] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -137,20 +139,36 @@ export default function RunDetailScreen() {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <View style={styles.heading}>
+        <View style={styles.headingText}>
+          <Pressable
+            onPress={() => {
+              setDraftName(run.name ?? "");
+              setRenaming(true);
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Renommer la course"
+            hitSlop={8}
+            style={styles.nameRow}
+          >
+            <Text style={styles.name} numberOfLines={1}>{run.name ?? "Sans nom"}</Text>
+            <Ionicons name="pencil" size={15} color={colors.subtle} />
+          </Pressable>
+          <Text style={styles.date}>{formatDate(run.startedAt)}</Text>
+        </View>
         <Pressable
-          onPress={() => {
-            setDraftName(run.name ?? "");
-            setRenaming(true);
-          }}
+          onPress={() => setSharingImage(true)}
+          disabled={points.length === 0}
           accessibilityRole="button"
-          accessibilityLabel="Renommer la course"
-          hitSlop={8}
-          style={styles.nameRow}
+          accessibilityLabel="Partager la course en image"
+          hitSlop={10}
+          style={({ pressed }) => [
+            styles.share,
+            points.length === 0 && styles.shareOff,
+            pressed && styles.sharePressed,
+          ]}
         >
-          <Text style={styles.name}>{run.name ?? "Sans nom"}</Text>
-          <Ionicons name="pencil" size={15} color={colors.subtle} />
+          <Ionicons name="share-outline" size={19} color={colors.text} />
         </Pressable>
-        <Text style={styles.date}>{formatDate(run.startedAt)}</Text>
       </View>
 
       <View style={styles.section}>
@@ -226,7 +244,7 @@ export default function RunDetailScreen() {
       </View>
 
       {hasHealth && !run.healthUuid && (
-        <View style={styles.healthAction}>
+        <View style={styles.wideAction}>
           <Button
             label={syncing ? "Envoi…" : "Ajouter à Apple Santé"}
             variant="secondary"
@@ -245,6 +263,13 @@ export default function RunDetailScreen() {
         />
         <Button label="Supprimer" variant="danger" onPress={() => setConfirmingDelete(true)} />
       </View>
+
+      <ShareRunSheet
+        visible={sharingImage}
+        run={run}
+        points={points}
+        onClose={() => setSharingImage(false)}
+      />
 
       <ConfirmDialog
         visible={confirmingDelete}
@@ -291,8 +316,21 @@ const styles = StyleSheet.create({
     flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background,
   },
 
-  heading: { paddingHorizontal: GUTTER, paddingTop: 6, paddingBottom: 16, gap: 3 },
+  heading: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12,
+    paddingHorizontal: GUTTER, paddingTop: 6, paddingBottom: 16,
+  },
+  headingText: { flex: 1, gap: 3 },
   nameRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  // Same ring as the history's export button, so the two read as the same
+  // kind of control rather than as two unrelated icons.
+  share: {
+    width: 40, height: 40, borderRadius: 20, flexShrink: 0,
+    alignItems: "center", justifyContent: "center",
+    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline,
+  },
+  shareOff: { opacity: 0.35 },
+  sharePressed: { backgroundColor: colors.sunken },
   name: { color: colors.text, fontSize: 24, fontWeight: "700", letterSpacing: -0.6 },
   date: { color: colors.subtle, fontSize: 12.5 },
 
@@ -325,7 +363,7 @@ const styles = StyleSheet.create({
   muted: { color: colors.subtle, fontSize: 11.5, textAlign: "center" },
   synced: { flexDirection: "row", alignItems: "center", gap: 5 },
   syncedText: { color: colors.accent, fontSize: 11.5, fontWeight: "500" },
-  healthAction: { paddingHorizontal: GUTTER, paddingBottom: 10 },
+  wideAction: { paddingHorizontal: GUTTER, paddingBottom: 10 },
   actions: { flexDirection: "row", gap: 10, paddingHorizontal: GUTTER },
 
   backdrop: {

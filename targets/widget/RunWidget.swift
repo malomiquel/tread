@@ -83,10 +83,15 @@ private struct LockScreenView: View {
             .foregroundStyle(.tertiary)
         }
 
-        Spacer(minLength: 12)
-        Metric(value: state.distance, unit: "km", label: "DISTANCE", accent: accent)
-        Spacer(minLength: 12)
-        Metric(value: state.pace, unit: "/km", label: "ALLURE", accent: accent)
+        // One flexible gap, not two: distance and pace are a pair and keep a
+        // fixed distance from each other, while all the slack goes between
+        // them and the clock. Two spacers shared the slack evenly, which left
+        // the pace crowding the distance's unit.
+        Spacer(minLength: 16)
+        HStack(alignment: .firstTextBaseline, spacing: 26) {
+          Metric(value: state.distance, unit: "km", label: "DISTANCE", accent: accent)
+          Metric(value: state.pace, unit: "/km", label: "ALLURE", accent: accent)
+        }
       }
     }
     .padding(.horizontal, 18)
