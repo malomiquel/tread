@@ -30,7 +30,20 @@ function getDb(): SQLiteDatabase {
   // The file keeps its original name even though the app is now called Tread:
   // renaming it would hide runs already recorded on a device, for a purely
   // cosmetic gain nobody ever sees.
-  if (!instance) instance = openDatabaseSync("running.db");
+  if (!instance) {
+    instance = openDatabaseSync("running.db");
+    // SQLite ignores foreign keys unless asked, per connection. Every
+    // `ON DELETE CASCADE` in the schema was therefore decoration: deleting a
+    // plan left its ticked-off sessions behind, and since `id` is an alias
+    // for `rowid`, the next plan created into an empty table took the same
+    // number and inherited them.
+    try {
+      instance.execSync("PRAGMA foreign_keys = ON");
+    } catch {
+      // An older runtime without the sync API still works: every delete that
+      // matters is spelled out below rather than left to the cascade.
+    }
+  }
   return instance;
 }
 
@@ -116,7 +129,7 @@ function parseBlocks(raw: string | null): RanBlock[] {
   }
 }
 
-const SCHEMA_VERSION = 10;
+const SCHEMA_VERSION = 11;
 
 /**
  * The plan's two tables, written once and used twice — by a fresh install and
@@ -265,6 +278,18 @@ export async function initDb(): Promise<void> {
   if (version < 10) {
     await db.execAsync("ALTER TABLE runs ADD COLUMN exertion INTEGER");
     version = 10;
+  }
+
+  if (version < 11) {
+    // Ticks left over from before the cascade was enforced: sessions marked
+    // done against a run that no longer exists, or against a plan that was
+    // replaced. They are why a freshly created programme could open already
+    // half complete.
+    await db.execAsync(`
+      DELETE FROM plan_done WHERE plan_id NOT IN (SELECT id FROM plans);
+      DELETE FROM plan_done WHERE run_id IS NOT NULL AND run_id NOT IN (SELECT id FROM runs);
+    `);
+    version = 11;
   }
 
   await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
@@ -578,7 +603,11 @@ export interface NewPlan {
 export async function createPlan(plan: NewPlan): Promise<number> {
   const db = getDb();
   // The runs themselves are never touched: what a plan replaces is the
-  // intention, not the training that was actually done.
+  // intention, not the training that was actually done. Its ticks are another
+  // matter, and they are deleted by hand rather than trusted to the cascade —
+  // a pragma is per connection, and this is not a thing to be wrong about
+  // twice.
+  await db.runAsync("DELETE FROM plan_done");
   await db.runAsync("DELETE FROM plans");
   const result = await db.runAsync(
     "INSERT INTO plans (goal, race_at, weeks, per_week, target_time_s, created_at, sessions, days) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
@@ -589,7 +618,9 @@ export async function createPlan(plan: NewPlan): Promise<number> {
 }
 
 export async function deletePlan(): Promise<void> {
-  await getDb().runAsync("DELETE FROM plans");
+  const db = getDb();
+  await db.runAsync("DELETE FROM plan_done");
+  await db.runAsync("DELETE FROM plans");
 }
 
 /** Which sessions of a plan are behind you, by their order in it. */
