@@ -2,13 +2,18 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Button } from "@/components/Button";
 import { listRuns, type Run } from "@/lib/db";
+import { createDemoRun } from "@/lib/demo";
 import { formatDate, formatDistance, formatDuration, formatPace } from "@/lib/format";
 import { colors, shadows } from "@/lib/theme";
 
 export default function HistoryScreen() {
   const [runs, setRuns] = useState<Run[] | null>(null);
+  const [seeding, setSeeding] = useState(false);
   const router = useRouter();
+
+  const reload = useCallback(() => listRuns().then(setRuns).catch(() => setRuns([])), []);
 
   // Reload whenever the tab regains focus: a run may have just finished.
   useFocusEffect(
@@ -26,6 +31,19 @@ export default function HistoryScreen() {
       };
     }, []),
   );
+
+  // Only offered while the history is empty: it exists to show what a run
+  // looks like before you have run one, not to clutter a real history.
+  async function addDemo() {
+    if (seeding) return;
+    setSeeding(true);
+    try {
+      await createDemoRun();
+      await reload();
+    } finally {
+      setSeeding(false);
+    }
+  }
 
   const totalM = (runs ?? []).reduce((total, run) => total + run.distanceM, 0);
 
@@ -46,9 +64,20 @@ export default function HistoryScreen() {
         contentContainerStyle={styles.list}
         ListEmptyComponent={
           runs === null ? null : (
-            <Text style={styles.empty}>
-              Aucune course pour l&apos;instant. La première t&apos;attend dans l&apos;onglet Courir.
-            </Text>
+            <View style={styles.emptyBlock}>
+              <Text style={styles.empty}>
+                Aucune course pour l&apos;instant. La première t&apos;attend dans l&apos;onglet Courir.
+              </Text>
+              <Button
+                label={seeding ? "Création…" : "Ajouter une course de démonstration"}
+                variant="secondary"
+                onPress={() => void addDemo()}
+                disabled={seeding}
+              />
+              <Text style={styles.emptyHint}>
+                Une sortie fictive de 5 km, pour voir le rendu. Supprimable depuis son détail.
+              </Text>
+            </View>
           )
         }
         renderItem={({ item }) => (
@@ -80,10 +109,9 @@ const styles = StyleSheet.create({
   title: { color: colors.text, fontSize: 20, fontWeight: "800", letterSpacing: -0.5 },
   subtitle: { color: colors.subtle, fontSize: 11.5, marginTop: 2 },
   list: { paddingHorizontal: 20, paddingBottom: 24, gap: 12 },
-  empty: {
-    color: colors.muted, fontSize: 13, textAlign: "center",
-    marginTop: 60, lineHeight: 20, paddingHorizontal: 20,
-  },
+  emptyBlock: { marginTop: 60, paddingHorizontal: 20, gap: 16, alignItems: "center" },
+  empty: { color: colors.muted, fontSize: 13, textAlign: "center", lineHeight: 20 },
+  emptyHint: { color: colors.subtle, fontSize: 11, textAlign: "center", lineHeight: 16 },
   row: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     backgroundColor: colors.surface, borderRadius: 16, padding: 16, ...shadows.card,
