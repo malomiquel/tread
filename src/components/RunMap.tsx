@@ -6,7 +6,7 @@ import {
 } from "react-native";
 import MapView, { Polyline } from "react-native-maps";
 import { bounds, regionAround, segments, type TrackPoint } from "@/lib/geo";
-import { CONTROLS_TOP } from "@/lib/layout";
+import { CONTROL_SIZE, CONTROLS_TOP } from "@/lib/layout";
 import { getCurrentCoords, type Coords } from "@/lib/location";
 import { colors, floatingShadow, literalColors } from "@/lib/theme";
 
@@ -175,9 +175,9 @@ const styles = StyleSheet.create({
   controls: { position: "absolute", right: 12, gap: 10 },
   controlsTop: { top: CONTROLS_TOP },
   control: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: CONTROL_SIZE,
+    height: CONTROL_SIZE,
+    borderRadius: CONTROL_SIZE / 2,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.background,

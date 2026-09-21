@@ -3,6 +3,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 /** How far the map's own controls sit from the top, and anything aligned with them. */
 export const CONTROLS_TOP = 60;
 
+/**
+ * Side of the round buttons laid over a map. Shared because screens that
+ * stack their own controls above them have to know how tall they are.
+ */
+export const CONTROL_SIZE = 42;
+
 /** Height of the floating tab bar itself. */
 export const TAB_BAR_HEIGHT = 62;
 

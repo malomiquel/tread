@@ -10,7 +10,7 @@ import { RunMap } from "@/components/RunMap";
 import { listRuns, type Run } from "@/lib/db";
 import { formatDistance, formatDuration, formatElevation, formatPace } from "@/lib/format";
 import { currentPace, elevationGainM, MAX_ACCURACY_M, paceSecPerKm, totalDistanceM } from "@/lib/geo";
-import { CONTROLS_TOP, useTabBarSpace } from "@/lib/layout";
+import { CONTROL_SIZE, useTabBarSpace } from "@/lib/layout";
 import { useInitialLocation } from "@/lib/location";
 import { toggleSetting, useSettings } from "@/lib/settings";
 import { weekTotals } from "@/lib/stats";
@@ -77,8 +77,16 @@ export default function RecordScreen() {
   const [finishing, setFinishing] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [history, setHistory] = useState<Run[]>([]);
+  // Measured rather than assumed: the panel grows when a run starts, and the
+  // controls stacked above it have to move with it instead of being buried.
+  const [panelHeight, setPanelHeight] = useState(0);
 
   const recording = tracker.status !== "idle";
+
+  // The right-hand column, read from the bottom up: the panel, then the map's
+  // locate button, then the two settings.
+  const locateBottom = tabBarSpace + panelHeight + 12;
+  const togglesBottom = locateBottom + CONTROL_SIZE + 10;
 
   useEffect(() => {
     if (!recording) return;
@@ -146,14 +154,15 @@ export default function RecordScreen() {
         points={tracker.points}
         follow
         initialCenter={coords}
-        controlsAtTop
+        controlsBottom={locateBottom}
         style={styles.map}
       />
       {recording && <KeepAwake />}
 
-      {/* Settings face the map's own controls across the top, so the two
-          clusters read as a pair rather than as stray buttons. */}
-      <View pointerEvents="box-none" style={styles.topLeft}>
+      {/* Each setting in its own pill rather than two halves of one: they
+          switch different things, and joining them made a single control with
+          two states out of what is really two controls. */}
+      <View pointerEvents="box-none" style={[styles.toggles, { bottom: togglesBottom }]}>
         <GlassPanel style={styles.togglePill}>
           <Toggle
             on={settings.voice}
@@ -162,6 +171,8 @@ export default function RecordScreen() {
             name="VOIX"
             label="Annonce vocale des kilomètres"
           />
+        </GlassPanel>
+        <GlassPanel style={styles.togglePill}>
           <Toggle
             on={settings.autoPause}
             onPress={() => void toggleSetting("autoPause")}
@@ -174,7 +185,11 @@ export default function RecordScreen() {
 
       {/* Sits above the tab bar rather than replacing it: the tab bar is how
           you leave this screen, so it has to stay reachable. */}
-      <View pointerEvents="box-none" style={[styles.bottom, { bottom: tabBarSpace }]}>
+      <View
+        pointerEvents="box-none"
+        onLayout={(event) => setPanelHeight(event.nativeEvent.layout.height)}
+        style={[styles.bottom, { bottom: tabBarSpace }]}
+      >
         <GlassPanel style={styles.panel} interactive>
           <Text style={[styles.state, weakSignal && styles.stateWeak]} numberOfLines={1}>
             {state} · {recording ? signal : idleSignal}
@@ -291,7 +306,9 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   map: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, borderRadius: 0 },
 
-  topLeft: { position: "absolute", top: CONTROLS_TOP, left: 12 },
+  // Right-aligned so the pills, the locate button and the panel's edge all
+  // land on one line down the side of the screen.
+  toggles: { position: "absolute", right: 12, flexDirection: "row", gap: 8 },
   togglePill: { flexDirection: "row", gap: 2, borderRadius: 16, padding: 3 },
   // Height fixed rather than left to its contents: the pill has to come out
   // at the same 42 points as the map's own buttons across the way, or the two
