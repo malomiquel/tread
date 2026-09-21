@@ -15,7 +15,7 @@ from PIL import Image, ImageDraw
 
 ASSETS = Path(__file__).resolve().parent.parent / "assets" / "images"
 
-GREEN = (22, 163, 74)
+GREEN = (15, 122, 61)
 WHITE = (255, 255, 255)
 
 SIZE = 1024

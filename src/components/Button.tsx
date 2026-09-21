@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, Text, type StyleProp, type ViewStyle } from "react-native";
-import { colors, shadows } from "@/lib/theme";
+import { colors } from "@/lib/theme";
 
 type Variant = "primary" | "secondary" | "danger";
 
@@ -11,6 +11,10 @@ interface Props {
   style?: StyleProp<ViewStyle>;
 }
 
+/**
+ * Flat, near square corners, no shadow. A small radius reads as a control; a
+ * large one reads as a sticker.
+ */
 export function Button({ label, onPress, variant = "primary", disabled, style }: Props) {
   return (
     <Pressable
@@ -42,19 +46,18 @@ export function Button({ label, onPress, variant = "primary", disabled, style }:
 const styles = StyleSheet.create({
   base: {
     flex: 1,
-    minHeight: 52,
-    borderRadius: 16,
+    minHeight: 50,
+    borderRadius: 6,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 18,
   },
-  primary: { backgroundColor: colors.accent, ...shadows.button, shadowColor: colors.accent },
-  secondary: { backgroundColor: colors.surface, ...shadows.card },
-  danger: { backgroundColor: colors.dangerSoft },
-  // 0.96: anything smaller and the button feels like it ducks away from the thumb.
-  pressed: { transform: [{ scale: 0.96 }], opacity: 0.92 },
-  disabled: { opacity: 0.4 },
-  label: { color: colors.text, fontSize: 15, fontWeight: "600" },
+  primary: { backgroundColor: colors.accent },
+  secondary: { backgroundColor: colors.background, borderWidth: 1, borderColor: colors.hairline },
+  danger: { backgroundColor: colors.background, borderWidth: 1, borderColor: colors.dangerSoft },
+  pressed: { opacity: 0.6 },
+  disabled: { opacity: 0.35 },
+  label: { color: colors.text, fontSize: 14, fontWeight: "600", letterSpacing: 0.3 },
   labelPrimary: { color: colors.accentText, fontWeight: "700" },
   labelDanger: { color: colors.danger },
 });

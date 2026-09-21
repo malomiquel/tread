@@ -36,7 +36,7 @@ export default function TabsLayout() {
         headerShown: false,
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.subtle,
-        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
+        tabBarStyle: { backgroundColor: colors.background, borderTopColor: colors.hairline },
         sceneStyle: { backgroundColor: colors.background },
       }}
     >
@@ -78,7 +78,7 @@ const styles = StyleSheet.create({
     // A ring in the bar's own colour keeps the dot legible wherever it lands
     // on the icon beneath it.
     borderWidth: 1.5,
-    borderColor: colors.surface,
+    borderColor: colors.background,
   },
   badgePaused: { backgroundColor: colors.warning },
 });

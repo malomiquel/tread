@@ -13,7 +13,7 @@ import { deleteRun, readRun, renameRun, type Run } from "@/lib/db";
 import { formatDate, formatDistance, formatDuration, formatElevation, formatPace } from "@/lib/format";
 import { splits, type TrackPoint } from "@/lib/geo";
 import { gpxFileName, toGpx } from "@/lib/gpx";
-import { colors, shadows } from "@/lib/theme";
+import { colors, floatingShadow } from "@/lib/theme";
 
 type Loaded = { run: Run; points: TrackPoint[] };
 
@@ -128,7 +128,7 @@ export default function RunDetailScreen() {
         <Text style={styles.date}>{formatDate(run.startedAt)}</Text>
       </View>
 
-      <View style={styles.metrics}>
+      <View style={styles.section}>
         <Metric label="Distance" value={formatDistance(run.distanceM)} unit="km" large />
         <View style={styles.row}>
           <Metric label="Durée" value={formatDuration(run.durationS)} />
@@ -228,48 +228,60 @@ export default function RunDetailScreen() {
   );
 }
 
+const GUTTER = 20;
+
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  content: { padding: 20, gap: 18, paddingBottom: 40 },
-  centered: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background },
-  heading: { gap: 2 },
+  content: { paddingBottom: 40 },
+  centered: {
+    flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background,
+  },
+
+  heading: { paddingHorizontal: GUTTER, paddingTop: 6, paddingBottom: 16, gap: 3 },
   nameRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  name: { color: colors.text, fontSize: 20, fontWeight: "800", letterSpacing: -0.5 },
-  date: { color: colors.muted, fontSize: 13 },
-  metrics: { gap: 16, backgroundColor: colors.surface, borderRadius: 20, padding: 20, ...shadows.card },
-  row: { flexDirection: "row", gap: 12 },
-  map: { height: 280 },
-  fullMap: { flex: 1, backgroundColor: colors.background },
-  fullMapInner: { flex: 1, borderRadius: 0 },
-  section: { gap: 12, backgroundColor: colors.surface, borderRadius: 20, padding: 18, ...shadows.card },
+  name: { color: colors.text, fontSize: 24, fontWeight: "700", letterSpacing: -0.6 },
+  date: { color: colors.subtle, fontSize: 12.5 },
+
+  section: {
+    paddingHorizontal: GUTTER, paddingVertical: 18, gap: 14,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline,
+  },
   sectionTitle: {
     color: colors.subtle, fontSize: 10, fontWeight: "600",
-    letterSpacing: 1, textTransform: "uppercase",
+    letterSpacing: 1.4, textTransform: "uppercase",
   },
+  row: { flexDirection: "row", gap: 16 },
+
+  map: { height: 300, borderRadius: 0, marginTop: 4 },
+  fullMap: { flex: 1, backgroundColor: colors.background },
+  fullMapInner: { flex: 1, borderRadius: 0 },
+
   split: { flexDirection: "row", alignItems: "center", gap: 12 },
-  splitKm: { color: colors.muted, width: 58, fontSize: 12, fontVariant: ["tabular-nums"] },
-  barTrack: { flex: 1, height: 8, borderRadius: 4, backgroundColor: colors.border, overflow: "hidden" },
-  bar: { height: "100%", borderRadius: 4, backgroundColor: "rgba(22, 163, 74, 0.35)" },
+  splitKm: { color: colors.muted, width: 56, fontSize: 12, fontVariant: ["tabular-nums"] },
+  barTrack: { flex: 1, height: 6, backgroundColor: colors.sunken, overflow: "hidden" },
+  bar: { height: "100%", backgroundColor: colors.accentSoft },
   barBest: { backgroundColor: colors.accent },
   splitPace: {
     color: colors.text, width: 52, textAlign: "right",
     fontSize: 13, fontWeight: "600", fontVariant: ["tabular-nums"],
   },
   best: { color: colors.accent },
-  muted: { color: colors.subtle, fontSize: 11, textAlign: "center" },
-  actions: { flexDirection: "row", gap: 12 },
+
+  muted: { color: colors.subtle, fontSize: 11.5, textAlign: "center", paddingVertical: 16 },
+  actions: { flexDirection: "row", gap: 10, paddingHorizontal: GUTTER },
+
   backdrop: {
-    flex: 1, backgroundColor: "rgba(15, 23, 42, 0.45)",
+    flex: 1, backgroundColor: "rgba(16, 16, 16, 0.4)",
     alignItems: "center", justifyContent: "center", padding: 28,
   },
   dialog: {
-    width: "100%", backgroundColor: colors.surface, borderRadius: 24, padding: 20, gap: 14,
-    ...shadows.card,
+    width: "100%", backgroundColor: colors.background, borderRadius: 10, padding: 20, gap: 14,
+    ...floatingShadow,
   },
   dialogTitle: { color: colors.text, fontSize: 16, fontWeight: "700" },
   input: {
-    backgroundColor: colors.background, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12,
-    fontSize: 15, color: colors.text, borderWidth: 1, borderColor: colors.border,
+    backgroundColor: colors.background, borderRadius: 6, paddingHorizontal: 13, paddingVertical: 11,
+    fontSize: 15, color: colors.text, borderWidth: 1, borderColor: colors.hairline,
   },
   dialogActions: { flexDirection: "row", gap: 10 },
 });

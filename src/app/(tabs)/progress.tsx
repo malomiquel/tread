@@ -5,7 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { listRuns, personalRecords, type PersonalRecords, type Run } from "@/lib/db";
 import { formatDistance, formatDuration, formatElevation, formatPace } from "@/lib/format";
 import { weekStart } from "@/lib/stats";
-import { colors, shadows } from "@/lib/theme";
+import { colors } from "@/lib/theme";
 
 const WEEKS_SHOWN = 6;
 const DAY_MS = 86_400_000;
@@ -163,36 +163,54 @@ export default function ProgressScreen() {
   );
 }
 
+const GUTTER = 20;
+
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  content: { padding: 20, gap: 14, paddingBottom: 32 },
-  title: { color: colors.text, fontSize: 20, fontWeight: "800", letterSpacing: -0.5 },
-  empty: { color: colors.muted, fontSize: 13, textAlign: "center", marginTop: 60, lineHeight: 20 },
-  card: { backgroundColor: colors.surface, borderRadius: 20, padding: 18, gap: 10, ...shadows.card },
+  content: { paddingBottom: 32 },
+  title: {
+    color: colors.text, fontSize: 24, fontWeight: "700",
+    letterSpacing: -0.6, paddingHorizontal: GUTTER, paddingTop: 10, paddingBottom: 14,
+  },
+  empty: {
+    color: colors.muted, fontSize: 13.5, textAlign: "center",
+    marginTop: 56, lineHeight: 21, paddingHorizontal: GUTTER,
+  },
+
+  // Sections run edge to edge, told apart by a rule rather than by floating on
+  // their own surface.
+  card: {
+    paddingHorizontal: GUTTER, paddingVertical: 18, gap: 10,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline,
+  },
   cardTitle: {
     color: colors.subtle, fontSize: 10, fontWeight: "600",
-    letterSpacing: 1, textTransform: "uppercase",
+    letterSpacing: 1.4, textTransform: "uppercase",
   },
   heroRow: { flexDirection: "row", alignItems: "baseline", gap: 5 },
   hero: {
-    color: colors.text, fontSize: 40, fontWeight: "800",
-    letterSpacing: -1.8, fontVariant: ["tabular-nums"],
+    color: colors.text, fontSize: 56, fontWeight: "700",
+    letterSpacing: -2.6, fontVariant: ["tabular-nums"],
   },
-  heroUnit: { color: colors.muted, fontSize: 15, fontWeight: "600" },
-  heroSub: { color: colors.muted, fontSize: 12, marginTop: -6, fontVariant: ["tabular-nums"] },
-  chart: { flexDirection: "row", alignItems: "flex-end", gap: 8, height: 90, marginTop: 6 },
+  heroUnit: { color: colors.subtle, fontSize: 15, fontWeight: "600" },
+  heroSub: { color: colors.muted, fontSize: 12.5, marginTop: -4, fontVariant: ["tabular-nums"] },
+
+  chart: { flexDirection: "row", alignItems: "flex-end", gap: 8, height: 84, marginTop: 8 },
   column: { flex: 1, alignItems: "center", gap: 6 },
   barArea: { flex: 1, width: "100%", justifyContent: "flex-end" },
-  bar: { width: "100%", borderRadius: 6, backgroundColor: colors.accentSoft },
+  bar: { width: "100%", borderRadius: 2, backgroundColor: colors.accentSoft },
   barCurrent: { backgroundColor: colors.accent },
   weekLabel: { color: colors.subtle, fontSize: 10, fontVariant: ["tabular-nums"] },
-  caption: { color: colors.subtle, fontSize: 10.5 },
+  caption: { color: colors.subtle, fontSize: 11 },
+
   record: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border,
+    paddingVertical: 9,
   },
   recordLeft: { flex: 1, gap: 1 },
-  recordLabel: { color: colors.text, fontSize: 13, fontWeight: "500" },
-  recordDetail: { color: colors.subtle, fontSize: 11 },
-  recordValue: { color: colors.accent, fontSize: 15, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  recordLabel: { color: colors.text, fontSize: 13.5 },
+  recordDetail: { color: colors.subtle, fontSize: 11.5 },
+  recordValue: {
+    color: colors.text, fontSize: 15.5, fontWeight: "600", fontVariant: ["tabular-nums"],
+  },
 });

@@ -1,42 +1,39 @@
 /**
- * Light theme. The canvas is not pure white but a very light grey, so the
- * white cards laid on top separate themselves without needing borders. A
- * single accent carries all of the data.
+ * Flat, print-like. White page, hairline rules, almost no radius and almost no
+ * shadow.
+ *
+ * The previous direction, white rounded cards floating on a grey canvas with a
+ * soft shadow on everything, is the default look of every starter template. It
+ * reads as unfinished rather than designed. Separation here comes from rules
+ * and from typographic weight, the way a well set page does it, not from
+ * stacking surfaces.
  */
 export const colors = {
-  background: "#f4f5f7",
-  surface: "#ffffff",
-  border: "rgba(15, 23, 42, 0.07)",
-  text: "#0f172a",
-  muted: "rgba(15, 23, 42, 0.58)",
-  subtle: "rgba(15, 23, 42, 0.40)",
-  accent: "#16a34a",
+  background: "#ffffff",
+  /** For the rare recessed block. Never a page canvas. */
+  sunken: "#f4f4f4",
+  hairline: "#e6e6e6",
+  text: "#101010",
+  muted: "#6e6e6e",
+  subtle: "#9c9c9c",
+  accent: "#0f7a3d",
   accentText: "#ffffff",
-  accentSoft: "rgba(22, 163, 74, 0.12)",
-  warning: "#b45309",
-  danger: "#dc2626",
-  dangerSoft: "rgba(220, 38, 38, 0.08)",
-  track: "#16a34a",
+  accentSoft: "#eaf3ed",
+  warning: "#9a5b06",
+  danger: "#b3261e",
+  dangerSoft: "#fbecea",
+  track: "#0f7a3d",
 } as const;
 
 /**
- * Shadows rather than borders: a shadow adapts to whatever it falls on, a
- * border draws a hard line that stiffens the whole interface.
- * shadow* covers iOS, elevation covers Android.
+ * The only shadow left in the app. Controls floating over a map have nothing
+ * behind them to separate from, so they genuinely need one; everything else
+ * sits on the page and is separated by a rule.
  */
-export const shadows = {
-  card: {
-    shadowColor: "#0f172a",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 2,
-  },
-  button: {
-    shadowColor: "#0f172a",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.14,
-    shadowRadius: 14,
-    elevation: 5,
-  },
+export const floatingShadow = {
+  shadowColor: "#000000",
+  shadowOffset: { width: 0, height: 1 },
+  shadowOpacity: 0.18,
+  shadowRadius: 4,
+  elevation: 3,
 };

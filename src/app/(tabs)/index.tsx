@@ -13,7 +13,7 @@ import { currentPace, elevationGainM, paceSecPerKm, totalDistanceM } from "@/lib
 import { useInitialLocation } from "@/lib/location";
 import { toggleSetting, useSettings } from "@/lib/settings";
 import { timeAgo, weekTotals } from "@/lib/stats";
-import { colors, shadows } from "@/lib/theme";
+import { colors, floatingShadow } from "@/lib/theme";
 import { activeDurationS, discard, finish, pause, resume, start, useTracker } from "@/lib/tracker";
 
 /**
@@ -26,9 +26,9 @@ function KeepAwake() {
 }
 
 /**
- * A small round control. On or off by default, with its state shown by
- * colour; `action` turns it into a plain button instead, because announcing a
- * one-shot action as a switch misleads anyone using a screen reader.
+ * A flat icon control. On or off by default, with its state shown by colour
+ * and weight; `action` turns it into a plain button instead, because
+ * announcing a one-shot action as a switch misleads a screen reader.
  */
 function Toggle({
   on, onPress, icon, label, action = false,
@@ -45,10 +45,10 @@ function Toggle({
       accessibilityRole={action ? "button" : "switch"}
       accessibilityState={action ? undefined : { checked: on }}
       accessibilityLabel={label}
-      hitSlop={6}
-      style={({ pressed }) => [styles.toggle, on && styles.toggleOn, pressed && styles.togglePressed]}
+      hitSlop={10}
+      style={({ pressed }) => [styles.toggle, pressed && styles.pressed]}
     >
-      <Ionicons name={icon} size={19} color={on ? colors.accent : colors.subtle} />
+      <Ionicons name={icon} size={20} color={on ? colors.accent : colors.subtle} />
     </Pressable>
   );
 }
@@ -71,8 +71,8 @@ export default function RecordScreen() {
     return () => clearInterval(timer);
   }, [recording]);
 
-  // The idle screen shows what has already been run, so reload on focus: a run
-  // may have finished since the tab was last seen.
+  // The idle screen reports what has already been run, so reload on focus: a
+  // run may have finished since the tab was last seen.
   useFocusEffect(
     useCallback(() => {
       let active = true;
@@ -97,18 +97,24 @@ export default function RecordScreen() {
   const last = history[0];
 
   const signal =
-    tracker.accuracyM === null ? "Recherche du GPS…"
+    tracker.accuracyM === null ? "Recherche du GPS"
     : tracker.accuracyM <= 10 ? `GPS précis, ±${Math.round(tracker.accuracyM)} m`
     : tracker.accuracyM <= 30 ? `GPS moyen, ±${Math.round(tracker.accuracyM)} m`
     : `GPS faible, ±${Math.round(tracker.accuracyM)} m, points ignorés`;
 
   const idleMessage =
-    granted === false ? "Localisation refusée, la course ne pourra pas être tracée"
-    : coords === null ? "Acquisition du GPS…"
-    : "GPS prêt, le suivi démarre avec la course";
+    granted === false ? "Localisation refusée"
+    : coords === null ? "Acquisition du GPS"
+    : "GPS prêt";
 
   const weakSignal =
     (recording && tracker.accuracyM !== null && tracker.accuracyM > 30) || granted === false;
+
+  const status = recording
+    ? tracker.status === "paused"
+      ? tracker.autoPaused ? "Pause automatique" : "En pause"
+      : "Course en cours"
+    : "Prêt à courir";
 
   async function close() {
     setFinishing(true);
@@ -131,24 +137,6 @@ export default function RecordScreen() {
       { text: "Terminer", onPress: () => void close() },
     ]);
   }
-
-  const controls = (
-    <View style={styles.controlBar}>
-      <Toggle
-        on={settings.voice}
-        onPress={() => void toggleSetting("voice")}
-        icon={settings.voice ? "volume-high" : "volume-mute"}
-        label="Annonce vocale des kilomètres"
-      />
-      <Toggle
-        on={settings.autoPause}
-        onPress={() => void toggleSetting("autoPause")}
-        icon="pause-circle"
-        label="Pause automatique à l'arrêt"
-      />
-      <Toggle action on={false} onPress={() => setExpanded(true)} icon="map" label="Voir la carte" />
-    </View>
-  );
 
   const actions = (
     <View style={styles.actions}>
@@ -177,7 +165,7 @@ export default function RecordScreen() {
           initialCenter={coords}
           fullscreen
           onToggleFullscreen={() => setExpanded(false)}
-          controlsBottom={112}
+          controlsBottom={108}
           style={styles.expandedMap}
         />
         {recording && <KeepAwake />}
@@ -186,7 +174,7 @@ export default function RecordScreen() {
           <View style={styles.banner}>
             <Metric label="Distance" value={formatDistance(distance)} unit="km" />
             <Metric label="Durée" value={formatDuration(duration)} />
-            <Metric label="Allure" value={formatPace(pace ?? avgPace)} unit="/km" />
+            <Metric label="Allure" value={formatPace(pace ?? avgPace)} unit="/km" align="right" />
           </View>
         </SafeAreaView>
 
@@ -202,15 +190,7 @@ export default function RecordScreen() {
       {recording && <KeepAwake />}
 
       <View style={styles.header}>
-        <Text style={styles.title}>
-          {recording
-            ? tracker.status === "paused"
-              ? tracker.autoPaused
-                ? "Pause automatique"
-                : "En pause"
-              : "Course en cours"
-            : "Prêt à courir"}
-        </Text>
+        <Text style={styles.status}>{status}</Text>
         <Text style={[styles.signal, weakSignal && styles.signalWeak]}>
           {recording ? signal : idleMessage}
           {recording && !tracker.backgroundMode ? " · écran maintenu allumé" : ""}
@@ -218,24 +198,21 @@ export default function RecordScreen() {
       </View>
 
       {recording ? (
-        <View style={styles.card}>
+        <View style={styles.section}>
           <Metric label="Distance" value={formatDistance(distance)} unit="km" large />
           <View style={styles.row}>
             <Metric label="Durée" value={formatDuration(duration)} />
             <Metric label="Allure" value={formatPace(pace ?? avgPace)} unit="/km" />
-          </View>
-          <View style={styles.row}>
-            <Metric label="Allure moyenne" value={formatPace(avgPace)} unit="/km" />
-            <Metric label="Dénivelé" value={formatElevation(elevation)} unit="m" />
+            <Metric label="Dénivelé" value={formatElevation(elevation)} unit="m" align="right" />
           </View>
         </View>
       ) : (
         <>
-          {/* Idle, live figures would all read zero. What is worth showing is
+          {/* Idle, every live figure would read zero. What is worth showing is
               what has already been run: this week, and the last outing. */}
-          <View style={styles.card}>
+          <View style={styles.section}>
             <Metric label="Cette semaine" value={formatDistance(week.distanceM)} unit="km" large />
-            <Text style={styles.cardNote}>
+            <Text style={styles.note}>
               {week.runs === 0
                 ? "Aucune sortie depuis lundi"
                 : `${week.runs} sortie${week.runs > 1 ? "s" : ""} · ${formatDuration(week.durationS)}`}
@@ -246,19 +223,19 @@ export default function RecordScreen() {
             <Pressable
               onPress={() => router.push({ pathname: "/run/[id]", params: { id: String(last.id) } })}
               accessibilityRole="button"
-              style={({ pressed }) => [styles.card, styles.lastRun, pressed && styles.lastRunPressed]}
+              style={({ pressed }) => [styles.section, styles.lastRun, pressed && styles.pressed]}
             >
               <View style={styles.lastRunText}>
-                <Text style={styles.cardLabel}>Dernière sortie</Text>
+                <Text style={styles.label}>Dernière sortie</Text>
                 <Text style={styles.lastRunName}>{last.name ?? "Course"}</Text>
-                <Text style={styles.cardNote}>
+                <Text style={styles.note}>
                   {timeAgo(last.startedAt)} · {formatPace(last.avgPaceSKm)} /km
                 </Text>
               </View>
-              <View style={styles.lastRunRight}>
-                <Text style={styles.lastRunDistance}>{formatDistance(last.distanceM)}</Text>
-                <Text style={styles.lastRunUnit}>km</Text>
-              </View>
+              <Text style={styles.lastRunDistance}>
+                {formatDistance(last.distanceM)}
+                <Text style={styles.lastRunUnit}> km</Text>
+              </Text>
             </Pressable>
           )}
         </>
@@ -268,63 +245,87 @@ export default function RecordScreen() {
 
       {tracker.error && <Text style={styles.error}>{tracker.error}</Text>}
 
-      {controls}
-      {actions}
+      <View style={styles.footer}>
+        <View style={styles.toggles}>
+          <Toggle
+            on={settings.voice}
+            onPress={() => void toggleSetting("voice")}
+            icon={settings.voice ? "volume-high" : "volume-mute"}
+            label="Annonce vocale des kilomètres"
+          />
+          <Toggle
+            on={settings.autoPause}
+            onPress={() => void toggleSetting("autoPause")}
+            icon="pause-circle"
+            label="Pause automatique à l'arrêt"
+          />
+          <Toggle action on={false} onPress={() => setExpanded(true)} icon="map" label="Voir la carte" />
+        </View>
+        {actions}
+      </View>
     </SafeAreaView>
   );
 }
 
+const GUTTER = 20;
+
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background, paddingHorizontal: 20, gap: 12 },
-  header: { paddingTop: 8, paddingBottom: 2 },
-  title: { color: colors.text, fontSize: 20, fontWeight: "800", letterSpacing: -0.5 },
-  signal: { color: colors.subtle, fontSize: 11.5, marginTop: 3, fontWeight: "500" },
+  screen: { flex: 1, backgroundColor: colors.background },
+
+  header: { paddingHorizontal: GUTTER, paddingTop: 10, paddingBottom: 16 },
+  status: { color: colors.text, fontSize: 17, fontWeight: "700", letterSpacing: -0.3 },
+  signal: { color: colors.subtle, fontSize: 12, marginTop: 2 },
   signalWeak: { color: colors.warning },
 
-  // One card shape for every block, so the screen reads as one system rather
-  // than a pile of unrelated panels.
-  card: { gap: 12, backgroundColor: colors.surface, borderRadius: 20, padding: 20, ...shadows.card },
-  cardLabel: {
+  // Sections run edge to edge and are told apart by a rule, not by floating on
+  // their own surface.
+  section: {
+    paddingHorizontal: GUTTER,
+    paddingVertical: 18,
+    gap: 14,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.hairline,
+  },
+  row: { flexDirection: "row", gap: 16 },
+  label: {
     color: colors.subtle, fontSize: 10, fontWeight: "600",
-    letterSpacing: 1, textTransform: "uppercase",
+    letterSpacing: 1.4, textTransform: "uppercase",
   },
-  cardNote: { color: colors.muted, fontSize: 12, fontVariant: ["tabular-nums"] },
-  row: { flexDirection: "row", gap: 12, paddingTop: 2 },
+  note: { color: colors.muted, fontSize: 12.5, fontVariant: ["tabular-nums"] },
 
-  lastRun: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  lastRunPressed: { transform: [{ scale: 0.98 }], opacity: 0.9 },
-  lastRunText: { flex: 1, gap: 3 },
-  lastRunName: { color: colors.text, fontSize: 15, fontWeight: "600" },
-  lastRunRight: { flexDirection: "row", alignItems: "baseline", gap: 4 },
+  lastRun: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 16 },
+  lastRunText: { flex: 1, gap: 4 },
+  lastRunName: { color: colors.text, fontSize: 16, fontWeight: "600", letterSpacing: -0.2 },
   lastRunDistance: {
-    color: colors.accent, fontSize: 24, fontWeight: "700", fontVariant: ["tabular-nums"],
+    color: colors.text, fontSize: 26, fontWeight: "600",
+    letterSpacing: -0.9, fontVariant: ["tabular-nums"],
   },
-  lastRunUnit: { color: colors.muted, fontSize: 12, fontWeight: "600" },
+  lastRunUnit: { color: colors.subtle, fontSize: 12, fontWeight: "600", letterSpacing: 0 },
 
   spacer: { flex: 1 },
-  error: { color: colors.danger, fontSize: 12 },
+  pressed: { opacity: 0.55 },
+  error: { color: colors.danger, fontSize: 12.5, paddingHorizontal: GUTTER, paddingBottom: 8 },
 
-  // The settings sit on the same card shape as everything else, rather than
-  // floating in a corner as three unexplained circles.
-  controlBar: {
-    flexDirection: "row", justifyContent: "space-around", alignItems: "center",
-    backgroundColor: colors.surface, borderRadius: 18, paddingVertical: 10, ...shadows.card,
+  footer: {
+    paddingHorizontal: GUTTER,
+    paddingTop: 14,
+    paddingBottom: 12,
+    gap: 14,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.hairline,
   },
-  toggle: {
-    width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center",
-  },
-  toggleOn: { backgroundColor: colors.accentSoft },
-  togglePressed: { transform: [{ scale: 0.94 }] },
-
-  actions: { flexDirection: "row", gap: 12, paddingBottom: 12 },
+  toggles: { flexDirection: "row", gap: 22 },
+  toggle: { paddingVertical: 2 },
+  actions: { flexDirection: "row", gap: 10 },
 
   expandedScreen: { flex: 1, backgroundColor: colors.background },
   expandedMap: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, borderRadius: 0 },
   overlayTop: { position: "absolute", top: 0, left: 0, right: 0, padding: 12 },
   overlayBottom: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 12 },
   banner: {
-    flexDirection: "row", gap: 10,
-    backgroundColor: colors.surface, borderRadius: 18, paddingHorizontal: 16, paddingVertical: 12,
-    ...shadows.card,
+    flexDirection: "row", gap: 12,
+    backgroundColor: colors.background, borderRadius: 6,
+    paddingHorizontal: 16, paddingVertical: 12,
+    ...floatingShadow,
   },
 });

@@ -18,7 +18,7 @@
     "android": {
       "package": "com.malomiquel.tread",
       "adaptiveIcon": {
-        "backgroundColor": "#16a34a",
+        "backgroundColor": "#0f7a3d",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -30,7 +30,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#f4f5f7",
+          "backgroundColor": "#ffffff",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }

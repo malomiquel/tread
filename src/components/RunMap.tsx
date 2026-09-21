@@ -4,7 +4,7 @@ import { ActivityIndicator, Pressable, StyleSheet, View, type StyleProp, type Vi
 import MapView, { Marker, Polyline } from "react-native-maps";
 import { bounds, segments, type TrackPoint } from "@/lib/geo";
 import { getCurrentCoords, type Coords } from "@/lib/location";
-import { colors, shadows } from "@/lib/theme";
+import { colors, floatingShadow } from "@/lib/theme";
 
 interface Props {
   points: TrackPoint[];
@@ -163,18 +163,18 @@ export function RunMap({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, borderRadius: 16, overflow: "hidden", backgroundColor: colors.border },
+  container: { flex: 1, borderRadius: 4, overflow: "hidden", backgroundColor: colors.hairline },
   // The controls stack in one column so they never collide, whatever the
   // combination of buttons a screen asks for.
   controls: { position: "absolute", right: 12, gap: 10 },
   control: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.surface,
-    ...shadows.card,
+    backgroundColor: colors.background,
+    ...floatingShadow,
   },
   controlPressed: { transform: [{ scale: 0.96 }], opacity: 0.9 },
   locateButton: {
@@ -183,8 +183,8 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.surface,
-    ...shadows.card,
+    backgroundColor: colors.background,
+    ...floatingShadow,
   },
   locatePressed: { transform: [{ scale: 0.96 }], opacity: 0.9 },
 });

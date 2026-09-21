@@ -6,7 +6,7 @@ import { Button } from "@/components/Button";
 import { listRuns, type Run } from "@/lib/db";
 import { createDemoRun } from "@/lib/demo";
 import { formatDate, formatDistance, formatDuration, formatPace } from "@/lib/format";
-import { colors, shadows } from "@/lib/theme";
+import { colors } from "@/lib/theme";
 
 export default function HistoryScreen() {
   const [runs, setRuns] = useState<Run[] | null>(null);
@@ -61,7 +61,6 @@ export default function HistoryScreen() {
       <FlatList
         data={runs ?? []}
         keyExtractor={(run) => String(run.id)}
-        contentContainerStyle={styles.list}
         ListEmptyComponent={
           runs === null ? null : (
             <View style={styles.emptyBlock}>
@@ -84,7 +83,7 @@ export default function HistoryScreen() {
           <Pressable
             onPress={() => router.push({ pathname: "/run/[id]", params: { id: String(item.id) } })}
             accessibilityRole="button"
-            style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+            style={({ pressed }) => [styles.row, pressed && styles.pressed]}
           >
             <View style={styles.rowLeft}>
               <Text style={styles.name}>{item.name ?? formatDate(item.startedAt)}</Text>
@@ -94,7 +93,8 @@ export default function HistoryScreen() {
               </Text>
             </View>
             <Text style={styles.distance}>
-              {formatDistance(item.distanceM)} <Text style={styles.km}>km</Text>
+              {formatDistance(item.distanceM)}
+              <Text style={styles.km}> km</Text>
             </Text>
           </Pressable>
         )}
@@ -103,24 +103,33 @@ export default function HistoryScreen() {
   );
 }
 
+const GUTTER = 20;
+
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12 },
-  title: { color: colors.text, fontSize: 20, fontWeight: "800", letterSpacing: -0.5 },
-  subtitle: { color: colors.subtle, fontSize: 11.5, marginTop: 2 },
-  list: { paddingHorizontal: 20, paddingBottom: 24, gap: 12 },
-  emptyBlock: { marginTop: 60, paddingHorizontal: 20, gap: 16, alignItems: "center" },
-  empty: { color: colors.muted, fontSize: 13, textAlign: "center", lineHeight: 20 },
-  emptyHint: { color: colors.subtle, fontSize: 11, textAlign: "center", lineHeight: 16 },
+  header: { paddingHorizontal: GUTTER, paddingTop: 10, paddingBottom: 14 },
+  title: { color: colors.text, fontSize: 24, fontWeight: "700", letterSpacing: -0.6 },
+  subtitle: { color: colors.subtle, fontSize: 12, marginTop: 3 },
+
+  emptyBlock: { marginTop: 56, paddingHorizontal: GUTTER, gap: 18, alignItems: "stretch" },
+  empty: { color: colors.muted, fontSize: 13.5, textAlign: "center", lineHeight: 21 },
+  emptyHint: { color: colors.subtle, fontSize: 11.5, textAlign: "center", lineHeight: 17 },
+
+  // A plain list separated by rules, the way a timetable or a statement is
+  // set. Boxing each run in its own floating card added nothing but noise.
   row: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    backgroundColor: colors.surface, borderRadius: 16, padding: 16, ...shadows.card,
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 16,
+    paddingHorizontal: GUTTER, paddingVertical: 15,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline,
   },
-  rowPressed: { transform: [{ scale: 0.98 }], opacity: 0.9 },
-  rowLeft: { flex: 1, gap: 2 },
-  name: { color: colors.text, fontSize: 14, fontWeight: "600" },
-  when: { color: colors.subtle, fontSize: 11 },
-  detail: { color: colors.muted, fontSize: 12, fontVariant: ["tabular-nums"] },
-  distance: { color: colors.accent, fontSize: 19, fontWeight: "700", fontVariant: ["tabular-nums"] },
-  km: { color: colors.muted, fontSize: 11.5, fontWeight: "500" },
+  pressed: { backgroundColor: colors.sunken },
+  rowLeft: { flex: 1, gap: 3 },
+  name: { color: colors.text, fontSize: 15.5, fontWeight: "600", letterSpacing: -0.2 },
+  when: { color: colors.subtle, fontSize: 11.5 },
+  detail: { color: colors.muted, fontSize: 12.5, fontVariant: ["tabular-nums"] },
+  distance: {
+    color: colors.text, fontSize: 22, fontWeight: "600",
+    letterSpacing: -0.8, fontVariant: ["tabular-nums"],
+  },
+  km: { color: colors.subtle, fontSize: 11.5, fontWeight: "600", letterSpacing: 0 },
 });
