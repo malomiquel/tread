@@ -41,7 +41,7 @@ const ARRIVE = { duration: 300 } as const;
  * nothing, a clipped distance costs the number you went out to get. They are
  * the two values to revisit if the type ever changes size again.
  */
-const PANEL_HEIGHT = { idle: 90, live: 140 } as const;
+const PANEL_HEIGHT = { idle: 96, live: 146 } as const;
 
 /**
  * Holds the screen awake for as long as it is mounted. Inside Expo Go the GPS
@@ -466,14 +466,20 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
   },
 
+  // A real outline rather than a hairline. These buttons sit on glass over a
+  // map, where a third of a point at the palest grey in the palette simply
+  // disappeared — the pause read as an icon floating on the panel rather than
+  // as something to press.
   round: {
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.hairline,
+    borderWidth: 1.5,
+    borderColor: colors.subtle,
   },
   roundPrimary: { backgroundColor: colors.accent, borderColor: colors.accent },
-  roundDanger: { borderColor: colors.dangerSoft },
+  // The ring carries the warning as much as the icon does, so it takes the
+  // full colour instead of a tenth of it.
+  roundDanger: { borderColor: colors.danger },
   roundDisabled: { opacity: 0.35 },
   pressed: { opacity: 0.55 },
   play: { marginLeft: 2 },
