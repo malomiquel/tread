@@ -121,8 +121,8 @@ export default function Courir() {
 const styles = StyleSheet.create({
   ecran: { flex: 1, backgroundColor: couleurs.fond, paddingHorizontal: 20, gap: 16 },
   entete: { paddingTop: 8 },
-  titre: { color: couleurs.texte, fontSize: 26, fontWeight: "800", letterSpacing: -0.8 },
-  signal: { color: couleurs.discret, fontSize: 12.5, marginTop: 3, fontWeight: "500" },
+  titre: { color: couleurs.texte, fontSize: 20, fontWeight: "800", letterSpacing: -0.5 },
+  signal: { color: couleurs.discret, fontSize: 11.5, marginTop: 3, fontWeight: "500" },
   signalFaible: { color: couleurs.pause },
   mesures: {
     gap: 16,
@@ -133,6 +133,6 @@ const styles = StyleSheet.create({
   },
   rangee: { flexDirection: "row", gap: 12, paddingTop: 2 },
   carte: { flex: 1, minHeight: 200, borderRadius: 20 },
-  erreur: { color: couleurs.danger, fontSize: 13 },
+  erreur: { color: couleurs.danger, fontSize: 12 },
   actions: { flexDirection: "row", gap: 12, paddingBottom: 12 },
 });

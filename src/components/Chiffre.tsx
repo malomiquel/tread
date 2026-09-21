@@ -22,24 +22,24 @@ export function Chiffre({ libelle, valeur, unite, grand }: Props) {
 }
 
 const styles = StyleSheet.create({
-  bloc: { flex: 1, minWidth: 110 },
+  bloc: { flex: 1, minWidth: 96 },
   libelle: {
     color: couleurs.discret,
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "600",
-    letterSpacing: 1.2,
+    letterSpacing: 1,
     textTransform: "uppercase",
   },
   ligne: { flexDirection: "row", alignItems: "baseline", gap: 5, marginTop: 3 },
   valeur: {
     color: couleurs.texte,
-    fontSize: 30,
+    fontSize: 24,
     fontWeight: "700",
-    letterSpacing: -0.8,
+    letterSpacing: -0.6,
     fontVariant: ["tabular-nums"],
   },
   // Le chiffre héros : très grand, très serré, c'est lui qu'on lit en courant.
-  grand: { fontSize: 68, fontWeight: "800", letterSpacing: -3.5, lineHeight: 72 },
-  unite: { color: couleurs.attenue, fontSize: 14, fontWeight: "600" },
-  uniteGrande: { fontSize: 20 },
+  grand: { fontSize: 52, fontWeight: "800", letterSpacing: -2.5, lineHeight: 56 },
+  unite: { color: couleurs.attenue, fontSize: 12, fontWeight: "600" },
+  uniteGrande: { fontSize: 16 },
 });

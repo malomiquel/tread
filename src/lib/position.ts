@@ -24,6 +24,23 @@ export interface PositionInitiale {
  * L'autorisation est demandee ici, a l'ouverture, et non au depart de la
  * course : une carte qui ne sait pas ou tu es n'a aucun interet.
  */
+/**
+ * Releve ponctuel, pour le bouton de recentrage.
+ *
+ * Contrairement au hook, l'autorisation n'est redemandee que si elle n'a pas
+ * deja ete accordee : appuyer sur le bouton ne doit pas relancer une
+ * demande systeme a chaque fois.
+ */
+export async function relevePosition(): Promise<Coordonnees | null> {
+  const dejaAccordee = await Location.getForegroundPermissionsAsync();
+  if (dejaAccordee.status !== "granted") {
+    const demande = await Location.requestForegroundPermissionsAsync();
+    if (demande.status !== "granted") return null;
+  }
+  const p = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+  return { lat: p.coords.latitude, lng: p.coords.longitude };
+}
+
 export function usePositionInitiale(): PositionInitiale {
   const [position, setPosition] = useState<Coordonnees | null>(null);
   const [autorisee, setAutorisee] = useState<boolean | null>(null);

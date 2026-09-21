@@ -39,7 +39,7 @@ export function Bouton({ libelle, onPress, variante = "principal", desactive, st
 const styles = StyleSheet.create({
   base: {
     flex: 1,
-    minHeight: 56,
+    minHeight: 52,
     borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
@@ -51,7 +51,7 @@ const styles = StyleSheet.create({
   // 0.96 : en dessous le bouton a l'air de se dérober sous le doigt.
   presse: { transform: [{ scale: 0.96 }], opacity: 0.92 },
   desactive: { opacity: 0.4 },
-  texte: { color: couleurs.texte, fontSize: 16, fontWeight: "600" },
+  texte: { color: couleurs.texte, fontSize: 15, fontWeight: "600" },
   textePrincipal: { color: couleurs.accentTexte, fontWeight: "700" },
   texteDanger: { color: couleurs.danger },
 });
