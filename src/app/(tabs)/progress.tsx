@@ -171,12 +171,12 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: {},
   title: {
-    color: colors.text, fontSize: 33, fontFamily: font.bold,
+    color: colors.text, fontSize: 32.5, fontFamily: font.bold,
     letterSpacing: -0.6, paddingHorizontal: GUTTER, paddingTop: 10, paddingBottom: 14,
   },
   empty: {
-    color: colors.muted, fontFamily: font.regular, fontSize: 18.5, textAlign: "center",
-    marginTop: 56, lineHeight: 28.5, paddingHorizontal: GUTTER,
+    color: colors.muted, fontFamily: font.regular, fontSize: 17, textAlign: "center",
+    marginTop: 56, lineHeight: 28, paddingHorizontal: GUTTER,
   },
 
   // Sections run edge to edge, told apart by a rule rather than by floating on
@@ -186,33 +186,33 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline,
   },
   cardTitle: {
-    color: colors.subtle, fontSize: 14, fontFamily: font.semibold,
+    color: colors.subtle, fontSize: 13.5, fontFamily: font.semibold,
     letterSpacing: 1.4, textTransform: "uppercase",
   },
   heroRow: { flexDirection: "row", alignItems: "baseline", gap: 5 },
   hero: {
-    color: colors.text, fontSize: 76, fontFamily: font.bold,
+    color: colors.text, fontSize: 54, fontFamily: font.bold,
     letterSpacing: -1.17, fontVariant: ["tabular-nums"],
   },
-  heroUnit: { color: colors.subtle, fontSize: 20, fontFamily: font.semibold },
-  heroSub: { color: colors.muted, fontFamily: font.regular, fontSize: 17, marginTop: -4, fontVariant: ["tabular-nums"] },
+  heroUnit: { color: colors.subtle, fontSize: 17, fontFamily: font.semibold },
+  heroSub: { color: colors.muted, fontFamily: font.regular, fontSize: 15.5, marginTop: -2, fontVariant: ["tabular-nums"] },
 
   chart: { flexDirection: "row", alignItems: "flex-end", gap: 8, height: 84, marginTop: 8 },
   column: { flex: 1, alignItems: "center", gap: 6 },
   barArea: { flex: 1, width: "100%", justifyContent: "flex-end" },
   bar: { width: "100%", borderRadius: 2, backgroundColor: colors.accentSoft },
   barCurrent: { backgroundColor: colors.accent },
-  weekLabel: { color: colors.subtle, fontFamily: font.regular, fontSize: 14, fontVariant: ["tabular-nums"] },
-  caption: { color: colors.subtle, fontSize: 15 },
+  weekLabel: { color: colors.subtle, fontFamily: font.regular, fontSize: 13.5, fontVariant: ["tabular-nums"] },
+  caption: { color: colors.subtle, fontSize: 13.5 },
 
   record: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     paddingVertical: 9,
   },
   recordLeft: { flex: 1, gap: 1 },
-  recordLabel: { color: colors.text, fontSize: 18.5 },
-  recordDetail: { color: colors.subtle, fontSize: 15.5 },
+  recordLabel: { color: colors.text, fontSize: 17 },
+  recordDetail: { color: colors.subtle, fontSize: 14.5 },
   recordValue: {
-    color: colors.text, fontSize: 21.5, fontFamily: font.semibold, fontVariant: ["tabular-nums"],
+    color: colors.text, fontSize: 19.5, fontFamily: font.semibold, fontVariant: ["tabular-nums"],
   },
 });

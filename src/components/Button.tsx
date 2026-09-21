@@ -57,7 +57,7 @@ const styles = StyleSheet.create({
   danger: { backgroundColor: colors.background, borderWidth: 1, borderColor: colors.dangerSoft },
   pressed: { opacity: 0.6 },
   disabled: { opacity: 0.35 },
-  label: { color: colors.text, fontSize: 19, fontFamily: font.semibold, letterSpacing: 0.3 },
+  label: { color: colors.text, fontSize: 18.5, fontFamily: font.semibold, letterSpacing: 0.3 },
   labelPrimary: { color: colors.accentText, fontFamily: font.bold },
   labelDanger: { color: colors.danger },
 });
