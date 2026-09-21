@@ -4,9 +4,8 @@ import { useKeepAwake } from "expo-keep-awake";
 import { useFocusEffect, useIsFocused, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
-  FadeIn, FadeOut, runOnJS, useAnimatedStyle, useDerivedValue, useSharedValue, withTiming,
+  FadeIn, FadeOut, useAnimatedStyle, useDerivedValue, useSharedValue, withTiming,
 } from "react-native-reanimated";
 import { GlassPanel } from "@/components/GlassPanel";
 import { Metric } from "@/components/Metric";
@@ -179,25 +178,15 @@ export default function RecordScreen() {
   const leave = () => (router.canGoBack() ? router.back() : router.navigate("/"));
 
 
-  /**
-   * The same swipe that goes back everywhere else in iOS, on a narrow strip
-   * down the left edge.
+  /*
+   * No back gesture of our own any more.
    *
-   * Only a strip, because the rest of the screen is a map and a map wants
-   * every drag it can get: a gesture spanning the whole width would make it
-   * impossible to pan the map westward. The width is roughly the one iOS uses
-   * for its own back gesture, so the habit is already there.
-   *
-   * It insists on a horizontal intent — a clear push right without much
-   * vertical wander — so a thumb brushing past on its way somewhere else does
-   * not throw you off the screen.
+   * This screen is pushed over the tabs rather than being one, so the
+   * navigator's own edge swipe applies — the page follows the finger and
+   * uncovers the one beneath, which is the whole reason for the move. A
+   * gesture written here could only ever be a threshold, because a tab has
+   * nothing behind it to reveal.
    */
-  const swipeBack = Gesture.Pan()
-    .activeOffsetX(14)
-    .failOffsetY([-24, 24])
-    .onEnd((event) => {
-      if (event.translationX > 60 && event.velocityX > 0) runOnJS(leave)();
-    });
 
   const recording = tracker.status !== "idle";
 
@@ -359,10 +348,6 @@ export default function RecordScreen() {
         style={styles.map}
       />
       {recording && <KeepAwake />}
-
-      <GestureDetector gesture={swipeBack}>
-        <View style={styles.backEdge} />
-      </GestureDetector>
 
       {/* The way out, since the tab bar no longer offers one. Top left, in the
           corner a back button lives in everywhere else, and in the same glass
@@ -584,7 +569,6 @@ const styles = StyleSheet.create({
   // land on one line down the side of the screen.
   toggles: { position: "absolute", right: 12, alignItems: "flex-end" },
   toggleStack: { alignItems: "flex-end", gap: 10 },
-  backEdge: { position: "absolute", left: 0, top: 0, bottom: 0, width: 26 },
   leave: { position: "absolute", top: CONTROLS_TOP, left: 12 },
   leavePill: { borderRadius: CONTROL_SIZE / 2, padding: 0 },
   leaveButton: {

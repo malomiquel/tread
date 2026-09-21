@@ -83,6 +83,16 @@ export default function RootLayout() {
             l'écran suivant s'en sert, et retombe sinon sur le nom technique
             de la route, « (tabs) ». */}
         <Stack.Screen name="(tabs)" options={{ headerShown: false, title: "Tread" }} />
+        {/*
+          * Courir est une page posée sur les onglets, pas un onglet.
+          *
+          * Elle l'était déjà en tout sauf en nom : elle masquait la barre et
+          * portait sa propre sortie. En faire vraiment une page empilée rend
+          * le geste de retour natif — la page suit le doigt et découvre
+          * celle d'en dessous — qu'aucun onglet ne peut offrir, faute de
+          * quoi que ce soit derrière lui à dévoiler.
+          */}
+        <Stack.Screen name="record" options={{ headerShown: false }} />
         <Stack.Screen name="run/[id]" options={{ title: "Course", headerBackTitle: "Retour" }} />
         <Stack.Screen name="plan-method" options={{ title: "Méthode", headerBackTitle: "Retour" }} />
       </Stack>

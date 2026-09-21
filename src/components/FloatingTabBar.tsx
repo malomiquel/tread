@@ -37,8 +37,8 @@ type TabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>["tabBar"]>
 const SLIDE = { duration: 240, easing: Easing.out(Easing.cubic) };
 
 export function FloatingTabBar({
-  state, descriptors, navigation, hidden = false,
-}: TabBarProps & { hidden?: boolean }) {
+  state, descriptors, navigation,
+}: TabBarProps) {
   const bottom = useTabBarBottom();
 
   /**
@@ -54,8 +54,8 @@ export function FloatingTabBar({
     // asked to draw at partial opacity stops compositing what is behind it —
     // it flickers through the transition as a pane with no backing. Sliding
     // the whole thing past the edge needs no fade anyway.
-    transform: [{ translateY: withTiming(hidden ? TAB_BAR_HEIGHT + bottom + 24 : 0, SLIDE) }],
-  }), [hidden, bottom]);
+    transform: [{ translateY: withTiming(0, SLIDE) }],
+  }), [bottom]);
 
   const tabs = state.routes.map((route, index) => {
     const { options } = descriptors[route.key];
@@ -101,7 +101,7 @@ export function FloatingTabBar({
       // the screen underneath stays usable right up to the pill's edge. While
       // it is away it catches nothing at all, or it would answer taps aimed at
       // the map it is sliding off.
-      pointerEvents={hidden ? "none" : "box-none"}
+      pointerEvents="box-none"
       style={[styles.anchor, { bottom }, slide]}
     >
       <GlassPanel style={styles.pill} interactive>
