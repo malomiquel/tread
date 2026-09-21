@@ -68,7 +68,7 @@ const toRun = (row: RunRow): Run => ({
   fastestKmS: row.fastest_km_s,
 });
 
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 export async function initDb(): Promise<void> {
   const db = getDb();
@@ -103,6 +103,7 @@ export async function initDb(): Promise<void> {
         segment INTEGER NOT NULL DEFAULT 0
       );
       CREATE INDEX IF NOT EXISTS idx_points_run ON points(run_id, ts);
+      CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
     `);
     version = SCHEMA_VERSION;
   }
@@ -138,6 +139,11 @@ export async function initDb(): Promise<void> {
       CREATE INDEX IF NOT EXISTS idx_points_run ON points(run_id, ts);
     `);
     version = 3;
+  }
+
+  if (version < 4) {
+    await db.execAsync("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
+    version = 4;
   }
 
   await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
@@ -253,6 +259,19 @@ export async function personalRecords(): Promise<PersonalRecords> {
     bestAvgPace: await best("SELECT * FROM runs WHERE ended_at IS NOT NULL AND distance_m >= 2000 AND avg_pace_s_km IS NOT NULL ORDER BY avg_pace_s_km ASC LIMIT 1"),
     mostElevation: await best("SELECT * FROM runs WHERE ended_at IS NOT NULL AND elevation_gain_m IS NOT NULL ORDER BY elevation_gain_m DESC LIMIT 1"),
   };
+}
+
+/** Every stored setting, as a plain map. Small enough to read in one go. */
+export async function readSettings(): Promise<Record<string, string>> {
+  const rows = await getDb().getAllAsync<{ key: string; value: string }>("SELECT key, value FROM settings");
+  return Object.fromEntries(rows.map((row) => [row.key, row.value]));
+}
+
+export async function writeSetting(key: string, value: string): Promise<void> {
+  await getDb().runAsync(
+    "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+    key, value,
+  );
 }
 
 /**

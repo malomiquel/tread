@@ -1,12 +1,18 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { File, Paths } from "expo-file-system";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import * as Sharing from "expo-sharing";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+} from "react-native";
 import { Button } from "@/components/Button";
 import { Metric } from "@/components/Metric";
 import { RunMap } from "@/components/RunMap";
-import { deleteRun, readRun, type Run } from "@/lib/db";
+import { deleteRun, readRun, renameRun, type Run } from "@/lib/db";
 import { formatDate, formatDistance, formatDuration, formatElevation, formatPace } from "@/lib/format";
 import { splits, type TrackPoint } from "@/lib/geo";
+import { gpxFileName, toGpx } from "@/lib/gpx";
 import { colors, shadows } from "@/lib/theme";
 
 type Loaded = { run: Run; points: TrackPoint[] };
@@ -16,6 +22,9 @@ export default function RunDetailScreen() {
   const router = useRouter();
   // undefined while loading, null when not found.
   const [data, setData] = useState<Loaded | null | undefined>(undefined);
+  const [renaming, setRenaming] = useState(false);
+  const [draftName, setDraftName] = useState("");
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -54,6 +63,38 @@ export default function RunDetailScreen() {
     .reduce<number | null>((best, split) => (best === null || split.durationS < best ? split.durationS : best), null);
   const fullCount = kilometres.filter((split) => !split.partial).length;
 
+  /**
+   * Writes the run as GPX into the cache and hands it to the share sheet.
+   * The cache is the right home: the system reclaims it on its own, and the
+   * file only needs to survive long enough to be shared.
+   */
+  async function exportGpx() {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const file = new File(Paths.cache, gpxFileName(run));
+      file.create({ overwrite: true });
+      file.write(toGpx(run, points));
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(file.uri, { mimeType: "application/gpx+xml", UTI: "com.topografix.gpx" });
+      } else {
+        Alert.alert("Partage indisponible", "Impossible d'ouvrir la feuille de partage sur cet appareil.");
+      }
+    } catch (cause) {
+      Alert.alert("Export impossible", cause instanceof Error ? cause.message : "Erreur inattendue.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function saveName() {
+    const next = draftName.trim();
+    setRenaming(false);
+    if (!next || next === run.name) return;
+    await renameRun(run.id, next);
+    setData({ run: { ...run, name: next }, points });
+  }
+
   function confirmDelete() {
     Alert.alert("Supprimer cette course ?", "Cette action est définitive.", [
       { text: "Annuler", style: "cancel" },
@@ -70,7 +111,19 @@ export default function RunDetailScreen() {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <View style={styles.heading}>
-        {run.name ? <Text style={styles.name}>{run.name}</Text> : null}
+        <Pressable
+          onPress={() => {
+            setDraftName(run.name ?? "");
+            setRenaming(true);
+          }}
+          accessibilityRole="button"
+          accessibilityLabel="Renommer la course"
+          hitSlop={8}
+          style={styles.nameRow}
+        >
+          <Text style={styles.name}>{run.name ?? "Sans nom"}</Text>
+          <Ionicons name="pencil" size={15} color={colors.subtle} />
+        </Pressable>
         <Text style={styles.date}>{formatDate(run.startedAt)}</Text>
       </View>
 
@@ -120,7 +173,39 @@ export default function RunDetailScreen() {
       )}
 
       <Text style={styles.muted}>{points.length} points GPS enregistrés</Text>
-      <Button label="Supprimer la course" variant="danger" onPress={confirmDelete} style={styles.delete} />
+
+      <View style={styles.actions}>
+        <Button
+          label={exporting ? "Export…" : "Exporter en GPX"}
+          variant="secondary"
+          onPress={() => void exportGpx()}
+          disabled={exporting || points.length === 0}
+        />
+        <Button label="Supprimer" variant="danger" onPress={confirmDelete} />
+      </View>
+
+      <Modal visible={renaming} transparent animationType="fade" onRequestClose={() => setRenaming(false)}>
+        <Pressable style={styles.backdrop} onPress={() => setRenaming(false)}>
+          {/* Stops a tap inside the card from closing it. */}
+          <Pressable style={styles.dialog} onPress={() => undefined}>
+            <Text style={styles.dialogTitle}>Nom de la course</Text>
+            <TextInput
+              value={draftName}
+              onChangeText={setDraftName}
+              placeholder="Course matinale"
+              placeholderTextColor={colors.subtle}
+              autoFocus
+              returnKeyType="done"
+              onSubmitEditing={() => void saveName()}
+              style={styles.input}
+            />
+            <View style={styles.dialogActions}>
+              <Button label="Annuler" variant="secondary" onPress={() => setRenaming(false)} />
+              <Button label="Enregistrer" onPress={() => void saveName()} />
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ScrollView>
   );
 }
@@ -130,6 +215,7 @@ const styles = StyleSheet.create({
   content: { padding: 20, gap: 18, paddingBottom: 40 },
   centered: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background },
   heading: { gap: 2 },
+  nameRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   name: { color: colors.text, fontSize: 20, fontWeight: "800", letterSpacing: -0.5 },
   date: { color: colors.muted, fontSize: 13 },
   metrics: { gap: 16, backgroundColor: colors.surface, borderRadius: 20, padding: 20, ...shadows.card },
@@ -151,5 +237,19 @@ const styles = StyleSheet.create({
   },
   best: { color: colors.accent },
   muted: { color: colors.subtle, fontSize: 11, textAlign: "center" },
-  delete: { flex: 0 },
+  actions: { flexDirection: "row", gap: 12 },
+  backdrop: {
+    flex: 1, backgroundColor: "rgba(15, 23, 42, 0.45)",
+    alignItems: "center", justifyContent: "center", padding: 28,
+  },
+  dialog: {
+    width: "100%", backgroundColor: colors.surface, borderRadius: 24, padding: 20, gap: 14,
+    ...shadows.card,
+  },
+  dialogTitle: { color: colors.text, fontSize: 16, fontWeight: "700" },
+  input: {
+    backgroundColor: colors.background, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12,
+    fontSize: 15, color: colors.text, borderWidth: 1, borderColor: colors.border,
+  },
+  dialogActions: { flexDirection: "row", gap: 10 },
 });

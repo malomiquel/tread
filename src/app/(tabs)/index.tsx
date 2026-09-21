@@ -1,7 +1,8 @@
 import { useKeepAwake } from "expo-keep-awake";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, StyleSheet, Text, View } from "react-native";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "@/components/Button";
 import { Metric } from "@/components/Metric";
@@ -9,6 +10,7 @@ import { RunMap } from "@/components/RunMap";
 import { formatDistance, formatDuration, formatElevation, formatPace } from "@/lib/format";
 import { currentPace, elevationGainM, paceSecPerKm, totalDistanceM } from "@/lib/geo";
 import { useInitialLocation } from "@/lib/location";
+import { toggleSetting, useSettings } from "@/lib/settings";
 import { colors } from "@/lib/theme";
 import { activeDurationS, discard, finish, pause, resume, start, useTracker } from "@/lib/tracker";
 
@@ -25,6 +27,7 @@ export default function RecordScreen() {
   const tracker = useTracker();
   const router = useRouter();
   const { coords, granted } = useInitialLocation();
+  const settings = useSettings();
   const [now, setNow] = useState(() => Date.now());
   const [finishing, setFinishing] = useState(false);
 
@@ -82,14 +85,38 @@ export default function RecordScreen() {
     <SafeAreaView style={styles.screen} edges={["top"]}>
       {recording && <KeepAwake />}
 
+      <View style={styles.headerRow}>
       <View style={styles.header}>
         <Text style={styles.title}>
-          {recording ? (tracker.status === "paused" ? "En pause" : "Course en cours") : "Prêt à courir"}
+          {recording
+            ? tracker.status === "paused"
+              ? tracker.autoPaused
+                ? "Pause automatique"
+                : "En pause"
+              : "Course en cours"
+            : "Prêt à courir"}
         </Text>
         <Text style={[styles.signal, weakSignal && styles.signalWeak]}>
           {recording ? signal : idleMessage}
           {recording && !tracker.backgroundMode ? " · écran maintenu allumé" : ""}
         </Text>
+      </View>
+
+      {/* Deux réglages, posés là où ils servent plutôt que dans un écran à part. */}
+      <View style={styles.toggles}>
+        <Toggle
+          on={settings.voice}
+          onPress={() => void toggleSetting("voice")}
+          icon={settings.voice ? "volume-high" : "volume-mute"}
+          label="Annonce vocale des kilomètres"
+        />
+        <Toggle
+          on={settings.autoPause}
+          onPress={() => void toggleSetting("autoPause")}
+          icon="pause-circle"
+          label="Pause automatique à l'arrêt"
+        />
+      </View>
       </View>
 
       <View style={styles.metrics}>
@@ -127,9 +154,40 @@ export default function RecordScreen() {
   );
 }
 
+/** A small round switch, on or off, with its state shown by colour. */
+function Toggle({
+  on, onPress, icon, label,
+}: {
+  on: boolean;
+  onPress: () => void;
+  icon: React.ComponentProps<typeof Ionicons>["name"];
+  label: string;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="switch"
+      accessibilityState={{ checked: on }}
+      accessibilityLabel={label}
+      hitSlop={8}
+      style={({ pressed }) => [styles.toggle, on && styles.toggleOn, pressed && styles.togglePressed]}
+    >
+      <Ionicons name={icon} size={18} color={on ? colors.accent : colors.subtle} />
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background, paddingHorizontal: 20, gap: 16 },
-  header: { paddingTop: 8 },
+  headerRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
+  header: { paddingTop: 8, flex: 1 },
+  toggles: { flexDirection: "row", gap: 8, paddingTop: 8 },
+  toggle: {
+    width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center",
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
+  },
+  toggleOn: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
+  togglePressed: { transform: [{ scale: 0.96 }] },
   title: { color: colors.text, fontSize: 20, fontWeight: "800", letterSpacing: -0.5 },
   signal: { color: colors.subtle, fontSize: 11.5, marginTop: 3, fontWeight: "500" },
   signalWeak: { color: colors.warning },

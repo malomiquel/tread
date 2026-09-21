@@ -7,7 +7,10 @@
     "icon": "./assets/images/icon.png",
     "scheme": "tread",
     "userInterfaceStyle": "light",
-    "platforms": ["ios", "android"],
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "ios": {
       "icon": "./assets/expo.icon",
       "bundleIdentifier": "com.malomiquel.tread",
@@ -25,7 +28,14 @@
     },
     "plugins": [
       "expo-router",
-      ["expo-splash-screen", { "backgroundColor": "#f4f5f7", "image": "./assets/images/splash-icon.png", "imageWidth": 76 }],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#f4f5f7",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 76
+        }
+      ],
       "expo-sqlite",
       [
         "expo-location",
@@ -36,8 +46,12 @@
           "isAndroidBackgroundLocationEnabled": true,
           "isAndroidForegroundServiceEnabled": true
         }
-      ]
+      ],
+      "expo-sharing"
     ],
-    "experiments": { "typedRoutes": true, "reactCompiler": true }
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
   }
 }

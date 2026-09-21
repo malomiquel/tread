@@ -3,9 +3,12 @@ import * as TaskManager from "expo-task-manager";
 import { useSyncExternalStore } from "react";
 import { createRun, finishRun, insertPoints } from "./db";
 import { autoName } from "./format";
+import { announceAutoPause, announceKilometre, stopSpeaking } from "./feedback";
 import {
-  elevationGainM, fastestKmS, isAcceptable, paceSecPerKm, totalDistanceM, type TrackPoint,
+  distanceM, elevationGainM, fastestKmS, isAcceptable, paceSecPerKm, splits, totalDistanceM,
+  type TrackPoint,
 } from "./geo";
+import { getSettings } from "./settings";
 
 export const TASK_NAME = "tread-gps-tracking";
 
@@ -24,6 +27,10 @@ export interface TrackerState {
   segmentStartedAt: number | null;
   /** Accuracy of the last fix, even a rejected one: it doubles as a signal gauge. */
   accuracyM: number | null;
+  /** True when the pause came from the app noticing you had stopped. */
+  autoPaused: boolean;
+  /** Last kilometre already announced, so it is never announced twice. */
+  announcedKm: number;
   /** True when the background task is live, false on the foreground fallback. */
   backgroundMode: boolean;
   error: string | null;
@@ -31,8 +38,16 @@ export interface TrackerState {
 
 const IDLE: TrackerState = {
   status: "idle", runId: null, points: [], segment: 0, startedAt: null,
-  bankedS: 0, segmentStartedAt: null, accuracyM: null, backgroundMode: false, error: null,
+  bankedS: 0, segmentStartedAt: null, autoPaused: false, announcedKm: 0,
+  accuracyM: null, backgroundMode: false, error: null,
 };
+
+/** Slower than a walk: below this you are standing at a crossing. */
+const STOP_SPEED_MS = 0.6;
+/** A brisk walk, unambiguously moving again. */
+const GO_SPEED_MS = 1.4;
+/** Sustained, so a red light counts but a stumble does not. */
+const STOP_AFTER_S = 12;
 
 /** How many points may sit in memory before they are flushed to disk. */
 const FLUSH_EVERY = 20;
@@ -42,6 +57,7 @@ const listeners = new Set<() => void>();
 let subscription: Location.LocationSubscription | null = null;
 let savedCount = 0;
 let writeQueue: Promise<void> = Promise.resolve();
+let speedWindow: { ts: number; speed: number }[] = [];
 
 function publish(patch: Partial<TrackerState>): void {
   state = { ...state, ...patch };
@@ -88,22 +104,75 @@ function toPoint(location: Location.LocationObject): TrackPoint {
   };
 }
 
+/** Speed in m/s: the chip's own figure when it has one, otherwise derived. */
+function speedOf(location: Location.LocationObject, previous: TrackPoint | null): number {
+  const reported = location.coords.speed;
+  if (reported !== null && reported >= 0) return reported;
+  if (!previous) return 0;
+  const elapsed = (location.timestamp - previous.ts) / 1000;
+  if (elapsed <= 0) return 0;
+  const moved = distanceM(previous, { lat: location.coords.latitude, lng: location.coords.longitude });
+  return moved / elapsed;
+}
+
+function rememberSpeed(ts: number, speed: number): void {
+  speedWindow.push({ ts, speed });
+  const cutoff = ts - STOP_AFTER_S * 1000;
+  while (speedWindow.length && speedWindow[0].ts < cutoff) speedWindow.shift();
+}
+
+/**
+ * True only when the whole window agrees we have stopped, and the window
+ * actually spans the full delay. Reacting to a single slow fix would pause the
+ * run every time the signal wavers under a bridge.
+ */
+function looksStopped(nowTs: number): boolean {
+  if (speedWindow.length < 3) return false;
+  if (nowTs - speedWindow[0].ts < STOP_AFTER_S * 1000) return false;
+  return speedWindow.every((entry) => entry.speed < STOP_SPEED_MS);
+}
+
+/** Announce a kilometre the moment it is completed, once and only once. */
+function announceIfKilometre(): void {
+  const km = Math.floor(totalDistanceM(state.points) / 1000);
+  if (km <= state.announcedKm) return;
+  const full = splits(state.points).filter((split) => !split.partial);
+  const latest = full[full.length - 1];
+  publish({ announcedKm: km });
+  announceKilometre(km, latest?.durationS ?? 0, getSettings().voice);
+}
+
 export function handleLocation(location: Location.LocationObject): void {
   const point = toPoint(location);
-  if (state.status !== "running") {
-    publish({ accuracyM: point.accuracy });
-    return;
-  }
+  publish({ accuracyM: point.accuracy });
 
   const last = state.points.length ? state.points[state.points.length - 1] : null;
-  const previous = last && last.segment === point.segment ? last : null;
-  if (!isAcceptable(previous, point)) {
-    publish({ accuracyM: point.accuracy });
+  const speed = speedOf(location, last);
+
+  if (state.status === "paused") {
+    // Only an automatic pause lifts itself. A pause you asked for stays until
+    // you say otherwise.
+    if (state.autoPaused && speed > GO_SPEED_MS) {
+      announceAutoPause(false, getSettings().voice);
+      resume();
+    }
     return;
   }
+  if (state.status !== "running") return;
 
-  publish({ points: [...state.points, point], accuracyM: point.accuracy });
-  if (state.points.length - savedCount >= FLUSH_EVERY) void flush();
+  rememberSpeed(point.ts, speed);
+
+  const previous = last && last.segment === point.segment ? last : null;
+  if (isAcceptable(previous, point)) {
+    publish({ points: [...state.points, point] });
+    if (state.points.length - savedCount >= FLUSH_EVERY) void flush();
+    announceIfKilometre();
+  }
+
+  if (getSettings().autoPause && looksStopped(point.ts)) {
+    announceAutoPause(true, getSettings().voice);
+    pause(true);
+  }
 }
 
 /** Write pending points to disk, never letting two writes overlap. */
@@ -180,9 +249,11 @@ export async function start(): Promise<void> {
     const startedAt = Date.now();
     const runId = await createRun(startedAt);
     savedCount = 0;
+    speedWindow = [];
     publish({
       status: "running", runId, points: [], segment: 0, startedAt,
-      bankedS: 0, segmentStartedAt: startedAt, backgroundMode: false,
+      bankedS: 0, segmentStartedAt: startedAt, autoPaused: false, announcedKm: 0,
+      backgroundMode: false,
     });
     publish({ backgroundMode: await startGps() });
   } catch (cause) {
@@ -191,16 +262,28 @@ export async function start(): Promise<void> {
   }
 }
 
-export function pause(): void {
+export function pause(automatic = false): void {
   if (state.status !== "running" || state.segmentStartedAt === null) return;
   const elapsed = (Date.now() - state.segmentStartedAt) / 1000;
-  publish({ status: "paused", bankedS: state.bankedS + elapsed, segmentStartedAt: null });
+  speedWindow = [];
+  publish({
+    status: "paused",
+    bankedS: state.bankedS + elapsed,
+    segmentStartedAt: null,
+    autoPaused: automatic,
+  });
   void flush();
 }
 
 export function resume(): void {
   if (state.status !== "paused") return;
-  publish({ status: "running", segment: state.segment + 1, segmentStartedAt: Date.now() });
+  speedWindow = [];
+  publish({
+    status: "running",
+    segment: state.segment + 1,
+    segmentStartedAt: Date.now(),
+    autoPaused: false,
+  });
 }
 
 /** Close the run and return its id, or null when nothing was in progress. */
@@ -211,6 +294,7 @@ export async function finish(): Promise<number | null> {
   const duration = activeDurationS(state, endedAt);
   const { runId, points, startedAt } = state;
 
+  stopSpeaking();
   publish({ status: "paused", segmentStartedAt: null, bankedS: duration });
   await stopGps();
   await flush();
@@ -232,6 +316,7 @@ export async function finish(): Promise<number | null> {
 
 export async function discard(): Promise<void> {
   if (state.status === "idle") return;
+  stopSpeaking();
   await stopGps();
   reset();
 }
@@ -239,5 +324,6 @@ export async function discard(): Promise<void> {
 function reset(): void {
   state = IDLE;
   savedCount = 0;
+  speedWindow = [];
   for (const listener of listeners) listener();
 }

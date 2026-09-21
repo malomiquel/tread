@@ -4,6 +4,7 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { initDb } from "@/lib/db";
+import { loadSettings } from "@/lib/settings";
 import { colors } from "@/lib/theme";
 
 export default function RootLayout() {
@@ -12,6 +13,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     initDb()
+      .then(loadSettings)
       .then(() => setReady(true))
       .catch((cause: unknown) => {
         setError(cause instanceof Error ? cause.message : "Base de données inaccessible.");
