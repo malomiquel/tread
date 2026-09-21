@@ -3,7 +3,7 @@ import { forwardRef } from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
 import type { Run } from "@/lib/db";
 import { formatDate, formatDistance, formatDuration, formatElevation, formatPace } from "@/lib/format";
-import { font, literalColors } from "@/lib/theme";
+import { font } from "@/lib/theme";
 
 /**
  * The card is laid out at a fixed size rather than filling its container, so
@@ -107,7 +107,11 @@ export const ShareCard = forwardRef<View, Props>(function ShareCard({ run, mapUr
       />
 
       <View style={styles.brand}>
-        <View style={styles.brandDot} />
+        {/* The app's own icon rather than a disc standing in for it. The disc
+            was a placeholder from before there was a mark to use, and the
+            point of putting a name on a picture somebody else will see is
+            that they can recognise it again in a shop. */}
+        <Image source={require("@/assets/images/icon.png")} style={styles.brandMark} />
         <Text style={styles.brandName}>TREAD</Text>
       </View>
 
@@ -158,13 +162,9 @@ const styles = StyleSheet.create({
     position: "absolute", top: 16, left: GUTTER,
     flexDirection: "row", alignItems: "center", gap: 7,
   },
-  // The mark is a stride in plan: a filled disc for the footfall, and the
-  // wordmark set wide beside it. Drawing a runner at this size only ever
-  // produces a smudge.
-  brandDot: {
-    width: 10, height: 10, borderRadius: 5,
-    backgroundColor: literalColors.track.dark,
-  },
+  // Squared off the way iOS shows it, so it reads as the app rather than as a
+  // logo someone drew for the occasion.
+  brandMark: { width: 22, height: 22, borderRadius: 5 },
   brandName: { color: INK, fontSize: 19, fontFamily: font.extrabold, letterSpacing: 3.4 },
 
   footer: { position: "absolute", left: GUTTER, right: GUTTER, bottom: 18 },
