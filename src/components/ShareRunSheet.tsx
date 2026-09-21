@@ -6,7 +6,7 @@ import MapView, { Polyline } from "react-native-maps";
 import * as Sharing from "expo-sharing";
 import { captureRef } from "react-native-view-shot";
 import { Button } from "@/components/Button";
-import { CARD_HEIGHT, CARD_WIDTH, ShareCard, TRACK_LIFT } from "@/components/ShareCard";
+import { CARD_HEIGHT, CARD_WIDTH, ShareCard, TRACK_LIFT, TRACK_MARGIN } from "@/components/ShareCard";
 import type { Run } from "@/lib/db";
 import { regionAround, segments, type TrackPoint } from "@/lib/geo";
 import { colors, floatingShadow, literalColors } from "@/lib/theme";
@@ -75,7 +75,7 @@ function Sheet({ run, points, preparedMapUri, onClose }: Omit<Props, "visible">)
   const tracks = segments(points);
   // The camera is worked out here rather than left to a later fit, so that the
   // map opens on the run instead of on the middle of the ocean.
-  const region = regionAround(points, 1.35, TRACK_LIFT);
+  const region = regionAround(points, TRACK_MARGIN, TRACK_LIFT);
 
   /**
    * The region is handed over rather than left implicit, and that is the whole
@@ -163,19 +163,20 @@ function Sheet({ run, points, preparedMapUri, onClose }: Omit<Props, "visible">)
 
         <View style={styles.actions}>
           <Button label="Fermer" variant="secondary" onPress={onClose} />
-          <Button
-            label={sharing ? "Préparation…" : mapUri ? "Partager" : "Rendu…"}
-            onPress={() => void share()}
-            disabled={sharing || !mapUri}
-          />
+          {mapUri ? (
+            <Button
+              label={sharing ? "Préparation…" : "Partager"}
+              onPress={() => void share()}
+              disabled={sharing}
+            />
+          ) : (
+            <View style={styles.waiting}>
+              <ActivityIndicator size="small" color={colors.accent} />
+              <Text style={styles.waitingText}>Rendu de la carte…</Text>
+            </View>
+          )}
         </View>
 
-        {!mapUri && (
-          <View style={styles.pending} pointerEvents="none">
-            <ActivityIndicator size="small" color={colors.accent} />
-            <Text style={styles.pendingText}>Rendu de la carte…</Text>
-          </View>
-        )}
       </Pressable>
     </Pressable>
   );
@@ -184,13 +185,15 @@ function Sheet({ run, points, preparedMapUri, onClose }: Omit<Props, "visible">)
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1, backgroundColor: colors.scrim,
-    alignItems: "center", justifyContent: "center", padding: 20,
+    alignItems: "center", justifyContent: "center", padding: 16,
   },
-  stack: { alignItems: "center", gap: 16 },
+  // A card this tall leaves little room beside it, so the margins stay narrow
+  // and the waiting line stands in for the button rather than below it.
+  stack: { alignItems: "center", gap: 14 },
   // The shadow sits on a wrapper rather than on the card: the card is what
   // gets captured, and a shadow would be baked into the shared image.
   cardShadow: { width: CARD_WIDTH, height: CARD_HEIGHT, ...floatingShadow },
-  actions: { flexDirection: "row", gap: 10 },
-  pending: { flexDirection: "row", alignItems: "center", gap: 8 },
-  pendingText: { color: colors.background, fontSize: 11.5, fontWeight: "500" },
+  actions: { flexDirection: "row", alignItems: "center", gap: 10 },
+  waiting: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14 },
+  waitingText: { color: colors.background, fontSize: 12, fontWeight: "500" },
 });

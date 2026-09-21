@@ -11,14 +11,24 @@ import { literalColors } from "@/lib/theme";
  * usual three device pixels per point this comes out at 960 × 1200, the 4:5
  * portrait most feeds crop to.
  */
-export const CARD_WIDTH = 320;
-export const CARD_HEIGHT = 400;
+export const CARD_WIDTH = 288;
+export const CARD_HEIGHT = 512;
 
 /**
- * How far up the frame the track is pushed, as a share of the frame's height,
- * to keep it clear of the writing laid over the bottom.
+ * How much wider than the track itself the framing is. Well over one, because
+ * a route pinned to the edges of its own picture reads as a diagram; given
+ * room, it reads as somewhere you went.
  */
-export const TRACK_LIFT = 0.16;
+export const TRACK_MARGIN = 1.7;
+
+/**
+ * How far up the frame the track is pushed, as a share of the frame's height.
+ *
+ * Around an eighth. With the margin above, that leaves the track sitting a
+ * little above centre and its lowest point clear of the writing, which takes
+ * the bottom third or so.
+ */
+export const TRACK_LIFT = 0.14;
 
 /**
  * The card carries its own colours instead of the app's.
@@ -103,10 +113,8 @@ export const ShareCard = forwardRef<View, Props>(function ShareCard({ run, mapUr
       </View>
 
       <View style={styles.footer}>
-        <Text style={styles.caption} numberOfLines={1}>
-          {(run.name ?? "Course").toUpperCase()}
-          <Text style={styles.captionFaint}>{`  ·  ${formatDate(run.startedAt)}`}</Text>
-        </Text>
+        <Text style={styles.name} numberOfLines={1}>{run.name ?? "Course"}</Text>
+        <Text style={styles.date} numberOfLines={1}>{formatDate(run.startedAt)}</Text>
 
         <View style={styles.heroRow}>
           <Text style={styles.hero}>{formatDistance(run.distanceM)}</Text>
@@ -136,8 +144,8 @@ const styles = StyleSheet.create({
   },
   mapImage: { width: "100%", height: "100%" },
 
-  topVeil: { position: "absolute", top: 0, left: 0, right: 0, height: 92 },
-  bottomVeil: { position: "absolute", left: 0, right: 0, bottom: 0, height: 214 },
+  topVeil: { position: "absolute", top: 0, left: 0, right: 0, height: 104 },
+  bottomVeil: { position: "absolute", left: 0, right: 0, bottom: 0, height: 272 },
 
   brand: {
     position: "absolute", top: 16, left: GUTTER,
@@ -153,27 +161,30 @@ const styles = StyleSheet.create({
   brandName: { color: INK, fontSize: 15, fontWeight: "800", letterSpacing: 3.4 },
 
   footer: { position: "absolute", left: GUTTER, right: GUTTER, bottom: 18 },
-  caption: { color: INK_SOFT, fontSize: 9.5, fontWeight: "700", letterSpacing: 1.5 },
-  captionFaint: { color: INK_FAINT, fontWeight: "600", letterSpacing: 1 },
+  // Set as a title rather than as a caption: it is the run's own name, and
+  // squeezing it into small tracked capitals beside the date made both
+  // unreadable at the size these pictures are actually looked at.
+  name: { color: INK, fontSize: 19, fontWeight: "700", letterSpacing: -0.4 },
+  date: { color: INK_SOFT, fontSize: 12, fontWeight: "500", marginTop: 2 },
 
-  heroRow: { flexDirection: "row", alignItems: "baseline", gap: 5, marginTop: 6 },
+  heroRow: { flexDirection: "row", alignItems: "baseline", gap: 5, marginTop: 10 },
   hero: {
-    color: INK, fontSize: 52, fontWeight: "700",
-    letterSpacing: -2.6, fontVariant: ["tabular-nums"],
+    color: INK, fontSize: 58, fontWeight: "700",
+    letterSpacing: -3, fontVariant: ["tabular-nums"],
   },
-  heroUnit: { color: INK_SOFT, fontSize: 15, fontWeight: "700", letterSpacing: -0.2 },
+  heroUnit: { color: INK_SOFT, fontSize: 16, fontWeight: "700", letterSpacing: -0.2 },
 
   // A rule under the hero, the way the app separates its own sections.
   stats: {
-    flexDirection: "row", gap: 28, marginTop: 12, paddingTop: 11,
+    flexDirection: "row", gap: 26, marginTop: 14, paddingTop: 13,
     borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "rgba(255, 255, 255, 0.24)",
   },
   stat: { gap: 2 },
   statValueRow: { flexDirection: "row", alignItems: "baseline", gap: 2 },
   statValue: {
-    color: INK, fontSize: 19, fontWeight: "600",
+    color: INK, fontSize: 20, fontWeight: "600",
     letterSpacing: -0.5, fontVariant: ["tabular-nums"],
   },
-  statUnit: { color: INK_FAINT, fontSize: 10, fontWeight: "600" },
-  statLabel: { color: INK_FAINT, fontSize: 8, fontWeight: "700", letterSpacing: 1.3 },
+  statUnit: { color: INK_FAINT, fontSize: 10.5, fontWeight: "600" },
+  statLabel: { color: INK_FAINT, fontSize: 8.5, fontWeight: "700", letterSpacing: 1.3 },
 });
