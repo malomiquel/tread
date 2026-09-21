@@ -2,6 +2,7 @@ import * as Location from "expo-location";
 import * as TaskManager from "expo-task-manager";
 import { useSyncExternalStore } from "react";
 import { createRun, finishRun, insertPoints } from "./db";
+import { syncRunToHealth } from "./health";
 import { autoName } from "./format";
 import { announceAutoPause, announceKilometre, stopSpeaking } from "./feedback";
 import {
@@ -309,6 +310,12 @@ export async function finish(): Promise<number | null> {
     elevationGainM: elevationGainM(points),
     fastestKmS: fastestKmS(points),
   });
+
+  // Apple Health is a mirror, and the run is already safe on disk, so the copy
+  // is deliberately not awaited: a slow or refused HealthKit call must not
+  // hold up the summary screen. The run's own page reports whether the copy
+  // landed, and offers to send it again.
+  if (getSettings().healthSync) void syncRunToHealth(runId);
 
   reset();
   return runId;

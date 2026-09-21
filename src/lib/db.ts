@@ -41,6 +41,12 @@ export interface Run {
   elevationGainM: number | null;
   /** Duration of this run's fastest kilometre, in seconds. */
   fastestKmS: number | null;
+  /**
+   * Identifier of this run's copy in Apple Health, or null while it has none.
+   * Storing it keeps the mirror honest in both directions: the run is never
+   * written twice, and deleting it here can delete it there too.
+   */
+  healthUuid: string | null;
 }
 
 /** Shape the SQL layer returns, before mapping to camelCase. */
@@ -54,6 +60,7 @@ interface RunRow {
   name: string | null;
   elevation_gain_m: number | null;
   fastest_km_s: number | null;
+  health_uuid: string | null;
 }
 
 const toRun = (row: RunRow): Run => ({
@@ -66,9 +73,10 @@ const toRun = (row: RunRow): Run => ({
   name: row.name,
   elevationGainM: row.elevation_gain_m,
   fastestKmS: row.fastest_km_s,
+  healthUuid: row.health_uuid,
 });
 
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 
 export async function initDb(): Promise<void> {
   const db = getDb();
@@ -89,7 +97,8 @@ export async function initDb(): Promise<void> {
         avg_pace_s_km REAL,
         name TEXT,
         elevation_gain_m REAL,
-        fastest_km_s REAL
+        fastest_km_s REAL,
+        health_uuid TEXT
       );
       CREATE TABLE IF NOT EXISTS points (
         id INTEGER PRIMARY KEY,
@@ -146,6 +155,11 @@ export async function initDb(): Promise<void> {
     version = 4;
   }
 
+  if (version < 5) {
+    await db.execAsync("ALTER TABLE runs ADD COLUMN health_uuid TEXT");
+    version = 5;
+  }
+
   await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
   await recoverInterruptedRuns();
 }
@@ -184,6 +198,14 @@ export async function finishRun(id: number, totals: RunTotals): Promise<void> {
     totals.endedAt, totals.distanceM, totals.durationS, totals.avgPaceSKm,
     totals.name, totals.elevationGainM, totals.fastestKmS, id,
   );
+}
+
+/**
+ * Remember that this run now exists in Apple Health. Passing null forgets it,
+ * which is what a failed or undone sync means.
+ */
+export async function setHealthUuid(id: number, uuid: string | null): Promise<void> {
+  await getDb().runAsync("UPDATE runs SET health_uuid = ? WHERE id = ?", uuid, id);
 }
 
 export async function renameRun(id: number, name: string): Promise<void> {

@@ -2,7 +2,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useKeepAwake } from "expo-keep-awake";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { GlassPanel } from "@/components/GlassPanel";
 import { Metric } from "@/components/Metric";
@@ -10,9 +10,10 @@ import { RunMap } from "@/components/RunMap";
 import { listRuns, type Run } from "@/lib/db";
 import { formatDistance, formatDuration, formatElevation, formatPace } from "@/lib/format";
 import { currentPace, elevationGainM, paceSecPerKm, totalDistanceM } from "@/lib/geo";
+import { healthAvailable, requestHealthAccess, sharingRefused } from "@/lib/health";
 import { CONTROLS_TOP, useTabBarSpace } from "@/lib/layout";
 import { useInitialLocation } from "@/lib/location";
-import { toggleSetting, useSettings } from "@/lib/settings";
+import { setSetting, toggleSetting, useSettings } from "@/lib/settings";
 import { weekTotals } from "@/lib/stats";
 import { colors } from "@/lib/theme";
 import { activeDurationS, discard, finish, pause, resume, start, useTracker } from "@/lib/tracker";
@@ -72,6 +73,29 @@ export default function RecordScreen() {
   const router = useRouter();
   const { coords, granted } = useInitialLocation();
   const settings = useSettings();
+  // Whether this device has Health at all never changes while the app runs.
+  const [hasHealth] = useState(healthAvailable);
+
+  /**
+   * Turning the switch on is also when access is asked for: a permission sheet
+   * appearing out of nowhere is confusing, whereas one appearing the instant
+   * you ask for the feature explains itself.
+   */
+  async function toggleHealth() {
+    if (settings.healthSync) {
+      await setSetting("healthSync", false);
+      return;
+    }
+    const asked = await requestHealthAccess();
+    if (!asked || sharingRefused()) {
+      Alert.alert(
+        "Santé n'a rien reçu",
+        "Tread n'a pas le droit d'écrire tes courses. Tu peux le lui donner dans Réglages › Santé › Accès aux données › Tread.",
+      );
+      return;
+    }
+    await setSetting("healthSync", true);
+  }
   const tabBarSpace = useTabBarSpace();
   const [now, setNow] = useState(() => Date.now());
   const [finishing, setFinishing] = useState(false);
@@ -165,6 +189,14 @@ export default function RecordScreen() {
             icon="pause-circle"
             label="Pause automatique à l'arrêt"
           />
+          {hasHealth && (
+            <Toggle
+              on={settings.healthSync}
+              onPress={() => void toggleHealth()}
+              icon={settings.healthSync ? "heart" : "heart-outline"}
+              label="Envoyer les courses vers Apple Santé"
+            />
+          )}
         </GlassPanel>
       </View>
 

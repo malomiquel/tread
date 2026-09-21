@@ -12,6 +12,7 @@ import { archiveFileName, buildArchive } from "@/lib/archive";
 import { deleteRun, listRuns, readRun, type Run } from "@/lib/db";
 import { createDemoRun } from "@/lib/demo";
 import { formatDate, formatDistance, formatDuration, formatPace } from "@/lib/format";
+import { forgetRunInHealth } from "@/lib/health";
 import { useTabBarSpace } from "@/lib/layout";
 import { colors } from "@/lib/theme";
 
@@ -64,6 +65,9 @@ export default function HistoryScreen() {
     setPending(null);
     setRuns((current) => (current ?? []).filter((item) => item.id !== run.id));
     try {
+      // Removes the copy in Apple Health too, so that throwing a run away here
+      // does not leave a ghost of it there. Best effort, and silent.
+      await forgetRunInHealth(run);
       await deleteRun(run.id);
     } catch {
       // The delete failed, so put the run back rather than pretend otherwise.

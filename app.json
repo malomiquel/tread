@@ -51,6 +51,14 @@
           "isAndroidForegroundServiceEnabled": true
         }
       ],
+      [
+        "@kingstinct/react-native-healthkit",
+        {
+          "NSHealthShareUsageDescription": "Tread lit ton poids pour estimer les calories brûlées pendant tes courses.",
+          "NSHealthUpdateUsageDescription": "Tread enregistre tes courses, leur distance et leur tracé dans Santé.",
+          "background": false
+        }
+      ],
       "expo-sharing"
     ],
     "experiments": {

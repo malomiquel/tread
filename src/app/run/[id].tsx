@@ -14,6 +14,7 @@ import { deleteRun, readRun, renameRun, type Run } from "@/lib/db";
 import { formatDate, formatDistance, formatDuration, formatElevation, formatPace } from "@/lib/format";
 import { splits, type TrackPoint } from "@/lib/geo";
 import { gpxFileName, toGpx } from "@/lib/gpx";
+import { forgetRunInHealth, healthAvailable, requestHealthAccess, syncRunToHealth } from "@/lib/health";
 import { colors, floatingShadow } from "@/lib/theme";
 
 type Loaded = { run: Run; points: TrackPoint[] };
@@ -28,6 +29,8 @@ export default function RunDetailScreen() {
   const [exporting, setExporting] = useState(false);
   const [mapExpanded, setMapExpanded] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [hasHealth] = useState(healthAvailable);
 
   useEffect(() => {
     let active = true;
@@ -90,6 +93,30 @@ export default function RunDetailScreen() {
     }
   }
 
+  /**
+   * Sends this one run to Health by hand. The automatic copy only covers runs
+   * finished since the setting was turned on, so everything recorded before
+   * that, and anything the copy missed, needs a way in.
+   */
+  async function sendToHealth() {
+    if (syncing) return;
+    setSyncing(true);
+    try {
+      const asked = await requestHealthAccess();
+      const uuid = asked ? await syncRunToHealth(run.id) : null;
+      if (!uuid) {
+        Alert.alert(
+          "Santé n'a rien reçu",
+          "Tread n'a pas le droit d'écrire tes courses. Tu peux le lui donner dans Réglages › Santé › Accès aux données › Tread.",
+        );
+        return;
+      }
+      setData({ run: { ...run, healthUuid: uuid }, points });
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   async function saveName() {
     const next = draftName.trim();
     setRenaming(false);
@@ -100,7 +127,11 @@ export default function RunDetailScreen() {
 
   function removeRun() {
     setConfirmingDelete(false);
-    void deleteRun(run.id).then(() => router.back());
+    // The copy in Health goes first: deleting the run here would otherwise
+    // strand a workout that nothing in the app can reach any more.
+    void forgetRunInHealth(run)
+      .then(() => deleteRun(run.id))
+      .then(() => router.back());
   }
 
   return (
@@ -184,7 +215,26 @@ export default function RunDetailScreen() {
         </View>
       )}
 
-      <Text style={styles.muted}>{points.length} points GPS enregistrés</Text>
+      <View style={styles.footnotes}>
+        <Text style={styles.muted}>{points.length} points GPS enregistrés</Text>
+        {hasHealth && run.healthUuid && (
+          <View style={styles.synced}>
+            <Ionicons name="heart" size={12} color={colors.accent} />
+            <Text style={styles.syncedText}>Copiée dans Apple Santé</Text>
+          </View>
+        )}
+      </View>
+
+      {hasHealth && !run.healthUuid && (
+        <View style={styles.healthAction}>
+          <Button
+            label={syncing ? "Envoi…" : "Ajouter à Apple Santé"}
+            variant="secondary"
+            onPress={() => void sendToHealth()}
+            disabled={syncing}
+          />
+        </View>
+      )}
 
       <View style={styles.actions}>
         <Button
@@ -271,7 +321,11 @@ const styles = StyleSheet.create({
   },
   best: { color: colors.accent },
 
-  muted: { color: colors.subtle, fontSize: 11.5, textAlign: "center", paddingVertical: 16 },
+  footnotes: { alignItems: "center", gap: 5, paddingVertical: 16 },
+  muted: { color: colors.subtle, fontSize: 11.5, textAlign: "center" },
+  synced: { flexDirection: "row", alignItems: "center", gap: 5 },
+  syncedText: { color: colors.accent, fontSize: 11.5, fontWeight: "500" },
+  healthAction: { paddingHorizontal: GUTTER, paddingBottom: 10 },
   actions: { flexDirection: "row", gap: 10, paddingHorizontal: GUTTER },
 
   backdrop: {
