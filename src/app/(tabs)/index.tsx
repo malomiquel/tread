@@ -16,6 +16,7 @@ import { useInitialLocation } from "@/lib/location";
 import { toggleSetting, useSettings } from "@/lib/settings";
 import { timeAgo, weekTotals } from "@/lib/stats";
 import { colors } from "@/lib/theme";
+import { setMapExpanded, useMapExpanded } from "@/lib/ui";
 import { activeDurationS, discard, finish, pause, resume, start, useTracker } from "@/lib/tracker";
 
 /**
@@ -60,30 +61,36 @@ function Toggle({
  * the view it sits on.
  */
 function RoundButton({
-  icon, label, onPress, primary = false, danger = false,
+  icon, label, onPress, primary = false, danger = false, size = 40, disabled = false,
 }: {
   icon: React.ComponentProps<typeof Ionicons>["name"];
   label: string;
   onPress: () => void;
   primary?: boolean;
   danger?: boolean;
+  size?: number;
+  disabled?: boolean;
 }) {
   return (
     <Pressable
       onPress={onPress}
+      disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityState={{ disabled }}
       hitSlop={6}
       style={({ pressed }) => [
         styles.round,
+        { width: size, height: size, borderRadius: size / 2 },
         primary && styles.roundPrimary,
         danger && styles.roundDanger,
         pressed && styles.pressed,
+        disabled && styles.roundDisabled,
       ]}
     >
       <Ionicons
         name={icon}
-        size={18}
+        size={Math.round(size * 0.45)}
         color={primary ? colors.accentText : danger ? colors.danger : colors.text}
         // A play triangle centred geometrically reads as off-centre: its mass
         // sits left of its box.
@@ -100,9 +107,9 @@ export default function RecordScreen() {
   const settings = useSettings();
   const [now, setNow] = useState(() => Date.now());
   const [finishing, setFinishing] = useState(false);
-  const [expanded, setExpanded] = useState(false);
   const [history, setHistory] = useState<Run[]>([]);
   const tabBarSpace = useTabBarSpace();
+  const expanded = useMapExpanded();
 
   const recording = tracker.status !== "idle";
 
@@ -179,21 +186,27 @@ export default function RecordScreen() {
     ]);
   }
 
-  const actions = (
+  // Idle, one plain call to action. Running, two icons: at that point the
+  // gestures are known and a label only takes room from the figures.
+  const actions = recording ? (
+    <View style={styles.roundActions}>
+      {tracker.status === "running" ? (
+        <RoundButton icon="pause" label="Pause" onPress={pause} size={58} />
+      ) : (
+        <RoundButton icon="play" label="Reprendre" onPress={resume} primary size={58} />
+      )}
+      <RoundButton
+        icon="stop"
+        label="Terminer"
+        onPress={confirmFinish}
+        danger
+        size={58}
+        disabled={finishing}
+      />
+    </View>
+  ) : (
     <View style={styles.actions}>
-      {!recording && <Button label="Démarrer" onPress={() => void start()} />}
-      {tracker.status === "running" && (
-        <>
-          <Button label="Pause" variant="secondary" onPress={pause} />
-          <Button label="Terminer" variant="danger" onPress={confirmFinish} disabled={finishing} />
-        </>
-      )}
-      {tracker.status === "paused" && (
-        <>
-          <Button label="Reprendre" onPress={resume} />
-          <Button label="Terminer" variant="danger" onPress={confirmFinish} disabled={finishing} />
-        </>
-      )}
+      <Button label="Démarrer" onPress={() => void start()} />
     </View>
   );
 
@@ -205,16 +218,17 @@ export default function RecordScreen() {
           follow
           initialCenter={coords}
           fullscreen
-          onToggleFullscreen={() => setExpanded(false)}
-          // Clear of the floating tab bar, which overlays this screen too.
-          controlsBottom={tabBarSpace}
+          onToggleFullscreen={() => setMapExpanded(false)}
+          // The panel now sits at the bottom, so the controls move out of its
+          // way rather than trying to clear it from below.
+          controlsAtTop
           style={styles.expandedMap}
         />
         {recording && <KeepAwake />}
 
-        <SafeAreaView edges={["top"]} pointerEvents="box-none" style={styles.overlayTop}>
-          {/* Readings and controls share one panel at the top. They used to sit
-              at the bottom, where the floating tab bar covered them. */}
+        <SafeAreaView edges={["bottom"]} pointerEvents="box-none" style={styles.overlayBottom}>
+          {/* Readings and controls share one panel, within thumb reach at the
+              bottom. The tab bar is hidden here, so nothing covers it. */}
           <GlassPanel style={styles.banner} interactive>
             <View style={styles.bannerMetrics}>
               <Metric compact label="Distance" value={formatDistance(distance)} unit="km" />
@@ -228,13 +242,13 @@ export default function RecordScreen() {
               {tracker.status === "running" && (
                 <>
                   <RoundButton icon="pause" label="Pause" onPress={pause} />
-                  <RoundButton icon="stop" label="Terminer" onPress={confirmFinish} danger />
+                  <RoundButton icon="stop" label="Terminer" onPress={confirmFinish} danger disabled={finishing} />
                 </>
               )}
               {tracker.status === "paused" && (
                 <>
                   <RoundButton icon="play" label="Reprendre" onPress={resume} primary />
-                  <RoundButton icon="stop" label="Terminer" onPress={confirmFinish} danger />
+                  <RoundButton icon="stop" label="Terminer" onPress={confirmFinish} danger disabled={finishing} />
                 </>
               )}
             </View>
@@ -323,7 +337,7 @@ export default function RecordScreen() {
             icon="pause-circle"
             label="Pause automatique à l'arrêt"
           />
-          <Toggle action on={false} onPress={() => setExpanded(true)} icon="map" label="Voir la carte" />
+          <Toggle action on={false} onPress={() => setMapExpanded(true)} icon="map" label="Voir la carte" />
         </View>
         {actions}
       </View>
@@ -381,10 +395,11 @@ const styles = StyleSheet.create({
   toggles: { flexDirection: "row", gap: 22 },
   toggle: { paddingVertical: 2 },
   actions: { flexDirection: "row", gap: 10 },
+  roundActions: { flexDirection: "row", gap: 18, justifyContent: "center" },
 
   expandedScreen: { flex: 1, backgroundColor: colors.background },
   expandedMap: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, borderRadius: 0 },
-  overlayTop: { position: "absolute", top: 0, left: 0, right: 0, padding: 12 },
+  overlayBottom: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 12 },
   banner: {
     flexDirection: "row", alignItems: "center", gap: 14,
     borderRadius: 20, paddingHorizontal: 16, paddingVertical: 12,
@@ -398,5 +413,6 @@ const styles = StyleSheet.create({
   },
   roundPrimary: { backgroundColor: colors.accent, borderColor: colors.accent },
   roundDanger: { borderColor: colors.dangerSoft },
+  roundDisabled: { opacity: 0.35 },
   play: { marginLeft: 2 },
 });

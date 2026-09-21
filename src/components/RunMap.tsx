@@ -24,6 +24,8 @@ interface Props {
    * controls and the map can no longer be closed.
    */
   controlsBottom?: number;
+  /** Moves the controls to the top, for screens whose panel sits at the bottom. */
+  controlsAtTop?: boolean;
   style?: StyleProp<ViewStyle>;
 }
 
@@ -37,7 +39,7 @@ const RUNNER_ZOOM = 0.006;
  */
 export function RunMap({
   points, follow = false, fitAll = false, initialCenter = null,
-  onToggleFullscreen, fullscreen = false, controlsBottom = 12, style,
+  onToggleFullscreen, fullscreen = false, controlsBottom = 12, controlsAtTop = false, style,
 }: Props) {
   const map = useRef<MapView>(null);
   const [locating, setLocating] = useState(false);
@@ -128,7 +130,7 @@ export function RunMap({
         )}
       </MapView>
 
-      <View style={[styles.controls, { bottom: controlsBottom }]}>
+      <View style={[styles.controls, controlsAtTop ? styles.controlsTop : { bottom: controlsBottom }]}>
         {onToggleFullscreen && (
           <Pressable
             onPress={onToggleFullscreen}
@@ -167,6 +169,7 @@ const styles = StyleSheet.create({
   // The controls stack in one column so they never collide, whatever the
   // combination of buttons a screen asks for.
   controls: { position: "absolute", right: 12, gap: 10 },
+  controlsTop: { top: 60 },
   control: {
     width: 42,
     height: 42,
