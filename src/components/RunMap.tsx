@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import { bounds, segments, type TrackPoint } from "@/lib/geo";
+import { CONTROLS_TOP } from "@/lib/layout";
 import { getCurrentCoords, type Coords } from "@/lib/location";
 import { colors, floatingShadow } from "@/lib/theme";
 
@@ -169,7 +170,7 @@ const styles = StyleSheet.create({
   // The controls stack in one column so they never collide, whatever the
   // combination of buttons a screen asks for.
   controls: { position: "absolute", right: 12, gap: 10 },
-  controlsTop: { top: 60 },
+  controlsTop: { top: CONTROLS_TOP },
   control: {
     width: 42,
     height: 42,
@@ -180,14 +181,5 @@ const styles = StyleSheet.create({
     ...floatingShadow,
   },
   controlPressed: { transform: [{ scale: 0.96 }], opacity: 0.9 },
-  locateButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.background,
-    ...floatingShadow,
-  },
   locatePressed: { transform: [{ scale: 0.96 }], opacity: 0.9 },
 });

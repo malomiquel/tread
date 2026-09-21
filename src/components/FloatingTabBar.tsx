@@ -4,7 +4,6 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { GlassPanel } from "@/components/GlassPanel";
 import { TAB_BAR_HEIGHT, useTabBarBottom } from "@/lib/layout";
 import { colors } from "@/lib/theme";
-import { useMapExpanded } from "@/lib/ui";
 
 /**
  * A floating tab bar that hugs its own content.
@@ -29,11 +28,6 @@ type TabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>["tabBar"]>
 
 export function FloatingTabBar({ state, descriptors, navigation }: TabBarProps) {
   const bottom = useTabBarBottom();
-  const mapExpanded = useMapExpanded();
-
-  // Hidden over a full screen map: the map is the point, and the only way
-  // back out is its own collapse button, which stays visible.
-  if (mapExpanded) return null;
 
   const tabs = state.routes.map((route, index) => {
     const { options } = descriptors[route.key];

@@ -1,5 +1,8 @@
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+/** How far the map's own controls sit from the top, and anything aligned with them. */
+export const CONTROLS_TOP = 60;
+
 /** Height of the floating tab bar itself. */
 export const TAB_BAR_HEIGHT = 62;
 
