@@ -47,8 +47,11 @@ export default function RootLayout() {
           contentStyle: { backgroundColor: colors.background },
         }}
       >
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="run/[id]" options={{ title: "Course" }} />
+        {/* Un titre est nécessaire même sans en-tête : le bouton retour de
+            l'écran suivant s'en sert, et retombe sinon sur le nom technique
+            de la route, « (tabs) ». */}
+        <Stack.Screen name="(tabs)" options={{ headerShown: false, title: "Tread" }} />
+        <Stack.Screen name="run/[id]" options={{ title: "Course", headerBackTitle: "Retour" }} />
       </Stack>
     </>
   );
