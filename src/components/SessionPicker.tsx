@@ -33,6 +33,7 @@ function summary(session: Session): string {
  */
 function TargetPace() {
   const { targetPaceSKm } = useSettings();
+  const set = targetPaceSKm !== null;
 
   const step = (by: number) => {
     const from = targetPaceSKm ?? 5 * 60 + 30;
@@ -42,22 +43,27 @@ function TargetPace() {
   return (
     <View style={styles.pace}>
       <View style={styles.rowText}>
-        <Text style={[styles.name, targetPaceSKm !== null && styles.nameOn]}>Allure cible</Text>
+        <Text style={[styles.name, set && styles.nameOn]}>Allure cible</Text>
         <Text style={styles.detail}>
-          {targetPaceSKm === null ? "Aucune, course libre" : "Annoncée dès huit secondes d'écart"}
+          {set ? "Annoncée dès huit secondes d'écart" : "Aucune, course libre"}
         </Text>
       </View>
 
       <View style={styles.stepper}>
-        <Pressable
-          onPress={() => void setTargetPace(null)}
-          accessibilityRole="button"
-          accessibilityLabel="Aucune allure cible"
-          hitSlop={8}
-          style={({ pressed }) => [styles.stepButton, pressed && styles.pressed]}
-        >
-          <Text style={styles.stepSign}>—</Text>
-        </Pressable>
+        {/* The clear button only exists once there is something to clear.
+            Shown always, it sat beside the minus as a second dash and the two
+            read as one control with a stutter. */}
+        {set && (
+          <Pressable
+            onPress={() => void setTargetPace(null)}
+            accessibilityRole="button"
+            accessibilityLabel="Retirer l'allure cible"
+            hitSlop={8}
+            style={({ pressed }) => [styles.stepButton, pressed && styles.pressed]}
+          >
+            <Ionicons name="close" size={18} color={colors.subtle} />
+          </Pressable>
+        )}
         <Pressable
           onPress={() => step(-TARGET_STEP_S)}
           disabled={targetPaceSKm === TARGET_MIN_S}
@@ -66,10 +72,10 @@ function TargetPace() {
           hitSlop={8}
           style={({ pressed }) => [styles.stepButton, pressed && styles.pressed]}
         >
-          <Ionicons name="remove" size={19} color={colors.text} />
+          <Ionicons name="remove" size={20} color={colors.text} />
         </Pressable>
-        <Text style={styles.paceValue}>
-          {targetPaceSKm === null ? "–'––\"" : formatPace(targetPaceSKm)}
+        <Text style={[styles.paceValue, !set && styles.paceEmpty]}>
+          {set ? formatPace(targetPaceSKm) : "5'30\""}
         </Text>
         <Pressable
           onPress={() => step(TARGET_STEP_S)}
@@ -79,7 +85,7 @@ function TargetPace() {
           hitSlop={8}
           style={({ pressed }) => [styles.stepButton, pressed && styles.pressed]}
         >
-          <Ionicons name="add" size={19} color={colors.text} />
+          <Ionicons name="add" size={20} color={colors.text} />
         </Pressable>
       </View>
     </View>
@@ -164,14 +170,19 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline,
   },
-  stepper: { flexDirection: "row", alignItems: "center", gap: 4, flexShrink: 0 },
+  stepper: { flexDirection: "row", alignItems: "center", gap: 2, flexShrink: 0 },
+  // Every control in the row is an icon in a box of the same size, which is
+  // what keeps them on one line: a glyph of text and an icon never sit at the
+  // same height.
   stepButton: {
     width: 34, height: 34, borderRadius: 17,
     alignItems: "center", justifyContent: "center",
   },
-  stepSign: { color: colors.subtle, fontSize: 17, fontFamily: font.semibold },
   paceValue: {
     color: colors.text, fontSize: 19, fontFamily: font.semibold,
     minWidth: 62, textAlign: "center", fontVariant: ["tabular-nums"],
   },
+  // Greyed rather than blank: the figure shows what the first tap would pick,
+  // so the stepper reads as ready rather than as broken.
+  paceEmpty: { color: colors.subtle },
 });
