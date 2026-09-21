@@ -69,3 +69,16 @@ export function formatDate(ts: number): string {
     minute: "2-digit",
   });
 }
+
+
+/**
+ * A count with its thousands set apart — "8 432".
+ *
+ * A narrow no-break space, which is what French typography uses and what
+ * keeps the number from breaking across a line. Four figures side by side
+ * with nothing between them read as a reference number rather than a
+ * quantity.
+ */
+export function formatCount(value: number): string {
+  return Math.round(value).toLocaleString("fr-FR").replace(/\u202f|\u00a0/g, "\u202f");
+}

@@ -2,7 +2,10 @@ import { LinearGradient } from "expo-linear-gradient";
 import { forwardRef } from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
 import type { Run } from "@/lib/db";
-import { formatDate, formatDistance, formatDuration, formatElevation, formatPace } from "@/lib/format";
+import { stepsFrom } from "@/lib/cadence";
+import {
+  formatCount, formatDate, formatDistance, formatDuration, formatElevation, formatPace,
+} from "@/lib/format";
 import { font } from "@/lib/theme";
 
 /**
@@ -81,6 +84,12 @@ function Stat({ value, unit, label }: { value: string; unit?: string; label: str
  */
 export const ShareCard = forwardRef<View, Props>(function ShareCard({ run, mapUri, place = null }, ref) {
   const elevation = run.elevationGainM;
+  // Read back out of the cadence, which is what the pedometer's count was
+  // turned into before being stored. Every run already recorded therefore has
+  // one, where keeping the raw figure from now on would have left the whole
+  // history without.
+  const steps = stepsFrom(run.cadenceSpm, run.durationS);
+  const when = formatDate(run.startedAt);
 
   return (
     // collapsable={false} keeps this view real in the native tree; React
@@ -120,13 +129,24 @@ export const ShareCard = forwardRef<View, Props>(function ShareCard({ run, mapUr
             "Course du soir" spends that second on the only thing in the frame
             the distance and the map have not already said. The date earns its
             place by being unrepeatable; so does where it happened. */}
-        <Text style={styles.date} numberOfLines={1}>
-          {formatDate(run.startedAt)}{place ? ` · ${place}` : ""}
-        </Text>
 
         <View style={styles.heroRow}>
-          <Text style={styles.hero}>{formatDistance(run.distanceM)}</Text>
-          <Text style={styles.heroUnit}>km</Text>
+          <View style={styles.distanceRow}>
+            <Text style={styles.hero}>{formatDistance(run.distanceM)}</Text>
+            <Text style={styles.heroUnit}>km</Text>
+          </View>
+          {/* Both lines in flow, but it is the place that has to meet "km".
+              Flexbox only ever aligns a column on its first line, so the
+              alignment lands on the date and the whole block is then lifted
+              by exactly one line — which puts the second line where the first
+              one was. The lift is a rendering offset, not a margin: the row
+              keeps the height it would have had, so nothing below it moves. */}
+          <View style={[styles.dateRow, place ? styles.dateRowTwoLines : null]}>
+            <Text style={styles.date} numberOfLines={1}>{when}</Text>
+            {place ? (
+              <Text style={styles.date} numberOfLines={1}>{place}</Text>
+            ) : null}
+          </View>
         </View>
 
         <View style={styles.stats}>
@@ -135,6 +155,7 @@ export const ShareCard = forwardRef<View, Props>(function ShareCard({ run, mapUr
           {elevation !== null && elevation > 0 ? (
             <Stat value={formatElevation(elevation)} unit="m" label="DÉNIVELÉ" />
           ) : null}
+          {steps !== null ? <Stat value={formatCount(steps)} label="PAS" /> : null}
         </View>
       </View>
     </View>
@@ -142,6 +163,9 @@ export const ShareCard = forwardRef<View, Props>(function ShareCard({ run, mapUr
 });
 
 const GUTTER = 20;
+
+/** Height of one line of the caption, and so the distance the block is lifted. */
+const DATE_LINE = 17;
 
 const styles = StyleSheet.create({
   card: {
@@ -168,24 +192,49 @@ const styles = StyleSheet.create({
   brandName: { color: INK, fontSize: 19, fontFamily: font.extrabold, letterSpacing: 3.4 },
 
   footer: { position: "absolute", left: GUTTER, right: GUTTER, bottom: 18 },
-  // unreadable at the size these pictures are actually looked at.
-  // The one caption left, so it carries a little more weight than a caption
-  // usually would.
-  date: { color: INK_SOFT, fontSize: 17, fontFamily: font.medium },
 
-  heroRow: { flexDirection: "row", alignItems: "baseline", gap: 4, marginTop: 9 },
+  // The distance and the date at opposite ends of one line, sharing its
+  // baseline. Set apart like that they read as two separate facts rather than
+  // as a caption trailing off the end of a number.
+  heroRow: {
+    flexDirection: "row", alignItems: "baseline", justifyContent: "space-between",
+  },
+  distanceRow: { flexDirection: "row", alignItems: "baseline" },
+  // Ragged left, so the right edge stays flush with the card's margin however
+  // long the place name turns out to be.
+  dateRow: { alignItems: "flex-end" },
+  // Only with something under it to bring down onto the baseline. One line
+  // needs no lift at all, and lifting it would hang the date in mid air.
+  //
+  // The negative margin matters as much as the offset. `top` moves what is
+  // drawn and nothing else, so the row went on reserving the height of a
+  // block that had left — eight points of nothing between the figure and the
+  // rule under it. Taking the same amount off the bottom lets the row close
+  // up behind it.
+  dateRowTwoLines: { top: -DATE_LINE, marginBottom: -DATE_LINE },
+  // Stated rather than inherited, because the lift above is exactly one of
+  // these: a line height left to the font would make the alignment depend on
+  // which font happened to load.
+  date: { color: INK_SOFT, fontSize: 14, lineHeight: DATE_LINE, fontFamily: font.regular },
   hero: {
-    color: INK, fontSize: 61.5, fontFamily: font.bold,
+    color: INK, fontSize: 54, fontFamily: font.semibold,
     letterSpacing: -0.99, fontVariant: ["tabular-nums"],
   },
   heroUnit: { color: INK_SOFT, fontSize: 17, fontFamily: font.bold, letterSpacing: -0.2 },
 
-  // A rule under the hero, the way the app separates its own sections.
+  // A rule under the hero, the way the app separates its own sections, pulled
+  // up into the space the figure leaves below its own baseline. A line at
+  // fifty four points reserves a descender nothing in it ever uses, and left
+  // alone that emptiness reads as a gap somebody forgot to close.
+  // Two across rather than four abreast — the same arithmetic the running
+  // panel ran into. A time is nearly eighty points wide at this size, so four
+  // of these on one line would each be squeezed to sixty, and the figures set
+  // small enough to stop being the point of the card.
   stats: {
-    flexDirection: "row", gap: 24, marginTop: 12, paddingTop: 11,
+    flexDirection: "row", flexWrap: "wrap", rowGap: 9, marginTop: 4, paddingTop: 6,
     borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "rgba(255, 255, 255, 0.24)",
   },
-  stat: { gap: 2 },
+  stat: { width: "50%", gap: 2 },
   statValueRow: { flexDirection: "row", alignItems: "baseline", gap: 2 },
   statValue: {
     color: INK, fontSize: 21.5, fontFamily: font.semibold,

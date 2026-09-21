@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { cadenceSpm } from "./cadence.ts";
+import { cadenceSpm, stepsFrom} from "./cadence.ts";
 
 test("cadence counts every footfall, per minute", () => {
   // Nine hundred steps over five minutes is a hundred and eighty a minute.
@@ -19,4 +19,31 @@ test("a figure outside what a runner can hold is refused", () => {
   assert.equal(cadenceSpm(10, 600), null);
   // A thousand a minute is the sensor counting something else entirely.
   assert.equal(cadenceSpm(10_000, 60), null);
+});
+
+
+test("steps come back out of the cadence they went into", () => {
+  // Forty minutes at a hundred and seventy: the count the pedometer gave.
+  const seconds = 40 * 60;
+  const spm = cadenceSpm(6800, seconds);
+  assert.equal(spm, 170);
+  assert.equal(stepsFrom(spm, seconds), 6800);
+});
+
+test("the round trip stays within the rounding a cadence carries", () => {
+  for (const steps of [5123, 7777, 9001, 12_345]) {
+    const seconds = 2400;
+    const spm = cadenceSpm(steps, seconds)!;
+    const back = stepsFrom(spm, seconds)!;
+    // A cadence is whole, so the return trip can only be out by less than
+    // half a step a minute — a handful over a whole run.
+    assert.ok(Math.abs(back - steps) <= seconds / 120, `${steps} came back ${back}`);
+  }
+});
+
+test("no cadence means no step count rather than a zero", () => {
+  assert.equal(stepsFrom(null, 2400), null);
+  assert.equal(stepsFrom(170, 0), null);
+  assert.equal(stepsFrom(0, 2400), null);
+  assert.equal(stepsFrom(Number.NaN, 2400), null);
 });
