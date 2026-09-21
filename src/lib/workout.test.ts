@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  groupLabel, groupSteps, hasSinglePace, SESSIONS, sessionById, sessionMinutes, stepIsDone,
-  stepLabel, stepRemaining,
+  eased, groupLabel, groupSteps, hasSinglePace, SESSIONS, sessionById, sessionMinutes,
+  stepIsDone, stepLabel, stepRemaining,
 } from "./workout.ts";
 
 test("a distance block ends on distance, whatever the clock says", () => {
@@ -100,4 +100,54 @@ test("a session with nothing to repeat is left alone", () => {
 
 test("folding an empty session yields nothing rather than looping", () => {
   assert.deepEqual(groupSteps([]), []);
+});
+
+
+test("easing takes repetitions off before anything else", () => {
+  const session = sessionById("400")!;
+  const lighter = eased(session, 0.7);
+  const reps = groupSteps(lighter.steps).find((g) => g.times > 1)!;
+  assert.equal(reps.times, 4, "five repetitions eased to four");
+  // And the effort itself is untouched: four hundred metres are still four
+  // hundred metres, only there are fewer of them.
+  assert.deepEqual(reps.steps, groupSteps(session.steps).find((g) => g.times > 1)!.steps);
+});
+
+test("the name never outlives the blocks it describes", () => {
+  for (const session of SESSIONS) {
+    for (const factor of [0.7, 0.85]) {
+      const lighter = eased(session, factor);
+      const repeated = groupSteps(lighter.steps).find((g) => g.times > 1);
+      const claimed = /^(\d+) × /.exec(lighter.name);
+      if (claimed) {
+        assert.equal(Number(claimed[1]), repeated?.times, `${session.id} at ${factor}: ${lighter.name}`);
+      }
+    }
+  }
+});
+
+test("a session with nothing to repeat is shortened instead", () => {
+  const long = sessionById("longue")!;
+  const lighter = eased(long, 0.7);
+  const before = long.steps[0].seconds!;
+  const after = lighter.steps[0].seconds!;
+  assert.ok(after < before, "the long run was not shortened");
+  assert.ok(after >= before * 0.6, "it was gutted rather than eased");
+  assert.match(lighter.name, /45 min|40 min/);
+});
+
+test("the warm-up and the cool-down are never cut", () => {
+  const session = sessionById("seuil")!;
+  const lighter = eased(session, 0.7);
+  const spare = (s: typeof session) =>
+    s.steps.filter((step) => step.effort === "échauffement" || step.effort === "retour au calme");
+  assert.deepEqual(spare(lighter), spare(session));
+});
+
+test("easing by nothing changes nothing at all", () => {
+  for (const session of SESSIONS) {
+    assert.equal(eased(session, 1), session);
+    assert.equal(eased(session, 1.4), session);
+    assert.equal(eased(session, 0), session);
+  }
 });

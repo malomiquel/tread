@@ -2,8 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   bounds, currentPace, distanceM, elevationGainM, fastestKmS, isAcceptable,
-  paceSecPerKm, regionAround, splits, totalDistanceM, type TrackPoint,
-} from "./geo.ts";
+  paceSecPerKm, regionAround, splits, totalDistanceM, type TrackPoint, elevationProfile, ABSURD_SPEED_MS} from "./geo.ts";
 
 const at = (ts: number, lat: number, lng: number, extra: Partial<TrackPoint> = {}): TrackPoint => ({
   ts, lat, lng, alt: null, accuracy: 5, speed: null, segment: 0, ...extra,
@@ -201,4 +200,70 @@ test("vague fixes inflate a distance, and the filter is what stops them", () => 
   // Filtered, what is left is within a few percent of the truth.
   const error = Math.abs(kept - real) / real;
   assert.ok(error < 0.05, `error after filtering: ${(error * 100).toFixed(1)}%`);
+});
+
+
+test("a profile is drawn against distance, evenly sliced", () => {
+  // A kilometre climbed steadily, one fix every ten metres.
+  const climb = Array.from({ length: 101 }, (_, i) => ({
+    ts: 1000 + i * 1000,
+    lat: 45 + i * 0.00009,
+    lng: 5,
+    alt: 100 + i,
+    accuracy: 5,
+    speed: 3,
+    segment: 0,
+  }));
+  const profile = elevationProfile(climb, 10);
+  assert.equal(profile.length, 10);
+  // Rising throughout, and ordered by how far in it was measured.
+  for (let i = 1; i < profile.length; i += 1) {
+    assert.ok(profile[i].altitudeM > profile[i - 1].altitudeM, `slice ${i} fell`);
+    assert.ok(profile[i].distanceM > profile[i - 1].distanceM);
+  }
+});
+
+test("flat ground and missing altitudes draw nothing rather than noise", () => {
+  const flat = Array.from({ length: 50 }, (_, i) => ({
+    ts: 1000 + i * 1000, lat: 45 + i * 0.00009, lng: 5,
+    alt: 100 + (i % 2) * 0.4, accuracy: 5, speed: 3, segment: 0,
+  }));
+  assert.deepEqual(elevationProfile(flat), [], "a metre of drift was drawn as a hill");
+
+  const blind = flat.map((p) => ({ ...p, alt: null }));
+  assert.deepEqual(elevationProfile(blind), []);
+  assert.deepEqual(elevationProfile([]), []);
+});
+
+
+const speedFix = (ts: number, lat: number, speed: number | null = null) =>
+  ({ ts, lat, lng: 5, alt: null, accuracy: 5, speed, segment: 0 });
+
+
+test("going quickly is not evidence of a bad fix", () => {
+  // Twenty five metres in a second is 90 km/h, and the chip agrees.
+  const previous = speedFix(1000, 45);
+  const fast = speedFix(2000, 45 + 25 * DEG_PER_M, 25);
+  assert.equal(isAcceptable(previous, fast), true, "a corroborated sprint was thrown away");
+});
+
+test("a jump is refused however far it claims to have gone", () => {
+  const previous = speedFix(1000, 45);
+  // The same leap with nothing vouching for it, or with the chip saying
+  // something else entirely.
+  assert.equal(isAcceptable(previous, speedFix(2000, 45 + 25 * DEG_PER_M, null)), false);
+  assert.equal(isAcceptable(previous, speedFix(2000, 45 + 25 * DEG_PER_M, 3)), false);
+  assert.equal(isAcceptable(previous, speedFix(2000, 45 + 25 * DEG_PER_M, 0)), false);
+});
+
+test("nothing is corroborated past the absurd", () => {
+  const previous = speedFix(1000, 45);
+  const teleport = speedFix(2000, 45 + (ABSURD_SPEED_MS + 50) * DEG_PER_M, ABSURD_SPEED_MS + 50);
+  assert.equal(isAcceptable(previous, teleport), false);
+});
+
+test("a runner's pace needs no vouching at all", () => {
+  const previous = speedFix(1000, 45);
+  // Four metres a second, and a chip reporting nothing.
+  assert.equal(isAcceptable(previous, speedFix(2000, 45 + 4 * DEG_PER_M, null)), true);
 });

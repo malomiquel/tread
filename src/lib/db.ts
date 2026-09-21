@@ -2,7 +2,9 @@ import { openDatabaseSync, type SQLiteDatabase } from "expo-sqlite";
 import { Platform } from "react-native";
 import { autoName } from "./format";
 import { elevationGainM, fastestKmS, paceSecPerKm, segments, totalDistanceM, type TrackPoint } from "./geo";
-import { normaliseDays, type Done, type Goal, type PerWeek, type PlannedSession } from "./plan";
+import {
+  normaliseDays, type Done, type Exertion, type Goal, type PerWeek, type PlannedSession,
+} from "./plan";
 import type { RanBlock } from "./workout";
 
 /**
@@ -51,6 +53,13 @@ export interface Run {
   healthUuid: string | null;
   /** Steps per minute held over the run, or null when unmeasured. */
   cadenceSpm: number | null;
+  /**
+   * How hard it felt, said by the runner afterwards.
+   *
+   * The only thing in this table the app could not have measured, and the
+   * only channel through which a programme learns that it asked too much.
+   */
+  exertion: Exertion | null;
   /** The structured session this run followed, or null for a free run. */
   sessionId: string | null;
   /** Each block as it was actually run. Empty for a free run. */
@@ -72,6 +81,7 @@ interface RunRow {
   session_id: string | null;
   session_blocks: string | null;
   cadence_spm: number | null;
+  exertion: number | null;
 }
 
 const toRun = (row: RunRow): Run => ({
@@ -86,6 +96,7 @@ const toRun = (row: RunRow): Run => ({
   fastestKmS: row.fastest_km_s,
   healthUuid: row.health_uuid,
   cadenceSpm: row.cadence_spm,
+  exertion: ([1, 2, 3, 4, 5] as const).find((n) => n === row.exertion) ?? null,
   sessionId: row.session_id,
   // Stored as one json column rather than its own table: the blocks are only
   // ever read with the run they belong to, and never queried across runs.
@@ -105,7 +116,7 @@ function parseBlocks(raw: string | null): RanBlock[] {
   }
 }
 
-const SCHEMA_VERSION = 9;
+const SCHEMA_VERSION = 10;
 
 /**
  * The plan's two tables, written once and used twice — by a fresh install and
@@ -162,7 +173,8 @@ export async function initDb(): Promise<void> {
         health_uuid TEXT,
         session_id TEXT,
         session_blocks TEXT,
-        cadence_spm REAL
+        cadence_spm REAL,
+        exertion INTEGER
       );
       CREATE TABLE IF NOT EXISTS points (
         id INTEGER PRIMARY KEY,
@@ -248,6 +260,11 @@ export async function initDb(): Promise<void> {
     // only has anything to do on a device that ran version 8.
     await db.execAsync("ALTER TABLE plans ADD COLUMN days TEXT").catch(() => undefined);
     version = 9;
+  }
+
+  if (version < 10) {
+    await db.execAsync("ALTER TABLE runs ADD COLUMN exertion INTEGER");
+    version = 10;
   }
 
   await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
@@ -587,4 +604,33 @@ export async function unmarkPlanSessionDone(planId: number, order: number): Prom
     "DELETE FROM plan_done WHERE plan_id = ? AND session_order = ?",
     planId, order,
   );
+}
+
+
+/**
+ * Record how a run felt, or clear it.
+ *
+ * Kept on the run rather than on the plan session, because it is true of the
+ * run whether or not a programme asked for it — and a runner who abandons a
+ * plan should not lose what they said about the running they did.
+ */
+export async function setRunExertion(id: number, exertion: Exertion | null): Promise<void> {
+  await getDb().runAsync("UPDATE runs SET exertion = ? WHERE id = ?", exertion, id);
+}
+
+/**
+ * The last few answers, newest first.
+ *
+ * Only runs that were actually rated: a silence is not an easy day, and
+ * treating it as one would let a programme keep climbing through exactly the
+ * weeks a runner was too flattened to answer.
+ */
+export async function recentExertions(limit = 4): Promise<Exertion[]> {
+  const rows = await getDb().getAllAsync<{ exertion: number }>(
+    "SELECT exertion FROM runs WHERE exertion IS NOT NULL AND ended_at IS NOT NULL ORDER BY started_at DESC LIMIT ?",
+    limit,
+  );
+  return rows
+    .map((row) => ([1, 2, 3, 4, 5] as const).find((n) => n === row.exertion))
+    .filter((n): n is Exertion => n !== undefined);
 }

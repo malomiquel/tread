@@ -806,6 +806,47 @@ export function schedule(
   return out.sort((a, b) => a.at - b.at || a.order - b.order);
 }
 
+/**
+ * How hard a session felt, said by the runner afterwards.
+ *
+ * Five levels, because three is too coarse to show a trend and ten asks for a
+ * precision nobody has about their own legs.
+ */
+export type Exertion = 1 | 2 | 3 | 4 | 5;
+
+/** Displayed. */
+export const EXERTION_NAMES: Record<Exertion, string> = {
+  1: "Très facile",
+  2: "Facile",
+  3: "Correct",
+  4: "Dur",
+  5: "Très dur",
+};
+
+/**
+ * How much to take off the coming sessions, given how the last ones felt.
+ *
+ * CHOSEN, and the only part of the plan that reacts to anything. The method
+ * screen admits the programme cannot know your sleep, your work or your
+ * legs — this is the one channel through which it can be told, and the
+ * runner is the only instrument available.
+ *
+ * Two readings, not one: a single hard session is training working as
+ * intended, and easing off after every tough workout would build nothing at
+ * all. Two in a row is a pattern, and the cost of easing when you did not
+ * need to is a slightly light week, while the cost of not easing when you did
+ * is the rest of the plan.
+ *
+ * `recent` is newest first.
+ */
+export function easeFactor(recent: readonly Exertion[]): number {
+  const [last, before] = recent;
+  if (last === undefined || before === undefined) return 1;
+  if (last === 5 && before === 5) return 0.7;
+  if (last >= 4 && before >= 4) return 0.85;
+  return 1;
+}
+
 /** The next thing to do, or null once the race is behind you. */
 export function nextSession(scheduled: ScheduledSession[]): ScheduledSession | null {
   return scheduled.find((s) => s.runId === null) ?? null;

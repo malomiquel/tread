@@ -3,7 +3,8 @@ import { test } from "node:test";
 import {
   buildPlan, clampWeeks, daysBetween, enduranceExponent, equivalentTimeS, GOALS, goalById,
   loadOfWeek, pacesFrom,
-  longCeilingMin, longestReachedMin, LONG_PEAK_MIN, longMinutes, normaliseDays, phaseOfWeek, planProgress, projectedTimeS, schedule, SLOT_DAYS, slotDates,
+  easeFactor, longCeilingMin, longestReachedMin, LONG_PEAK_MIN, longMinutes, normaliseDays,
+  phaseOfWeek, planProgress, projectedTimeS, schedule, SLOT_DAYS, slotDates,
   startOfDay,
   type Done, type PlannedSession,
 } from "./plan.ts";
@@ -409,4 +410,21 @@ test("progress is a fraction and stays one", () => {
   assert.equal(planProgress(all, 99), 1);
   assert.equal(planProgress(all, -1), 0);
   assert.equal(planProgress([], 3), 0);
+});
+
+
+test("one hard session is training, two in a row is a pattern", () => {
+  // Easing after every tough workout would build nothing at all.
+  assert.equal(easeFactor([5]), 1);
+  assert.equal(easeFactor([5, 3]), 1);
+  assert.equal(easeFactor([5, 2, 5, 5]), 1, "only the two most recent count");
+
+  assert.equal(easeFactor([4, 4]), 0.85);
+  assert.equal(easeFactor([5, 4]), 0.85);
+  assert.equal(easeFactor([5, 5]), 0.7);
+});
+
+test("nothing said means nothing assumed", () => {
+  assert.equal(easeFactor([]), 1);
+  assert.equal(easeFactor([4]), 1);
 });

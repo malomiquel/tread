@@ -220,5 +220,59 @@ export function hasSinglePace(session: Session): boolean {
   return session.steps.filter(isPaced).length <= 1;
 }
 
+/** "1 h 15", "45 min" — displayed. */
+function durationName(minutes: number): string {
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest === 0 ? `${hours} h` : `${hours} h ${String(rest).padStart(2, "0")}`;
+}
+
+/**
+ * The same session, asking for less.
+ *
+ * Repetitions come off before anything else, which is what a coach actually
+ * says — do five instead of seven, not seven shorter ones. A session with
+ * nothing to repeat has its working blocks shortened instead. The warm-up and
+ * the cool-down are never touched: they are not the work, cutting them saves
+ * a couple of minutes, and arriving at a repetition cold is how an easy day
+ * becomes an injury.
+ *
+ * The name is rebuilt rather than kept. A card still reading "7 × 400 m" over
+ * five repetitions would be the app lying about what it just asked for, which
+ * is worse than not easing off at all.
+ */
+export function eased(session: Session, factor: number): Session {
+  if (!(factor > 0) || factor >= 1) return session;
+  const steps: Step[] = [];
+  let repetitions: number | null = null;
+
+  for (const group of groupSteps(session.steps)) {
+    if (group.times > 1) {
+      const times = Math.max(1, Math.round(group.times * factor));
+      repetitions = times;
+      for (let i = 0; i < times; i += 1) steps.push(...group.steps);
+      continue;
+    }
+    steps.push(...group.steps.map((step) => {
+      const spare = step.effort === "échauffement" || step.effort === "retour au calme";
+      if (spare || step.seconds === undefined) return step;
+      return { ...step, seconds: Math.max(300, Math.round((step.seconds * factor) / 300) * 300) };
+    }));
+  }
+
+  return { ...session, id: `${session.id}-eased`, name: easedName(session.name, steps, repetitions), steps };
+}
+
+/** The name put back in step with the blocks underneath it. */
+function easedName(name: string, steps: Step[], repetitions: number | null): string {
+  if (repetitions !== null) return name.replace(/^\d+(?= × )/, String(repetitions));
+  // A single-block session is named after its length, so the length is what
+  // has to change.
+  const minutes = Math.round((steps[0]?.seconds ?? 0) / 60);
+  const rebuilt = name.replace(/\d+\s*(min|h)(\s*\d+)?$/, durationName(minutes));
+  return rebuilt === name && minutes > 0 ? `${name} (${durationName(minutes)})` : rebuilt;
+}
+
 export const sessionById = (id: string | null): Session | null =>
   SESSIONS.find((s) => s.id === id) ?? null;

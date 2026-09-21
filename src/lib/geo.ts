@@ -30,8 +30,22 @@ const EARTH_RADIUS_M = 6371008.8;
  * problem runs in the opposite direction to the one people expect.
  */
 export const MAX_ACCURACY_M = 20;
-/** 12 m/s is 43 km/h: no runner, but a very common GPS jump. */
+/**
+ * 12 m/s is 43 km/h: no runner, but a very common GPS jump.
+ *
+ * A ceiling on foot, not a ceiling on travel. Anything quicker is refused
+ * unless the chip itself vouches for it — see `isAcceptable`.
+ */
 export const MAX_SPEED_MS = 12;
+
+/**
+ * Beyond this nothing is vouching for anything.
+ *
+ * 90 m/s is 324 km/h. A corroborated reading that fast is a chip having a bad
+ * day rather than a journey, and the point of an outer limit is to exist
+ * without ever being reached.
+ */
+export const ABSURD_SPEED_MS = 90;
 /** Below this it is GPS jitter while standing still, not travel. */
 export const MIN_TRAVEL_M = 1.5;
 
@@ -49,6 +63,20 @@ export function distanceM(a: { lat: number; lng: number }, b: { lat: number; lng
 /**
  * Decide whether a fix deserves a place in the track. `previous` is the last
  * accepted point of the same segment, or null at the start of one.
+ *
+ * The speed test used to be a flat refusal above a runner's pace, which was
+ * wrong in a way that only showed up at speed: every fix was thrown away and
+ * the distance sat still while the clock ran. Moving quickly is not evidence
+ * of a bad fix, it is evidence of moving quickly.
+ *
+ * What tells a genuine sprint from a teleport is whether the chip agrees with
+ * the arithmetic. A gps jump is a position error, so the distance between two
+ * fixes implies a speed the chip's own doppler reading knows nothing about;
+ * real travel has the two saying the same thing. So: quick is allowed when
+ * corroborated, refused when the chip is silent or contradicts it.
+ *
+ * This is also what a cycling or skiing mode would need, and it needs no
+ * mode — the rule is about agreement, not about which sport is claimed.
  */
 export function isAcceptable(previous: TrackPoint | null, point: TrackPoint): boolean {
   if (point.accuracy !== null && point.accuracy > MAX_ACCURACY_M) return false;
@@ -57,8 +85,17 @@ export function isAcceptable(previous: TrackPoint | null, point: TrackPoint): bo
   if (elapsedS <= 0) return false;
   const travelled = distanceM(previous, point);
   if (travelled < MIN_TRAVEL_M) return false;
-  if (travelled / elapsedS > MAX_SPEED_MS) return false;
-  return true;
+
+  const computed = travelled / elapsedS;
+  if (computed <= MAX_SPEED_MS) return true;
+  if (computed > ABSURD_SPEED_MS) return false;
+
+  // Corroborated within a third: loose enough for the lag between a doppler
+  // reading and the positions either side of it, tight enough that a jump
+  // cannot slip through on an unrelated speed.
+  const reported = point.speed;
+  if (reported === null || reported <= 0) return false;
+  return Math.abs(computed - reported) <= reported / 3;
 }
 
 /** Group points by segment, preserving order. */
@@ -206,6 +243,59 @@ export function elevationGainM(points: TrackPoint[], thresholdM = 4, window = 5)
     }
   }
   return total;
+}
+
+/** An altitude reading against how far into the run it was taken. */
+export interface ElevationPoint {
+  distanceM: number;
+  altitudeM: number;
+}
+
+/**
+ * The run's altitude against distance, thinned to a drawable number of points.
+ *
+ * Against distance rather than against time, because a profile read next to
+ * the kilometre splits has to line up with them. Plotted against time, a
+ * climb walked slowly would occupy half the chart and answer the wrong
+ * question — the one worth asking is where the hill was, not how long it
+ * took, which the splits already say.
+ *
+ * Returns nothing rather than a flat line when altitudes are missing or
+ * barely vary: a chart of noise invites a runner to read a hill into a
+ * metre of gps drift.
+ */
+export function elevationProfile(points: TrackPoint[], buckets = 60): ElevationPoint[] {
+  const walked: ElevationPoint[] = [];
+  let covered = 0;
+  let previous: TrackPoint | null = null;
+
+  for (const segment of segments(points)) {
+    previous = null;
+    for (const point of segment) {
+      if (previous) covered += distanceM(previous, point);
+      if (point.alt !== null) walked.push({ distanceM: covered, altitudeM: point.alt });
+      previous = point;
+    }
+  }
+  if (walked.length < 4 || covered <= 0) return [];
+
+  const spread = Math.max(...walked.map((p) => p.altitudeM)) - Math.min(...walked.map((p) => p.altitudeM));
+  if (spread < 5) return [];
+
+  // Averaged into even slices of distance, so an outlier fix cannot draw a
+  // spike and a stretch with dense fixes cannot outweigh a sparse one.
+  const out: ElevationPoint[] = [];
+  for (let i = 0; i < buckets; i += 1) {
+    const from = (covered * i) / buckets;
+    const to = (covered * (i + 1)) / buckets;
+    const inside = walked.filter((p) => p.distanceM >= from && (p.distanceM < to || i === buckets - 1));
+    if (!inside.length) continue;
+    out.push({
+      distanceM: (from + to) / 2,
+      altitudeM: inside.reduce((sum, p) => sum + p.altitudeM, 0) / inside.length,
+    });
+  }
+  return out;
 }
 
 /** Duration of the fastest full kilometre in seconds, ignoring the partial chunk. */
