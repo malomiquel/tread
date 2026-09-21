@@ -14,7 +14,6 @@ En anglais, sans exception :
 - noms de variables et de paramètres, y compris les variables locales
 - commentaires et blocs de documentation
 - noms de tests et messages d'assertion
-- messages de commit — *sauf* ceux de ce dépôt, historiquement en français
 
 En français, parce que ça s'affiche :
 
@@ -26,3 +25,28 @@ En français, parce que ça s'affiche :
 Une variable locale nommée `chemin`, `fichier` ou `suivant` est une erreur,
 même si elle ne sort jamais de sa fonction. Un `Alert.alert("Import
 impossible", …)` est correct.
+
+# Messages de commit
+
+Format **Conventional Commits**, en **anglais**, en **minuscules**.
+
+```
+type(portée): sujet
+```
+
+- `type` : `feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `build`, `chore`
+- `portée` : le morceau touché, en un mot — `tracker`, `map`, `gpx`, `health`,
+  `widget`, `theme`, `icon`. Facultative quand le changement traverse tout.
+- `sujet` : à l'impératif, minuscule, sans point final, sous 72 caractères
+
+Le corps du message, s'il y en a un, est en anglais lui aussi, et explique
+*pourquoi* plutôt que *quoi* — le diff dit déjà quoi.
+
+```
+fix(gpx): read files opened in place without deleting the original
+feat(workout): announce interval blocks aloud
+refactor(theme): resolve colours per appearance at draw time
+```
+
+L'historique antérieur est en français : il reste tel quel, on ne réécrit
+pas ce qui est déjà poussé.
