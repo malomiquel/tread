@@ -24,9 +24,13 @@ export type RunPhase = "running" | "paused" | "idle";
 
 let activityId: string | null = null;
 let shownPhase: RunPhase | null = null;
+/** What the lock screen is already showing, to avoid sending it again. */
+let shownContent: string | null = null;
 let lastPushAt = 0;
 /** Set once the system has turned an activity down, so it is not asked again. */
 let refused = false;
+/** True between asking the system for an activity and being handed one. */
+let starting = false;
 /** Serialises native calls: starting and ending must not overlap. */
 let queue: Promise<void> = Promise.resolve();
 
@@ -50,6 +54,10 @@ export function reflectRun(phase: RunPhase, title: string, measure: () => RunPro
     return;
   }
   if (refused) return;
+  // A start already in flight counts as an activity. Until the system answers
+  // there is no identifier to update, and every GPS fix arriving meanwhile
+  // would queue another copy of the same first frame.
+  if (starting) return;
 
   const now = Date.now();
   const phaseChanged = phase !== shownPhase;
@@ -66,8 +74,28 @@ export function reflectRun(phase: RunPhase, title: string, measure: () => RunPro
     pace: formatPace(progress.paceSKm),
   };
 
+  // Only what the widget actually draws counts as a change. While the run is
+  // going the clock is drawn from its origin and the elapsed text is ignored,
+  // so a runner standing still at a crossing changes nothing on screen; while
+  // paused nothing moves at all. Sending those again would spend the system's
+  // update budget to redraw the same pixels, and that budget is what keeps
+  // the real changes getting through.
+  const content =
+    state.clockOriginMs === null
+      ? `paused|${state.elapsed}|${state.distance}|${state.pace}`
+      : `running|${state.clockOriginMs}|${state.distance}|${state.pace}`;
+  if (activityId !== null && content === shownContent) return;
+  shownContent = content;
+
+  const isStart = activityId === null;
+  if (isStart) starting = true;
+
   run(async () => {
-    if (activityId === null) {
+    if (!isStart) {
+      if (activityId !== null) await native.update(activityId, state);
+      return;
+    }
+    try {
       if (!native.isAvailable()) {
         refused = true;
         return;
@@ -77,8 +105,8 @@ export function reflectRun(phase: RunPhase, title: string, measure: () => RunPro
       // off, or the system is full. Asking again every quarter minute would
       // change nothing.
       if (activityId === null) refused = true;
-    } else {
-      await native.update(activityId, state);
+    } finally {
+      starting = false;
     }
   });
 }
@@ -91,7 +119,9 @@ export function stopRun(): void {
   const hadSomething = activityId !== null || shownPhase !== null;
   activityId = null;
   shownPhase = null;
+  shownContent = null;
   refused = false;
+  starting = false;
   lastPushAt = 0;
   if (hadSomething) run(() => native.stop());
 }
