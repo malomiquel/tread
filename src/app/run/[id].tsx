@@ -336,14 +336,19 @@ export default function RunDetailScreen() {
               records, is a memory arguing with itself. Locked rather than
               frozen, because a mistaken tap deserves a way back and the app
               has no business deciding you were wrong about your own legs. */}
-          {!canEditFeel ? (
+          {from === undefined && run.exertion !== null ? (
             <Pressable
-              onPress={() => setEditingFeel(true)}
+              onPress={() => setEditingFeel((on) => !on)}
               accessibilityRole="button"
               hitSlop={10}
               style={({ pressed }) => [pressed && styles.sharePressed]}
             >
-              <Text style={styles.feelEdit}>Modifier</Text>
+              {/* A toggle, not a one-way door. Opening the answer without
+                  offering a way to close it again left the only exit through
+                  the back button, which reads as the app having got stuck.
+                  Each tap is already saved, so this settles rather than
+                  commits. */}
+              <Text style={styles.feelEdit}>{editingFeel ? "Terminer" : "Modifier"}</Text>
             </Pressable>
           ) : null}
         </View>
@@ -553,7 +558,7 @@ const styles = StyleSheet.create({
 
   heading: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12,
-    paddingHorizontal: GUTTER, paddingTop: 6, paddingBottom: 16,
+    paddingHorizontal: GUTTER, paddingTop: 4, paddingBottom: 13,
   },
   headingText: { flex: 1, gap: 3 },
   nameRow: { flexDirection: "row", alignItems: "center", gap: 8 },
@@ -566,15 +571,15 @@ const styles = StyleSheet.create({
   },
   shareOff: { opacity: 0.35 },
   sharePressed: { backgroundColor: colors.sunken },
-  name: { color: colors.text, fontSize: 32, fontFamily: font.bold, letterSpacing: -0.6 },
-  date: { color: colors.subtle, fontSize: 16 },
+  name: { color: colors.text, fontSize: 27, fontFamily: font.bold, letterSpacing: -0.6 },
+  date: { color: colors.subtle, fontSize: 14.5 },
 
   // Set apart from the export and delete pair below it: closing a run and
   // disposing of one are not the same kind of act, and a button stacked
   // against those two reads as a third member of the group.
   validate: {
-    paddingHorizontal: GUTTER, paddingTop: 24, paddingBottom: 26, gap: 8,
-    marginBottom: 20,
+    paddingHorizontal: GUTTER, paddingTop: 20, paddingBottom: 22, gap: 7,
+    marginBottom: 16,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.hairline,
   },
   validateHint: {
@@ -582,7 +587,7 @@ const styles = StyleSheet.create({
     lineHeight: 18, textAlign: "center",
   },
   feelHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  feelEdit: { color: colors.accent, fontSize: 14, fontFamily: font.semibold },
+  feelEdit: { color: colors.accent, fontSize: 13, fontFamily: font.semibold },
   feelRow: { flexDirection: "row", gap: 8, paddingTop: 2 },
   feelLocked: { borderColor: "transparent", opacity: 0.45 },
   feel: {
@@ -590,9 +595,9 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline,
   },
   feelOn: { backgroundColor: colors.accent, borderColor: colors.accent },
-  feelLabel: { color: colors.muted, fontSize: 17, fontFamily: font.semibold },
+  feelLabel: { color: colors.muted, fontSize: 15.5, fontFamily: font.semibold },
   feelLabelOn: { color: colors.accentText },
-  feelName: { color: colors.subtle, fontSize: 13.5, fontFamily: font.regular, paddingTop: 6 },
+  feelName: { color: colors.subtle, fontSize: 12.5, fontFamily: font.regular, paddingTop: 6 },
 
   profile: {
     flexDirection: "row", alignItems: "flex-end", gap: 1, height: 68, paddingTop: 4,
@@ -601,20 +606,20 @@ const styles = StyleSheet.create({
   profileBar: { width: "100%", backgroundColor: colors.accentSoft, borderRadius: 1 },
   profileScale: { flexDirection: "row", justifyContent: "space-between", paddingTop: 4 },
   profileMark: {
-    color: colors.subtle, fontSize: 12, fontFamily: font.regular, fontVariant: ["tabular-nums"],
+    color: colors.subtle, fontSize: 11, fontFamily: font.regular, fontVariant: ["tabular-nums"],
   },
 
   section: {
-    paddingHorizontal: GUTTER, paddingVertical: 18, gap: 14,
+    paddingHorizontal: GUTTER, paddingVertical: 15, gap: 11,
     borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline,
   },
   sectionTitle: {
-    color: colors.subtle, fontSize: 13, fontFamily: font.semibold,
-    letterSpacing: 1.4, textTransform: "uppercase",
+    color: colors.subtle, fontSize: 11.5, fontFamily: font.semibold,
+    letterSpacing: 1.3, textTransform: "uppercase",
   },
   row: { flexDirection: "row", gap: 16 },
 
-  map: { height: 300, borderRadius: 0, marginTop: 4 },
+  map: { height: 260, borderRadius: 0, marginTop: 4 },
   fullMap: { flex: 1, backgroundColor: colors.background },
   fullMapInner: { flex: 1, borderRadius: 0 },
 
@@ -622,14 +627,14 @@ const styles = StyleSheet.create({
   // The number anchors the row: mid-list, a repetition is found by its rank
   // before it is found by its name.
   blockRank: {
-    color: colors.subtle, width: 20, fontSize: 14,
+    color: colors.subtle, width: 19, fontSize: 12.5,
     fontFamily: font.semibold, fontVariant: ["tabular-nums"],
   },
   blockText: { flex: 1, gap: 1 },
-  blockName: { color: colors.text, fontSize: 15, fontFamily: font.semibold },
-  blockDone: { color: colors.muted, fontSize: 13, fontVariant: ["tabular-nums"] },
+  blockName: { color: colors.text, fontSize: 14, fontFamily: font.semibold },
+  blockDone: { color: colors.muted, fontSize: 12, fontVariant: ["tabular-nums"] },
   blockPace: {
-    color: colors.text, fontSize: 15, fontFamily: font.semibold,
+    color: colors.text, fontSize: 14, fontFamily: font.semibold,
     fontVariant: ["tabular-nums"],
   },
   // Only the efforts are tinted. Warm-ups and recoveries are there to be run,
@@ -637,20 +642,20 @@ const styles = StyleSheet.create({
   blockEffort: { color: colors.accent },
 
   split: { flexDirection: "row", alignItems: "center", gap: 12 },
-  splitKm: { color: colors.muted, width: 56, fontFamily: font.regular, fontSize: 15, fontVariant: ["tabular-nums"] },
+  splitKm: { color: colors.muted, width: 52, fontFamily: font.regular, fontSize: 14, fontVariant: ["tabular-nums"] },
   barTrack: { flex: 1, height: 6, backgroundColor: colors.sunken, overflow: "hidden" },
   bar: { height: "100%", backgroundColor: colors.accentSoft },
   barBest: { backgroundColor: colors.accent },
   splitPace: {
     color: colors.text, width: 52, textAlign: "right",
-    fontSize: 17, fontFamily: font.semibold, fontVariant: ["tabular-nums"],
+    fontSize: 15.5, fontFamily: font.semibold, fontVariant: ["tabular-nums"],
   },
   best: { color: colors.accent },
 
-  footnotes: { alignItems: "center", gap: 5, paddingVertical: 16 },
-  muted: { color: colors.subtle, fontFamily: font.regular, fontSize: 14.5, textAlign: "center" },
+  footnotes: { alignItems: "center", gap: 4, paddingVertical: 13 },
+  muted: { color: colors.subtle, fontFamily: font.regular, fontSize: 13.5, textAlign: "center" },
   synced: { flexDirection: "row", alignItems: "center", gap: 5 },
-  syncedText: { color: colors.accent, fontSize: 14.5, fontFamily: font.medium },
+  syncedText: { color: colors.accent, fontSize: 13.5, fontFamily: font.medium },
   wideAction: { paddingHorizontal: GUTTER, paddingBottom: 10 },
   actions: { flexDirection: "row", gap: 10, paddingHorizontal: GUTTER },
 
@@ -662,10 +667,10 @@ const styles = StyleSheet.create({
     width: "100%", backgroundColor: colors.background, borderRadius: 10, padding: 20, gap: 14,
     ...floatingShadow,
   },
-  dialogTitle: { color: colors.text, fontSize: 21, fontFamily: font.bold },
+  dialogTitle: { color: colors.text, fontSize: 19, fontFamily: font.bold },
   input: {
     backgroundColor: colors.background, borderRadius: 6, paddingHorizontal: 13, paddingVertical: 11,
-    fontFamily: font.regular, fontSize: 19, color: colors.text, borderWidth: 1, borderColor: colors.hairline,
+    fontFamily: font.regular, fontSize: 17, color: colors.text, borderWidth: 1, borderColor: colors.hairline,
   },
   dialogActions: { flexDirection: "row", gap: 10 },
 });
