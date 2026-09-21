@@ -67,6 +67,8 @@ export default function RunDetailScreen() {
   const [syncing, setSyncing] = useState(false);
   const [hasHealth] = useState(healthAvailable);
   const [sharingImage, setSharingImage] = useState(false);
+  /** Whether the exertion has been unlocked again on this visit. */
+  const [editingFeel, setEditingFeel] = useState(false);
   const [cardMap, setCardMap] = useState<string | null>(null);
   // Energy needs a weight, and the app keeps none of its own.
   const [weightKg, setWeightKg] = useState<number | null>(null);
@@ -117,6 +119,15 @@ export default function RunDetailScreen() {
    * be once they have stopped. The whole stack is dismissed rather than
    * popped, so the run screen does not flash past on the way.
    */
+  /**
+   * Whether the exertion may still be changed.
+   *
+   * Open while the run is being closed, open again on request, and always
+   * open while the question has never been answered — an old run nobody
+   * rated is not a settled one.
+   */
+  const canEditFeel = from !== undefined || editingFeel || run.exertion === null;
+
   function validate() {
     if (router.canDismiss()) router.dismissAll();
     router.navigate(from === "plan" ? "/plan" : "/");
@@ -317,13 +328,32 @@ export default function RunDetailScreen() {
           every run, not only planned ones: what a run cost you is true of the
           run, whoever asked for it. */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Ressenti</Text>
+        <View style={styles.feelHead}>
+          <Text style={styles.sectionTitle}>Ressenti</Text>
+          {/* Settled once the run has been closed, and reopened on request.
+              An answer given at the end of a run is the honest one; the same
+              answer revisited a fortnight later, next to the splits and the
+              records, is a memory arguing with itself. Locked rather than
+              frozen, because a mistaken tap deserves a way back and the app
+              has no business deciding you were wrong about your own legs. */}
+          {!canEditFeel ? (
+            <Pressable
+              onPress={() => setEditingFeel(true)}
+              accessibilityRole="button"
+              hitSlop={10}
+              style={({ pressed }) => [pressed && styles.sharePressed]}
+            >
+              <Text style={styles.feelEdit}>Modifier</Text>
+            </Pressable>
+          ) : null}
+        </View>
         <View style={styles.feelRow}>
           {([1, 2, 3, 4, 5] as const).map((level) => {
             const on = run.exertion === level;
             return (
               <Pressable
                 key={level}
+                disabled={!canEditFeel}
                 onPress={() => {
                   // Tapping the answer already given takes it back, so a
                   // mistaken tap is not permanent.
@@ -334,7 +364,12 @@ export default function RunDetailScreen() {
                 accessibilityRole="button"
                 accessibilityState={{ selected: on }}
                 accessibilityLabel={EXERTION_NAMES[level]}
-                style={({ pressed }) => [styles.feel, on && styles.feelOn, pressed && styles.sharePressed]}
+                style={({ pressed }) => [
+                  styles.feel,
+                  on && styles.feelOn,
+                  !canEditFeel && !on && styles.feelLocked,
+                  pressed && styles.sharePressed,
+                ]}
               >
                 <Text style={[styles.feelLabel, on && styles.feelLabelOn]}>{level}</Text>
               </Pressable>
@@ -546,7 +581,10 @@ const styles = StyleSheet.create({
     color: colors.subtle, fontFamily: font.regular, fontSize: 13,
     lineHeight: 18, textAlign: "center",
   },
+  feelHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  feelEdit: { color: colors.accent, fontSize: 14, fontFamily: font.semibold },
   feelRow: { flexDirection: "row", gap: 8, paddingTop: 2 },
+  feelLocked: { borderColor: "transparent", opacity: 0.45 },
   feel: {
     flex: 1, aspectRatio: 1.6, alignItems: "center", justifyContent: "center", borderRadius: 8,
     borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline,
