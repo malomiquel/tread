@@ -1,4 +1,3 @@
-import { LinearGradient } from "expo-linear-gradient";
 import { forwardRef } from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
 import type { Run } from "@/lib/db";
@@ -24,11 +23,29 @@ export const TRACK_MARGIN = 1.7;
 /**
  * How far up the frame the track is pushed, as a share of the frame's height.
  *
- * Around an eighth. With the margin above, that leaves the track sitting a
- * little above centre and its lowest point clear of the writing, which takes
- * the bottom third or so.
+ * Nothing, now that nothing covers it. The lift existed to keep the route's
+ * lowest point clear of writing laid over the map; the writing has its own
+ * ground, so the track can sit where it belongs — in the middle of the frame
+ * it was given.
  */
-export const TRACK_LIFT = 0.14;
+export const TRACK_LIFT = 0;
+
+/** The black band above the map, which carries the mark. */
+export const CARD_BAND_TOP = 104;
+
+/** The black band below it, which carries the figures and the date. */
+export const CARD_BAND_BOTTOM = 272;
+
+/**
+ * What is left for the map, and the size its snapshot is taken at.
+ *
+ * Two solid bands rather than two gradients. A fade reads as a photograph
+ * with something written over it; a band reads as a card, which is what this
+ * is. It also means the map is never half visible — the strip it gets is
+ * wholly its own, and the route is framed for that strip rather than for a
+ * frame two thirds of which was about to be painted over.
+ */
+export const CARD_MAP_HEIGHT = CARD_HEIGHT - CARD_BAND_TOP - CARD_BAND_BOTTOM;
 
 /**
  * The card carries its own colours instead of the app's.
@@ -91,20 +108,6 @@ export const ShareCard = forwardRef<View, Props>(function ShareCard({ run, mapUr
         <Image source={{ uri: mapUri }} style={styles.mapImage} resizeMode="cover" />
       ) : null}
 
-      <LinearGradient
-        colors={["rgba(0, 0, 0, 0.55)", "rgba(0, 0, 0, 0)"]}
-        style={styles.topVeil}
-        pointerEvents="none"
-      />
-      <LinearGradient
-        // Three stops rather than two: a straight fade from clear to black
-        // leaves a visible edge halfway down, where the eye catches the point
-        // the map starts disappearing.
-        colors={["rgba(0, 0, 0, 0)", "rgba(0, 0, 0, 0.62)", "rgba(0, 0, 0, 0.93)"]}
-        locations={[0, 0.55, 1]}
-        style={styles.bottomVeil}
-        pointerEvents="none"
-      />
 
       <View style={styles.brand}>
         {/* The app's own icon rather than a disc standing in for it. The disc
@@ -147,16 +150,13 @@ const styles = StyleSheet.create({
   card: {
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
-    backgroundColor: "#11161a",
+    backgroundColor: "#000000",
     overflow: "hidden",
   },
   mapImage: {
-    position: "absolute", top: 0, left: 0,
-    width: CARD_WIDTH, height: CARD_HEIGHT,
+    position: "absolute", top: CARD_BAND_TOP, left: 0,
+    width: CARD_WIDTH, height: CARD_MAP_HEIGHT,
   },
-
-  topVeil: { position: "absolute", top: 0, left: 0, right: 0, height: 104 },
-  bottomVeil: { position: "absolute", left: 0, right: 0, bottom: 0, height: 272 },
 
   brand: {
     position: "absolute", top: 16, left: GUTTER,

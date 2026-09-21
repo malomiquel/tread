@@ -1,7 +1,7 @@
 import { forwardRef, useImperativeHandle, useRef } from "react";
 import { StyleSheet, View, useColorScheme} from "react-native";
 import MapView, { Polyline } from "react-native-maps";
-import { CARD_HEIGHT, CARD_WIDTH, TRACK_LIFT, TRACK_MARGIN } from "@/components/ShareCard";
+import { CARD_MAP_HEIGHT, CARD_WIDTH, TRACK_LIFT, TRACK_MARGIN } from "@/components/ShareCard";
 import { regionAround, segments, type TrackPoint } from "@/lib/geo";
 import { literalColors } from "@/lib/theme";
 
@@ -65,7 +65,7 @@ export const CardMapSource = forwardRef<CardMapHandle, Props>(function CardMapSo
     render: () =>
       map.current?.takeSnapshot({
         width: CARD_WIDTH,
-        height: CARD_HEIGHT,
+        height: CARD_MAP_HEIGHT,
         region: region ?? undefined,
         format: "png",
         result: "file",
@@ -106,6 +106,6 @@ const styles = StyleSheet.create({
     left: OFFSCREEN,
     top: 0,
     width: CARD_WIDTH,
-    height: CARD_HEIGHT,
+    height: CARD_MAP_HEIGHT,
   },
 });
