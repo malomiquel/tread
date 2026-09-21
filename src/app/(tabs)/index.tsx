@@ -11,7 +11,7 @@ import { formatDistance, formatDuration, formatElevation, formatPace } from "@/l
 import { currentPace, elevationGainM, paceSecPerKm, totalDistanceM } from "@/lib/geo";
 import { useInitialLocation } from "@/lib/location";
 import { toggleSetting, useSettings } from "@/lib/settings";
-import { colors } from "@/lib/theme";
+import { colors, shadows } from "@/lib/theme";
 import { activeDurationS, discard, finish, pause, resume, start, useTracker } from "@/lib/tracker";
 
 /**
@@ -30,6 +30,7 @@ export default function RecordScreen() {
   const settings = useSettings();
   const [now, setNow] = useState(() => Date.now());
   const [finishing, setFinishing] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     if (tracker.status === "idle") return;
@@ -79,6 +80,48 @@ export default function RecordScreen() {
       { text: "Continuer", style: "cancel" },
       { text: "Terminer", onPress: () => void close() },
     ]);
+  }
+
+  if (expanded) {
+    return (
+      <View style={styles.expandedScreen}>
+        <RunMap
+          points={tracker.points}
+          follow
+          initialCenter={coords}
+          fullscreen
+          onToggleFullscreen={() => setExpanded(false)}
+          style={styles.expandedMap}
+        />
+        {recording && <KeepAwake />}
+
+        <SafeAreaView edges={["top"]} pointerEvents="box-none" style={styles.overlayTop}>
+          <View style={styles.banner}>
+            <Metric label="Distance" value={formatDistance(distance)} unit="km" />
+            <Metric label="Durée" value={formatDuration(duration)} />
+            <Metric label="Allure" value={formatPace(pace ?? avgPace)} unit="/km" />
+          </View>
+        </SafeAreaView>
+
+        <SafeAreaView edges={["bottom"]} pointerEvents="box-none" style={styles.overlayBottom}>
+          <View style={styles.actions}>
+            {!recording && <Button label="Démarrer" onPress={() => void start()} />}
+            {tracker.status === "running" && (
+              <>
+                <Button label="Pause" variant="secondary" onPress={pause} />
+                <Button label="Terminer" variant="danger" onPress={confirmFinish} disabled={finishing} />
+              </>
+            )}
+            {tracker.status === "paused" && (
+              <>
+                <Button label="Reprendre" onPress={resume} />
+                <Button label="Terminer" variant="danger" onPress={confirmFinish} disabled={finishing} />
+              </>
+            )}
+          </View>
+        </SafeAreaView>
+      </View>
+    );
   }
 
   return (
@@ -131,7 +174,13 @@ export default function RecordScreen() {
         </View>
       </View>
 
-      <RunMap points={tracker.points} follow initialCenter={coords} style={styles.map} />
+      <RunMap
+        points={tracker.points}
+        follow
+        initialCenter={coords}
+        onToggleFullscreen={() => setExpanded(true)}
+        style={styles.map}
+      />
 
       {tracker.error && <Text style={styles.error}>{tracker.error}</Text>}
 
@@ -204,6 +253,17 @@ const styles = StyleSheet.create({
   },
   row: { flexDirection: "row", gap: 12, paddingTop: 2 },
   map: { flex: 1, minHeight: 200, borderRadius: 20 },
+  expandedScreen: { flex: 1, backgroundColor: colors.background },
+  // No radius in full screen: rounded corners on an edge-to-edge map read as
+  // a rendering fault rather than a deliberate shape.
+  expandedMap: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, borderRadius: 0 },
+  overlayTop: { position: "absolute", top: 0, left: 0, right: 0, padding: 12 },
+  overlayBottom: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 12 },
+  banner: {
+    flexDirection: "row", gap: 10,
+    backgroundColor: colors.surface, borderRadius: 18, paddingHorizontal: 16, paddingVertical: 12,
+    ...shadows.card,
+  },
   error: { color: colors.danger, fontSize: 12 },
   actions: { flexDirection: "row", gap: 12, paddingBottom: 12 },
 });

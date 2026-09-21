@@ -1,63 +1,74 @@
-// Extension explicite : ce module est exerce par des tests sous Node seul.
-import type { TrackPoint } from "./geo.ts";
+// Explicit extensions: this module is exercised by tests running under plain
+// Node, whose ESM resolver does not add them. Metro accepts either form.
+import { DEMO_ROUTE } from "./demoRoute.ts";
+import { distanceM, type TrackPoint } from "./geo.ts";
 
 /**
- * Builds a believable run and stores it, so the screens can be judged without
- * going outside first.
+ * Builds a believable run along a real route, so the screens can be judged
+ * without going outside first.
  *
- * Everything a real track has is reproduced: a closed loop rather than a
- * straight line, pace drifting the way legs actually tire, a hill, GPS jitter,
- * and a pause at a crossing. A tidy synthetic line would flatter the app and
- * teach us nothing about how it copes with real data.
+ * Everything a real track has is reproduced: pace drifting the way legs
+ * actually tire, a hill, GPS wander, and a pause at a crossing. A tidy
+ * synthetic line would flatter the app and teach us nothing about how it
+ * copes with real data.
  */
 
 const METRES_PER_DEG_LAT = 111_320;
 
-/** Centre of the loop: a stretch of Paris with enough room for five kilometres. */
-const CENTRE = { lat: 48.86, lng: 2.34 };
-
-interface Offset {
-  x: number;
-  y: number;
+export interface DemoOptions {
+  /** Roughly how far the run should cover, in metres. */
+  targetM?: number;
+  /** When the run took place. Defaults to two hours ago. */
+  startedAt?: number;
 }
 
-const toLatLng = ({ x, y }: Offset) => ({
-  lat: CENTRE.lat + y / METRES_PER_DEG_LAT,
-  lng: CENTRE.lng + x / (METRES_PER_DEG_LAT * Math.cos((CENTRE.lat * Math.PI) / 180)),
-});
+interface Waypoint {
+  lat: number;
+  lng: number;
+  /** Distance from the start of the route, in metres. */
+  along: number;
+}
+
+/** The route with cumulative distances, so a position can be found by metres run. */
+const WAYPOINTS: Waypoint[] = (() => {
+  let along = 0;
+  return DEMO_ROUTE.map(([lat, lng], i) => {
+    if (i > 0) {
+      const [prevLat, prevLng] = DEMO_ROUTE[i - 1];
+      along += distanceM({ lat: prevLat, lng: prevLng }, { lat, lng });
+    }
+    return { lat, lng, along };
+  });
+})();
+
+const ROUTE_LENGTH_M = WAYPOINTS[WAYPOINTS.length - 1].along;
 
 /**
- * A rounded rectangle, which looks like running round a park or a block.
- * A plain circle of the same length reads as obviously machine made.
+ * Position after running a given distance along the route, interpolated
+ * between the two surrounding waypoints.
+ *
+ * OSRM places a vertex wherever the street geometry bends, so the spacing is
+ * irregular: anything from a metre to a hundred. Snapping to the nearest
+ * vertex would make the runner stand still then leap, and every leap would add
+ * distance never actually run.
  */
-function loopPath(halfWidth: number, halfHeight: number, radius: number, stepM = 5): Offset[] {
-  const path: Offset[] = [];
-  const straight = (from: Offset, to: Offset) => {
-    const span = Math.hypot(to.x - from.x, to.y - from.y);
-    const steps = Math.max(1, Math.round(span / stepM));
-    for (let i = 0; i < steps; i++) {
-      path.push({ x: from.x + ((to.x - from.x) * i) / steps, y: from.y + ((to.y - from.y) * i) / steps });
-    }
+function positionAt(metres: number): { lat: number; lng: number } {
+  const wrapped = metres % ROUTE_LENGTH_M;
+  let high = WAYPOINTS.length - 1;
+  let low = 0;
+  while (low < high - 1) {
+    const middle = (low + high) >> 1;
+    if (WAYPOINTS[middle].along <= wrapped) low = middle;
+    else high = middle;
+  }
+  const from = WAYPOINTS[low];
+  const to = WAYPOINTS[high];
+  const span = to.along - from.along;
+  const ratio = span > 0 ? (wrapped - from.along) / span : 0;
+  return {
+    lat: from.lat + (to.lat - from.lat) * ratio,
+    lng: from.lng + (to.lng - from.lng) * ratio,
   };
-  const arc = (cx: number, cy: number, from: number, to: number) => {
-    const steps = Math.max(1, Math.round((Math.abs(to - from) * radius) / stepM));
-    for (let i = 0; i < steps; i++) {
-      const angle = from + ((to - from) * i) / steps;
-      path.push({ x: cx + radius * Math.cos(angle), y: cy + radius * Math.sin(angle) });
-    }
-  };
-
-  const w = halfWidth - radius;
-  const h = halfHeight - radius;
-  straight({ x: -w, y: -halfHeight }, { x: w, y: -halfHeight });
-  arc(w, -h, -Math.PI / 2, 0);
-  straight({ x: halfWidth, y: -h }, { x: halfWidth, y: h });
-  arc(w, h, 0, Math.PI / 2);
-  straight({ x: w, y: halfHeight }, { x: -w, y: halfHeight });
-  arc(-w, h, Math.PI / 2, Math.PI);
-  straight({ x: -halfWidth, y: h }, { x: -halfWidth, y: -h });
-  arc(-w, -h, Math.PI, (3 * Math.PI) / 2);
-  return path;
 }
 
 /** Deterministic pseudo-random noise, so two demo runs are never identical. */
@@ -69,19 +80,8 @@ function noise(seed: number): () => number {
   };
 }
 
-export interface DemoOptions {
-  /** Roughly how far the run should cover, in metres. */
-  targetM?: number;
-  /** When the run took place. Defaults to two hours ago. */
-  startedAt?: number;
-}
-
 export function buildDemoPoints(targetM: number, startedAt: number): TrackPoint[] {
-  const path = loopPath(800, 450, 200);
   const jitter = noise(Math.floor(startedAt / 1000));
-
-  // Step length between consecutive path nodes, used to walk the loop.
-  const nodeSpacing = 5;
   const points: TrackPoint[] = [];
 
   let covered = 0;
@@ -103,21 +103,12 @@ export function buildDemoPoints(targetM: number, startedAt: number): TrackPoint[
     const fatigue = covered / targetM;
     const speed = 3.35 - 0.35 * fatigue + 0.12 * Math.sin(covered / 180);
 
-    // Interpolation between two nodes rather than snapping to the nearest.
-    // Snapping made the runner stand still for a third of the steps then jump
-    // five metres, and every one of those jumps added length that was never
-    // actually run.
-    const exact = covered / nodeSpacing;
-    const from = path[Math.floor(exact) % path.length];
-    const to = path[(Math.floor(exact) + 1) % path.length];
-    const ratio = exact - Math.floor(exact);
-    const { lat, lng } = toLatLng({
-      x: from.x + (to.x - from.x) * ratio,
-      y: from.y + (to.y - from.y) * ratio,
-    });
+    const { lat, lng } = positionAt(covered);
+    const metresPerDegLng = METRES_PER_DEG_LAT * Math.cos((lat * Math.PI) / 180);
 
-    // One hill per lap, plus the metre or so of wobble any GPS shows.
-    const altitude = 48 + 22 * Math.sin((covered / targetM) * Math.PI * 2) + jitter() * 2.5;
+    // The climb up the Montagne Sainte-Geneviève and back down, plus the metre
+    // or so of wobble any GPS shows.
+    const altitude = 38 + 24 * Math.sin((covered / targetM) * Math.PI * 2) + jitter() * 2.5;
 
     driftX = driftX * 0.99 + jitter() * 1.2;
     driftY = driftY * 0.99 + jitter() * 1.2;
@@ -125,7 +116,7 @@ export function buildDemoPoints(targetM: number, startedAt: number): TrackPoint[
     points.push({
       ts: startedAt + Math.round(elapsedS * 1000),
       lat: lat + driftY / METRES_PER_DEG_LAT,
-      lng: lng + driftX / (METRES_PER_DEG_LAT * Math.cos((CENTRE.lat * Math.PI) / 180)),
+      lng: lng + driftX / metresPerDegLng,
       alt: altitude,
       accuracy: 4 + Math.abs(jitter()) * 6,
       speed,

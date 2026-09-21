@@ -25,6 +25,7 @@ export default function RunDetailScreen() {
   const [renaming, setRenaming] = useState(false);
   const [draftName, setDraftName] = useState("");
   const [exporting, setExporting] = useState(false);
+  const [mapExpanded, setMapExpanded] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -143,7 +144,24 @@ export default function RunDetailScreen() {
         )}
       </View>
 
-      <RunMap points={points} fitAll style={styles.map} />
+      <RunMap
+        points={points}
+        fitAll
+        onToggleFullscreen={() => setMapExpanded(true)}
+        style={styles.map}
+      />
+
+      <Modal visible={mapExpanded} animationType="slide" onRequestClose={() => setMapExpanded(false)}>
+        <View style={styles.fullMap}>
+          <RunMap
+            points={points}
+            fitAll
+            fullscreen
+            onToggleFullscreen={() => setMapExpanded(false)}
+            style={styles.fullMapInner}
+          />
+        </View>
+      </Modal>
 
       {kilometres.length > 0 && (
         <View style={styles.section}>
@@ -221,6 +239,8 @@ const styles = StyleSheet.create({
   metrics: { gap: 16, backgroundColor: colors.surface, borderRadius: 20, padding: 20, ...shadows.card },
   row: { flexDirection: "row", gap: 12 },
   map: { height: 280 },
+  fullMap: { flex: 1, backgroundColor: colors.background },
+  fullMapInner: { flex: 1, borderRadius: 0 },
   section: { gap: 12, backgroundColor: colors.surface, borderRadius: 20, padding: 18, ...shadows.card },
   sectionTitle: {
     color: colors.subtle, fontSize: 10, fontWeight: "600",

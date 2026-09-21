@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildDemoPoints } from "./demoTrack.ts";
-import { elevationGainM, segments, splits, totalDistanceM } from "./geo.ts";
+import { DEMO_ROUTE } from "./demoRoute.ts";
+import { distanceM, elevationGainM, segments, splits, totalDistanceM } from "./geo.ts";
 
 const points = buildDemoPoints(5000, Date.UTC(2026, 8, 21, 8, 0));
 
@@ -14,11 +15,48 @@ test("demo: the pause splits the track in two", () => {
   assert.equal(segments(points).length, 2);
 });
 
-test("demo: the loop comes back near where it started", () => {
-  const first = points[0];
-  const last = points[points.length - 1];
-  // Five kilometres on a 4.6 km loop finishes a little past the start.
-  assert.ok(Math.abs(last.lat - first.lat) < 0.02 && Math.abs(last.lng - first.lng) < 0.02);
+/**
+ * Perpendicular distance from a point to a segment, in metres, using a flat
+ * approximation. Over a few hundred metres in Paris the error is negligible,
+ * and measuring to the nearest vertex instead would be wrong: OSRM leaves
+ * vertices up to two hundred metres apart down a straight street, so a fix
+ * interpolated midway is legitimately far from both ends.
+ */
+function distanceToSegmentM(
+  p: { lat: number; lng: number },
+  a: readonly [number, number],
+  b: readonly [number, number],
+): number {
+  const scale = Math.cos((p.lat * Math.PI) / 180);
+  const px = (p.lng - a[1]) * scale;
+  const py = p.lat - a[0];
+  const bx = (b[1] - a[1]) * scale;
+  const by = b[0] - a[0];
+  const lengthSq = bx * bx + by * by;
+  const t = lengthSq > 0 ? Math.max(0, Math.min(1, (px * bx + py * by) / lengthSq)) : 0;
+  const dx = px - bx * t;
+  const dy = py - by * t;
+  return Math.hypot(dx, dy) * 111_320;
+}
+
+test("demo: the track stays on the real route, within GPS wander", () => {
+  // Every fix must sit within a few metres of the route itself. If the walk
+  // drifted off it, the map would betray it at once.
+  const worst = Math.max(...points.map((p) => {
+    let best = Infinity;
+    for (let i = 1; i < DEMO_ROUTE.length; i++) {
+      best = Math.min(best, distanceToSegmentM(p, DEMO_ROUTE[i - 1], DEMO_ROUTE[i]));
+    }
+    return best;
+  }));
+  assert.ok(worst < 15, `a fix sat ${Math.round(worst)} m off the route`);
+});
+
+test("demo: the route it follows is a real closed loop", () => {
+  const [firstLat, firstLng] = DEMO_ROUTE[0];
+  const [lastLat, lastLng] = DEMO_ROUTE[DEMO_ROUTE.length - 1];
+  const gap = distanceM({ lat: firstLat, lng: firstLng }, { lat: lastLat, lng: lastLng });
+  assert.ok(gap < 120, `the loop fails to close by ${Math.round(gap)} m`);
 });
 
 test("demo: pace is plausible and drifts as the legs tire", () => {

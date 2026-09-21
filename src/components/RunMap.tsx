@@ -14,6 +14,10 @@ interface Props {
   fitAll?: boolean;
   /** Where to centre until a first point has been recorded. */
   initialCenter?: Coords | null;
+  /** Supplying this shows the expand button and reports every tap on it. */
+  onToggleFullscreen?: () => void;
+  /** Flips the expand button into a collapse button. */
+  fullscreen?: boolean;
   style?: StyleProp<ViewStyle>;
 }
 
@@ -25,7 +29,10 @@ const RUNNER_ZOOM = 0.006;
  * One polyline per segment, so a pause never draws a line between where you
  * stopped and where you picked up again.
  */
-export function RunMap({ points, follow = false, fitAll = false, initialCenter = null, style }: Props) {
+export function RunMap({
+  points, follow = false, fitAll = false, initialCenter = null,
+  onToggleFullscreen, fullscreen = false, style,
+}: Props) {
   const map = useRef<MapView>(null);
   const [locating, setLocating] = useState(false);
 
@@ -115,7 +122,19 @@ export function RunMap({ points, follow = false, fitAll = false, initialCenter =
         )}
       </MapView>
 
-      {!fitAll && (
+      <View style={styles.controls}>
+        {onToggleFullscreen && (
+          <Pressable
+            onPress={onToggleFullscreen}
+            accessibilityRole="button"
+            accessibilityLabel={fullscreen ? "Réduire la carte" : "Agrandir la carte"}
+            hitSlop={8}
+            style={({ pressed }) => [styles.control, pressed && styles.controlPressed]}
+          >
+            <Ionicons name={fullscreen ? "contract" : "expand"} size={19} color={colors.text} />
+          </Pressable>
+        )}
+        {!fitAll && (
         <Pressable
           onPress={() => void recentre()}
           accessibilityRole="button"
@@ -123,7 +142,7 @@ export function RunMap({ points, follow = false, fitAll = false, initialCenter =
           // 44 points across, plus slop: below that the target gets hard to
           // hit with a thumb, especially mid-run.
           hitSlop={8}
-          style={({ pressed }) => [styles.locateButton, pressed && styles.locatePressed]}
+          style={({ pressed }) => [styles.control, pressed && styles.controlPressed]}
         >
           {locating ? (
             <ActivityIndicator size="small" color={colors.accent} />
@@ -131,17 +150,28 @@ export function RunMap({ points, follow = false, fitAll = false, initialCenter =
             <Ionicons name="locate" size={20} color={colors.text} />
           )}
         </Pressable>
-      )}
+        )}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, borderRadius: 16, overflow: "hidden", backgroundColor: colors.border },
+  // The controls stack in one column so they never collide, whatever the
+  // combination of buttons a screen asks for.
+  controls: { position: "absolute", right: 12, bottom: 12, gap: 10 },
+  control: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surface,
+    ...shadows.card,
+  },
+  controlPressed: { transform: [{ scale: 0.96 }], opacity: 0.9 },
   locateButton: {
-    position: "absolute",
-    right: 12,
-    bottom: 12,
     width: 44,
     height: 44,
     borderRadius: 22,
