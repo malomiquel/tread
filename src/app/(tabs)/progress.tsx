@@ -171,14 +171,16 @@ export default function ProgressScreen() {
             says nothing about the version of the source that produced it, so
             "am I still up to date?" has no answer from the device. Compare
             this with git log and it does. */}
-        {/* TEMPORAIRE — à supprimer. Les trois vibrations de la course, pour
-            les sentir à l'arrêt. Le son est coupé : seule la texture compte. */}
+        {/* TEMPORAIRE — à supprimer. Toutes les vibrations de la course, pour
+            les sentir à l'arrêt. Le son est coupé : seule la texture compte.
+            La fin de séance a son propre motif, d'où le quatrième bouton. */}
         <View style={styles.buzzes}>
           {([
-            ["Kilomètre", () => announceKilometre(3, 312, false)],
-            ["Bloc", () => announceStep("400 m rapide", false)],
-            ["Allure", () => announcePace(12, false)],
-          ] as const).map(([label, fire]) => (
+            ["Kilomètre", "moteur, ~400 ms", () => announceKilometre(3, 312, false)],
+            ["Bloc", "3 coups serrés", () => announceStep("400 m rapide", false)],
+            ["Fin de séance", "1 coup", () => announceStep(null, false)],
+            ["Allure", "1 coup léger", () => announcePace(12, false)],
+          ] as const).map(([label, hint, fire]) => (
             <Pressable
               key={label}
               onPress={fire}
@@ -186,6 +188,7 @@ export default function ProgressScreen() {
               style={({ pressed }) => [styles.buzz, pressed && styles.buzzPressed]}
             >
               <Text style={styles.buzzLabel}>{label}</Text>
+              <Text style={styles.buzzHint}>{hint}</Text>
             </Pressable>
           ))}
         </View>
@@ -238,15 +241,17 @@ const styles = StyleSheet.create({
   weekLabel: { color: colors.subtle, fontFamily: font.regular, fontSize: 13, fontVariant: ["tabular-nums"] },
   caption: { color: colors.subtle, fontSize: 13 },
   buzzes: {
-    flexDirection: "row", gap: 8, justifyContent: "center",
+    flexDirection: "row", flexWrap: "wrap", gap: 8, justifyContent: "center",
     paddingTop: 24, paddingHorizontal: GUTTER,
   },
   buzz: {
+    alignItems: "center", gap: 1,
     paddingHorizontal: 14, paddingVertical: 9, borderRadius: 6,
     borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline,
   },
   buzzPressed: { backgroundColor: colors.sunken },
   buzzLabel: { color: colors.muted, fontSize: 13, fontFamily: font.semibold },
+  buzzHint: { color: colors.subtle, fontSize: 11, fontFamily: font.regular },
 
   build: {
     color: colors.subtle, fontFamily: font.regular, fontSize: 12,
