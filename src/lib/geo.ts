@@ -243,14 +243,18 @@ export interface MapRegion {
  * The margin keeps the track off the edges. The floor stops a run around the
  * block from being magnified until the street names crowd it out.
  */
-export function regionAround(points: TrackPoint[], margin = 1.35): MapRegion | null {
+export function regionAround(points: TrackPoint[], margin = 1.35, lift = 0): MapRegion | null {
   const box = bounds(points);
   if (!box) return null;
   const MIN_DELTA = 0.0035;
+  const latitudeDelta = Math.max((box.maxLat - box.minLat) * margin, MIN_DELTA);
   return {
-    latitude: (box.minLat + box.maxLat) / 2,
+    // Lifting the track means lowering the camera: the centre drops south by a
+    // share of the frame's height, and the run rises by as much. The share
+    // card uses it to keep the route clear of the text laid over the bottom.
+    latitude: (box.minLat + box.maxLat) / 2 - latitudeDelta * lift,
     longitude: (box.minLng + box.maxLng) / 2,
-    latitudeDelta: Math.max((box.maxLat - box.minLat) * margin, MIN_DELTA),
+    latitudeDelta,
     longitudeDelta: Math.max((box.maxLng - box.minLng) * margin, MIN_DELTA),
   };
 }

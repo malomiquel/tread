@@ -6,7 +6,7 @@ import MapView, { Polyline } from "react-native-maps";
 import * as Sharing from "expo-sharing";
 import { captureRef } from "react-native-view-shot";
 import { Button } from "@/components/Button";
-import { CARD_HEIGHT, CARD_WIDTH, MAP_HEIGHT, ShareCard } from "@/components/ShareCard";
+import { CARD_HEIGHT, CARD_WIDTH, ShareCard, TRACK_LIFT } from "@/components/ShareCard";
 import type { Run } from "@/lib/db";
 import { regionAround, segments, type TrackPoint } from "@/lib/geo";
 import { colors, floatingShadow, literalColors } from "@/lib/theme";
@@ -75,7 +75,7 @@ function Sheet({ run, points, preparedMapUri, onClose }: Omit<Props, "visible">)
   const tracks = segments(points);
   // The camera is worked out here rather than left to a later fit, so that the
   // map opens on the run instead of on the middle of the ocean.
-  const region = regionAround(points);
+  const region = regionAround(points, 1.35, TRACK_LIFT);
 
   /**
    * The region is handed over rather than left implicit, and that is the whole
@@ -93,7 +93,7 @@ function Sheet({ run, points, preparedMapUri, onClose }: Omit<Props, "visible">)
       map.current
         ?.takeSnapshot({
           width: CARD_WIDTH,
-          height: MAP_HEIGHT,
+          height: CARD_HEIGHT,
           region: region ?? undefined,
           format: "png",
           result: "file",

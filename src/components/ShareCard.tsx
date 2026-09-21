@@ -1,18 +1,36 @@
+import { LinearGradient } from "expo-linear-gradient";
 import { forwardRef, type ReactNode } from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
 import type { Run } from "@/lib/db";
 import { formatDate, formatDistance, formatDuration, formatElevation, formatPace } from "@/lib/format";
-import { colors } from "@/lib/theme";
+import { literalColors } from "@/lib/theme";
 
 /**
  * The card is laid out at a fixed size rather than filling its container, so
  * that what is captured never depends on the phone it was captured on. At the
- * usual three device pixels per point this comes out at 960 × 1200, which is
- * the 4:5 portrait most feeds crop to.
+ * usual three device pixels per point this comes out at 960 × 1200, the 4:5
+ * portrait most feeds crop to.
  */
 export const CARD_WIDTH = 320;
 export const CARD_HEIGHT = 400;
-export const MAP_HEIGHT = 236;
+
+/**
+ * How far up the frame the track is pushed, as a share of the frame's height,
+ * to keep it clear of the writing laid over the bottom.
+ */
+export const TRACK_LIFT = 0.16;
+
+/**
+ * The card carries its own colours instead of the app's.
+ *
+ * Everything here sits on a photograph of a map, so the text is white whatever
+ * the phone's appearance — and it must be, because the picture outlives the
+ * moment it was made. A card that came out light for one runner and dark for
+ * another would be the same run told two different ways.
+ */
+const INK = "#ffffff";
+const INK_SOFT = "rgba(255, 255, 255, 0.66)";
+const INK_FAINT = "rgba(255, 255, 255, 0.46)";
 
 interface Props {
   run: Run;
@@ -36,12 +54,17 @@ function Stat({ value, unit, label }: { value: string; unit?: string; label: str
 }
 
 /**
- * The shareable picture of a finished run: its track above, its numbers below.
+ * The shareable picture of a finished run.
  *
- * The map arrives as an image rather than as a live map on purpose. Capturing
- * a map view along with everything else can hand back a blank rectangle, and
- * the map knows how to render itself to a file — so it does that first, and
- * what gets captured here is only ordinary views.
+ * The map runs to all four edges and everything else is laid over it, so the
+ * card reads as one photograph rather than as a picture with a caption
+ * stapled underneath. Two gradients do the work of making the writing legible
+ * without curtaining the map: a short one at the top for the name of the app,
+ * a taller one at the bottom for the run's own numbers.
+ *
+ * The figures are deliberately not all the same size. The distance is what
+ * the run was, and it is set large; the rest supports it. Giving every number
+ * equal weight is what makes a share card look like a receipt.
  */
 export const ShareCard = forwardRef<View, Props>(function ShareCard({ run, mapUri, mapFallback }, ref) {
   const elevation = run.elevationGainM;
@@ -51,7 +74,7 @@ export const ShareCard = forwardRef<View, Props>(function ShareCard({ run, mapUr
     // Native flattens plain container views away, and a view that no longer
     // exists cannot be captured.
     <View ref={ref} collapsable={false} style={styles.card}>
-      <View style={styles.map}>
+      <View style={StyleSheet.absoluteFill}>
         {mapUri ? (
           <Image source={{ uri: mapUri }} style={styles.mapImage} resizeMode="cover" />
         ) : (
@@ -59,9 +82,31 @@ export const ShareCard = forwardRef<View, Props>(function ShareCard({ run, mapUr
         )}
       </View>
 
-      <View style={styles.body}>
-        <Text style={styles.name} numberOfLines={1}>{run.name ?? "Course"}</Text>
-        <Text style={styles.date}>{formatDate(run.startedAt)}</Text>
+      <LinearGradient
+        colors={["rgba(0, 0, 0, 0.55)", "rgba(0, 0, 0, 0)"]}
+        style={styles.topVeil}
+        pointerEvents="none"
+      />
+      <LinearGradient
+        // Three stops rather than two: a straight fade from clear to black
+        // leaves a visible edge halfway down, where the eye catches the point
+        // the map starts disappearing.
+        colors={["rgba(0, 0, 0, 0)", "rgba(0, 0, 0, 0.62)", "rgba(0, 0, 0, 0.93)"]}
+        locations={[0, 0.55, 1]}
+        style={styles.bottomVeil}
+        pointerEvents="none"
+      />
+
+      <View style={styles.brand}>
+        <View style={styles.brandDot} />
+        <Text style={styles.brandName}>TREAD</Text>
+      </View>
+
+      <View style={styles.footer}>
+        <Text style={styles.caption} numberOfLines={1}>
+          {(run.name ?? "Course").toUpperCase()}
+          <Text style={styles.captionFaint}>{`  ·  ${formatDate(run.startedAt)}`}</Text>
+        </Text>
 
         <View style={styles.heroRow}>
           <Text style={styles.hero}>{formatDistance(run.distanceM)}</Text>
@@ -75,58 +120,60 @@ export const ShareCard = forwardRef<View, Props>(function ShareCard({ run, mapUr
             <Stat value={formatElevation(elevation)} unit="m" label="DÉNIVELÉ" />
           ) : null}
         </View>
-
-        <Text style={styles.mark}>TREAD</Text>
       </View>
     </View>
   );
 });
 
-const GUTTER = 18;
+const GUTTER = 20;
 
 const styles = StyleSheet.create({
   card: {
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
-    backgroundColor: colors.background,
+    backgroundColor: "#11161a",
     overflow: "hidden",
   },
-  map: { height: MAP_HEIGHT, backgroundColor: colors.sunken },
   mapImage: { width: "100%", height: "100%" },
 
-  body: {
-    flex: 1,
-    paddingHorizontal: GUTTER,
-    paddingTop: 12,
-    paddingBottom: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.hairline,
-  },
-  name: { color: colors.text, fontSize: 14, fontWeight: "700", letterSpacing: -0.3 },
-  date: { color: colors.subtle, fontSize: 10.5, marginTop: 1 },
+  topVeil: { position: "absolute", top: 0, left: 0, right: 0, height: 92 },
+  bottomVeil: { position: "absolute", left: 0, right: 0, bottom: 0, height: 214 },
 
-  heroRow: { flexDirection: "row", alignItems: "baseline", gap: 4, marginTop: 6 },
+  brand: {
+    position: "absolute", top: 16, left: GUTTER,
+    flexDirection: "row", alignItems: "center", gap: 7,
+  },
+  // The mark is a stride in plan: a filled disc for the footfall, and the
+  // wordmark set wide beside it. Drawing a runner at this size only ever
+  // produces a smudge.
+  brandDot: {
+    width: 10, height: 10, borderRadius: 5,
+    backgroundColor: literalColors.track.dark,
+  },
+  brandName: { color: INK, fontSize: 15, fontWeight: "800", letterSpacing: 3.4 },
+
+  footer: { position: "absolute", left: GUTTER, right: GUTTER, bottom: 18 },
+  caption: { color: INK_SOFT, fontSize: 9.5, fontWeight: "700", letterSpacing: 1.5 },
+  captionFaint: { color: INK_FAINT, fontWeight: "600", letterSpacing: 1 },
+
+  heroRow: { flexDirection: "row", alignItems: "baseline", gap: 5, marginTop: 6 },
   hero: {
-    color: colors.text, fontSize: 44, fontWeight: "700",
-    letterSpacing: -2, fontVariant: ["tabular-nums"],
+    color: INK, fontSize: 52, fontWeight: "700",
+    letterSpacing: -2.6, fontVariant: ["tabular-nums"],
   },
-  heroUnit: { color: colors.subtle, fontSize: 13, fontWeight: "600" },
+  heroUnit: { color: INK_SOFT, fontSize: 15, fontWeight: "700", letterSpacing: -0.2 },
 
-  // Metrics are spread rather than evenly divided: a run without elevation
-  // shows two of them, and they should stay left-aligned rather than drift
-  // into the middle.
-  stats: { flexDirection: "row", gap: 26, marginTop: "auto" },
-  stat: { gap: 1 },
+  // A rule under the hero, the way the app separates its own sections.
+  stats: {
+    flexDirection: "row", gap: 28, marginTop: 12, paddingTop: 11,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "rgba(255, 255, 255, 0.24)",
+  },
+  stat: { gap: 2 },
   statValueRow: { flexDirection: "row", alignItems: "baseline", gap: 2 },
   statValue: {
-    color: colors.text, fontSize: 17, fontWeight: "600",
-    letterSpacing: -0.4, fontVariant: ["tabular-nums"],
+    color: INK, fontSize: 19, fontWeight: "600",
+    letterSpacing: -0.5, fontVariant: ["tabular-nums"],
   },
-  statUnit: { color: colors.subtle, fontSize: 9.5, fontWeight: "600" },
-  statLabel: { color: colors.subtle, fontSize: 8, fontWeight: "600", letterSpacing: 1.2 },
-
-  mark: {
-    position: "absolute", right: GUTTER, bottom: 12,
-    color: colors.accent, fontSize: 9, fontWeight: "700", letterSpacing: 1.6,
-  },
+  statUnit: { color: INK_FAINT, fontSize: 10, fontWeight: "600" },
+  statLabel: { color: INK_FAINT, fontSize: 8, fontWeight: "700", letterSpacing: 1.3 },
 });

@@ -4,7 +4,7 @@ import {
   ActivityIndicator, Pressable, StyleSheet, useColorScheme, View,
   type StyleProp, type ViewStyle,
 } from "react-native";
-import MapView, { Marker, Polyline, type SnapshotOptions } from "react-native-maps";
+import MapView, { Polyline, type SnapshotOptions } from "react-native-maps";
 import { bounds, regionAround, segments, type TrackPoint } from "@/lib/geo";
 import { CONTROLS_TOP } from "@/lib/layout";
 import { getCurrentCoords, type Coords } from "@/lib/location";
@@ -149,12 +149,6 @@ export const RunMap = forwardRef<RunMapHandle, Props>(function RunMap({
             lineJoin="round"
           />
         ))}
-        {fitAll && points.length > 0 && (
-          <>
-            <Marker coordinate={{ latitude: points[0].lat, longitude: points[0].lng }} pinColor="green" title="Départ" />
-            {last && <Marker coordinate={{ latitude: last.lat, longitude: last.lng }} pinColor="red" title="Arrivée" />}
-          </>
-        )}
       </MapView>
 
       <View style={[styles.controls, controlsAtTop ? styles.controlsTop : { bottom: controlsBottom }]}>

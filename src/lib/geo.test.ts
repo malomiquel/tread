@@ -139,3 +139,15 @@ test("regionAround refuses to magnify a run around the block", () => {
 test("regionAround has nothing to frame without points", () => {
   assert.equal(regionAround([]), null);
 });
+
+test("regionAround lifts the track when asked", () => {
+  const points = [at(0, 48.85, 2.34), at(1, 48.87, 2.38)];
+  const plain = regionAround(points)!;
+  const lifted = regionAround(points, 1.35, 0.2)!;
+
+  // Lowering the camera is what raises the track in frame, so the centre of
+  // the lifted view sits south of the plain one.
+  assert.ok(lifted.latitude < plain.latitude, "centre abaissé");
+  assert.equal(lifted.latitudeDelta, plain.latitudeDelta, "zoom inchangé");
+  assert.equal(lifted.longitude, plain.longitude, "longitude inchangée");
+});
