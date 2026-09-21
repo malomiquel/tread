@@ -13,6 +13,17 @@ import {
 import { weeklyVolumeKm } from "@/lib/stats";
 import { colors, font } from "@/lib/theme";
 
+/**
+ * Midnight of the day this module was loaded.
+ *
+ * Read once, at import, so that a screen has a usable day on its very first
+ * frame. Asking the clock during a render is forbidden and asking it in an
+ * effect costs a frame — a frame in which the screen had nothing to draw and
+ * showed white. It is refreshed on every focus, so an app left open overnight
+ * still moves on with the calendar.
+ */
+const BOOT_DAY = startOfDay(Date.now());
+
 const DAY_MS = 86_400_000;
 
 /**
@@ -241,8 +252,8 @@ export function PlanSetup({ onCreate }: { onCreate: (draft: PlanDraft) => void }
   const [measuredKm, setMeasuredKm] = useState<number | null>(null);
   /** What the runner says instead, which always wins. */
   const [declaredKm, setDeclaredKm] = useState<number | null>(null);
-  /** Read after mount, never during a render: today is not a pure value. */
-  const [today, setToday] = useState(0);
+  /** Refreshed after mount; never read from the clock during a render. */
+  const [today, setToday] = useState(BOOT_DAY);
   // The bar floats over the screen rather than pushing it up, so the last
   // control has to leave room for it or it is simply unreachable.
   const tabBarSpace = useTabBarSpace();
@@ -330,8 +341,6 @@ export function PlanSetup({ onCreate }: { onCreate: (draft: PlanDraft) => void }
     ? buildPlan({ goal: goalId, weeks, perWeek, targetTimeS, longestMin: longest, weeklyKm }).length
     : 0;
 
-  // One frame, before the clock has been read.
-  if (today === 0) return <ScrollView contentContainerStyle={styles.content} />;
 
   return (
     <ScrollView ref={page} contentContainerStyle={[styles.content, { paddingBottom: tabBarSpace + 20 }]}>

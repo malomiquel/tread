@@ -20,6 +20,17 @@ import { chooseSession } from "@/lib/tracker";
 import { eased, sessionMinutes } from "@/lib/workout";
 
 /** Displayed, indexed by `Date.getDay`. */
+/**
+ * Midnight of the day this module was loaded.
+ *
+ * Read once, at import, so that a screen has a usable day on its very first
+ * frame. Asking the clock during a render is forbidden and asking it in an
+ * effect costs a frame — a frame in which the screen had nothing to draw and
+ * showed white. It is refreshed on every focus, so an app left open overnight
+ * still moves on with the calendar.
+ */
+const BOOT_DAY = startOfDay(Date.now());
+
 const DAYS = ["dim.", "lun.", "mar.", "mer.", "jeu.", "ven.", "sam."];
 const MONTHS = [
   "janv.", "févr.", "mars", "avr.", "mai", "juin",
@@ -98,8 +109,8 @@ export default function PlanScreen() {
   useScrollToTop(page);
   const [plan, setPlan] = useState<StoredPlan | null | undefined>(undefined);
   const [done, setDone] = useState<Map<number, Done>>(new Map());
-  /** Read on arrival, never during a render. A day is not a pure value. */
-  const [today, setToday] = useState(0);
+  /** Refreshed on arrival; never read from the clock during a render. */
+  const [today, setToday] = useState(BOOT_DAY);
   /** The session being looked at, before deciding to run it. */
   const [viewing, setViewing] = useState<ScheduledSession | null>(null);
   /** How the last few sessions felt, newest first. */
@@ -175,7 +186,19 @@ export default function PlanScreen() {
     router.push("/record");
   }
 
-  if (plan === undefined || today === 0) return <SafeAreaView style={styles.screen} edges={["top"]} />;
+  // Something rather than nothing while the programme is read off disk. Which
+  // of the two screens follows is not known yet, so the heading is the tab's
+  // own name — true either way, and enough to stop the change of tab looking
+  // like a failure.
+  if (plan === undefined) {
+    return (
+      <SafeAreaView style={styles.screen} edges={["top"]}>
+        <View style={styles.head}>
+          <Text style={styles.title}>Plan</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (plan === null) {
     return (

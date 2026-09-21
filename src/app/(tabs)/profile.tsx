@@ -86,7 +86,16 @@ export default function ProfileScreen() {
     }, []),
   );
 
-  if (!weeks || !records) return <SafeAreaView style={styles.screen} edges={["top"]} />;
+  // The heading stays while the figures are fetched. An empty screen for the
+  // length of a query is indistinguishable from a broken one, and it is the
+  // whole of what people were seeing as a white page between tabs.
+  if (!weeks || !records) {
+    return (
+      <SafeAreaView style={styles.screen} edges={["top"]}>
+        <Text style={styles.title}>Profil</Text>
+      </SafeAreaView>
+    );
+  }
 
   const current = weeks[weeks.length - 1];
   const peak = Math.max(...weeks.map((w) => w.distanceM), 1);
