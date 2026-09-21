@@ -182,14 +182,22 @@ export default function RecordScreen() {
   /**
    * Our own back swipe, on a narrow strip down the left edge.
    *
-   * The navigator's gesture never fires here. It wants the touch to begin
-   * within about twenty points of the edge, and a map filling the screen
-   * claims that strip for its own panning first — which is exactly why this
-   * strip existed before, sitting above the map rather than under it.
+   * The navigator's gesture does not fire here, and finding out why took a
+   * bisect rather than an argument. It worked for five commits after this
+   * screen became a pushed one, then stopped at the commit that fixed the
+   * map locating itself in a loop — eight lines that touch nothing else.
    *
-   * So it is a threshold again, not a drag: the screen does not follow the
-   * finger. That is the part the native gesture would have given for free,
-   * and it is not worth a back swipe that does not work.
+   * Which says what is really going on: MKMapView claims a touch starting at
+   * the edge for its own panning, except while it is animating a region
+   * change. The loop kept it permanently animating, so the edge stayed free
+   * and the native gesture went on working by accident. Calming the map
+   * handed the edge back to it.
+   *
+   * Hence a strip of our own, above the map, with its own recogniser — the
+   * only arrangement that does not depend on what the map happens to be
+   * doing. The cost is that it is a threshold and not a drag: the screen does
+   * not follow the finger. Three attempts at persuading the native gesture
+   * bought nothing, and a swipe that works beats one that looks better.
    */
   const swipeBack = Gesture.Pan()
     .activeOffsetX(14)
