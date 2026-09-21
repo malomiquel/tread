@@ -23,6 +23,22 @@ export interface Session {
   steps: Step[];
 }
 
+/**
+ * A block as it was actually run, kept with the finished run.
+ *
+ * The target is stored beside the result rather than looked up from the
+ * catalogue later. A session edited or removed afterwards would otherwise
+ * rewrite what a past run was asked to do, and a training log that changes
+ * behind you is worse than none.
+ */
+export interface RanBlock {
+  effort: Effort;
+  targetMetres: number | null;
+  targetSeconds: number | null;
+  distanceM: number;
+  durationS: number;
+}
+
 /** What is left of a step, in its own unit. Null in the unit it does not use. */
 export interface Remaining {
   metres: number | null;

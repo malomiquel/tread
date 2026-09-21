@@ -17,6 +17,7 @@ import {
   formatDate, formatDistance, formatDuration, formatElevation, formatEnergy, formatPace, formatSpeed,
 } from "@/lib/format";
 import { splits, type TrackPoint } from "@/lib/geo";
+import { sessionById, type RanBlock } from "@/lib/workout";
 import { gpxFileName, toGpx } from "@/lib/gpx";
 import { estimateActiveEnergyKcal } from "@/lib/energy";
 import {
@@ -26,6 +27,30 @@ import {
 import { colors, floatingShadow, font } from "@/lib/theme";
 
 type Loaded = { run: Run; points: TrackPoint[] };
+
+/** One block of a session, as asked for and as run. */
+function BlockRow({ block, rank }: { block: RanBlock; rank: number }) {
+  const asked = block.targetMetres !== null
+    ? `${block.targetMetres} m`
+    : `${Math.round((block.targetSeconds ?? 0) / 60)} min`;
+  const pace = block.distanceM > 0 ? (block.durationS / block.distanceM) * 1000 : null;
+  const effort = block.effort === "rapide" || block.effort === "allure";
+
+  return (
+    <View style={styles.block}>
+      <Text style={[styles.blockRank, effort && styles.blockEffort]}>{rank}</Text>
+      <View style={styles.blockText}>
+        <Text style={[styles.blockName, effort && styles.blockEffort]}>
+          {asked} {block.effort}
+        </Text>
+        <Text style={styles.blockDone}>
+          {formatDistance(block.distanceM)} km · {formatDuration(Math.round(block.durationS))}
+        </Text>
+      </View>
+      <Text style={[styles.blockPace, effort && styles.blockEffort]}>{formatPace(pace)}</Text>
+    </View>
+  );
+}
 
 export default function RunDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -262,6 +287,20 @@ export default function RunDetailScreen() {
         </View>
       </Modal>
 
+      {run.blocks.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>
+            {sessionById(run.sessionId)?.name ?? "Séance"}
+          </Text>
+          {/* Each block beside what it asked for. A repetition is only worth
+              reading next to its target: four hundred metres in 1:32 means
+              nothing until you know four hundred were the point. */}
+          {run.blocks.map((block, index) => (
+            <BlockRow key={index} block={block} rank={index + 1} />
+          ))}
+        </View>
+      )}
+
       {kilometres.length > 0 && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Fractionnés</Text>
@@ -404,6 +443,24 @@ const styles = StyleSheet.create({
   map: { height: 300, borderRadius: 0, marginTop: 4 },
   fullMap: { flex: 1, backgroundColor: colors.background },
   fullMapInner: { flex: 1, borderRadius: 0 },
+
+  block: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 5 },
+  // The number anchors the row: mid-list, a repetition is found by its rank
+  // before it is found by its name.
+  blockRank: {
+    color: colors.subtle, width: 20, fontSize: 14,
+    fontFamily: font.semibold, fontVariant: ["tabular-nums"],
+  },
+  blockText: { flex: 1, gap: 1 },
+  blockName: { color: colors.text, fontSize: 15, fontFamily: font.semibold },
+  blockDone: { color: colors.muted, fontSize: 13, fontVariant: ["tabular-nums"] },
+  blockPace: {
+    color: colors.text, fontSize: 15, fontFamily: font.semibold,
+    fontVariant: ["tabular-nums"],
+  },
+  // Only the efforts are tinted. Warm-ups and recoveries are there to be run,
+  // not to be read.
+  blockEffort: { color: colors.accent },
 
   split: { flexDirection: "row", alignItems: "center", gap: 12 },
   splitKm: { color: colors.muted, width: 56, fontFamily: font.regular, fontSize: 15, fontVariant: ["tabular-nums"] },

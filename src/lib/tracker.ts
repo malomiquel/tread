@@ -11,7 +11,7 @@ import {
 } from "./geo";
 import { reflectRun, stopRun, type RunProgress } from "./liveActivity";
 import { getSettings } from "./settings";
-import { sessionById, stepIsDone, stepLabel } from "./workout";
+import { sessionById, stepIsDone, stepLabel, type RanBlock } from "./workout";
 
 export const TASK_NAME = "tread-gps-tracking";
 
@@ -39,6 +39,8 @@ export interface TrackerState {
   /** Distance and active time at which that block began. */
   stepStartM: number;
   stepStartS: number;
+  /** Blocks already finished, kept so the run can be read back later. */
+  blocks: RanBlock[];
   /** True when the background task is live, false on the foreground fallback. */
   backgroundMode: boolean;
   error: string | null;
@@ -47,7 +49,7 @@ export interface TrackerState {
 const IDLE: TrackerState = {
   status: "idle", runId: null, points: [], segment: 0, startedAt: null,
   bankedS: 0, segmentStartedAt: null, announcedKm: 0,
-  sessionId: null, stepIndex: 0, stepStartM: 0, stepStartS: 0,
+  sessionId: null, stepIndex: 0, stepStartM: 0, stepStartS: 0, blocks: [],
   accuracyM: null, backgroundMode: false, error: null,
 };
 
@@ -169,8 +171,23 @@ function advanceSession(): void {
   const active = activeDurationS(state, Date.now());
   if (!stepIsDone(step, distance - state.stepStartM, active - state.stepStartS)) return;
 
+  // Recorded as it was actually run, target included, so the finished run can
+  // be read back without asking the catalogue what the session used to be.
+  const ran: RanBlock = {
+    effort: step.effort,
+    targetMetres: step.metres ?? null,
+    targetSeconds: step.seconds ?? null,
+    distanceM: distance - state.stepStartM,
+    durationS: active - state.stepStartS,
+  };
+
   const nextIndex = state.stepIndex + 1;
-  publish({ stepIndex: nextIndex, stepStartM: distance, stepStartS: active });
+  publish({
+    stepIndex: nextIndex,
+    stepStartM: distance,
+    stepStartS: active,
+    blocks: [...state.blocks, ran],
+  });
   const nextStep = session.steps[nextIndex];
   announceStep(nextStep ? stepLabel(nextStep) : null, getSettings().voice);
 }
@@ -287,7 +304,7 @@ export async function start(): Promise<void> {
     publish({
       status: "running", runId, points: [], segment: 0, startedAt,
       bankedS: 0, segmentStartedAt: startedAt, announcedKm: 0,
-      stepIndex: 0, stepStartM: 0, stepStartS: 0,
+      stepIndex: 0, stepStartM: 0, stepStartS: 0, blocks: [],
       backgroundMode: false,
     });
     const session = sessionById(state.sessionId);
@@ -322,6 +339,28 @@ export function resume(): void {
   });
 }
 
+/**
+ * The blocks to store: those already finished, plus the one under way when
+ * the run was stopped.
+ */
+function closingBlocks(endedAt: number): RanBlock[] {
+  const session = sessionById(state.sessionId);
+  const step = session?.steps[state.stepIndex];
+  if (!session || !step) return state.blocks;
+
+  const distance = totalDistanceM(state.points) - state.stepStartM;
+  const duration = activeDurationS(state, endedAt) - state.stepStartS;
+  if (distance <= 0 && duration <= 0) return state.blocks;
+
+  return [...state.blocks, {
+    effort: step.effort,
+    targetMetres: step.metres ?? null,
+    targetSeconds: step.seconds ?? null,
+    distanceM: distance,
+    durationS: duration,
+  }];
+}
+
 /** Close the run and return its id, or null when nothing was in progress. */
 export async function finish(): Promise<number | null> {
   if (state.status === "idle" || state.runId === null) return null;
@@ -344,6 +383,11 @@ export async function finish(): Promise<number | null> {
     name: autoName(startedAt ?? endedAt),
     elevationGainM: elevationGainM(points),
     fastestKmS: fastestKmS(points),
+    sessionId: state.sessionId,
+    // Including the block under way when the run was stopped: a session
+    // abandoned halfway is still a session, and the work done in that last
+    // repetition was done.
+    blocks: closingBlocks(endedAt),
   });
 
   // Apple Health is a mirror, and the run is already safe on disk, so the copy
