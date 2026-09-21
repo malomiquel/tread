@@ -1,5 +1,6 @@
 import * as Haptics from "expo-haptics";
 import * as Speech from "expo-speech";
+import { Vibration } from "react-native";
 /**
  * A pattern of heavy taps, spaced.
  *
@@ -28,12 +29,13 @@ export function announceKilometre(km: number, splitS: number, spoken: boolean): 
   // The buzz fires whatever happens: it is the part that works with headphones
   // out, music playing, or the phone deep in a pocket.
   //
-  // One long rumble. There is no sustained buzz in the haptics API, only
-  // taps, so a run of them close enough together chains into one — spaced
-  // wider and it reads as counting rather than holding. Nothing else in the
-  // app lasts this long, which is the whole point: a kilometre is the event
-  // worth interrupting for.
-  buzz(8, 45);
+  // Not a haptic at all, but the vibration motor — the same call the system
+  // makes for an incoming call. Feedback generators are made to be felt by a
+  // hand already holding the phone, and a chain of them was still a chain of
+  // taps. This is one sustained buzz, it is far stronger, and it is the only
+  // one of the three that still fires when system haptics are turned off.
+  // Worth the bluntness once a kilometre, and only once a kilometre.
+  Vibration.vibrate();
   if (!spoken) return;
 
   const minutes = Math.floor(splitS / 60);
