@@ -4,6 +4,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import * as Sharing from "expo-sharing";
 import { useCallback, useState } from "react";
 import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import Animated, { FadeIn } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "@/components/Button";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -112,6 +113,10 @@ export default function HistoryScreen() {
 
   return (
     <SafeAreaView style={styles.screen} edges={["top"]}>
+      {/* The page arrives rather than appearing: coming from a screen that
+          just slid its own furniture away, a list that simply exists in the
+          next frame reads as a cut. */}
+      <Animated.View style={styles.fill} entering={FadeIn.duration(220)}>
       <View style={styles.header}>
         <View style={styles.headerText}>
           <Text style={styles.title}>Historique</Text>
@@ -184,6 +189,8 @@ export default function HistoryScreen() {
         )}
       />
 
+      </Animated.View>
+
       <ConfirmDialog
         visible={pending !== null}
         title="Supprimer cette course ?"
@@ -205,6 +212,7 @@ const GUTTER = 20;
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
+  fill: { flex: 1 },
   header: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12,
     paddingHorizontal: GUTTER, paddingTop: 10, paddingBottom: 14,

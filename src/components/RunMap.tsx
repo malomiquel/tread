@@ -5,6 +5,7 @@ import {
   type StyleProp, type ViewStyle,
 } from "react-native";
 import MapView, { Polyline } from "react-native-maps";
+import Animated, { useAnimatedStyle, withTiming } from "react-native-reanimated";
 import { bounds, regionAround, segments, type TrackPoint } from "@/lib/geo";
 import { CONTROL_SIZE, CONTROLS_TOP } from "@/lib/layout";
 import { getCurrentCoords, type Coords } from "@/lib/location";
@@ -100,6 +101,17 @@ export function RunMap({
   // A screen showing a finished run opens on the whole of it rather than
   // zoomed on its last step and jumping to the framing a moment later. While
   // recording it is the opposite: the camera stays close to where you are.
+  /**
+   * The controls follow the panel instead of jumping with it. Screens that lay
+   * a panel over the map move these buttons as it grows, and a step change of
+   * forty points mid-run reads as the interface breaking rather than as it
+   * making room.
+   */
+  const rise = useAnimatedStyle(
+    () => ({ bottom: withTiming(controlsBottom, { duration: 240 }) }),
+    [controlsBottom],
+  );
+
   const anchor = last ? { lat: last.lat, lng: last.lng } : initialCenter;
   const initialRegion =
     (fitAll ? regionAround(points) : null) ??
@@ -134,7 +146,7 @@ export function RunMap({
         ))}
       </MapView>
 
-      <View style={[styles.controls, controlsAtTop ? styles.controlsTop : { bottom: controlsBottom }]}>
+      <Animated.View style={[styles.controls, controlsAtTop ? styles.controlsTop : rise]}>
         {onToggleFullscreen && (
           <Pressable
             onPress={onToggleFullscreen}
@@ -163,7 +175,7 @@ export function RunMap({
           )}
         </Pressable>
         )}
-      </View>
+      </Animated.View>
     </View>
   );
 }

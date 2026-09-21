@@ -3,6 +3,9 @@ import { useKeepAwake } from "expo-keep-awake";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import Animated, {
+  FadeIn, FadeOut, LinearTransition, useAnimatedStyle, withTiming,
+} from "react-native-reanimated";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { GlassPanel } from "@/components/GlassPanel";
 import { Metric } from "@/components/Metric";
@@ -89,6 +92,13 @@ export default function RecordScreen() {
   // locate button, then the two settings.
   const locateBottom = bottomInset + panelHeight + 12;
   const togglesBottom = locateBottom + CONTROL_SIZE + 10;
+
+  // Same easing as the map's own controls, so the whole right-hand column
+  // rises as one thing when the panel grows at the start of a run.
+  const togglesRise = useAnimatedStyle(
+    () => ({ bottom: withTiming(togglesBottom, { duration: 240 }) }),
+    [togglesBottom],
+  );
 
   useEffect(() => {
     if (!recording) return;
@@ -180,7 +190,7 @@ export default function RecordScreen() {
       {/* Cut to the same size as the map's own button just below, so the two
           read as one column rather than as two unrelated things that happen
           to be near each other. */}
-      <View pointerEvents="box-none" style={[styles.toggles, { bottom: togglesBottom }]}>
+      <Animated.View pointerEvents="box-none" style={[styles.toggles, togglesRise]}>
         <GlassPanel style={styles.togglePill}>
           <Toggle
             on={settings.voice}
@@ -190,7 +200,7 @@ export default function RecordScreen() {
             label="Annonce vocale des kilomètres"
           />
         </GlassPanel>
-      </View>
+      </Animated.View>
 
       {/* Sits above the tab bar rather than replacing it: the tab bar is how
           you leave this screen, so it has to stay reachable. */}
@@ -204,8 +214,8 @@ export default function RecordScreen() {
               everything written beside it. With the status line sitting above
               the row instead, it was centred on the metrics alone and came
               out visibly low. */}
-          <View style={styles.panelRow}>
-            <View style={styles.panelMetrics}>
+          <Animated.View layout={LinearTransition.duration(260)} style={styles.panelRow}>
+            <Animated.View layout={LinearTransition.duration(260)} style={styles.panelMetrics}>
               <Text style={[styles.state, weakSignal && styles.stateWeak]} numberOfLines={1}>
                 {state} · {recording ? signal : idleSignal}
               </Text>
@@ -214,7 +224,11 @@ export default function RecordScreen() {
                 // Two rows of two rather than four abreast: on a narrow phone
                 // the single row fell to 46 points a column, which clipped the
                 // unit off the pace.
-                <>
+                <Animated.View
+                  entering={FadeIn.duration(200)}
+                  exiting={FadeOut.duration(120)}
+                  style={styles.metricStack}
+                >
                   <View style={styles.metricRow}>
                     <Metric compact label="Distance" value={formatDistance(distance)} unit="km" />
                     <Metric compact label="Durée" value={formatDuration(duration)} />
@@ -223,39 +237,53 @@ export default function RecordScreen() {
                     <Metric compact label="Allure" value={formatPace(pace ?? avgPace)} unit="/km" />
                     <Metric compact label="Dénivelé" value={formatElevation(elevation)} unit="m" />
                   </View>
-                </>
+                </Animated.View>
               ) : (
-                <Metric
+                <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(120)}>
+                  <Metric
                   compact
                   label="Cette semaine"
                   value={`${formatDistance(week.distanceM)} km`}
                   unit={week.runs > 0 ? `· ${week.runs} sortie${week.runs > 1 ? "s" : ""}` : undefined}
-                />
+                  />
+                </Animated.View>
               )}
               {tracker.error && <Text style={styles.error}>{tracker.error}</Text>}
-            </View>
+            </Animated.View>
 
-            <View style={styles.panelControls}>
+            <Animated.View layout={LinearTransition.duration(260)} style={styles.panelControls}>
+              {/* Each button fades in and out in place. They come and go as the
+                  run changes state, and swapping one for another between two
+                  frames reads as the panel flickering rather than as the same
+                  panel offering something else. */}
               {!recording && (
-                <RoundButton icon="play" label="Démarrer" onPress={() => void start()} primary size={52} />
+                <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(120)}>
+                  <RoundButton icon="play" label="Démarrer" onPress={() => void start()} primary size={52} />
+                </Animated.View>
               )}
               {tracker.status === "running" && (
-                <RoundButton icon="pause" label="Pause" onPress={pause} />
+                <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(120)}>
+                  <RoundButton icon="pause" label="Pause" onPress={pause} />
+                </Animated.View>
               )}
               {tracker.status === "paused" && (
-                <RoundButton icon="play" label="Reprendre" onPress={resume} primary />
+                <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(120)}>
+                  <RoundButton icon="play" label="Reprendre" onPress={resume} primary />
+                </Animated.View>
               )}
               {recording && (
-                <RoundButton
-                  icon="stop"
-                  label="Terminer"
-                  onPress={() => setConfirming(true)}
-                  danger
-                  disabled={finishing}
-                />
+                <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(120)}>
+                  <RoundButton
+                    icon="stop"
+                    label="Terminer"
+                    onPress={() => setConfirming(true)}
+                    danger
+                    disabled={finishing}
+                  />
+                </Animated.View>
               )}
-            </View>
-          </View>
+            </Animated.View>
+          </Animated.View>
         </GlassPanel>
       </View>
 
@@ -342,6 +370,7 @@ const styles = StyleSheet.create({
   stateWeak: { color: colors.warning },
   panelRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   panelMetrics: { flex: 1, gap: 8, minWidth: 0 },
+  metricStack: { gap: 10 },
   metricRow: { flexDirection: "row", gap: 12 },
   panelControls: { flexDirection: "row", gap: 8, flexShrink: 0 },
 

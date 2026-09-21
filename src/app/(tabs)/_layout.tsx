@@ -48,11 +48,6 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         sceneStyle: { backgroundColor: colors.background },
-        // The screens cross-fade instead of being swapped in place. Between
-        // two ordinary tabs it barely registers; arriving on the run screen,
-        // where the bar is leaving at the same moment, it is the difference
-        // between a transition and a jump cut.
-        animation: "fade",
       }}
     >
       <Tabs.Screen

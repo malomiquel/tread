@@ -1,6 +1,7 @@
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
+import Animated, { FadeIn } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { listRuns, personalRecords, type PersonalRecords, type Run } from "@/lib/db";
 import { formatDistance, formatDuration, formatElevation, formatPace } from "@/lib/format";
@@ -79,6 +80,9 @@ export default function ProgressScreen() {
 
   return (
     <SafeAreaView style={styles.screen} edges={["top"]}>
+      {/* Same arrival as the history: the page settles in rather than
+          replacing what was there between two frames. */}
+      <Animated.View style={styles.fill} entering={FadeIn.duration(220)}>
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: tabBarSpace }]}>
         <Text style={styles.title}>Progression</Text>
 
@@ -161,6 +165,7 @@ export default function ProgressScreen() {
           </>
         )}
       </ScrollView>
+      </Animated.View>
     </SafeAreaView>
   );
 }
@@ -169,6 +174,7 @@ const GUTTER = 20;
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
+  fill: { flex: 1 },
   content: {},
   title: {
     color: colors.text, fontSize: 32, fontFamily: font.bold,
