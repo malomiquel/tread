@@ -1,0 +1,97 @@
+# An installable Android build, made by the repository rather than by a
+# laptop.
+#
+# Gradle here rather than EAS: this needs no account, no token and no queue,
+# and the whole of it is visible in one file. The android/ directory is not
+# committed — `expo prebuild` generates it from app.json each time, so there
+# is never a second copy of the configuration to drift out of step with the
+# first.
+#
+# What comes out is signed with the debug key Expo's template leaves in the
+# release config. That is enough to install and enough to update, so long as
+# it is always the same key — which it is, because it ships with the
+# template. It is not enough for the Play Store, and swapping in a real
+# keystore is one secret and four lines when that day comes.
+name: APK Android
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+# Attaching the result to a release is a write.
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    name: Construire et publier
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The version comes from the history: feats and fixes counted,
+          # commits counted. A shallow clone would ship an app that
+          # misreports which build it is, which is the one thing the version
+          # line exists to prevent.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Dépendances
+        run: npm ci
+
+      # Before building rather than after. A failed build tells you something
+      # is wrong; a green build of code that does not typecheck tells you
+      # nothing at all.
+      - name: Vérifications
+        run: |
+          npm run typecheck
+          npm run lint
+          npm test
+
+      - name: Générer le projet Android
+        # --no-install because npm ci has already done it, and prebuild would
+        # otherwise install everything a second time.
+        run: npx expo prebuild --platform android --no-install
+
+      - name: Construire l'APK
+        run: ./gradlew assembleRelease --no-daemon
+        working-directory: android
+
+      - name: Nommer le fichier
+        id: apk
+        run: |
+          version=$(node -p "require('./app.config.js')({ config: {} }).version ?? '0.0.0'")
+          name="tread-${version}.apk"
+          mv android/app/build/outputs/apk/release/app-release.apk "$name"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      # Kept whatever the trigger was, so a manual run still leaves something
+      # installable behind without inventing a release nobody asked for.
+      - name: Conserver l'APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.apk.outputs.name }}
+          path: ${{ steps.apk.outputs.name }}
+          if-no-files-found: error
+
+      # A release only where a tag says so. One per manual run would fill the
+      # page with builds that were never meant to be anybody's copy.
+      - name: Publier la release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" "${{ steps.apk.outputs.name }}" \
+            --title "Tread ${{ steps.apk.outputs.version }}" \
+            --generate-notes
