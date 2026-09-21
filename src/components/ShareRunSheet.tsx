@@ -8,7 +8,7 @@ import { captureRef } from "react-native-view-shot";
 import { Button } from "@/components/Button";
 import { CARD_HEIGHT, CARD_WIDTH, MAP_HEIGHT, ShareCard } from "@/components/ShareCard";
 import type { Run } from "@/lib/db";
-import { bounds, regionAround, segments, type TrackPoint } from "@/lib/geo";
+import { regionAround, segments, type TrackPoint } from "@/lib/geo";
 import { colors, floatingShadow, literalColors } from "@/lib/theme";
 
 interface Props {
@@ -36,15 +36,15 @@ export function ShareRunSheet({ visible, run, points, onClose }: Props) {
 }
 
 /**
- * How long the map is given to draw itself before being captured.
+ * How long the map is given before being asked for its picture.
  *
- * There is no signal to wait for instead: the library's onMapLoaded only ever
- * fires for Google Maps, and this app uses Apple's. So this is a wait, and it
- * is generous on purpose — a snapshot taken early comes back as bare water,
- * and a second of delay on a screen the user opened deliberately costs far
- * less than a picture they cannot share.
+ * Short, because the wait is not for tiles. Asking the map for a snapshot does
+ * not photograph what is on screen: it hands the region to MKMapSnapshotter,
+ * which fetches and draws its own copy from scratch. All that has to have
+ * happened by now is for the track's lines to have been attached to the map,
+ * since those the library draws over the result by hand.
  */
-const SETTLE_MS = 1400;
+const SETTLE_MS = 400;
 
 /**
  * The preview and the share sheet for a run's picture.
@@ -67,32 +67,34 @@ function Sheet({ run, points, onClose }: Omit<Props, "visible">) {
   // map opens on the run instead of on the middle of the ocean.
   const region = regionAround(points);
 
-  async function captureMap() {
-    try {
-      const uri = await map.current?.takeSnapshot({
-        width: CARD_WIDTH,
-        height: MAP_HEIGHT,
-        format: "png",
-        result: "file",
-      });
-      if (uri) setMapUri(uri);
-    } catch {
-      /* the map stays live, and the share button stays out of reach */
-    }
-  }
-
-  function frameThenCapture() {
-    const box = bounds(points);
-    if (box) {
-      map.current?.fitToCoordinates(
-        [
-          { latitude: box.minLat, longitude: box.minLng },
-          { latitude: box.maxLat, longitude: box.maxLng },
-        ],
-        { edgePadding: { top: 28, right: 28, bottom: 28, left: 28 }, animated: false },
-      );
-    }
-    setTimeout(() => void captureMap(), SETTLE_MS);
+  /**
+   * The region is handed over rather than left implicit, and that is the whole
+   * difference between a picture of the run and a rectangle of sea.
+   *
+   * Left out, the snapshotter falls back on whatever region the map view
+   * believes it is showing, which need not be what is on screen — and an
+   * unset region is latitude zero, longitude zero, a point in the middle of
+   * the Atlantic. Passing the same region the preview was opened with also
+   * makes the two agree by construction: what is shared is framed exactly
+   * like what was looked at.
+   */
+  function captureMap() {
+    setTimeout(() => {
+      map.current
+        ?.takeSnapshot({
+          width: CARD_WIDTH,
+          height: MAP_HEIGHT,
+          region: region ?? undefined,
+          format: "png",
+          result: "file",
+        })
+        .then((uri) => {
+          if (uri) setMapUri(uri);
+        })
+        .catch(() => {
+          /* the map stays live, and the share button stays out of reach */
+        });
+    }, SETTLE_MS);
   }
 
   async function share() {
@@ -132,7 +134,7 @@ function Sheet({ run, points, onClose }: Omit<Props, "visible">) {
                 rotateEnabled={false}
                 pitchEnabled={false}
                 showsCompass={false}
-                onMapReady={frameThenCapture}
+                onMapReady={captureMap}
               >
                 {tracks.map((track) => (
                   <Polyline
