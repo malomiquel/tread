@@ -7,7 +7,6 @@ import {
   ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { Button } from "@/components/Button";
-import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Metric } from "@/components/Metric";
 import { CardMapSource, type CardMapHandle } from "@/components/CardMapSource";
 import { RunMap } from "@/components/RunMap";
@@ -63,7 +62,6 @@ export default function RunDetailScreen() {
   const [draftName, setDraftName] = useState("");
   const [exporting, setExporting] = useState(false);
   const [mapExpanded, setMapExpanded] = useState(false);
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [hasHealth] = useState(healthAvailable);
   const [sharingImage, setSharingImage] = useState(false);
@@ -235,8 +233,27 @@ export default function RunDetailScreen() {
     setData({ run: { ...run, name: next }, points });
   }
 
+  /**
+   * The warning before deleting, in the system's own alert.
+   *
+   * The same one abandoning a programme uses, and for the same reason: an
+   * irreversible choice should look like every other irreversible choice on
+   * the phone rather than like a part of this app. A dialog we drew
+   * ourselves is a dialog people read as furniture.
+   */
+  function askDelete() {
+    Alert.alert(
+      "Supprimer cette course ?",
+      "Ses points GPS seront effacés et l'action est définitive."
+      + (planLinked ? " La séance correspondante redeviendra à faire dans ton programme." : ""),
+      [
+        { text: "Annuler", style: "cancel" },
+        { text: "Supprimer", style: "destructive", onPress: removeRun },
+      ],
+    );
+  }
+
   function removeRun() {
-    setConfirmingDelete(false);
     // The copy in Health goes first: deleting the run here would otherwise
     // strand a workout that nothing in the app can reach any more.
     void forgetRunInHealth(run)
@@ -514,7 +531,7 @@ export default function RunDetailScreen() {
           onPress={() => void exportGpx()}
           disabled={exporting || points.length === 0}
         />
-        <Button label="Supprimer" variant="danger" onPress={() => setConfirmingDelete(true)} />
+        <Button label="Supprimer" variant="danger" onPress={askDelete} />
       </View>
 
       <ShareRunSheet
@@ -525,19 +542,6 @@ export default function RunDetailScreen() {
         onClose={() => setSharingImage(false)}
       />
 
-      <ConfirmDialog
-        visible={confirmingDelete}
-        title="Supprimer cette course ?"
-        message={
-          planLinked
-            ? "Ses points GPS seront effacés et l'action est définitive. La séance correspondante redeviendra à faire dans ton programme."
-            : "Ses points GPS seront effacés et l'action est définitive."
-        }
-        confirmLabel="Supprimer"
-        destructive
-        onConfirm={removeRun}
-        onCancel={() => setConfirmingDelete(false)}
-      />
 
       <Modal visible={renaming} transparent animationType="fade" onRequestClose={() => setRenaming(false)}>
         <Pressable style={styles.backdrop} onPress={() => setRenaming(false)}>

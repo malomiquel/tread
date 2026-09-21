@@ -8,7 +8,6 @@ import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View }
 import Animated, { FadeIn } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "@/components/Button";
-import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { SwipeToDelete } from "@/components/SwipeToDelete";
 import { archiveFileName, buildArchive } from "@/lib/archive";
 import { deleteRun, importRun, listRuns, planSessionOfRun, readRun, type Run } from "@/lib/db";
@@ -35,9 +34,6 @@ export default function HistoryScreen() {
   const [seeding, setSeeding] = useState(false);
   const router = useRouter();
   const tabBarSpace = useTabBarSpace();
-  const [pending, setPending] = useState<Run | null>(null);
-  /** True while the run awaiting deletion is one a programme is counting on. */
-  const [pendingLinked, setPendingLinked] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const [importing, setImporting] = useState(false);
 
@@ -79,7 +75,6 @@ export default function HistoryScreen() {
    * a broken button.
    */
   async function remove(run: Run) {
-    setPending(null);
     setRuns((current) => (current ?? []).filter((item) => item.id !== run.id));
     try {
       // Removes the copy in Apple Health too, so that throwing a run away here
@@ -185,12 +180,20 @@ export default function HistoryScreen() {
    * dialog says, and a warning that appears a moment after the question is a
    * warning nobody reads.
    */
-  function askDelete(run: Run) {
-    setPending(run);
-    setPendingLinked(false);
-    void planSessionOfRun(run.id)
-      .then((linked) => setPendingLinked(linked !== null))
-      .catch(() => undefined);
+  async function askDelete(run: Run) {
+    // Asked before the alert rather than after it, so the warning is complete
+    // the first time anybody reads it.
+    const linked = await planSessionOfRun(run.id).catch(() => null);
+    Alert.alert(
+      "Supprimer cette course ?",
+      `${run.name ?? "Course"}, ${formatDistance(run.distanceM)} km. `
+      + "Ses points GPS seront effacés et l'action est définitive."
+      + (linked ? " La séance correspondante redeviendra à faire dans ton programme." : ""),
+      [
+        { text: "Annuler", style: "cancel" },
+        { text: "Supprimer", style: "destructive", onPress: () => void remove(run) },
+      ],
+    );
   }
 
   return (
@@ -264,7 +267,7 @@ export default function HistoryScreen() {
           )
         }
         renderItem={({ item }) => (
-          <SwipeToDelete label={item.name ?? "cette course"} onDelete={() => askDelete(item)}>
+          <SwipeToDelete label={item.name ?? "cette course"} onDelete={() => void askDelete(item)}>
           <Pressable
             onPress={() => router.push({ pathname: "/run/[id]", params: { id: String(item.id) } })}
             accessibilityRole="button"
@@ -288,22 +291,6 @@ export default function HistoryScreen() {
 
       </Animated.View>
 
-      <ConfirmDialog
-        visible={pending !== null}
-        title="Supprimer cette course ?"
-        message={
-          pending
-            ? `${pending.name ?? "Course"}, ${formatDistance(pending.distanceM)} km. Ses points GPS seront effacés et l'action est définitive.${
-              pendingLinked
-                ? " La séance correspondante redeviendra à faire dans ton programme."
-                : ""}`
-            : undefined
-        }
-        confirmLabel="Supprimer"
-        destructive
-        onConfirm={() => pending && void remove(pending)}
-        onCancel={() => setPending(null)}
-      />
     </SafeAreaView>
   );
 }

@@ -3,12 +3,11 @@ import * as Haptics from "expo-haptics";
 import { useKeepAwake } from "expo-keep-awake";
 import { useFocusEffect, useIsFocused, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   FadeIn, FadeOut, runOnJS, useAnimatedStyle, useDerivedValue, useSharedValue, withTiming,
 } from "react-native-reanimated";
-import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { GlassPanel } from "@/components/GlassPanel";
 import { Metric } from "@/components/Metric";
 import { RunMap } from "@/components/RunMap";
@@ -131,7 +130,6 @@ export default function RecordScreen() {
   const [finishing, setFinishing] = useState(false);
   /** The block list, opened from the session line. */
   const [showingSteps, setShowingSteps] = useState(false);
-  const [confirming, setConfirming] = useState(false);
   const [choosing, setChoosing] = useState(false);
   const [history, setHistory] = useState<Run[]>([]);
   // Measured rather than assumed: the panel grows when a run starts, and the
@@ -307,8 +305,33 @@ export default function RecordScreen() {
   const weakSignal =
     (recording && tracker.accuracyM !== null && tracker.accuracyM > MAX_ACCURACY_M) || granted === false;
 
+  /**
+   * The question before stopping, in the system's own alert.
+   *
+   * Very short runs ask the opposite question to ordinary ones — keep this,
+   * or throw it away — so the buttons swap rather than the wording softening.
+   * A hundred metres is almost always a pocket, and offering to save it as
+   * the obvious choice is how a history fills with noise.
+   */
+  function askFinish() {
+    if (tooShort) {
+      Alert.alert("Course très courte", "Moins de 100 m enregistrés. La garder quand même ?", [
+        { text: "Abandonner", style: "destructive", onPress: () => void discard() },
+        { text: "Garder", onPress: () => void close() },
+      ]);
+      return;
+    }
+    Alert.alert(
+      "Terminer la course ?",
+      `${formatDistance(distance)} km en ${formatDuration(duration)}.`,
+      [
+        { text: "Continuer", style: "cancel" },
+        { text: "Terminer", onPress: () => void close() },
+      ],
+    );
+  }
+
   async function close() {
-    setConfirming(false);
     setFinishing(true);
     // Read before finishing, which clears it: the sheet needs to know where
     // this run came from so that closing it lands somewhere sensible.
@@ -479,7 +502,7 @@ export default function RecordScreen() {
                     <RoundButton
                       icon="stop"
                       label="Terminer"
-                      onPress={() => setConfirming(true)}
+                      onPress={askFinish}
                       danger
                       disabled={finishing}
                     />
@@ -509,22 +532,6 @@ export default function RecordScreen() {
         onClose={() => setChoosing(false)}
       />
 
-      <ConfirmDialog
-        visible={confirming}
-        title={tooShort ? "Course très courte" : "Terminer la course ?"}
-        message={
-          tooShort
-            ? "Moins de 100 m enregistrés. La garder quand même ?"
-            : `${formatDistance(distance)} km en ${formatDuration(duration)}.`
-        }
-        confirmLabel={tooShort ? "Garder" : "Terminer"}
-        cancelLabel={tooShort ? "Abandonner" : "Continuer"}
-        onConfirm={() => void close()}
-        onCancel={() => {
-          setConfirming(false);
-          if (tooShort) void discard();
-        }}
-      />
     </View>
   );
 }
