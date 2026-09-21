@@ -42,17 +42,17 @@ export default function RecordScreen() {
   const elevation = elevationGainM(tracker.points);
 
   const signal =
-    tracker.accuracyM === null ? "Searching for GPS…"
-    : tracker.accuracyM <= 10 ? `GPS strong, ±${Math.round(tracker.accuracyM)} m`
-    : tracker.accuracyM <= 30 ? `GPS fair, ±${Math.round(tracker.accuracyM)} m`
-    : `GPS weak, ±${Math.round(tracker.accuracyM)} m, points dropped`;
+    tracker.accuracyM === null ? "Recherche du GPS…"
+    : tracker.accuracyM <= 10 ? `GPS précis, ±${Math.round(tracker.accuracyM)} m`
+    : tracker.accuracyM <= 30 ? `GPS moyen, ±${Math.round(tracker.accuracyM)} m`
+    : `GPS faible, ±${Math.round(tracker.accuracyM)} m, points ignorés`;
 
   // While idle, say where the location stands rather than let the default
   // framing look like a broken map.
   const idleMessage =
-    granted === false ? "Location denied, the map cannot place you"
-    : coords === null ? "Finding your location…"
-    : "GPS starts with your run";
+    granted === false ? "Localisation refusée, la carte ne peut pas te situer"
+    : coords === null ? "Recherche de ta position…"
+    : "Le GPS démarre avec la course";
 
   const weakSignal = (recording && tracker.accuracyM !== null && tracker.accuracyM > 30) || granted === false;
 
@@ -65,16 +65,16 @@ export default function RecordScreen() {
 
   function confirmFinish() {
     if (distance < 100) {
-      Alert.alert("Very short run", "Less than 100 m recorded. Keep it anyway?", [
-        { text: "Discard", style: "destructive", onPress: () => void discard() },
-        { text: "Keep", onPress: () => void close() },
-        { text: "Continue", style: "cancel" },
+      Alert.alert("Course très courte", "Moins de 100 m enregistrés. La garder quand même ?", [
+        { text: "Abandonner", style: "destructive", onPress: () => void discard() },
+        { text: "Garder", onPress: () => void close() },
+        { text: "Continuer", style: "cancel" },
       ]);
       return;
     }
-    Alert.alert("Finish this run?", undefined, [
-      { text: "Continue", style: "cancel" },
-      { text: "Finish", onPress: () => void close() },
+    Alert.alert("Terminer la course ?", undefined, [
+      { text: "Continuer", style: "cancel" },
+      { text: "Terminer", onPress: () => void close() },
     ]);
   }
 
@@ -84,23 +84,23 @@ export default function RecordScreen() {
 
       <View style={styles.header}>
         <Text style={styles.title}>
-          {recording ? (tracker.status === "paused" ? "Paused" : "Recording") : "Ready to run"}
+          {recording ? (tracker.status === "paused" ? "En pause" : "Course en cours") : "Prêt à courir"}
         </Text>
         <Text style={[styles.signal, weakSignal && styles.signalWeak]}>
           {recording ? signal : idleMessage}
-          {recording && !tracker.backgroundMode ? " · screen kept awake" : ""}
+          {recording && !tracker.backgroundMode ? " · écran maintenu allumé" : ""}
         </Text>
       </View>
 
       <View style={styles.metrics}>
         <Metric label="Distance" value={formatDistance(distance)} unit="km" large />
         <View style={styles.row}>
-          <Metric label="Duration" value={formatDuration(duration)} />
-          <Metric label="Pace" value={formatPace(pace ?? avgPace)} unit="/km" />
+          <Metric label="Durée" value={formatDuration(duration)} />
+          <Metric label="Allure" value={formatPace(pace ?? avgPace)} unit="/km" />
         </View>
         <View style={styles.row}>
-          <Metric label="Avg pace" value={formatPace(avgPace)} unit="/km" />
-          <Metric label="Elevation" value={formatElevation(elevation)} unit="m" />
+          <Metric label="Allure moyenne" value={formatPace(avgPace)} unit="/km" />
+          <Metric label="Dénivelé" value={formatElevation(elevation)} unit="m" />
         </View>
       </View>
 
@@ -109,17 +109,17 @@ export default function RecordScreen() {
       {tracker.error && <Text style={styles.error}>{tracker.error}</Text>}
 
       <View style={styles.actions}>
-        {!recording && <Button label="Start" onPress={() => void start()} />}
+        {!recording && <Button label="Démarrer" onPress={() => void start()} />}
         {tracker.status === "running" && (
           <>
             <Button label="Pause" variant="secondary" onPress={pause} />
-            <Button label="Finish" variant="danger" onPress={confirmFinish} disabled={finishing} />
+            <Button label="Terminer" variant="danger" onPress={confirmFinish} disabled={finishing} />
           </>
         )}
         {tracker.status === "paused" && (
           <>
-            <Button label="Resume" onPress={resume} />
-            <Button label="Finish" variant="danger" onPress={confirmFinish} disabled={finishing} />
+            <Button label="Reprendre" onPress={resume} />
+            <Button label="Terminer" variant="danger" onPress={confirmFinish} disabled={finishing} />
           </>
         )}
       </View>

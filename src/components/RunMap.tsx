@@ -109,8 +109,8 @@ export function RunMap({ points, follow = false, fitAll = false, initialCenter =
         ))}
         {fitAll && points.length > 0 && (
           <>
-            <Marker coordinate={{ latitude: points[0].lat, longitude: points[0].lng }} pinColor="green" title="Start" />
-            {last && <Marker coordinate={{ latitude: last.lat, longitude: last.lng }} pinColor="red" title="Finish" />}
+            <Marker coordinate={{ latitude: points[0].lat, longitude: points[0].lng }} pinColor="green" title="Départ" />
+            {last && <Marker coordinate={{ latitude: last.lat, longitude: last.lng }} pinColor="red" title="Arrivée" />}
           </>
         )}
       </MapView>
@@ -119,7 +119,7 @@ export function RunMap({ points, follow = false, fitAll = false, initialCenter =
         <Pressable
           onPress={() => void recentre()}
           accessibilityRole="button"
-          accessibilityLabel="Recentre the map on my location"
+          accessibilityLabel="Recentrer la carte sur ma position"
           // 44 points across, plus slop: below that the target gets hard to
           // hit with a thumb, especially mid-run.
           hitSlop={8}

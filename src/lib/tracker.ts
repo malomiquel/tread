@@ -124,7 +124,7 @@ function flush(): Promise<void> {
 async function startGps(): Promise<boolean> {
   const foreground = await Location.requestForegroundPermissionsAsync();
   if (foreground.status !== "granted") {
-    throw new Error("Without location permission there is no way to track your run.");
+    throw new Error("Sans autorisation de localisation, impossible de tracer la course.");
   }
 
   // Background where possible, which is what makes a locked screen work. This
@@ -142,8 +142,8 @@ async function startGps(): Promise<boolean> {
           showsBackgroundLocationIndicator: true,
           pausesUpdatesAutomatically: false,
           foregroundService: {
-            notificationTitle: "Run in progress",
-            notificationBody: "GPS tracking continues, even with the screen locked.",
+            notificationTitle: "Course en cours",
+            notificationBody: "Le suivi GPS continue, même écran verrouillé.",
             notificationColor: "#16a34a",
           },
         });
@@ -187,7 +187,7 @@ export async function start(): Promise<void> {
     publish({ backgroundMode: await startGps() });
   } catch (cause) {
     await stopGps();
-    publish({ ...IDLE, error: cause instanceof Error ? cause.message : "Could not start the run." });
+    publish({ ...IDLE, error: cause instanceof Error ? cause.message : "Impossible de démarrer la course." });
   }
 }
 

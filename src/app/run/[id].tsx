@@ -42,7 +42,7 @@ export default function RunDetailScreen() {
   if (data === null) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.muted}>Run not found.</Text>
+        <Text style={styles.muted}>Course introuvable.</Text>
       </View>
     );
   }
@@ -55,10 +55,10 @@ export default function RunDetailScreen() {
   const fullCount = kilometres.filter((split) => !split.partial).length;
 
   function confirmDelete() {
-    Alert.alert("Delete this run?", "This cannot be undone.", [
-      { text: "Cancel", style: "cancel" },
+    Alert.alert("Supprimer cette course ?", "Cette action est définitive.", [
+      { text: "Annuler", style: "cancel" },
       {
-        text: "Delete",
+        text: "Supprimer",
         style: "destructive",
         onPress: () => {
           void deleteRun(run.id).then(() => router.back());
@@ -77,14 +77,14 @@ export default function RunDetailScreen() {
       <View style={styles.metrics}>
         <Metric label="Distance" value={formatDistance(run.distanceM)} unit="km" large />
         <View style={styles.row}>
-          <Metric label="Duration" value={formatDuration(run.durationS)} />
-          <Metric label="Avg pace" value={formatPace(run.avgPaceSKm)} unit="/km" />
+          <Metric label="Durée" value={formatDuration(run.durationS)} />
+          <Metric label="Allure moyenne" value={formatPace(run.avgPaceSKm)} unit="/km" />
         </View>
         {run.elevationGainM !== null && (
           <View style={styles.row}>
-            <Metric label="Elevation gain" value={formatElevation(run.elevationGainM)} unit="m" />
+            <Metric label="Dénivelé positif" value={formatElevation(run.elevationGainM)} unit="m" />
             {run.fastestKmS !== null ? (
-              <Metric label="Fastest km" value={formatPace(run.fastestKmS)} unit="/km" />
+              <Metric label="Meilleur km" value={formatPace(run.fastestKmS)} unit="/km" />
             ) : null}
           </View>
         )}
@@ -94,7 +94,7 @@ export default function RunDetailScreen() {
 
       {kilometres.length > 0 && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Splits</Text>
+          <Text style={styles.sectionTitle}>Fractionnés</Text>
           {kilometres.map((split) => {
             const pace = split.durationS / (split.distanceM / 1000);
             const isBest = !split.partial && fastest !== null && split.durationS === fastest && fullCount > 1;
@@ -119,8 +119,8 @@ export default function RunDetailScreen() {
         </View>
       )}
 
-      <Text style={styles.muted}>{points.length} GPS points recorded</Text>
-      <Button label="Delete run" variant="danger" onPress={confirmDelete} style={styles.delete} />
+      <Text style={styles.muted}>{points.length} points GPS enregistrés</Text>
+      <Button label="Supprimer la course" variant="danger" onPress={confirmDelete} style={styles.delete} />
     </ScrollView>
   );
 }

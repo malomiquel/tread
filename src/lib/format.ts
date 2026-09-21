@@ -1,8 +1,9 @@
-/** Display formatting: pace in minutes and seconds, distances to two decimals. */
+/** Display formatting. Strings are French, since the interface is. */
 
 export function formatDistance(metres: number): string {
   const km = metres / 1000;
-  return km >= 10 ? km.toFixed(1) : km.toFixed(2);
+  const text = km >= 10 ? km.toFixed(1) : km.toFixed(2);
+  return text.replace(".", ",");
 }
 
 export function formatDuration(totalS: number): string {
@@ -28,21 +29,21 @@ export function formatElevation(metres: number): string {
 
 /**
  * Default name for a run, derived from when it started. Strava does the same,
- * and it is what makes a list of runs readable: "Morning run" sticks in the
+ * and it is what makes a list of runs readable: "Course matinale" sticks in the
  * mind far better than a timestamp.
  */
 export function autoName(ts: number): string {
   const hour = new Date(ts).getHours();
-  if (hour < 5) return "Night run";
-  if (hour < 11) return "Morning run";
-  if (hour < 14) return "Midday run";
-  if (hour < 18) return "Afternoon run";
-  if (hour < 22) return "Evening run";
-  return "Night run";
+  if (hour < 5) return "Course nocturne";
+  if (hour < 11) return "Course matinale";
+  if (hour < 14) return "Sortie du midi";
+  if (hour < 18) return "Course de l'après-midi";
+  if (hour < 22) return "Course du soir";
+  return "Course nocturne";
 }
 
 export function formatDate(ts: number): string {
-  return new Date(ts).toLocaleDateString("en-GB", {
+  return new Date(ts).toLocaleDateString("fr-FR", {
     weekday: "short",
     day: "numeric",
     month: "short",

@@ -14,7 +14,7 @@ export default function RootLayout() {
     initDb()
       .then(() => setReady(true))
       .catch((cause: unknown) => {
-        setError(cause instanceof Error ? cause.message : "The database is unavailable.");
+        setError(cause instanceof Error ? cause.message : "Base de données inaccessible.");
       });
   }, []);
 
@@ -46,7 +46,7 @@ export default function RootLayout() {
         }}
       >
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="run/[id]" options={{ title: "Run" }} />
+        <Stack.Screen name="run/[id]" options={{ title: "Course" }} />
       </Stack>
     </>
   );

@@ -85,20 +85,22 @@ export default function ProgressScreen() {
   return (
     <SafeAreaView style={styles.screen} edges={["top"]}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.title}>Progress</Text>
+        <Text style={styles.title}>Progression</Text>
 
         {records.totalRuns === 0 ? (
-          <Text style={styles.empty}>Nothing to show yet. Your stats build up run after run.</Text>
+          <Text style={styles.empty}>
+            Rien à afficher pour le moment. Tes statistiques se construiront course après course.
+          </Text>
         ) : (
           <>
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>This week</Text>
+              <Text style={styles.cardTitle}>Cette semaine</Text>
               <View style={styles.heroRow}>
                 <Text style={styles.hero}>{formatDistance(current.distanceM)}</Text>
                 <Text style={styles.heroUnit}>km</Text>
               </View>
               <Text style={styles.heroSub}>
-                {current.runs} run{current.runs > 1 ? "s" : ""} · {formatDuration(current.durationS)}
+                {current.runs} course{current.runs > 1 ? "s" : ""} · {formatDuration(current.durationS)}
               </Text>
 
               <View style={styles.chart}>
@@ -114,40 +116,40 @@ export default function ProgressScreen() {
                       />
                     </View>
                     <Text style={styles.weekLabel}>
-                      {i === weeks.length - 1 ? "now" : `-${weeks.length - 1 - i}`}
+                      {i === weeks.length - 1 ? "auj." : `-${weeks.length - 1 - i}`}
                     </Text>
                   </View>
                 ))}
               </View>
-              <Text style={styles.caption}>Distance per week, last {WEEKS_SHOWN}</Text>
+              <Text style={styles.caption}>Distance par semaine, {WEEKS_SHOWN} dernières</Text>
             </View>
 
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Records</Text>
               {records.longest && (
                 <RecordRow
-                  label="Longest run"
+                  label="Plus longue sortie"
                   value={`${formatDistance(records.longest.distanceM)} km`}
                   detail={records.longest.name ?? undefined}
                 />
               )}
               {records.fastestKm?.fastestKmS != null && (
                 <RecordRow
-                  label="Fastest kilometre"
+                  label="Kilomètre le plus rapide"
                   value={formatPace(records.fastestKm.fastestKmS)}
                   detail={records.fastestKm.name ?? undefined}
                 />
               )}
               {records.bestAvgPace?.avgPaceSKm != null && (
                 <RecordRow
-                  label="Best average pace"
+                  label="Meilleure allure moyenne"
                   value={formatPace(records.bestAvgPace.avgPaceSKm)}
-                  detail="over 2 km or more"
+                  detail="sur 2 km minimum"
                 />
               )}
               {records.mostElevation?.elevationGainM != null && records.mostElevation.elevationGainM > 0 && (
                 <RecordRow
-                  label="Most elevation"
+                  label="Plus fort dénivelé"
                   value={`${formatElevation(records.mostElevation.elevationGainM)} m`}
                   detail={records.mostElevation.name ?? undefined}
                 />
@@ -155,11 +157,11 @@ export default function ProgressScreen() {
             </View>
 
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>All time</Text>
-              <RecordRow label="Runs" value={String(records.totalRuns)} />
+              <Text style={styles.cardTitle}>Depuis le début</Text>
+              <RecordRow label="Courses" value={String(records.totalRuns)} />
               <RecordRow label="Distance" value={`${formatDistance(records.totalDistanceM)} km`} />
-              <RecordRow label="Time" value={formatDuration(records.totalDurationS)} />
-              <RecordRow label="Elevation" value={`${formatElevation(records.totalElevationM)} m`} />
+              <RecordRow label="Temps" value={formatDuration(records.totalDurationS)} />
+              <RecordRow label="Dénivelé" value={`${formatElevation(records.totalElevationM)} m`} />
             </View>
           </>
         )}

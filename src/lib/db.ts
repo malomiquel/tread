@@ -20,7 +20,7 @@ let instance: SQLiteDatabase | null = null;
 function getDb(): SQLiteDatabase {
   if (Platform.OS === "web") {
     throw new Error(
-      "Run tracking is not available on the web: GPS and local storage need the mobile app, on iOS or Android.",
+      "Le suivi de course n'est pas disponible sur web : le GPS et le stockage local demandent l'app mobile (iOS ou Android).",
     );
   }
   // The file keeps its original name even though the app is now called Tread:

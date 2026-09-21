@@ -32,10 +32,10 @@ export default function HistoryScreen() {
   return (
     <SafeAreaView style={styles.screen} edges={["top"]}>
       <View style={styles.header}>
-        <Text style={styles.title}>History</Text>
+        <Text style={styles.title}>Historique</Text>
         {runs && runs.length > 0 && (
           <Text style={styles.subtitle}>
-            {runs.length} run{runs.length > 1 ? "s" : ""} · {formatDistance(totalM)} km in total
+            {runs.length} course{runs.length > 1 ? "s" : ""} · {formatDistance(totalM)} km au total
           </Text>
         )}
       </View>
@@ -46,7 +46,9 @@ export default function HistoryScreen() {
         contentContainerStyle={styles.list}
         ListEmptyComponent={
           runs === null ? null : (
-            <Text style={styles.empty}>No runs yet. Your first one is waiting in the Run tab.</Text>
+            <Text style={styles.empty}>
+              Aucune course pour l&apos;instant. La première t&apos;attend dans l&apos;onglet Courir.
+            </Text>
           )
         }
         renderItem={({ item }) => (
