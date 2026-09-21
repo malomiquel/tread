@@ -36,6 +36,21 @@ function RunTabIcon({ color, size }: { color: ColorValue; size: number }) {
  * has to be named explicitly or the app would open somewhere nobody asked
  * for.
  */
+/**
+ * No transition between tabs, on purpose.
+ *
+ * Both options this navigator offers animate the scene's opacity — `shift`
+ * is that same fade with a slide added, not an alternative to it. And an
+ * animated opacity is what the native surfaces in this app refuse to
+ * composite under: it blanked the run screen, it stripped the glass panels
+ * of their background, and it is what left the history and the profile
+ * showing white on some arrivals and not others.
+ *
+ * Three symptoms, one cause, and the transition was never worth any of them.
+ * Motion can come back the way the run screen does it — each piece arriving
+ * from its own edge, translated rather than faded — which touches no opacity
+ * and cannot strand a screen at zero.
+ */
 export const unstable_settings = { initialRouteName: "index" };
 
 export default function TabsLayout() {
@@ -72,7 +87,7 @@ export default function TabsLayout() {
         name="plan"
         options={{
           title: "Plan",
-          animation: "fade",
+          animation: "none",
           tabBarIcon: ({ color, size }) => <Ionicons name="calendar" size={size} color={color} />,
         }}
       />
@@ -98,7 +113,7 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: "Historique",
-          animation: "fade",
+          animation: "none",
           tabBarIcon: ({ color, size }) => <Ionicons name="list" size={size} color={color} />,
         }}
       />
@@ -113,7 +128,7 @@ export default function TabsLayout() {
         name="profile"
         options={{
           title: "Profil",
-          animation: "fade",
+          animation: "none",
           tabBarIcon: ({ color, size }) => <Ionicons name="person" size={size} color={color} />,
         }}
       />
