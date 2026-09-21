@@ -5,7 +5,7 @@ import {
   type StyleProp, type ViewStyle,
 } from "react-native";
 import MapView, { Marker, Polyline } from "react-native-maps";
-import { bounds, segments, type TrackPoint } from "@/lib/geo";
+import { bounds, regionAround, segments, type TrackPoint } from "@/lib/geo";
 import { CONTROLS_TOP } from "@/lib/layout";
 import { getCurrentCoords, type Coords } from "@/lib/location";
 import { colors, floatingShadow, literalColors } from "@/lib/theme";
@@ -97,10 +97,15 @@ export function RunMap({
     }
   };
 
+  // A screen showing a finished run opens on the whole of it rather than
+  // zoomed on its last step and jumping to the framing a moment later. While
+  // recording it is the opposite: the camera stays close to where you are.
   const anchor = last ? { lat: last.lat, lng: last.lng } : initialCenter;
-  const initialRegion = anchor
-    ? { latitude: anchor.lat, longitude: anchor.lng, latitudeDelta: RUNNER_ZOOM, longitudeDelta: RUNNER_ZOOM }
-    : PARIS;
+  const initialRegion =
+    (fitAll ? regionAround(points) : null) ??
+    (anchor
+      ? { latitude: anchor.lat, longitude: anchor.lng, latitudeDelta: RUNNER_ZOOM, longitudeDelta: RUNNER_ZOOM }
+      : PARIS);
 
   return (
     <View style={[styles.container, style]}>

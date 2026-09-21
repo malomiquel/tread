@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   bounds, currentPace, distanceM, elevationGainM, fastestKmS, isAcceptable,
-  paceSecPerKm, splits, totalDistanceM, type TrackPoint,
+  paceSecPerKm, regionAround, splits, totalDistanceM, type TrackPoint,
 } from "./geo.ts";
 
 const at = (ts: number, lat: number, lng: number, extra: Partial<TrackPoint> = {}): TrackPoint => ({
@@ -116,4 +116,26 @@ test("bounds: null when empty, otherwise the enclosing box", () => {
   assert.equal(bounds([]), null);
   const box = bounds([at(0, 48, 2), at(1, 49, 3)]);
   assert.deepEqual(box, { minLat: 48, maxLat: 49, minLng: 2, maxLng: 3 });
+});
+
+test("regionAround centres on the track and leaves a margin", () => {
+  const region = regionAround([
+    at(0, 48.85, 2.34),
+    at(1, 48.87, 2.38),
+  ])!;
+  assert.ok(Math.abs(region.latitude - 48.86) < 1e-9, "centré en latitude");
+  assert.ok(Math.abs(region.longitude - 2.36) < 1e-9, "centré en longitude");
+  // The span is 0.02 wide, so the framing must be wider than the track itself.
+  assert.ok(region.latitudeDelta > 0.02, "marge en latitude");
+  assert.ok(region.longitudeDelta > 0.04, "marge en longitude");
+});
+
+test("regionAround refuses to magnify a run around the block", () => {
+  const region = regionAround([at(0, 48.8566, 2.3522), at(1, 48.8567, 2.3523)])!;
+  assert.ok(region.latitudeDelta >= 0.0035, "plancher de zoom en latitude");
+  assert.ok(region.longitudeDelta >= 0.0035, "plancher de zoom en longitude");
+});
+
+test("regionAround has nothing to frame without points", () => {
+  assert.equal(regionAround([]), null);
 });

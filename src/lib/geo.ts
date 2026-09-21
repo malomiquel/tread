@@ -222,3 +222,35 @@ export function bounds(points: TrackPoint[]) {
   }
   return { minLat, maxLat, minLng, maxLng };
 }
+
+export interface MapRegion {
+  latitude: number;
+  longitude: number;
+  latitudeDelta: number;
+  longitudeDelta: number;
+}
+
+/**
+ * A camera framing the whole track, worked out here rather than asked of the
+ * map.
+ *
+ * A map told only to fit coordinates once it is ready has to be ready, laid
+ * out and listening at the right moment; miss any of those and it stays on
+ * its default camera, which is a view of the planet centred on open water —
+ * a rectangle of blue. Handing it a region up front means it opens on the run
+ * whatever happens afterwards, and any later fit only refines it.
+ *
+ * The margin keeps the track off the edges. The floor stops a run around the
+ * block from being magnified until the street names crowd it out.
+ */
+export function regionAround(points: TrackPoint[], margin = 1.35): MapRegion | null {
+  const box = bounds(points);
+  if (!box) return null;
+  const MIN_DELTA = 0.0035;
+  return {
+    latitude: (box.minLat + box.maxLat) / 2,
+    longitude: (box.minLng + box.maxLng) / 2,
+    latitudeDelta: Math.max((box.maxLat - box.minLat) * margin, MIN_DELTA),
+    longitudeDelta: Math.max((box.maxLng - box.minLng) * margin, MIN_DELTA),
+  };
+}

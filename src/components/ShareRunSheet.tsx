@@ -8,7 +8,7 @@ import { captureRef } from "react-native-view-shot";
 import { Button } from "@/components/Button";
 import { CARD_HEIGHT, CARD_WIDTH, MAP_HEIGHT, ShareCard } from "@/components/ShareCard";
 import type { Run } from "@/lib/db";
-import { bounds, segments, type TrackPoint } from "@/lib/geo";
+import { bounds, regionAround, segments, type TrackPoint } from "@/lib/geo";
 import { colors, floatingShadow, literalColors } from "@/lib/theme";
 
 interface Props {
@@ -36,11 +36,15 @@ export function ShareRunSheet({ visible, run, points, onClose }: Props) {
 }
 
 /**
- * Apple Maps needs a moment after being framed before it has anything worth
- * capturing. Snapshotting the instant the camera moves hands back a grey
- * rectangle, so the map is given this long to draw itself first.
+ * How long the map is given to draw itself before being captured.
+ *
+ * There is no signal to wait for instead: the library's onMapLoaded only ever
+ * fires for Google Maps, and this app uses Apple's. So this is a wait, and it
+ * is generous on purpose — a snapshot taken early comes back as bare water,
+ * and a second of delay on a screen the user opened deliberately costs far
+ * less than a picture they cannot share.
  */
-const SETTLE_MS = 900;
+const SETTLE_MS = 1400;
 
 /**
  * The preview and the share sheet for a run's picture.
@@ -59,6 +63,9 @@ function Sheet({ run, points, onClose }: Omit<Props, "visible">) {
   const [sharing, setSharing] = useState(false);
 
   const tracks = segments(points);
+  // The camera is worked out here rather than left to a later fit, so that the
+  // map opens on the run instead of on the middle of the ocean.
+  const region = regionAround(points);
 
   async function captureMap() {
     try {
@@ -118,6 +125,7 @@ function Sheet({ run, points, onClose }: Omit<Props, "visible">) {
               <MapView
                 ref={map}
                 style={StyleSheet.absoluteFill}
+                initialRegion={region ?? undefined}
                 userInterfaceStyle={scheme}
                 scrollEnabled={false}
                 zoomEnabled={false}
