@@ -43,7 +43,8 @@
               "com.topografix.gpx"
             ]
           }
-        ]
+        ],
+        "LSSupportsOpeningDocumentsInPlace": true
       }
     },
     "android": {
