@@ -1,5 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useEffect, useRef, useState } from "react";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, Pressable, StyleSheet, useColorScheme, View,
   type StyleProp, type ViewStyle,
@@ -15,6 +16,15 @@ interface Props {
   points: TrackPoint[];
   /** While recording: the camera follows the latest point. */
   follow?: boolean;
+  /**
+   * Find the runner again every time this screen is opened.
+   *
+   * Arriving at a map parked wherever it was left — three streets away, or
+   * at the scale of a city — asks somebody to press a button before the
+   * screen means anything. Off by default, because a finished run's map has
+   * a subject of its own and has no business chasing the phone.
+   */
+  locateOnFocus?: boolean;
   /** On the detail screen: the whole track is framed once. */
   fitAll?: boolean;
   /** Where to centre until a first point has been recorded. */
@@ -62,7 +72,7 @@ const RUNNER_ZOOM = 0.006;
  * stopped and where you picked up again.
  */
 export function RunMap({
-  points, follow = false, fitAll = false, initialCenter = null,
+  points, follow = false, fitAll = false, initialCenter = null, locateOnFocus = false,
   onToggleFullscreen, fullscreen = false, controlsBottom = 12, controlsAtTop = false,
   controlsArrive, controlsAbove, style,
 }: Props) {
@@ -108,7 +118,7 @@ export function RunMap({
     );
   };
 
-  const recentre = async () => {
+  const recentre = useCallback(async () => {
     if (locating) return;
     setLocating(true);
     try {
@@ -124,7 +134,17 @@ export function RunMap({
     } finally {
       setLocating(false);
     }
-  };
+  }, [locating]);
+
+  // The same thing the locate button does, on arrival rather than on demand.
+  // Only while there is no track to look at: mid-run the camera is already
+  // following the last fix, and re-framing under it would fight it for the
+  // zoom.
+  useFocusEffect(
+    useCallback(() => {
+      if (locateOnFocus && empty) void recentre();
+    }, [locateOnFocus, empty, recentre]),
+  );
 
   // A screen showing a finished run opens on the whole of it rather than
   // zoomed on its last step and jumping to the framing a moment later. While

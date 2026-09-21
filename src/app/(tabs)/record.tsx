@@ -352,6 +352,7 @@ export default function RecordScreen() {
         points={tracker.points}
         follow
         initialCenter={coords}
+        locateOnFocus
         controlsAbove={locateAbove}
         controlsArrive={arrive}
         style={styles.map}
