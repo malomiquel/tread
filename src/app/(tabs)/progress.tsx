@@ -1,9 +1,10 @@
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { buildLine } from "@/lib/build";
+import { announceKilometre, announcePace, announceStep } from "@/lib/feedback";
 import { listRuns, personalRecords, type PersonalRecords, type Run } from "@/lib/db";
 import { formatDistance, formatDuration, formatElevation, formatPace } from "@/lib/format";
 import { useTabBarSpace } from "@/lib/layout";
@@ -170,6 +171,25 @@ export default function ProgressScreen() {
             says nothing about the version of the source that produced it, so
             "am I still up to date?" has no answer from the device. Compare
             this with git log and it does. */}
+        {/* TEMPORAIRE — à supprimer. Les trois vibrations de la course, pour
+            les sentir à l'arrêt. Le son est coupé : seule la texture compte. */}
+        <View style={styles.buzzes}>
+          {([
+            ["Kilomètre", () => announceKilometre(3, 312, false)],
+            ["Bloc", () => announceStep("400 m rapide", false)],
+            ["Allure", () => announcePace(12, false)],
+          ] as const).map(([label, fire]) => (
+            <Pressable
+              key={label}
+              onPress={fire}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.buzz, pressed && styles.buzzPressed]}
+            >
+              <Text style={styles.buzzLabel}>{label}</Text>
+            </Pressable>
+          ))}
+        </View>
+
         <Text style={styles.build}>{buildLine()}</Text>
       </ScrollView>
       </Animated.View>
@@ -217,6 +237,17 @@ const styles = StyleSheet.create({
   barCurrent: { backgroundColor: colors.accent },
   weekLabel: { color: colors.subtle, fontFamily: font.regular, fontSize: 13, fontVariant: ["tabular-nums"] },
   caption: { color: colors.subtle, fontSize: 13 },
+  buzzes: {
+    flexDirection: "row", gap: 8, justifyContent: "center",
+    paddingTop: 24, paddingHorizontal: GUTTER,
+  },
+  buzz: {
+    paddingHorizontal: 14, paddingVertical: 9, borderRadius: 6,
+    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline,
+  },
+  buzzPressed: { backgroundColor: colors.sunken },
+  buzzLabel: { color: colors.muted, fontSize: 13, fontFamily: font.semibold },
+
   build: {
     color: colors.subtle, fontFamily: font.regular, fontSize: 12,
     textAlign: "center", paddingTop: 22, paddingBottom: 6, paddingHorizontal: GUTTER,
