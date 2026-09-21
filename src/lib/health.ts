@@ -1,4 +1,4 @@
-import { Platform } from "react-native";
+import { Platform, TurboModuleRegistry } from "react-native";
 import { readRun, setHealthUuid, type Run } from "./db";
 import { estimateActiveEnergyKcal } from "./energy";
 import { segments, totalDistanceM, type TrackPoint } from "./geo";
@@ -11,17 +11,23 @@ const ENERGY = "HKQuantityTypeIdentifierActiveEnergyBurned";
 const BODY_MASS = "HKQuantityTypeIdentifierBodyMass";
 
 /**
- * HealthKit sits behind a lazy require rather than a plain import.
+ * HealthKit sits behind a lazy require, and behind a check that the native
+ * side is there at all.
  *
- * The library binds to its native counterpart the moment it is loaded, and
- * where no such counterpart exists — Expo Go, or a development build made
- * before HealthKit was added — that binding throws. A static import would
- * therefore bring the whole app down at startup, before any of the guards
- * below ever got the chance to run. Loading it on first use turns that crash
- * back into an ordinary "not available here".
+ * The library binds to its native counterpart the moment it is loaded, so a
+ * plain import would throw at startup wherever that counterpart is missing —
+ * in Expo Go, or in a development build made before HealthKit was added.
+ * Deferring the require is not enough on its own either: a module that throws
+ * while loading is reported by the bundler whether or not the caller catches
+ * it, which fills the console with a failure the app has already handled.
  *
- * null is cached as firmly as success: a device without HealthKit will not
- * grow one, and retrying the require on every call would only be slower.
+ * So the question asked first is the honest one — is the native module
+ * registered? — rather than a guess about which app is running the bundle.
+ * It is the same lookup the library performs internally, and it answers with
+ * null instead of an exception.
+ *
+ * The answer is cached either way: a device without HealthKit will not grow
+ * one between two calls.
  */
 let loaded: { api: Api; types: Types } | null | undefined;
 
@@ -29,6 +35,9 @@ function healthKit(): { api: Api; types: Types } | null {
   if (loaded !== undefined) return loaded;
   if (Platform.OS !== "ios") return (loaded = null);
   try {
+    // The library is built on Nitro modules; without that host there is
+    // nothing for it to bind to, and loading it would only raise.
+    if (!TurboModuleRegistry.get("NitroModules")) return (loaded = null);
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const api = require("@kingstinct/react-native-healthkit") as Api;
     // eslint-disable-next-line @typescript-eslint/no-require-imports
