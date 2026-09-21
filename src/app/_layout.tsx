@@ -93,14 +93,27 @@ export default function RootLayout() {
           * quoi que ce soit derrière lui à dévoiler.
           */}
         {/*
-          * Transparent, so that dragging this screen aside uncovers the tab
-          * it was pushed from rather than its own backdrop. The screen below
-          * is a live view controller sitting in the stack; all that stood
-          * between it and being seen was an opaque sheet of paint.
+          * Presented over the tabs rather than pushed in front of them.
+          *
+          * A transparent background alone was not enough: react-native-screens
+          * detaches the screen underneath a pushed one and only puts it back
+          * when the stack itself starts moving, so dragging uncovered nothing
+          * and the tab arrived only once the gesture had finished.
+          *
+          * A transparent modal keeps that screen attached the whole time,
+          * which is the one thing the drag needs. The animation is named
+          * explicitly because this presentation would otherwise arrive from
+          * the bottom, and this screen has always come from the side.
           */}
         <Stack.Screen
           name="record"
-          options={{ headerShown: false, contentStyle: { backgroundColor: "transparent" } }}
+          options={{
+            headerShown: false,
+            presentation: "transparentModal",
+            animation: "slide_from_right",
+            gestureDirection: "horizontal",
+            contentStyle: { backgroundColor: "transparent" },
+          }}
         />
         <Stack.Screen name="run/[id]" options={{ title: "Course", headerBackTitle: "Retour" }} />
         <Stack.Screen name="plan-method" options={{ title: "Méthode", headerBackTitle: "Retour" }} />
