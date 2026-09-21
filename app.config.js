@@ -25,14 +25,14 @@ function git(commande) {
 const commit = git("git rev-parse --short HEAD") || "—";
 // A build made over uncommitted edits is not the commit it claims to be, and
 // saying so is the difference between a stamp you can trust and one you cannot.
-const propre = git("git status --porcelain") === "";
+const clean = git("git status --porcelain") === "";
 
 module.exports = ({ config }) => ({
   ...config,
   extra: {
     ...config.extra,
     build: {
-      commit: propre ? commit : `${commit}+`,
+      commit: clean ? commit : `${commit}+`,
       builtAt: new Date().toISOString(),
     },
   },

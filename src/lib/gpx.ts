@@ -1,6 +1,6 @@
-// Extension explicite, contrairement au reste du code : ce module est
-// exerce par des tests qui tournent sous Node seul, dont le resolveur ESM
-// n'ajoute pas d'extension. Metro accepte les deux formes.
+// Explicit extension, unlike the rest of the code: this module is exercised
+// by tests running under Node alone, whose ESM resolver adds no extension.
+// Metro accepts either form.
 import { segments, type TrackPoint } from "./geo.ts";
 
 /** Minimal subset of a run needed to describe it in a GPX file. */
@@ -69,20 +69,20 @@ export function parseGpx(xml: string): { name: string | null; points: TrackPoint
   const points: TrackPoint[] = [];
   let segment = 0;
 
-  for (const bloc of xml.split(/<trkseg[^>]*>/i).slice(1)) {
-    const corps = bloc.split(/<\/trkseg>/i)[0];
-    let vus = 0;
+  for (const chunk of xml.split(/<trkseg[^>]*>/i).slice(1)) {
+    const inner = chunk.split(/<\/trkseg>/i)[0];
+    let seen = 0;
 
-    for (const m of corps.matchAll(/<trkpt\b([^>]*)>([\s\S]*?)<\/trkpt>|<trkpt\b([^>]*)\/>/gi)) {
-      const attributs = m[1] ?? m[3] ?? "";
-      const contenu = m[2] ?? "";
-      const lat = Number(/\blat\s*=\s*"([^"]+)"/i.exec(attributs)?.[1]);
-      const lng = Number(/\blon\s*=\s*"([^"]+)"/i.exec(attributs)?.[1]);
+    for (const m of inner.matchAll(/<trkpt\b([^>]*)>([\s\S]*?)<\/trkpt>|<trkpt\b([^>]*)\/>/gi)) {
+      const attributes = m[1] ?? m[3] ?? "";
+      const body = m[2] ?? "";
+      const lat = Number(/\blat\s*=\s*"([^"]+)"/i.exec(attributes)?.[1]);
+      const lng = Number(/\blon\s*=\s*"([^"]+)"/i.exec(attributes)?.[1]);
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
 
-      const quand = /<time>([^<]+)<\/time>/i.exec(contenu)?.[1];
-      const ts = quand ? Date.parse(quand) : Number.NaN;
-      const altitude = Number(/<ele>([^<]+)<\/ele>/i.exec(contenu)?.[1]);
+      const stamp = /<time>([^<]+)<\/time>/i.exec(body)?.[1];
+      const ts = stamp ? Date.parse(stamp) : Number.NaN;
+      const altitude = Number(/<ele>([^<]+)<\/ele>/i.exec(body)?.[1]);
 
       points.push({
         ts: Number.isFinite(ts) ? ts : Number.NaN,
@@ -95,25 +95,25 @@ export function parseGpx(xml: string): { name: string | null; points: TrackPoint
         speed: null,
         segment,
       });
-      vus += 1;
+      seen += 1;
     }
-    if (vus) segment += 1;
+    if (seen) segment += 1;
   }
 
   // A file whose points carry no time is still a route worth keeping; it is
   // given one second apart so the run has a shape, and its duration will read
   // as the number of points, which is visibly wrong rather than quietly so.
-  const debut = points.find((p) => Number.isFinite(p.ts))?.ts ?? Date.now();
+  const first = points.find((p) => Number.isFinite(p.ts))?.ts ?? Date.now();
   points.forEach((p, i) => {
-    if (!Number.isFinite(p.ts)) p.ts = debut + i * 1000;
+    if (!Number.isFinite(p.ts)) p.ts = first + i * 1000;
   });
   points.sort((a, b) => a.ts - b.ts);
 
-  const brut = /<metadata>[\s\S]*?<name>([^<]+)<\/name>/i.exec(xml)?.[1]
+  const raw = /<metadata>[\s\S]*?<name>([^<]+)<\/name>/i.exec(xml)?.[1]
     ?? /<trk>[\s\S]*?<name>([^<]+)<\/name>/i.exec(xml)?.[1]
     ?? null;
-  const name = brut
-    ? brut.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&apos;/g, "'")
+  const name = raw
+    ? raw.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&apos;/g, "'")
         .replace(/&quot;/g, '"').replace(/&amp;/g, "&").trim() || null
     : null;
 

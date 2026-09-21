@@ -47,12 +47,12 @@ export function stepRemaining(step: Step, coveredM: number, elapsedS: number): R
 
 /** How a step is named aloud and on screen. */
 export function stepLabel(step: Step): string {
-  const mesure = step.metres !== undefined
+  const measure = step.metres !== undefined
     ? step.metres >= 1000
       ? `${(step.metres / 1000).toString().replace(".", ",")} km`
       : `${step.metres} m`
     : `${Math.round((step.seconds ?? 0) / 60)} min`;
-  return `${mesure} ${step.effort}`;
+  return `${measure} ${step.effort}`;
 }
 
 /**
@@ -63,14 +63,14 @@ export function stepLabel(step: Step): string {
  * long one, not to be relied upon.
  */
 export function sessionMinutes(session: Session): number {
-  const secondes = session.steps.reduce(
+  const seconds = session.steps.reduce(
     (total, step) => total + (step.seconds ?? ((step.metres ?? 0) / 1000) * 300),
     0,
   );
-  return Math.round(secondes / 60);
+  return Math.round(seconds / 60);
 }
 
-const repeter = (fois: number, ...bloc: Step[]): Step[] =>
+const repeat = (fois: number, ...bloc: Step[]): Step[] =>
   Array.from({ length: fois }, () => bloc).flat();
 
 /**
@@ -87,7 +87,7 @@ export const SESSIONS: Session[] = [
     name: "5 × 400 m",
     steps: [
       { effort: "échauffement", seconds: 600 },
-      ...repeter(5, { effort: "rapide", metres: 400 }, { effort: "récupération", metres: 200 }),
+      ...repeat(5, { effort: "rapide", metres: 400 }, { effort: "récupération", metres: 200 }),
       { effort: "retour au calme", seconds: 300 },
     ],
   },
@@ -96,7 +96,7 @@ export const SESSIONS: Session[] = [
     name: "3 × 8 min au seuil",
     steps: [
       { effort: "échauffement", seconds: 900 },
-      ...repeter(3, { effort: "allure", seconds: 480 }, { effort: "récupération", seconds: 180 }),
+      ...repeat(3, { effort: "allure", seconds: 480 }, { effort: "récupération", seconds: 180 }),
       { effort: "retour au calme", seconds: 600 },
     ],
   },

@@ -15,7 +15,7 @@ test("scales with both weight and distance", () => {
 
 test("refuses a weight it cannot believe", () => {
   for (const weight of [0, -70, 12, 400, Number.NaN, Number.POSITIVE_INFINITY]) {
-    assert.equal(estimateActiveEnergyKcal(5_000, weight), null, `poids ${weight}`);
+    assert.equal(estimateActiveEnergyKcal(5_000, weight), null, `weight ${weight}`);
   }
 });
 

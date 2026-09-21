@@ -14,10 +14,10 @@ interface Props {
 
 /** A line describing what a session is made of, without listing every block. */
 function summary(session: Session): string {
-  const rapides = session.steps.filter((s) => s.effort === "rapide" || s.effort === "allure");
-  const coeur = rapides.length ? stepLabel(rapides[0]) : stepLabel(session.steps[0]);
-  const repetitions = rapides.length > 1 ? `${rapides.length} × ` : "";
-  return `${repetitions}${coeur} · environ ${sessionMinutes(session)} min`;
+  const efforts = session.steps.filter((s) => s.effort === "rapide" || s.effort === "allure");
+  const core = efforts.length ? stepLabel(efforts[0]) : stepLabel(session.steps[0]);
+  const repeats = efforts.length > 1 ? `${efforts.length} × ` : "";
+  return `${repeats}${core} · environ ${sessionMinutes(session)} min`;
 }
 
 /**
@@ -29,8 +29,8 @@ function summary(session: Session): string {
  * session is as explicit as starting to.
  */
 export function SessionPicker({ visible, chosen, onChoose, onClose }: Props) {
-  const ligne = (id: string | null, titre: string, detail: string) => {
-    const actif = chosen === id;
+  const row = (id: string | null, titre: string, detail: string) => {
+    const selected = chosen === id;
     return (
       <Pressable
         key={id ?? "libre"}
@@ -39,14 +39,14 @@ export function SessionPicker({ visible, chosen, onChoose, onClose }: Props) {
           onClose();
         }}
         accessibilityRole="radio"
-        accessibilityState={{ selected: actif }}
+        accessibilityState={{ selected: selected }}
         style={({ pressed }) => [styles.row, pressed && styles.pressed]}
       >
         <View style={styles.rowText}>
-          <Text style={[styles.name, actif && styles.nameOn]}>{titre}</Text>
+          <Text style={[styles.name, selected && styles.nameOn]}>{titre}</Text>
           <Text style={styles.detail}>{detail}</Text>
         </View>
-        {actif && <Ionicons name="checkmark" size={20} color={colors.accent} />}
+        {selected && <Ionicons name="checkmark" size={20} color={colors.accent} />}
       </Pressable>
     );
   };
@@ -59,8 +59,8 @@ export function SessionPicker({ visible, chosen, onChoose, onClose }: Props) {
           <GlassPanel style={styles.panel}>
             <Text style={styles.title}>Séance</Text>
             <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
-              {ligne(null, "Course libre", "Aucun bloc, aucune annonce")}
-              {SESSIONS.map((s) => ligne(s.id, s.name, summary(s)))}
+              {row(null, "Course libre", "Aucun bloc, aucune annonce")}
+              {SESSIONS.map((s) => row(s.id, s.name, summary(s)))}
             </ScrollView>
           </GlassPanel>
         </Pressable>

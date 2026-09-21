@@ -58,7 +58,7 @@ test("time ago reads naturally at every scale", () => {
 test("formatSpeed reads a pace the other way round", () => {
   // 3 m/s is 10.8 km/h, and a 5'33" kilometre.
   assert.equal(formatSpeed(3), "10,8");
-  assert.equal(formatSpeed(0), "–", "immobile n'a pas de vitesse");
+  assert.equal(formatSpeed(0), "–", "standing still has no speed");
   assert.equal(formatSpeed(Number.NaN), "–");
 });
 

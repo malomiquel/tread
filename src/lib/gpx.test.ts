@@ -60,15 +60,15 @@ test("parseGpx reads back what toGpx wrote", () => {
   const { name, points } = parseGpx(toGpx({ name: "Sortie du midi", startedAt: 0 }, original));
 
   assert.equal(name, "Sortie du midi");
-  assert.equal(points.length, 3, "tous les points reviennent");
-  assert.ok(Math.abs(points[0].lat - 48.85) < 1e-6, "latitude conservée");
-  assert.equal(points[0].alt, 35, "altitude conservée");
-  assert.equal(points[2].segment, 1, "la pause reste une coupure");
+  assert.equal(points.length, 3, "every point comes back");
+  assert.ok(Math.abs(points[0].lat - 48.85) < 1e-6, "latitude kept");
+  assert.equal(points[0].alt, 35, "elevation kept");
+  assert.equal(points[2].segment, 1, "the pause stays a break");
 });
 
 test("parseGpx accepts a file from somewhere else", () => {
-  // Pas de métadonnées, une balise auto-fermante, pas d'altitude : ce qu'une
-  // montre d'un autre fabricant produit couramment.
+  // No metadata, a self-closing tag, no elevation: what a watch from another
+  // maker commonly produces.
   const { name, points } = parseGpx(`<?xml version="1.0"?>
 <gpx version="1.1" creator="Garmin Connect">
   <trk><name>Morning Run</name><trkseg>
@@ -79,8 +79,8 @@ test("parseGpx accepts a file from somewhere else", () => {
 
   assert.equal(name, "Morning Run");
   assert.equal(points.length, 2);
-  assert.equal(points[0].alt, null, "altitude absente admise");
-  assert.ok(points[1].ts > points[0].ts, "un point sans heure en reçoit une");
+  assert.equal(points[0].alt, null, "missing elevation accepted");
+  assert.ok(points[1].ts > points[0].ts, "a point with no time is given one");
 });
 
 test("parseGpx returns nothing rather than throwing on rubbish", () => {

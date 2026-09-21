@@ -59,14 +59,14 @@ export default function TabsLayout() {
         }}
       />
       {/*
-        * Au milieu : c'est la section qu'on ouvre le plus souvent.
+        * In the middle: the section opened most often.
         *
-        * Et la seule sans fondu à l'arrivée. Le fondu anime l'opacité de la
-        * scène entière avec le pilote natif, or cet écran est presque
-        * entièrement fait de surfaces natives — la carte et les panneaux de
-        * verre — et une surface native sous une opacité animée cesse
-        * simplement de se dessiner. L'écran arrivait entièrement blanc. Ses
-        * propres éléments se chargent de l'arrivée, chacun depuis son bord.
+        * And the only one without a fade on arrival. The fade animates the
+        * whole scene's opacity on the native driver, and this screen is made
+        * almost entirely of native surfaces — the map and the glass panels —
+        * which simply stop drawing under an animated opacity. The screen
+        * arrived completely white. Its own furniture handles the arrival
+        * instead, each piece from its own edge.
         */}
       <Tabs.Screen
         name="courir"

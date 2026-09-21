@@ -93,36 +93,36 @@ export default function HistoryScreen() {
     if (importing) return;
     setImporting(true);
     try {
-      const choix = await DocumentPicker.getDocumentAsync({
+      const picked = await DocumentPicker.getDocumentAsync({
         // Loose on purpose: a GPX arrives declared as XML, as plain text or as
         // nothing at all depending on where it was written.
         type: ["application/gpx+xml", "application/xml", "text/xml", "*/*"],
         multiple: true,
         copyToCacheDirectory: true,
       });
-      if (choix.canceled) return;
+      if (picked.canceled) return;
 
-      let ajoutees = 0;
-      let connues = 0;
-      let illisibles = 0;
-      for (const fichier of choix.assets) {
+      let added = 0;
+      let known = 0;
+      let unreadable = 0;
+      for (const file of picked.assets) {
         try {
-          const { name, points } = parseGpx(await new File(fichier.uri).text());
+          const { name, points } = parseGpx(await new File(file.uri).text());
           const id = await importRun(name, points);
-          if (id === null) connues += 1;
-          else ajoutees += 1;
+          if (id === null) known += 1;
+          else added += 1;
         } catch {
-          illisibles += 1;
+          unreadable += 1;
         }
       }
 
       await reload();
-      const details = [
-        ajoutees > 0 ? `${ajoutees} course${ajoutees > 1 ? "s" : ""} ajoutée${ajoutees > 1 ? "s" : ""}` : null,
-        connues > 0 ? `${connues} déjà connue${connues > 1 ? "s" : ""}` : null,
-        illisibles > 0 ? `${illisibles} illisible${illisibles > 1 ? "s" : ""}` : null,
+      const summary = [
+        added > 0 ? `${added} course${added > 1 ? "s" : ""} ajoutée${added > 1 ? "s" : ""}` : null,
+        known > 0 ? `${known} déjà connue${known > 1 ? "s" : ""}` : null,
+        unreadable > 0 ? `${unreadable} illisible${unreadable > 1 ? "s" : ""}` : null,
       ].filter(Boolean).join(" · ");
-      Alert.alert("Import terminé", details || "Aucune course dans ces fichiers.");
+      Alert.alert("Import terminé", summary || "Aucune course dans ces fichiers.");
     } catch (cause) {
       Alert.alert("Import impossible", cause instanceof Error ? cause.message : "Erreur inattendue.");
     } finally {

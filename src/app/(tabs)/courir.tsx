@@ -251,15 +251,15 @@ export default function RecordScreen() {
     if (!session) return null;
     if (!recording) return `${session.name} · ${session.steps.length} blocs`;
     if (!step) return `${session.name} · terminée`;
-    const reste = stepRemaining(
+    const left = stepRemaining(
       step,
       distance - tracker.stepStartM,
       activeDurationS(tracker, now) - tracker.stepStartS,
     );
-    const encore = reste.metres !== null
-      ? `${Math.round(reste.metres)} m`
-      : formatDuration(Math.ceil(reste.seconds ?? 0));
-    return `${tracker.stepIndex + 1}/${session.steps.length} · ${stepLabel(step)} · ${encore}`;
+    const remaining = left.metres !== null
+      ? `${Math.round(left.metres)} m`
+      : formatDuration(Math.ceil(left.seconds ?? 0));
+    return `${tracker.stepIndex + 1}/${session.steps.length} · ${stepLabel(step)} · ${remaining}`;
   })();
 
   // The same threshold the tracker throws fixes away at, so the warning and

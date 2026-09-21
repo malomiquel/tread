@@ -169,10 +169,10 @@ function advanceSession(): void {
   const active = activeDurationS(state, Date.now());
   if (!stepIsDone(step, distance - state.stepStartM, active - state.stepStartS)) return;
 
-  const suivant = state.stepIndex + 1;
-  publish({ stepIndex: suivant, stepStartM: distance, stepStartS: active });
-  const bloc = session.steps[suivant];
-  announceStep(bloc ? stepLabel(bloc) : null, getSettings().voice);
+  const nextIndex = state.stepIndex + 1;
+  publish({ stepIndex: nextIndex, stepStartM: distance, stepStartS: active });
+  const nextStep = session.steps[nextIndex];
+  announceStep(nextStep ? stepLabel(nextStep) : null, getSettings().voice);
 }
 
 /** Announce a kilometre the moment it is completed, once and only once. */

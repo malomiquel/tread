@@ -123,17 +123,17 @@ test("regionAround centres on the track and leaves a margin", () => {
     at(0, 48.85, 2.34),
     at(1, 48.87, 2.38),
   ])!;
-  assert.ok(Math.abs(region.latitude - 48.86) < 1e-9, "centré en latitude");
-  assert.ok(Math.abs(region.longitude - 2.36) < 1e-9, "centré en longitude");
+  assert.ok(Math.abs(region.latitude - 48.86) < 1e-9, "centred in latitude");
+  assert.ok(Math.abs(region.longitude - 2.36) < 1e-9, "centred in longitude");
   // The span is 0.02 wide, so the framing must be wider than the track itself.
-  assert.ok(region.latitudeDelta > 0.02, "marge en latitude");
-  assert.ok(region.longitudeDelta > 0.04, "marge en longitude");
+  assert.ok(region.latitudeDelta > 0.02, "margin in latitude");
+  assert.ok(region.longitudeDelta > 0.04, "margin in longitude");
 });
 
 test("regionAround refuses to magnify a run around the block", () => {
   const region = regionAround([at(0, 48.8566, 2.3522), at(1, 48.8567, 2.3523)])!;
-  assert.ok(region.latitudeDelta >= 0.0035, "plancher de zoom en latitude");
-  assert.ok(region.longitudeDelta >= 0.0035, "plancher de zoom en longitude");
+  assert.ok(region.latitudeDelta >= 0.0035, "zoom floor in latitude");
+  assert.ok(region.longitudeDelta >= 0.0035, "zoom floor in longitude");
 });
 
 test("regionAround has nothing to frame without points", () => {
@@ -147,9 +147,9 @@ test("regionAround lifts the track when asked", () => {
 
   // Lowering the camera is what raises the track in frame, so the centre of
   // the lifted view sits south of the plain one.
-  assert.ok(lifted.latitude < plain.latitude, "centre abaissé");
-  assert.equal(lifted.latitudeDelta, plain.latitudeDelta, "zoom inchangé");
-  assert.equal(lifted.longitude, plain.longitude, "longitude inchangée");
+  assert.ok(lifted.latitude < plain.latitude, "centre lowered");
+  assert.equal(lifted.latitudeDelta, plain.latitudeDelta, "zoom unchanged");
+  assert.equal(lifted.longitude, plain.longitude, "longitude unchanged");
 });
 
 /**
@@ -196,9 +196,9 @@ test("vague fixes inflate a distance, and the filter is what stops them", () => 
   const kept = totalDistanceM(filtered(seen));
 
   // Unfiltered, the wandering is counted as ground covered and the run grows.
-  assert.ok(raw > real * 1.5, `le bruit devrait gonfler la distance : ${raw} vs ${real}`);
+  assert.ok(raw > real * 1.5, `noise should inflate the distance: ${raw} vs ${real}`);
 
   // Filtered, what is left is within a few percent of the truth.
   const error = Math.abs(kept - real) / real;
-  assert.ok(error < 0.05, `erreur après filtrage : ${(error * 100).toFixed(1)} %`);
+  assert.ok(error < 0.05, `error after filtering: ${(error * 100).toFixed(1)}%`);
 });
