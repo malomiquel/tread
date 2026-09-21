@@ -11,6 +11,25 @@ private let accentLight = Color(red: 0.059, green: 0.478, blue: 0.239)
 private let accentDark = Color(red: 0.255, green: 0.710, blue: 0.451)
 
 /**
+ Barlow Condensed, the app's own face, carried inside this extension.
+
+ An extension is a separate binary and sees none of the fonts the app
+ registers, so the files travel with it and are declared in its Info.plist.
+ Weights are chosen by name rather than by asking for a weight: each one is
+ its own file, and asking on top would have the system smear a synthetic bold
+ over an already bold face.
+
+ The sizes are larger than the system font's were. A condensed face is
+ narrower and shorter in the eye, so the same point size reads noticeably
+ smaller — the same correction the app itself needed.
+ */
+private enum Face {
+  static func semibold(_ size: CGFloat) -> Font { .custom("BarlowCondensed-SemiBold", size: size) }
+  static func bold(_ size: CGFloat) -> Font { .custom("BarlowCondensed-Bold", size: size) }
+  static func extrabold(_ size: CGFloat) -> Font { .custom("BarlowCondensed-ExtraBold", size: size) }
+}
+
+/**
  A run has no end, so the clock is given a range it will never reach rather
  than a finish line. A week is far beyond any run and keeps the formatter on
  hours, minutes and seconds.
@@ -30,14 +49,14 @@ private struct Metric: View {
     VStack(alignment: .leading, spacing: 1) {
       HStack(alignment: .firstTextBaseline, spacing: 2) {
         Text(value)
-          .font(.system(size: 22, weight: .semibold, design: .default))
+          .font(Face.semibold(28))
           .monospacedDigit()
         Text(unit)
-          .font(.system(size: 11, weight: .semibold))
+          .font(Face.semibold(14))
           .foregroundStyle(.secondary)
       }
       Text(label)
-        .font(.system(size: 9, weight: .semibold))
+        .font(Face.semibold(11.5))
         .tracking(1.2)
         .foregroundStyle(.tertiary)
     }
@@ -55,9 +74,9 @@ private struct LockScreenView: View {
     VStack(alignment: .leading, spacing: 12) {
       HStack(spacing: 6) {
         Image(systemName: state.clockOrigin == nil ? "pause.fill" : "figure.run")
-          .font(.system(size: 10, weight: .bold))
+          .font(.system(size: 11, weight: .bold))
         Text(state.clockOrigin == nil ? "EN PAUSE" : title.uppercased())
-          .font(.system(size: 10, weight: .semibold))
+          .font(Face.semibold(13))
           .tracking(1.2)
           .lineLimit(1)
       }
@@ -74,11 +93,11 @@ private struct LockScreenView: View {
               Text(state.elapsed)
             }
           }
-          .font(.system(size: 34, weight: .semibold))
+          .font(Face.bold(44))
           .monospacedDigit()
 
           Text("TEMPS")
-            .font(.system(size: 9, weight: .semibold))
+            .font(Face.semibold(11.5))
             .tracking(1.2)
             .foregroundStyle(.tertiary)
         }
@@ -121,7 +140,7 @@ struct RunLiveActivity: Widget {
               Text(context.state.elapsed)
             }
           }
-          .font(.system(size: 30, weight: .semibold))
+          .font(Face.bold(39))
           .monospacedDigit()
           .frame(maxWidth: .infinity)
         }

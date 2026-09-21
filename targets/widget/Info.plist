@@ -2,6 +2,18 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
   <dict>
+    <!--
+      The widget is its own binary and carries its own copy of the typeface.
+      Fonts registered by the app do not reach an extension, so without this
+      the Live Activity would fall back to the system face and read as coming
+      from a different app than the one that started it.
+    -->
+    <key>UIAppFonts</key>
+    <array>
+      <string>BarlowCondensed-SemiBold.ttf</string>
+      <string>BarlowCondensed-Bold.ttf</string>
+      <string>BarlowCondensed-ExtraBold.ttf</string>
+    </array>
     <key>NSExtension</key>
     <dict>
       <key>NSExtensionPointIdentifier</key>
