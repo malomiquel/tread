@@ -112,10 +112,17 @@ export function announceStep(label: string | null, spoken: boolean): void {
  * kilometre" is arithmetic you have to do first.
  */
 export function announcePace(driftS: number, spoken: boolean): void {
-  // A single buzz, the shortest thing the motor can say — which is all a
-  // nudge deserves. It is the same as a kilometre, and the two are told apart
-  // only by what the voice says next.
-  buzz(1);
+  // No buzz here, and the only one of the four without one.
+  //
+  // The motor has three things left to say — one, two or three — and all
+  // three are spoken for. A fourth would have to be longer than the end of a
+  // session, which is absurd for the smallest signal of the set, and giving
+  // this one buzz would make it indistinguishable from a kilometre.
+  //
+  // It costs nothing, because a buzz was never enough here anyway: it can say
+  // that you have drifted but not which way, so it sends you to the screen
+  // instead of saving you the trip. The other three are complete without a
+  // word; this one is the voice or it is nothing.
   if (!spoken) return;
   const seconds = Math.abs(driftS);
   const sens = driftS > 0 ? "trop lent" : "trop rapide";

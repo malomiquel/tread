@@ -4,7 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { buildLine } from "@/lib/build";
-import { announceKilometre, announcePace, announceStep } from "@/lib/feedback";
+import { announceKilometre, announceStep } from "@/lib/feedback";
 import { listRuns, personalRecords, type PersonalRecords, type Run } from "@/lib/db";
 import { formatDistance, formatDuration, formatElevation, formatPace } from "@/lib/format";
 import { useTabBarSpace } from "@/lib/layout";
@@ -172,14 +172,13 @@ export default function ProgressScreen() {
             "am I still up to date?" has no answer from the device. Compare
             this with git log and it does. */}
         {/* TEMPORAIRE — à supprimer. Toutes les vibrations de la course, pour
-            les sentir à l'arrêt. Le son est coupé : seule la texture compte.
-            La fin de séance a son propre motif, d'où le quatrième bouton. */}
+            les sentir à l'arrêt. Le son est coupé : seul le motif compte.
+            L'allure n'en a pas et n'a donc pas de bouton. */}
         <View style={styles.buzzes}>
           {([
             ["Kilomètre", "1 seul", () => announceKilometre(3, 312, false)],
             ["Bloc", "2", () => announceStep("400 m rapide", false)],
             ["Fin de séance", "3", () => announceStep(null, false)],
-            ["Allure", "1 seul", () => announcePace(12, false)],
           ] as const).map(([label, hint, fire]) => (
             <Pressable
               key={label}
