@@ -52,6 +52,74 @@ ${tracks}
 `;
 }
 
+/**
+ * Read a GPX file back into points.
+ *
+ * Deliberately forgiving. A GPX file written by Garmin, Coros or a watch from
+ * a decade ago is only loosely the same document as the one this app writes:
+ * namespaces differ, elevation may be absent, times may be missing from every
+ * point but the first. So this reads what it recognises and ignores the rest,
+ * rather than refusing a file over a detail nobody but a validator cares
+ * about.
+ *
+ * Each <trkseg> becomes a segment, which is how a pause survives the round
+ * trip out of the app and back in.
+ */
+export function parseGpx(xml: string): { name: string | null; points: TrackPoint[] } {
+  const points: TrackPoint[] = [];
+  let segment = 0;
+
+  for (const bloc of xml.split(/<trkseg[^>]*>/i).slice(1)) {
+    const corps = bloc.split(/<\/trkseg>/i)[0];
+    let vus = 0;
+
+    for (const m of corps.matchAll(/<trkpt\b([^>]*)>([\s\S]*?)<\/trkpt>|<trkpt\b([^>]*)\/>/gi)) {
+      const attributs = m[1] ?? m[3] ?? "";
+      const contenu = m[2] ?? "";
+      const lat = Number(/\blat\s*=\s*"([^"]+)"/i.exec(attributs)?.[1]);
+      const lng = Number(/\blon\s*=\s*"([^"]+)"/i.exec(attributs)?.[1]);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+
+      const quand = /<time>([^<]+)<\/time>/i.exec(contenu)?.[1];
+      const ts = quand ? Date.parse(quand) : Number.NaN;
+      const altitude = Number(/<ele>([^<]+)<\/ele>/i.exec(contenu)?.[1]);
+
+      points.push({
+        ts: Number.isFinite(ts) ? ts : Number.NaN,
+        lat,
+        lng,
+        alt: Number.isFinite(altitude) ? altitude : null,
+        // Nothing is known about how good these fixes were, and pretending
+        // otherwise would let the import filter throw away a real run.
+        accuracy: null,
+        speed: null,
+        segment,
+      });
+      vus += 1;
+    }
+    if (vus) segment += 1;
+  }
+
+  // A file whose points carry no time is still a route worth keeping; it is
+  // given one second apart so the run has a shape, and its duration will read
+  // as the number of points, which is visibly wrong rather than quietly so.
+  const debut = points.find((p) => Number.isFinite(p.ts))?.ts ?? Date.now();
+  points.forEach((p, i) => {
+    if (!Number.isFinite(p.ts)) p.ts = debut + i * 1000;
+  });
+  points.sort((a, b) => a.ts - b.ts);
+
+  const brut = /<metadata>[\s\S]*?<name>([^<]+)<\/name>/i.exec(xml)?.[1]
+    ?? /<trk>[\s\S]*?<name>([^<]+)<\/name>/i.exec(xml)?.[1]
+    ?? null;
+  const name = brut
+    ? brut.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&apos;/g, "'")
+        .replace(/&quot;/g, '"').replace(/&amp;/g, "&").trim() || null
+    : null;
+
+  return { name, points };
+}
+
 /** File name for an exported run: sortable, and safe on every file system. */
 export function gpxFileName(run: GpxRun): string {
   const date = new Date(run.startedAt).toISOString().slice(0, 16).replace(/[:T]/g, "-");

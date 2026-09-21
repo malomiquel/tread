@@ -1,4 +1,5 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
+import * as DocumentPicker from "expo-document-picker";
 import { File, Paths } from "expo-file-system";
 import { useFocusEffect, useRouter } from "expo-router";
 import * as Sharing from "expo-sharing";
@@ -10,9 +11,10 @@ import { Button } from "@/components/Button";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { SwipeToDelete } from "@/components/SwipeToDelete";
 import { archiveFileName, buildArchive } from "@/lib/archive";
-import { deleteRun, listRuns, readRun, type Run } from "@/lib/db";
+import { deleteRun, importRun, listRuns, readRun, type Run } from "@/lib/db";
 import { createDemoRun } from "@/lib/demo";
 import { formatDate, formatDistance, formatDuration, formatPace } from "@/lib/format";
+import { parseGpx } from "@/lib/gpx";
 import { forgetRunInHealth } from "@/lib/health";
 import { useTabBarSpace } from "@/lib/layout";
 import { colors, font } from "@/lib/theme";
@@ -24,6 +26,7 @@ export default function HistoryScreen() {
   const tabBarSpace = useTabBarSpace();
   const [pending, setPending] = useState<Run | null>(null);
   const [archiving, setArchiving] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   const reload = useCallback(() => listRuns().then(setRuns).catch(() => setRuns([])), []);
 
@@ -77,6 +80,57 @@ export default function HistoryScreen() {
   }
 
   /**
+   * Brings runs in from GPX files: an old app, another watch, or an archive
+   * this app wrote itself.
+   *
+   * Until now the door only opened outwards — runs could leave but never come
+   * back, so an export was a copy you could look at and not a backup you
+   * could restore. Several files at once, because an archive is rarely one
+   * run, and already-known runs are counted and skipped rather than refused
+   * with an error.
+   */
+  async function importGpx() {
+    if (importing) return;
+    setImporting(true);
+    try {
+      const choix = await DocumentPicker.getDocumentAsync({
+        // Loose on purpose: a GPX arrives declared as XML, as plain text or as
+        // nothing at all depending on where it was written.
+        type: ["application/gpx+xml", "application/xml", "text/xml", "*/*"],
+        multiple: true,
+        copyToCacheDirectory: true,
+      });
+      if (choix.canceled) return;
+
+      let ajoutees = 0;
+      let connues = 0;
+      let illisibles = 0;
+      for (const fichier of choix.assets) {
+        try {
+          const { name, points } = parseGpx(await new File(fichier.uri).text());
+          const id = await importRun(name, points);
+          if (id === null) connues += 1;
+          else ajoutees += 1;
+        } catch {
+          illisibles += 1;
+        }
+      }
+
+      await reload();
+      const details = [
+        ajoutees > 0 ? `${ajoutees} course${ajoutees > 1 ? "s" : ""} ajoutée${ajoutees > 1 ? "s" : ""}` : null,
+        connues > 0 ? `${connues} déjà connue${connues > 1 ? "s" : ""}` : null,
+        illisibles > 0 ? `${illisibles} illisible${illisibles > 1 ? "s" : ""}` : null,
+      ].filter(Boolean).join(" · ");
+      Alert.alert("Import terminé", details || "Aucune course dans ces fichiers.");
+    } catch (cause) {
+      Alert.alert("Import impossible", cause instanceof Error ? cause.message : "Erreur inattendue.");
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  /**
    * Writes every run to one zip of GPX files and hands it to the share sheet.
    *
    * This is the only backup the app has: the runs live in a single database on
@@ -126,6 +180,20 @@ export default function HistoryScreen() {
             </Text>
           )}
         </View>
+        <Pressable
+          onPress={() => void importGpx()}
+          disabled={importing}
+          accessibilityRole="button"
+          accessibilityLabel="Importer des courses depuis des fichiers GPX"
+          hitSlop={10}
+          style={({ pressed }) => [styles.export, pressed && styles.pressed]}
+        >
+          {importing ? (
+            <ActivityIndicator size="small" color={colors.accent} />
+          ) : (
+            <Ionicons name="add" size={22} color={colors.text} />
+          )}
+        </Pressable>
         {runs && runs.length > 0 && (
           <Pressable
             onPress={() => void exportAll()}
@@ -214,7 +282,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   fill: { flex: 1 },
   header: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12,
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8,
     paddingHorizontal: GUTTER, paddingTop: 10, paddingBottom: 14,
   },
   headerText: { flex: 1 },

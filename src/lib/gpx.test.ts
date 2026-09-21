@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { gpxFileName, toGpx } from "./gpx.ts";
+import { gpxFileName, parseGpx, toGpx } from "./gpx.ts";
 import type { TrackPoint } from "./geo.ts";
 
 const at = (ts: number, lat: number, lng: number, extra: Partial<TrackPoint> = {}): TrackPoint => ({
@@ -49,4 +49,41 @@ test("file name: sortable, lowercase, no awkward characters", () => {
   assert.equal(gpxFileName(run), "tread-2026-09-21-07-30-morning-run.gpx");
   assert.equal(gpxFileName({ name: null, startedAt: 0 }), "tread-1970-01-01-00-00-run.gpx");
   assert.equal(gpxFileName({ name: "Côte d'Azur !!", startedAt: 0 }), "tread-1970-01-01-00-00-c-te-d-azur.gpx");
+});
+
+test("parseGpx reads back what toGpx wrote", () => {
+  const original: TrackPoint[] = [
+    at(0, 48.85, 2.34, { alt: 35 }),
+    at(1000, 48.851, 2.341, { alt: 36 }),
+    at(9000, 48.853, 2.343, { alt: 38, segment: 1 }),
+  ];
+  const { name, points } = parseGpx(toGpx({ name: "Sortie du midi", startedAt: 0 }, original));
+
+  assert.equal(name, "Sortie du midi");
+  assert.equal(points.length, 3, "tous les points reviennent");
+  assert.ok(Math.abs(points[0].lat - 48.85) < 1e-6, "latitude conservée");
+  assert.equal(points[0].alt, 35, "altitude conservée");
+  assert.equal(points[2].segment, 1, "la pause reste une coupure");
+});
+
+test("parseGpx accepts a file from somewhere else", () => {
+  // Pas de métadonnées, une balise auto-fermante, pas d'altitude : ce qu'une
+  // montre d'un autre fabricant produit couramment.
+  const { name, points } = parseGpx(`<?xml version="1.0"?>
+<gpx version="1.1" creator="Garmin Connect">
+  <trk><name>Morning Run</name><trkseg>
+    <trkpt lat="45.7640" lon="4.8357"><time>2024-03-02T07:11:00Z</time></trkpt>
+    <trkpt lat="45.7641" lon="4.8359"/>
+  </trkseg></trk>
+</gpx>`);
+
+  assert.equal(name, "Morning Run");
+  assert.equal(points.length, 2);
+  assert.equal(points[0].alt, null, "altitude absente admise");
+  assert.ok(points[1].ts > points[0].ts, "un point sans heure en reçoit une");
+});
+
+test("parseGpx returns nothing rather than throwing on rubbish", () => {
+  assert.deepEqual(parseGpx("bonjour").points, []);
+  assert.deepEqual(parseGpx("<gpx></gpx>").points, []);
 });

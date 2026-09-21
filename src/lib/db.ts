@@ -208,6 +208,46 @@ export async function setHealthUuid(id: number, uuid: string | null): Promise<vo
   await getDb().runAsync("UPDATE runs SET health_uuid = ? WHERE id = ?", uuid, id);
 }
 
+/**
+ * Bring a run in from a GPX file.
+ *
+ * Returns the new run's id, or null when there was nothing to import or the
+ * run was already on file. Refusing a duplicate matters more than it sounds:
+ * re-importing last month's archive would otherwise double a month of
+ * training, and nothing in the app would show it had happened.
+ *
+ * Totals are recomputed here rather than trusted from the file, because a
+ * file written elsewhere states its own figures and they are rarely measured
+ * the same way. The run then sits alongside the others on equal terms.
+ */
+export async function importRun(name: string | null, points: TrackPoint[]): Promise<number | null> {
+  if (points.length < 2) return null;
+  const startedAt = points[0].ts;
+
+  const existing = await getDb().getFirstAsync<{ id: number }>(
+    "SELECT id FROM runs WHERE started_at = ?", startedAt,
+  );
+  if (existing) return null;
+
+  const id = await createRun(startedAt);
+  await insertPoints(id, points);
+
+  const distance = totalDistanceM(points);
+  const duration = segments(points)
+    .reduce((total, s) => total + (s[s.length - 1].ts - s[0].ts) / 1000, 0);
+
+  await finishRun(id, {
+    endedAt: points[points.length - 1].ts,
+    distanceM: distance,
+    durationS: Math.round(duration),
+    avgPaceSKm: paceSecPerKm(distance, duration),
+    name: name ?? autoName(startedAt),
+    elevationGainM: elevationGainM(points),
+    fastestKmS: fastestKmS(points),
+  });
+  return id;
+}
+
 export async function renameRun(id: number, name: string): Promise<void> {
   await getDb().runAsync("UPDATE runs SET name = ? WHERE id = ?", name.trim() || null, id);
 }
