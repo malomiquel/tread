@@ -1,21 +1,57 @@
-import * as Haptics from "expo-haptics";
 import * as Speech from "expo-speech";
-import { Vibration } from "react-native";
+import { Platform, Vibration } from "react-native";
+
 /**
- * A pattern of heavy taps, spaced.
+ * How long one buzz of the vibration motor lasts.
  *
- * Built rather than borrowed. The system's ready-made notification patterns
- * are softer than a plain impact and two of them are nearly the same rhythm,
- * so success and warning were indistinguishable through a pocket. Counting
- * taps and spacing them is what makes one pattern tell itself apart from
- * another when nobody is looking at the phone.
+ * iOS decides this and will not be told otherwise, so it is the one number
+ * here that is observed rather than chosen. Android is given the same figure
+ * so that a pattern feels the same on both.
  */
-function buzz(times: number, gapMs: number, style = Haptics.ImpactFeedbackStyle.Heavy): void {
-  for (let tap = 0; tap < times; tap += 1) {
-    setTimeout(() => {
-      void Haptics.impactAsync(style).catch(() => undefined);
-    }, tap * gapMs);
+const BUZZ_MS = 400;
+
+/** Barely a pause: consecutive buzzes run together into one rattle. */
+const TIGHT_MS = 420;
+
+/** Long enough to hear the silence, so the buzzes are counted, not felt as one. */
+const WIDE_MS = 900;
+
+/**
+ * A pattern of motor buzzes.
+ *
+ * Everything the app says while running goes through the vibration motor
+ * rather than the Taptic Engine. Feedback generators are the language of the
+ * interface — a button answering a finger that is already on the glass — and
+ * they are far too polite for a phone strapped to an arm or buried in a
+ * pocket. The motor is what the system itself uses for a call.
+ *
+ * The cost is that the motor has exactly one texture and one length on iOS,
+ * so nothing here can be made softer or longer. Count and spacing are the
+ * only two things left to say something with.
+ */
+function buzz(times: number, gapMs = 0): void {
+  // A pattern already playing makes the module drop whatever arrives next, so
+  // a kilometre landing on a change of block would silently swallow one of
+  // the two. Clearing the flag first means the newer event always wins.
+  Vibration.cancel();
+  if (times <= 1) {
+    Vibration.vibrate(BUZZ_MS);
+    return;
   }
+
+  // The same array means two different things: iOS reads it as the delays
+  // between buzzes, Android as alternating silence and buzz. One shape cannot
+  // satisfy both, so each is built the way its platform will read it.
+  if (Platform.OS === "ios") {
+    Vibration.vibrate([0, ...Array<number>(times - 1).fill(gapMs)]);
+    return;
+  }
+  const pattern = [0];
+  for (let i = 0; i < times; i += 1) {
+    pattern.push(BUZZ_MS);
+    if (i < times - 1) pattern.push(Math.max(gapMs - BUZZ_MS, 0));
+  }
+  Vibration.vibrate(pattern);
 }
 
 /**
@@ -29,13 +65,9 @@ export function announceKilometre(km: number, splitS: number, spoken: boolean): 
   // The buzz fires whatever happens: it is the part that works with headphones
   // out, music playing, or the phone deep in a pocket.
   //
-  // Not a haptic at all, but the vibration motor — the same call the system
-  // makes for an incoming call. Feedback generators are made to be felt by a
-  // hand already holding the phone, and a chain of them was still a chain of
-  // taps. This is one sustained buzz, it is far stronger, and it is the only
-  // one of the three that still fires when system haptics are turned off.
-  // Worth the bluntness once a kilometre, and only once a kilometre.
-  Vibration.vibrate();
+  // One buzz, alone. It is the only single in the set, so it needs no counting
+  // to recognise: the silence straight after it is what names it.
+  buzz(1);
   if (!spoken) return;
 
   const minutes = Math.floor(splitS / 60);
@@ -58,11 +90,13 @@ export function announceKilometre(km: number, splitS: number, spoken: boolean): 
  * change is.
  */
 export function announceStep(label: string | null, spoken: boolean): void {
-  // Three quick taps for a change of block, one long one for the end of the
-  // session. The urgency is in the rhythm: a block change asks for something
-  // immediately, a finished session asks for nothing at all.
-  if (label) buzz(3, 90);
-  else buzz(1, 0);
+  // A change of block rattles: three buzzes run together, which is the most
+  // insistent thing the motor can do, because it is the one moment that asks
+  // you to change what your legs are doing this second. The end of a session
+  // asks for nothing, so it gets two spaced buzzes instead — the pause
+  // between them is the point.
+  if (label) buzz(3, TIGHT_MS);
+  else buzz(2, WIDE_MS);
   if (!spoken) return;
   Speech.speak(label ?? "Séance terminée", { language: "fr-FR", rate: 1 });
 }
@@ -75,9 +109,11 @@ export function announceStep(label: string | null, spoken: boolean): void {
  * kilometre" is arithmetic you have to do first.
  */
 export function announcePace(driftS: number, spoken: boolean): void {
-  // One light tap, and deliberately the weakest of the three: drifting off
-  // pace is a nudge, not an event.
-  buzz(1, 0, Haptics.ImpactFeedbackStyle.Light);
+  // Two buzzes run together. This one should be the gentlest of the four and
+  // instead it cannot be: the motor has no quiet setting, and the single buzz
+  // is already spoken for by the kilometre. It is told apart from a change of
+  // block only by being a shorter rattle.
+  buzz(2, TIGHT_MS);
   if (!spoken) return;
   const seconds = Math.abs(driftS);
   const sens = driftS > 0 ? "trop lent" : "trop rapide";
