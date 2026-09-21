@@ -1,13 +1,47 @@
 import { useRef, useState } from "react";
-import { ActivityIndicator, Alert, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator, Alert, Modal, Platform, Pressable, StyleSheet, Text, TurboModuleRegistry,
+  View,
+} from "react-native";
 import * as Sharing from "expo-sharing";
-import { captureRef } from "react-native-view-shot";
 import { Button } from "@/components/Button";
 import { CardMapSource, type CardMapHandle } from "@/components/CardMapSource";
 import { CARD_HEIGHT, CARD_WIDTH, ShareCard } from "@/components/ShareCard";
 import type { Run } from "@/lib/db";
 import type { TrackPoint } from "@/lib/geo";
 import { colors, floatingShadow, font } from "@/lib/theme";
+
+type ViewShot = typeof import("react-native-view-shot");
+
+let loaded: ViewShot | null | undefined;
+
+/**
+ * The screenshot library, or null where its native half is missing.
+ *
+ * Probed rather than imported, and the distinction matters more here than
+ * anywhere else in the app: this library resolves its native module with
+ * `getEnforcing`, which throws at import time. A plain import therefore takes
+ * down the whole run screen wherever the native side is absent — Expo Go, for
+ * one — rather than merely disabling the button it belongs to.
+ *
+ * The same shape as the HealthKit guard, for the same reason: ask the
+ * registry first, because asking the registry cannot throw.
+ */
+function viewShot(): ViewShot | null {
+  if (loaded !== undefined) return loaded;
+  if (Platform.OS === "web") return (loaded = null);
+  try {
+    loaded = TurboModuleRegistry.get("RNViewShot")
+      ? (require("react-native-view-shot") as ViewShot)
+      : null;
+  } catch {
+    loaded = null;
+  }
+  return loaded;
+}
+
+/** Whether a run can be turned into a picture on this device at all. */
+export const canShareImage = (): boolean => viewShot() !== null;
 
 interface Props {
   visible: boolean;
@@ -71,9 +105,18 @@ function Sheet({ run, points, preparedMapUri, onClose }: Omit<Props, "visible">)
 
   async function share() {
     if (sharing || !mapUri) return;
+    const shot = viewShot();
+    if (!shot) {
+      Alert.alert(
+        "Image indisponible",
+        "Cette version de l'app ne peut pas produire l'image. Elle demande une version installée, pas Expo Go.",
+      );
+      return;
+    }
+
     setSharing(true);
     try {
-      const uri = await captureRef(card, { format: "png", quality: 1, result: "tmpfile" });
+      const uri = await shot.captureRef(card, { format: "png", quality: 1, result: "tmpfile" });
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(uri, { mimeType: "image/png", UTI: "public.png" });
       } else {

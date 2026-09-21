@@ -11,7 +11,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Metric } from "@/components/Metric";
 import { CardMapSource, type CardMapHandle } from "@/components/CardMapSource";
 import { RunMap } from "@/components/RunMap";
-import { ShareRunSheet } from "@/components/ShareRunSheet";
+import { canShareImage, ShareRunSheet } from "@/components/ShareRunSheet";
 import { deleteRun, readRun, renameRun, type Run } from "@/lib/db";
 import {
   formatDate, formatDistance, formatDuration, formatElevation, formatEnergy, formatPace, formatSpeed,
@@ -222,6 +222,9 @@ export default function RunDetailScreen() {
           </Pressable>
           <Text style={styles.date}>{formatDate(run.startedAt)}</Text>
         </View>
+        {/* Absent rather than broken where the screenshot module is: a button
+            that always fails is worse than one that was never offered. */}
+        {canShareImage() ? (
         <Pressable
           onPress={() => setSharingImage(true)}
           disabled={points.length === 0}
@@ -236,6 +239,7 @@ export default function RunDetailScreen() {
         >
           <Ionicons name="share-outline" size={19} color={colors.text} />
         </Pressable>
+        ) : null}
       </View>
 
       <View style={styles.section}>
