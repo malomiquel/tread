@@ -27,12 +27,42 @@ const commit = git("git rev-parse --short HEAD") || "—";
 // saying so is the difference between a stamp you can trust and one you cannot.
 const clean = git("git status --porcelain") === "";
 
+/**
+ * The version, read from the history rather than kept by hand.
+ *
+ * Now that every commit declares what it is, the number can be derived:
+ * features move the minor, fixes move the patch, and nothing has to be
+ * remembered at release time. A version maintained by hand is a version that
+ * stops being true the first time someone forgets — and the whole point of
+ * showing it in the app is to be able to trust it.
+ *
+ * The major stays where app.json puts it: only a person decides that a
+ * release breaks with the one before.
+ */
+function version(fallback) {
+  const [major] = fallback.split(".");
+  const subjects = git("git log --format=%s").split("\n");
+  const count = (type) =>
+    subjects.filter((line) => new RegExp(`^${type}(\\(.+\\))?!?: `).test(line)).length;
+  const minor = count("feat");
+  const patch = count("fix");
+  return minor || patch ? `${major}.${minor}.${patch}` : fallback;
+}
+
+// Monotonic, and unrelated to the version: iOS refuses a build number that
+// goes backwards, and the count of commits only ever goes up.
+const buildNumber = git("git rev-list --count HEAD") || "1";
+
 module.exports = ({ config }) => ({
   ...config,
+  version: version(config.version ?? "1.0.0"),
+  ios: { ...config.ios, buildNumber },
+  android: { ...config.android, versionCode: Number(buildNumber) },
   extra: {
     ...config.extra,
     build: {
       commit: clean ? commit : `${commit}+`,
+      buildNumber,
       builtAt: new Date().toISOString(),
     },
   },
