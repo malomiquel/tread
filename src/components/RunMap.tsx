@@ -118,8 +118,19 @@ export function RunMap({
     );
   };
 
+  /**
+   * Guarded by a ref, not by the state beside it.
+   *
+   * The state drives the spinner and so belongs in a render; the guard has to
+   * survive one. Reading `locating` here also put it in this callback's
+   * dependencies, so every locate changed the callback's identity, which
+   * restarted the effect that called it — the map located, and located, and
+   * located again.
+   */
+  const busy = useRef(false);
   const recentre = useCallback(async () => {
-    if (locating) return;
+    if (busy.current) return;
+    busy.current = true;
     setLocating(true);
     try {
       const coords = await getCurrentCoords();
@@ -132,9 +143,10 @@ export function RunMap({
     } catch {
       /* no fix available: the map stays where it is */
     } finally {
+      busy.current = false;
       setLocating(false);
     }
-  }, [locating]);
+  }, []);
 
   // The same thing the locate button does, on arrival rather than on demand.
   // Only while there is no track to look at: mid-run the camera is already
