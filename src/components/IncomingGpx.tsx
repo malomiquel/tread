@@ -13,9 +13,27 @@ import { parseGpx } from "@/lib/gpx";
  * rewrites it into the app's own scheme before anything else sees it — the
  * same document turns up as tread:///private/var/… Stripping whichever scheme
  * is in front leaves the one thing that matters, which is where the file is.
+ *
+ * It also arrives over-encoded. A directory named "File Provider Storage"
+ * comes through as File%2520Provider%2520Storage: %2520 is %20 encoded a
+ * second time. Decoding once leaves the percent signs behind, so it is
+ * decoded until it stops changing, which is the only way back to the name the
+ * file actually has.
  */
 function pathOf(url: string): string {
-  return decodeURI(url.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "/").replace(/^\/+/, "/"));
+  let path = url.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "/").replace(/^\/+/, "/");
+  for (let pass = 0; pass < 4; pass += 1) {
+    try {
+      const once = decodeURIComponent(path);
+      if (once === path) break;
+      path = once;
+    } catch {
+      // A stray percent that is not an escape: what we have is already the
+      // real path.
+      break;
+    }
+  }
+  return path;
 }
 
 /**
@@ -74,7 +92,17 @@ export function IncomingGpx() {
           );
           return;
         }
-        router.replace({ pathname: "/run/[id]", params: { id: String(id) } });
+        // Two moves rather than one. The router has already put its
+        // not-found page on screen, having read the file's path as an
+        // address; replacing it with the history clears that, and pushing the
+        // run on top leaves something to go back to. Landing straight on the
+        // run would show it with no way out, which is how a file opened from
+        // elsewhere used to trap you.
+        router.replace("/");
+        setTimeout(
+          () => router.push({ pathname: "/run/[id]", params: { id: String(id) } }),
+          0,
+        );
       } catch (cause) {
         router.replace("/");
         Alert.alert("Import impossible", cause instanceof Error ? cause.message : "Fichier illisible.");
