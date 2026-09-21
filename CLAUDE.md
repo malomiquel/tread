@@ -48,5 +48,5 @@ feat(workout): announce interval blocks aloud
 refactor(theme): resolve colours per appearance at draw time
 ```
 
-L'historique antérieur est en français : il reste tel quel, on ne réécrit
-pas ce qui est déjà poussé.
+Jamais de ligne `Co-authored-by`, ni aucune autre signature d'outil. Le
+dépôt appartient à une personne, et l'historique doit le refléter.
