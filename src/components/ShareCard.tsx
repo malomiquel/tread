@@ -158,21 +158,21 @@ const styles = StyleSheet.create({
     width: 10, height: 10, borderRadius: 5,
     backgroundColor: literalColors.track.dark,
   },
-  brandName: { color: INK, fontSize: 19.5, fontFamily: font.extrabold, letterSpacing: 3.4 },
+  brandName: { color: INK, fontSize: 19, fontFamily: font.extrabold, letterSpacing: 3.4 },
 
   footer: { position: "absolute", left: GUTTER, right: GUTTER, bottom: 18 },
   // Set as a title rather than as a caption: it is the run's own name, and
   // squeezing it into small tracked capitals beside the date made both
   // unreadable at the size these pictures are actually looked at.
-  name: { color: INK, fontSize: 25.5, fontFamily: font.bold, letterSpacing: -0.4 },
-  date: { color: INK_SOFT, fontSize: 15.5, fontFamily: font.medium, marginTop: 2 },
+  name: { color: INK, fontSize: 25, fontFamily: font.bold, letterSpacing: -0.4 },
+  date: { color: INK_SOFT, fontSize: 15, fontFamily: font.medium, marginTop: 2 },
 
   heroRow: { flexDirection: "row", alignItems: "baseline", gap: 4, marginTop: 9 },
   hero: {
-    color: INK, fontSize: 62, fontFamily: font.bold,
+    color: INK, fontSize: 61.5, fontFamily: font.bold,
     letterSpacing: -0.99, fontVariant: ["tabular-nums"],
   },
-  heroUnit: { color: INK_SOFT, fontSize: 17.5, fontFamily: font.bold, letterSpacing: -0.2 },
+  heroUnit: { color: INK_SOFT, fontSize: 17, fontFamily: font.bold, letterSpacing: -0.2 },
 
   // A rule under the hero, the way the app separates its own sections.
   stats: {
@@ -182,9 +182,9 @@ const styles = StyleSheet.create({
   stat: { gap: 2 },
   statValueRow: { flexDirection: "row", alignItems: "baseline", gap: 2 },
   statValue: {
-    color: INK, fontSize: 22, fontFamily: font.semibold,
+    color: INK, fontSize: 21.5, fontFamily: font.semibold,
     letterSpacing: -0.4, fontVariant: ["tabular-nums"],
   },
-  statUnit: { color: INK_FAINT, fontSize: 11.5, fontFamily: font.semibold },
-  statLabel: { color: INK_FAINT, fontSize: 10, fontFamily: font.bold, letterSpacing: 1.2 },
+  statUnit: { color: INK_FAINT, fontSize: 11, fontFamily: font.semibold },
+  statLabel: { color: INK_FAINT, fontSize: 9.5, fontFamily: font.bold, letterSpacing: 1.2 },
 });

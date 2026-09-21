@@ -215,12 +215,12 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
     borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline,
   },
-  title: { color: colors.text, fontSize: 32.5, fontFamily: font.bold, letterSpacing: -0.6 },
-  subtitle: { color: colors.subtle, fontFamily: font.regular, fontSize: 15.5, marginTop: 3 },
+  title: { color: colors.text, fontSize: 32, fontFamily: font.bold, letterSpacing: -0.6 },
+  subtitle: { color: colors.subtle, fontFamily: font.regular, fontSize: 15, marginTop: 3 },
 
   emptyBlock: { marginTop: 56, paddingHorizontal: GUTTER, gap: 18, alignItems: "stretch" },
-  empty: { color: colors.muted, fontFamily: font.regular, fontSize: 18, textAlign: "center", lineHeight: 28 },
-  emptyHint: { color: colors.subtle, fontFamily: font.regular, fontSize: 15, textAlign: "center", lineHeight: 22.5 },
+  empty: { color: colors.muted, fontFamily: font.regular, fontSize: 17.5, textAlign: "center", lineHeight: 27.5 },
+  emptyHint: { color: colors.subtle, fontFamily: font.regular, fontSize: 14.5, textAlign: "center", lineHeight: 22 },
 
   // A plain list separated by rules, the way a timetable or a statement is
   // set. Boxing each run in its own floating card added nothing but noise.
@@ -234,12 +234,12 @@ const styles = StyleSheet.create({
   },
   pressed: { backgroundColor: colors.sunken },
   rowLeft: { flex: 1, gap: 3 },
-  name: { color: colors.text, fontSize: 21, fontFamily: font.semibold, letterSpacing: -0.2 },
-  when: { color: colors.subtle, fontSize: 15 },
-  detail: { color: colors.muted, fontFamily: font.regular, fontSize: 16.5, fontVariant: ["tabular-nums"] },
+  name: { color: colors.text, fontSize: 20.5, fontFamily: font.semibold, letterSpacing: -0.2 },
+  when: { color: colors.subtle, fontSize: 14.5 },
+  detail: { color: colors.muted, fontFamily: font.regular, fontSize: 16, fontVariant: ["tabular-nums"] },
   distance: {
-    color: colors.text, fontSize: 29.5, fontFamily: font.semibold,
+    color: colors.text, fontSize: 29, fontFamily: font.semibold,
     letterSpacing: -0.8, fontVariant: ["tabular-nums"],
   },
-  km: { color: colors.subtle, fontSize: 15, fontFamily: font.semibold, letterSpacing: 0 },
+  km: { color: colors.subtle, fontSize: 14.5, fontFamily: font.semibold, letterSpacing: 0 },
 });

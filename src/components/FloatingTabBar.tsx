@@ -95,5 +95,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   tabPressed: { opacity: 0.55 },
-  label: { fontSize: 13.5, fontFamily: font.semibold, letterSpacing: 0.1 },
+  label: { fontSize: 13, fontFamily: font.semibold, letterSpacing: 0.1 },
 });

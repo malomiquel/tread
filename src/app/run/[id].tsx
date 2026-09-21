@@ -359,15 +359,15 @@ const styles = StyleSheet.create({
   },
   shareOff: { opacity: 0.35 },
   sharePressed: { backgroundColor: colors.sunken },
-  name: { color: colors.text, fontSize: 32.5, fontFamily: font.bold, letterSpacing: -0.6 },
-  date: { color: colors.subtle, fontSize: 16.5 },
+  name: { color: colors.text, fontSize: 32, fontFamily: font.bold, letterSpacing: -0.6 },
+  date: { color: colors.subtle, fontSize: 16 },
 
   section: {
     paddingHorizontal: GUTTER, paddingVertical: 18, gap: 14,
     borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline,
   },
   sectionTitle: {
-    color: colors.subtle, fontSize: 13.5, fontFamily: font.semibold,
+    color: colors.subtle, fontSize: 13, fontFamily: font.semibold,
     letterSpacing: 1.4, textTransform: "uppercase",
   },
   row: { flexDirection: "row", gap: 16 },
@@ -377,20 +377,20 @@ const styles = StyleSheet.create({
   fullMapInner: { flex: 1, borderRadius: 0 },
 
   split: { flexDirection: "row", alignItems: "center", gap: 12 },
-  splitKm: { color: colors.muted, width: 56, fontFamily: font.regular, fontSize: 15.5, fontVariant: ["tabular-nums"] },
+  splitKm: { color: colors.muted, width: 56, fontFamily: font.regular, fontSize: 15, fontVariant: ["tabular-nums"] },
   barTrack: { flex: 1, height: 6, backgroundColor: colors.sunken, overflow: "hidden" },
   bar: { height: "100%", backgroundColor: colors.accentSoft },
   barBest: { backgroundColor: colors.accent },
   splitPace: {
     color: colors.text, width: 52, textAlign: "right",
-    fontSize: 17.5, fontFamily: font.semibold, fontVariant: ["tabular-nums"],
+    fontSize: 17, fontFamily: font.semibold, fontVariant: ["tabular-nums"],
   },
   best: { color: colors.accent },
 
   footnotes: { alignItems: "center", gap: 5, paddingVertical: 16 },
-  muted: { color: colors.subtle, fontFamily: font.regular, fontSize: 15, textAlign: "center" },
+  muted: { color: colors.subtle, fontFamily: font.regular, fontSize: 14.5, textAlign: "center" },
   synced: { flexDirection: "row", alignItems: "center", gap: 5 },
-  syncedText: { color: colors.accent, fontSize: 15, fontFamily: font.medium },
+  syncedText: { color: colors.accent, fontSize: 14.5, fontFamily: font.medium },
   wideAction: { paddingHorizontal: GUTTER, paddingBottom: 10 },
   actions: { flexDirection: "row", gap: 10, paddingHorizontal: GUTTER },
 
@@ -402,10 +402,10 @@ const styles = StyleSheet.create({
     width: "100%", backgroundColor: colors.background, borderRadius: 10, padding: 20, gap: 14,
     ...floatingShadow,
   },
-  dialogTitle: { color: colors.text, fontSize: 21.5, fontFamily: font.bold },
+  dialogTitle: { color: colors.text, fontSize: 21, fontFamily: font.bold },
   input: {
     backgroundColor: colors.background, borderRadius: 6, paddingHorizontal: 13, paddingVertical: 11,
-    fontFamily: font.regular, fontSize: 19.5, color: colors.text, borderWidth: 1, borderColor: colors.hairline,
+    fontFamily: font.regular, fontSize: 19, color: colors.text, borderWidth: 1, borderColor: colors.hairline,
   },
   dialogActions: { flexDirection: "row", gap: 10 },
 });
