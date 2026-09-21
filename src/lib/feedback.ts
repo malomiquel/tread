@@ -24,6 +24,22 @@ export function announceKilometre(km: number, splitS: number, spoken: boolean): 
 }
 
 
+/**
+ * The next block of a structured session, spoken as the last one ends.
+ *
+ * This is what makes a session runnable at all: intervals are precisely the
+ * moment you cannot look at a phone, because you are either flat out or
+ * bent over recovering. The buzz marks the change, the voice says what the
+ * change is.
+ */
+export function announceStep(label: string | null, spoken: boolean): void {
+  void Haptics.notificationAsync(
+    label ? Haptics.NotificationFeedbackType.Warning : Haptics.NotificationFeedbackType.Success,
+  ).catch(() => undefined);
+  if (!spoken) return;
+  Speech.speak(label ?? "Séance terminée", { language: "fr-FR", rate: 1 });
+}
+
 /** Silence any pending speech, on finishing or discarding a run. */
 export function stopSpeaking(): void {
   void Speech.stop().catch(() => undefined);

@@ -11,6 +11,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { GlassPanel } from "@/components/GlassPanel";
 import { Metric } from "@/components/Metric";
 import { RunMap } from "@/components/RunMap";
+import { SessionPicker } from "@/components/SessionPicker";
 import { listRuns, type Run } from "@/lib/db";
 import { formatDistance, formatDuration, formatElevation, formatPace } from "@/lib/format";
 import { currentPace, elevationGainM, MAX_ACCURACY_M, paceSecPerKm, totalDistanceM } from "@/lib/geo";
@@ -19,7 +20,10 @@ import { useInitialLocation } from "@/lib/location";
 import { toggleSetting, useSettings } from "@/lib/settings";
 import { weekTotals } from "@/lib/stats";
 import { colors, font } from "@/lib/theme";
-import { activeDurationS, discard, finish, pause, resume, start, useTracker } from "@/lib/tracker";
+import {
+  activeDurationS, chooseSession, discard, finish, pause, resume, start, useTracker,
+} from "@/lib/tracker";
+import { sessionById, stepLabel, stepRemaining } from "@/lib/workout";
 
 /** How long the panel takes to change shape, and everything above it with it. */
 const GROW = { duration: 280 } as const;
@@ -105,6 +109,7 @@ export default function RecordScreen() {
   const [now, setNow] = useState(() => Date.now());
   const [finishing, setFinishing] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [choosing, setChoosing] = useState(false);
   const [history, setHistory] = useState<Run[]>([]);
   // Measured rather than assumed: the panel grows when a run starts, and the
   // controls stacked above it have to move with it instead of being buried.
@@ -234,6 +239,29 @@ export default function RecordScreen() {
     ? tracker.status === "paused" ? "En pause" : "Course en cours"
     : "Prêt à courir";
 
+  /**
+   * While a session is under way the status line is given over to it: which
+   * block, how many there are, and what is left of this one. Nothing else on
+   * this screen can say that, and mid-interval it is the only thing anyone
+   * looks for.
+   */
+  const session = sessionById(tracker.sessionId);
+  const step = session?.steps[tracker.stepIndex] ?? null;
+  const sessionLine = (() => {
+    if (!session) return null;
+    if (!recording) return `${session.name} · ${session.steps.length} blocs`;
+    if (!step) return `${session.name} · terminée`;
+    const reste = stepRemaining(
+      step,
+      distance - tracker.stepStartM,
+      activeDurationS(tracker, now) - tracker.stepStartS,
+    );
+    const encore = reste.metres !== null
+      ? `${Math.round(reste.metres)} m`
+      : formatDuration(Math.ceil(reste.seconds ?? 0));
+    return `${tracker.stepIndex + 1}/${session.steps.length} · ${stepLabel(step)} · ${encore}`;
+  })();
+
   // The same threshold the tracker throws fixes away at, so the warning and
   // the filter can never disagree about what counts as a poor signal.
   const weakSignal =
@@ -294,6 +322,15 @@ export default function RecordScreen() {
         <Animated.View style={togglesArrive}>
         <GlassPanel style={styles.togglePill}>
           <Toggle
+            on={session !== null}
+            onPress={() => setChoosing(true)}
+            icon="list"
+            name="SÉANCE"
+            label="Choisir une séance d'entraînement"
+          />
+        </GlassPanel>
+        <GlassPanel style={styles.togglePill}>
+          <Toggle
             on={settings.voice}
             onPress={() => void toggleSetting("voice")}
             icon={settings.voice ? "volume-high" : "volume-mute"}
@@ -316,8 +353,11 @@ export default function RecordScreen() {
                 everything written beside it. */}
             <View style={styles.panelRow}>
               <View style={styles.panelMetrics}>
-                <Text style={[styles.state, weakSignal && styles.stateWeak]} numberOfLines={1}>
-                  {state} · {recording ? signal : idleSignal}
+                <Text
+                  style={[styles.state, weakSignal && styles.stateWeak, sessionLine && styles.stateSession]}
+                  numberOfLines={1}
+                >
+                  {sessionLine ?? `${state} · ${recording ? signal : idleSignal}`}
                 </Text>
 
                 {recording ? (
@@ -389,6 +429,13 @@ export default function RecordScreen() {
         </GlassPanel>
         </Animated.View>
       </Animated.View>
+
+      <SessionPicker
+        visible={choosing}
+        chosen={tracker.sessionId}
+        onChoose={chooseSession}
+        onClose={() => setChoosing(false)}
+      />
 
       <ConfirmDialog
         visible={confirming}
@@ -481,6 +528,9 @@ const styles = StyleSheet.create({
   },
   state: { color: colors.muted, fontSize: 14.5, fontFamily: font.medium },
   stateWeak: { color: colors.warning },
+  // A session line is instruction rather than commentary, so it is given
+  // the accent and the app's heavier face.
+  stateSession: { color: colors.accent, fontFamily: font.semibold },
   panelRow: { flex: 1, flexDirection: "row", alignItems: "center", gap: 12 },
   panelMetrics: { flex: 1, gap: 8, minWidth: 0 },
   metricStack: { gap: 10 },

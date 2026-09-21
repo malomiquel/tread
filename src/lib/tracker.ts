@@ -4,13 +4,14 @@ import { useSyncExternalStore } from "react";
 import { createRun, finishRun, insertPoints } from "./db";
 import { syncRunToHealth } from "./health";
 import { autoName } from "./format";
-import { announceKilometre, stopSpeaking } from "./feedback";
+import { announceKilometre, announceStep, stopSpeaking } from "./feedback";
 import {
   elevationGainM, fastestKmS, isAcceptable, paceSecPerKm, splits, totalDistanceM,
   type TrackPoint,
 } from "./geo";
 import { reflectRun, stopRun, type RunProgress } from "./liveActivity";
 import { getSettings } from "./settings";
+import { sessionById, stepIsDone, stepLabel } from "./workout";
 
 export const TASK_NAME = "tread-gps-tracking";
 
@@ -31,6 +32,13 @@ export interface TrackerState {
   accuracyM: number | null;
   /** Last kilometre already announced, so it is never announced twice. */
   announcedKm: number;
+  /** The structured session being run, or null for a free run. */
+  sessionId: string | null;
+  /** Which block of it is under way. Past the last one, the session is done. */
+  stepIndex: number;
+  /** Distance and active time at which that block began. */
+  stepStartM: number;
+  stepStartS: number;
   /** True when the background task is live, false on the foreground fallback. */
   backgroundMode: boolean;
   error: string | null;
@@ -39,6 +47,7 @@ export interface TrackerState {
 const IDLE: TrackerState = {
   status: "idle", runId: null, points: [], segment: 0, startedAt: null,
   bankedS: 0, segmentStartedAt: null, announcedKm: 0,
+  sessionId: null, stepIndex: 0, stepStartM: 0, stepStartS: 0,
   accuracyM: null, backgroundMode: false, error: null,
 };
 
@@ -50,6 +59,7 @@ const listeners = new Set<() => void>();
 let subscription: Location.LocationSubscription | null = null;
 let savedCount = 0;
 let writeQueue: Promise<void> = Promise.resolve();
+let sessionTicker: ReturnType<typeof setInterval> | null = null;
 
 function publish(patch: Partial<TrackerState>): void {
   state = { ...state, ...patch };
@@ -129,6 +139,40 @@ function toPoint(location: Location.LocationObject): TrackPoint {
     speed: location.coords.speed,
     segment: state.segment,
   };
+}
+
+/**
+ * Choose the session the next run will follow. Only between runs: swapping
+ * sessions mid-effort would leave the blocks already done belonging to a plan
+ * that no longer exists.
+ */
+export function chooseSession(id: string | null): void {
+  if (state.status !== "idle") return;
+  publish({ sessionId: id });
+}
+
+/**
+ * Move the session on when the current block is finished.
+ *
+ * Driven by a clock of its own rather than by GPS fixes, because a block
+ * measured in time has to end on time even when nothing is moving — a ninety
+ * second recovery spent standing still produces no fixes at all, and would
+ * otherwise never end.
+ */
+function advanceSession(): void {
+  const session = sessionById(state.sessionId);
+  if (!session || state.status !== "running") return;
+  const step = session.steps[state.stepIndex];
+  if (!step) return;
+
+  const distance = totalDistanceM(state.points);
+  const active = activeDurationS(state, Date.now());
+  if (!stepIsDone(step, distance - state.stepStartM, active - state.stepStartS)) return;
+
+  const suivant = state.stepIndex + 1;
+  publish({ stepIndex: suivant, stepStartM: distance, stepStartS: active });
+  const bloc = session.steps[suivant];
+  announceStep(bloc ? stepLabel(bloc) : null, getSettings().voice);
 }
 
 /** Announce a kilometre the moment it is completed, once and only once. */
@@ -243,8 +287,14 @@ export async function start(): Promise<void> {
     publish({
       status: "running", runId, points: [], segment: 0, startedAt,
       bankedS: 0, segmentStartedAt: startedAt, announcedKm: 0,
+      stepIndex: 0, stepStartM: 0, stepStartS: 0,
       backgroundMode: false,
     });
+    const session = sessionById(state.sessionId);
+    if (session) {
+      announceStep(stepLabel(session.steps[0]), getSettings().voice);
+      sessionTicker = setInterval(advanceSession, 1000);
+    }
     publish({ backgroundMode: await startGps() });
   } catch (cause) {
     await stopGps();
@@ -318,9 +368,15 @@ export async function discard(): Promise<void> {
 }
 
 function reset(): void {
+  if (sessionTicker) {
+    clearInterval(sessionTicker);
+    sessionTicker = null;
+  }
   // reset bypasses publish, so the lock screen is cleared by hand here.
   stopRun();
-  state = IDLE;
+  // The chosen session outlives the run: having just finished one set of
+  // intervals, the last thing wanted is to have to choose it again.
+  state = { ...IDLE, sessionId: state.sessionId };
   savedCount = 0;
   for (const listener of listeners) listener();
 }
