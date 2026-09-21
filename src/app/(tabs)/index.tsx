@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "@/components/Button";
+import { GlassPanel } from "@/components/GlassPanel";
 import { Metric } from "@/components/Metric";
 import { RunMap } from "@/components/RunMap";
 import { listRuns, type Run } from "@/lib/db";
@@ -14,7 +15,7 @@ import { useTabBarSpace } from "@/lib/layout";
 import { useInitialLocation } from "@/lib/location";
 import { toggleSetting, useSettings } from "@/lib/settings";
 import { timeAgo, weekTotals } from "@/lib/stats";
-import { colors, floatingShadow } from "@/lib/theme";
+import { colors } from "@/lib/theme";
 import { activeDurationS, discard, finish, pause, resume, start, useTracker } from "@/lib/tracker";
 
 /**
@@ -50,6 +51,44 @@ function Toggle({
       style={({ pressed }) => [styles.toggle, pressed && styles.pressed]}
     >
       <Ionicons name={icon} size={20} color={on ? colors.accent : colors.subtle} />
+    </Pressable>
+  );
+}
+
+/**
+ * A round icon control for the map panel, where a full width button would eat
+ * the view it sits on.
+ */
+function RoundButton({
+  icon, label, onPress, primary = false, danger = false,
+}: {
+  icon: React.ComponentProps<typeof Ionicons>["name"];
+  label: string;
+  onPress: () => void;
+  primary?: boolean;
+  danger?: boolean;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      hitSlop={6}
+      style={({ pressed }) => [
+        styles.round,
+        primary && styles.roundPrimary,
+        danger && styles.roundDanger,
+        pressed && styles.pressed,
+      ]}
+    >
+      <Ionicons
+        name={icon}
+        size={20}
+        color={primary ? colors.accentText : danger ? colors.danger : colors.text}
+        // A play triangle centred geometrically reads as off-centre: its mass
+        // sits left of its box.
+        style={icon === "play" ? styles.play : undefined}
+      />
     </Pressable>
   );
 }
@@ -167,21 +206,39 @@ export default function RecordScreen() {
           initialCenter={coords}
           fullscreen
           onToggleFullscreen={() => setExpanded(false)}
-          controlsBottom={108}
+          // Clear of the floating tab bar, which overlays this screen too.
+          controlsBottom={tabBarSpace}
           style={styles.expandedMap}
         />
         {recording && <KeepAwake />}
 
         <SafeAreaView edges={["top"]} pointerEvents="box-none" style={styles.overlayTop}>
-          <View style={styles.banner}>
-            <Metric label="Distance" value={formatDistance(distance)} unit="km" />
-            <Metric label="Durée" value={formatDuration(duration)} />
-            <Metric label="Allure" value={formatPace(pace ?? avgPace)} unit="/km" align="right" />
-          </View>
-        </SafeAreaView>
-
-        <SafeAreaView edges={["bottom"]} pointerEvents="box-none" style={styles.overlayBottom}>
-          {actions}
+          {/* Readings and controls share one panel at the top. They used to sit
+              at the bottom, where the floating tab bar covered them. */}
+          <GlassPanel style={styles.banner} interactive>
+            <View style={styles.bannerMetrics}>
+              <Metric label="Distance" value={formatDistance(distance)} unit="km" />
+              <Metric label="Durée" value={formatDuration(duration)} />
+              <Metric label="Allure" value={formatPace(pace ?? avgPace)} unit="/km" />
+            </View>
+            <View style={styles.bannerControls}>
+              {!recording && (
+                <RoundButton icon="play" label="Démarrer" onPress={() => void start()} primary />
+              )}
+              {tracker.status === "running" && (
+                <>
+                  <RoundButton icon="pause" label="Pause" onPress={pause} />
+                  <RoundButton icon="stop" label="Terminer" onPress={confirmFinish} danger />
+                </>
+              )}
+              {tracker.status === "paused" && (
+                <>
+                  <RoundButton icon="play" label="Reprendre" onPress={resume} primary />
+                  <RoundButton icon="stop" label="Terminer" onPress={confirmFinish} danger />
+                </>
+              )}
+            </View>
+          </GlassPanel>
         </SafeAreaView>
       </View>
     );
@@ -322,11 +379,18 @@ const styles = StyleSheet.create({
   expandedScreen: { flex: 1, backgroundColor: colors.background },
   expandedMap: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, borderRadius: 0 },
   overlayTop: { position: "absolute", top: 0, left: 0, right: 0, padding: 12 },
-  overlayBottom: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 12 },
   banner: {
-    flexDirection: "row", gap: 12,
-    backgroundColor: colors.background, borderRadius: 6,
-    paddingHorizontal: 16, paddingVertical: 12,
-    ...floatingShadow,
+    flexDirection: "row", alignItems: "center", gap: 14,
+    borderRadius: 20, paddingHorizontal: 16, paddingVertical: 12,
   },
+  bannerMetrics: { flex: 1, flexDirection: "row", gap: 10 },
+  bannerControls: { flexDirection: "row", gap: 8 },
+  round: {
+    width: 44, height: 44, borderRadius: 22,
+    alignItems: "center", justifyContent: "center",
+    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline,
+  },
+  roundPrimary: { backgroundColor: colors.accent, borderColor: colors.accent },
+  roundDanger: { borderColor: colors.dangerSoft },
+  play: { marginLeft: 2 },
 });

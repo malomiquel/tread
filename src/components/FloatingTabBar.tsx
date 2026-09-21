@@ -1,10 +1,9 @@
-import { BlurView } from "expo-blur";
-import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
 import { Tabs } from "expo-router";
 import type { ComponentProps } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { GlassPanel } from "@/components/GlassPanel";
 import { TAB_BAR_HEIGHT, useTabBarBottom } from "@/lib/layout";
-import { colors, floatingShadow } from "@/lib/theme";
+import { colors } from "@/lib/theme";
 
 /**
  * A floating tab bar that hugs its own content.
@@ -29,7 +28,6 @@ type TabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>["tabBar"]>
 
 export function FloatingTabBar({ state, descriptors, navigation }: TabBarProps) {
   const bottom = useTabBarBottom();
-  const liquid = isLiquidGlassAvailable();
 
   const tabs = state.routes.map((route, index) => {
     const { options } = descriptors[route.key];
@@ -70,17 +68,9 @@ export function FloatingTabBar({ state, descriptors, navigation }: TabBarProps) 
       pointerEvents="box-none"
       style={[styles.anchor, { bottom }]}
     >
-      {liquid ? (
-        <GlassView style={styles.pill} glassEffectStyle="regular" isInteractive>
-          {content}
-        </GlassView>
-      ) : Platform.OS === "ios" ? (
-        <BlurView intensity={70} tint="light" style={[styles.pill, styles.bordered]}>
-          {content}
-        </BlurView>
-      ) : (
-        <View style={[styles.pill, styles.bordered, styles.opaque]}>{content}</View>
-      )}
+      <GlassPanel style={styles.pill} interactive>
+        {content}
+      </GlassPanel>
     </View>
   );
 }
@@ -95,17 +85,6 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     paddingHorizontal: 8,
   },
-  // The glass material carries its own depth; the fallbacks have none, so
-  // they borrow a shadow to stay detached from the page.
-  bordered: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.hairline,
-    ...floatingShadow,
-    shadowOpacity: 0.1,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 4 },
-  },
-  opaque: { backgroundColor: colors.background },
   row: { flexDirection: "row", alignItems: "center" },
   tab: {
     minWidth: 76,
