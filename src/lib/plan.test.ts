@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   buildPlan, clampWeeks, daysBetween, equivalentTimeS, GOALS, goalById, loadOfWeek, pacesFrom,
-  normaliseDays, phaseOfWeek, planProgress, projectedTimeS, schedule, SLOT_DAYS, slotDates,
+  longCeilingMin, longestReachedMin, LONG_PEAK_MIN, longMinutes, normaliseDays, phaseOfWeek, planProgress, projectedTimeS, schedule, SLOT_DAYS, slotDates,
   startOfDay,
   type Done, type PlannedSession,
 } from "./plan.ts";
@@ -80,7 +80,7 @@ test("every fourth week steps back, and the race week is the lightest of all", (
 });
 
 test("a plan is as long as it says and ends on the race", () => {
-  const sessions = buildPlan({ goal: "half", weeks: 12, perWeek: 3, targetTimeS: 5400 });
+  const sessions = buildPlan({ goal: "half", weeks: 12, perWeek: 3, targetTimeS: 5400, longestMin: 60 });
   assert.equal(sessions.length, 36);
   assert.equal(sessions.at(-1)!.kind, "race");
   assert.equal(sessions.filter((s) => s.kind === "race").length, 1);
@@ -88,7 +88,7 @@ test("a plan is as long as it says and ends on the race", () => {
 });
 
 test("four days a week is four sessions a week", () => {
-  const sessions = buildPlan({ goal: "half", weeks: 10, perWeek: 4, targetTimeS: 5400 });
+  const sessions = buildPlan({ goal: "half", weeks: 10, perWeek: 4, targetTimeS: 5400, longestMin: 60 });
   // Nine ordinary weeks of four, then race week, which is its own shape at
   // any rhythm: two short runs to stay loose, and the race.
   assert.equal(sessions.length, 9 * 4 + 3);
@@ -102,7 +102,7 @@ test("four days a week is four sessions a week", () => {
 });
 
 test("two days a week keeps the long run and the quality session", () => {
-  const sessions = buildPlan({ goal: "half", weeks: 12, perWeek: 2, targetTimeS: 5400 });
+  const sessions = buildPlan({ goal: "half", weeks: 12, perWeek: 2, targetTimeS: 5400, longestMin: 60 });
   // Eleven ordinary weeks of two, then one short run and the race.
   assert.equal(sessions.length, 11 * 2 + 2);
   assert.equal(sessions.filter((s) => s.kind === "easy" && s.week < 12).length, 0);
@@ -114,7 +114,7 @@ test("two days a week keeps the long run and the quality session", () => {
 });
 
 test("one day a week is the long run, with speed kept alive every third", () => {
-  const sessions = buildPlan({ goal: "half", weeks: 12, perWeek: 1, targetTimeS: 5400 });
+  const sessions = buildPlan({ goal: "half", weeks: 12, perWeek: 1, targetTimeS: 5400, longestMin: 60 });
   assert.equal(sessions.length, 11 + 1);
   assert.equal(sessions.at(-1)!.kind, "race");
   // Nothing to stay loose from at this volume, so race week is the race alone.
@@ -150,7 +150,7 @@ test("chosen days are honoured, and nonsense falls back to the suggestion", () =
 });
 
 test("a plan scheduled on its own days still ends on the race", () => {
-  const sessions = buildPlan({ goal: "half", weeks: 12, perWeek: 2, targetTimeS: 5400 });
+  const sessions = buildPlan({ goal: "half", weeks: 12, perWeek: 2, targetTimeS: 5400, longestMin: 60 });
   const scheduled = schedule(sessions, new Map(), MONDAY, RACE, [1, 3]);
   assert.equal(scheduled.at(-1)!.kind, "race");
   assert.equal(scheduled.at(-1)!.at, startOfDay(RACE));
@@ -160,7 +160,7 @@ test("a plan scheduled on its own days still ends on the race", () => {
 
 test("a plan at any volume still fits the calendar it was built for", () => {
   for (const perWeek of [1, 2, 3, 4] as const) {
-    const sessions = buildPlan({ goal: "half", weeks: 12, perWeek, targetTimeS: 5400 });
+    const sessions = buildPlan({ goal: "half", weeks: 12, perWeek, targetTimeS: 5400, longestMin: 60 });
     const scheduled = schedule(sessions, new Map(), MONDAY, RACE, SLOT_DAYS[perWeek]);
     assert.equal(scheduled.length, sessions.length, `${perWeek} a week lost sessions`);
     assert.equal(scheduled.at(-1)!.kind, "race");
@@ -168,7 +168,7 @@ test("a plan at any volume still fits the calendar it was built for", () => {
 });
 
 test("three days a week alternates the quality session instead of dropping one", () => {
-  const sessions = buildPlan({ goal: "half", weeks: 12, perWeek: 3, targetTimeS: 5400 });
+  const sessions = buildPlan({ goal: "half", weeks: 12, perWeek: 3, targetTimeS: 5400, longestMin: 60 });
   const quality = sessions.filter((s) => s.kind === "interval" || s.kind === "tempo");
   assert.ok(quality.some((s) => s.kind === "interval"));
   assert.ok(quality.some((s) => s.kind === "tempo"));
@@ -176,13 +176,80 @@ test("three days a week alternates the quality session instead of dropping one",
   assert.equal(quality.length, 11);
 });
 
+test("the first long run is the one the runner can already do", () => {
+  // The defect this replaced: a half marathon handed a ninety minute run in
+  // week one to somebody whose longest was thirty.
+  for (const start of [20, 30, 45, 75]) {
+    assert.equal(longMinutes("half", 1, 12, 2, start, 105), start);
+  }
+  const sessions = buildPlan({ goal: "half", weeks: 12, perWeek: 2, targetTimeS: 5400, longestMin: 30 });
+  const first = sessions.find((s) => s.kind === "long")!;
+  assert.equal((first.session.steps[0].seconds ?? 0) / 60, 30);
+});
+
+test("the long run never grows faster than a body adapts", () => {
+  const start = 30;
+  let previous = start;
+  for (let week = 2; week <= 10; week += 1) {
+    const minutes = longMinutes("half", week, 12, 2, start, 105);
+    // Allowing for rounding to five minutes on top of the eight percent.
+    assert.ok(minutes <= previous * 1.1 + 5, `week ${week}: ${previous} to ${minutes}`);
+    previous = Math.max(previous, minutes);
+  }
+});
+
+test("a long run is capped by the race, however much time there is", () => {
+  const huge = longMinutes("half", 10, 16, 2, 200, 105);
+  assert.ok(huge <= LONG_PEAK_MIN.half, `${huge}`);
+  assert.ok(longMinutes("marathon", 16, 20, 3, 200, 240) <= LONG_PEAK_MIN.marathon);
+});
+
+test("the race is never run before the race", () => {
+  // A ninety minute half: the longest training run must stay clear of it.
+  const ceiling = longCeilingMin("half", 90);
+  assert.ok(ceiling < 90, `${ceiling}`);
+  // Four hours for a marathon stops around three, which is where every
+  // serious plan stops.
+  assert.ok(longCeilingMin("marathon", 240) <= 180);
+
+  for (const [goal, raceMin] of [["half", 90], ["marathon", 240]] as const) {
+    const weeks = goal === "half" ? 16 : 20;
+    const taper = goalById(goal)!.taperWeeks;
+    // Even a runner who could already do far more is held below the race.
+    assert.ok(longestReachedMin(goal, weeks, taper, 300, raceMin) < raceMin);
+  }
+});
+
+test("a short race may be out-run in training, because the effort is nothing alike", () => {
+  // Fifty minutes over ten kilometres, and eighty five minutes easy is fine.
+  assert.equal(longCeilingMin("tenK", 50), LONG_PEAK_MIN.tenK);
+  assert.equal(longCeilingMin("fiveK", 25), LONG_PEAK_MIN.fiveK);
+});
+
+test("what the plan reaches depends on where it started", () => {
+  const fromLittle = longestReachedMin("half", 12, 2, 25, 105);
+  const fromMore = longestReachedMin("half", 12, 2, 60, 105);
+  assert.ok(fromLittle < fromMore);
+  assert.ok(fromLittle >= 25, "the plan went backwards");
+  assert.ok(fromMore <= longCeilingMin("half", 105));
+});
+
+test("a beginner is never handed an hour of easy running either", () => {
+  const sessions = buildPlan({ goal: "half", weeks: 12, perWeek: 3, targetTimeS: 5400, longestMin: 25 });
+  const easy = sessions.filter((s) => s.kind === "easy");
+  assert.ok(easy.length > 0);
+  for (const session of easy) {
+    assert.ok((session.session.steps[0].seconds ?? 0) / 60 <= 30, "an easy run out of proportion");
+  }
+});
+
 test("the long run grows and then gives way", () => {
-  const sessions = buildPlan({ goal: "half", weeks: 12, perWeek: 3, targetTimeS: 5400 });
+  const sessions = buildPlan({ goal: "half", weeks: 12, perWeek: 3, targetTimeS: 5400, longestMin: 60 });
   const minutes = sessions
     .filter((s) => s.kind === "long")
     .map((s) => (s.session.steps[0].seconds ?? 0) / 60);
   assert.ok(minutes.at(-1)! < Math.max(...minutes), "the last long run was the longest");
-  assert.ok(Math.max(...minutes) <= 105);
+  assert.ok(Math.max(...minutes) <= LONG_PEAK_MIN.half);
 });
 
 test("a plan is clamped to what its race can carry", () => {
@@ -193,7 +260,7 @@ test("a plan is clamped to what its race can carry", () => {
 });
 
 test("an impossible target yields no plan rather than a broken one", () => {
-  assert.deepEqual(buildPlan({ goal: "half", weeks: 12, perWeek: 3, targetTimeS: 0 }), []);
+  assert.deepEqual(buildPlan({ goal: "half", weeks: 12, perWeek: 3, targetTimeS: 0, longestMin: 60 }), []);
 });
 
 test("training days are the days the plan says, and never race day", () => {
@@ -206,7 +273,7 @@ test("training days are the days the plan says, and never race day", () => {
 });
 
 const plan = (): PlannedSession[] =>
-  buildPlan({ goal: "half", weeks: 12, perWeek: 3, targetTimeS: 5400 });
+  buildPlan({ goal: "half", weeks: 12, perWeek: 3, targetTimeS: 5400, longestMin: 60 });
 
 test("a plan started on time fits its calendar exactly", () => {
   const scheduled = schedule(plan(), new Map(), MONDAY, RACE, SLOT_DAYS[3]);

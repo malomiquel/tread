@@ -1,9 +1,9 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import * as DocumentPicker from "expo-document-picker";
 import { File, Paths } from "expo-file-system";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useRouter, useScrollToTop } from "expo-router";
 import * as Sharing from "expo-sharing";
-import { useCallback, useState } from "react";
+import { useCallback, useState, useRef } from "react";
 import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -20,6 +20,17 @@ import { useTabBarSpace } from "@/lib/layout";
 import { colors, font } from "@/lib/theme";
 
 export default function HistoryScreen() {
+  /**
+   * Tapping the section you are already in walks back to the top.
+   *
+   * The navigator emits a press even when the tab is already the one showing,
+   * and this hook is what listens for it. Without it that tap does nothing at
+   * all, which reads as the app having missed the finger rather than as
+   * having nothing to do.
+   */
+  const list = useRef<FlatList<Run>>(null);
+  useScrollToTop(list);
+
   const [runs, setRuns] = useState<Run[] | null>(null);
   const [seeding, setSeeding] = useState(false);
   const router = useRouter();
@@ -213,6 +224,7 @@ export default function HistoryScreen() {
       </View>
 
       <FlatList
+        ref={list}
         data={runs ?? []}
         keyExtractor={(run) => String(run.id)}
         contentContainerStyle={{ paddingBottom: tabBarSpace }}

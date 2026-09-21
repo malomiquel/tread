@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useState } from "react";
+import { useFocusEffect, useRouter, useScrollToTop } from "expo-router";
+import { useCallback, useState, useRef } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -77,6 +77,16 @@ function SessionRow({
 }
 
 export default function PlanScreen() {
+  /**
+   * Tapping the section you are already in walks back to the top.
+   *
+   * The navigator emits a press even when the tab is already the one showing,
+   * and this hook is what listens for it. Without it that tap does nothing at
+   * all, which reads as the app having missed the finger rather than as
+   * having nothing to do.
+   */
+  const page = useRef<ScrollView>(null);
+  useScrollToTop(page);
   const [plan, setPlan] = useState<StoredPlan | null | undefined>(undefined);
   const [done, setDone] = useState<Map<number, Done>>(new Map());
   /** Read on arrival, never during a render. A day is not a pure value. */
@@ -162,7 +172,7 @@ export default function PlanScreen() {
   return (
     <SafeAreaView style={styles.screen} edges={["top"]}>
       <Animated.View style={styles.fill} entering={FadeIn.duration(220)}>
-        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: tabBarSpace }]}>
+        <ScrollView ref={page} contentContainerStyle={[styles.content, { paddingBottom: tabBarSpace }]}>
           <Text style={styles.title}>{goal?.name ?? "Programme"}</Text>
           <Text style={styles.lede}>
             {dateName(plan.raceAt)} · {daysLeft > 0 ? `dans ${daysLeft} jours` : "c'est aujourd'hui"}

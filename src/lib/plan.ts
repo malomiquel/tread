@@ -158,6 +158,13 @@ export interface PlanInput {
   perWeek: PerWeek;
   /** The finish time the plan trains for. */
   targetTimeS: number;
+  /**
+   * How long the runner's longest run is today, in minutes.
+   *
+   * Without it a plan can only guess, and it guesses from the race, which is
+   * how a beginner ends up handed a ninety minute run in their first week.
+   */
+  longestMin: number;
 }
 
 /** Weeks a plan may run for, given its race. */
@@ -212,19 +219,120 @@ function durationName(minutes: number): string {
   return rest === 0 ? `${hours} h` : `${hours} h ${String(rest).padStart(2, "0")}`;
 }
 
-/** Longest run of the plan, in minutes, by race. */
-const LONG_PEAK_MIN: Record<Goal, number> = {
+/**
+ * Longest run the plan would build to, in minutes, by race.
+ *
+ * A ceiling, not an aim. What a runner actually reaches depends on where they
+ * started, and most people will never touch these figures — which is correct.
+ */
+export const LONG_PEAK_MIN: Record<Goal, number> = {
   fiveK: 70,
   tenK: 85,
   half: 105,
   marathon: 150,
 };
 
+/**
+ * How much the long run may grow week on week.
+ *
+ * Eight percent, which is the conservative end of the rule every coach
+ * repeats. The rule exists because connective tissue adapts far more slowly
+ * than the heart and lungs do: the reason you can run the extra half hour is
+ * exactly the reason you should not.
+ */
+const LONG_GROWTH = 1.08;
+
+/** The shortest long run worth calling one. */
+const LONG_FLOOR_MIN = 20;
+
+/**
+ * The most of the race a long run may ever cover.
+ *
+ * You do not run the race before the race. Covering the distance in training
+ * buys nothing that a shorter run has not already bought, and costs weeks of
+ * recovery taken out of the middle of the plan — a runner who has done their
+ * half in training turns up to it tired rather than sharp. Every serious
+ * marathon plan stops around three hours or thirty-two kilometres for exactly
+ * this reason.
+ *
+ * It only binds over the longer races. A ten kilometre runner doing eighty
+ * five minutes easy is well past their race duration and none the worse for
+ * it, because the effort is nothing alike.
+ */
+const LONG_RACE_SHARE: Record<Goal, number> = {
+  fiveK: Number.POSITIVE_INFINITY,
+  tenK: Number.POSITIVE_INFINITY,
+  half: 0.85,
+  marathon: 0.75,
+};
+
+/** The longest a long run may be, given the race and the time being chased. */
+export function longCeilingMin(goal: Goal, raceMin: number): number {
+  const share = LONG_RACE_SHARE[goal];
+  const fromRace = Number.isFinite(share) && raceMin > 0
+    ? raceMin * share
+    : Number.POSITIVE_INFINITY;
+  return Math.min(LONG_PEAK_MIN[goal], fromRace);
+}
+
+const round5 = (minutes: number): number => Math.max(5, Math.round(minutes / 5) * 5);
+
+/**
+ * How long the long run is in a given week, starting from what the runner
+ * can already do.
+ *
+ * This is the figure the whole plan turns on, and the one that was wrong.
+ * Sizing it from the race alone produced a ninety minute run in week one for
+ * somebody who had never run — a plan that is not merely useless but an
+ * injury written down in advance. It grows from where you are, by a
+ * percentage, and stops at whatever the weeks allow.
+ */
+export function longMinutes(
+  goal: Goal,
+  week: number,
+  weeks: number,
+  taperWeeks: number,
+  startMin: number,
+  raceMin: number,
+): number {
+  // Floored to a multiple of five before anything else, because every figure
+  // here is rounded to five at the end and rounding up through the ceiling
+  // would quietly undo it.
+  const peak = Math.floor(longCeilingMin(goal, raceMin) / 5) * 5;
+  const start = Math.min(Math.max(startMin, LONG_FLOOR_MIN), peak);
+  const working = Math.max(1, weeks - taperWeeks);
+  const at = (w: number): number => Math.min(peak, start * LONG_GROWTH ** (w - 1));
+
+  if (week > working) {
+    // The taper falls back from whatever was actually reached, not from the
+    // ceiling the plan never got to.
+    const left = weeks - week;
+    return round5(at(working) * (left === 0 ? 0.35 : 0.5 + 0.15 * left));
+  }
+  // Every fourth week steps back, the long run included — it is the run that
+  // most needs the week off.
+  return round5(week % 4 === 0 ? at(week) * 0.75 : at(week));
+}
+
+/** What the plan will have you running at its longest, for the warning. */
+export function longestReachedMin(
+  goal: Goal,
+  weeks: number,
+  taperWeeks: number,
+  startMin: number,
+  raceMin: number,
+): number {
+  return longMinutes(goal, Math.max(1, weeks - taperWeeks), weeks, taperWeeks, startMin, raceMin);
+}
+
 /** A session before it knows where in the programme it sits. */
 type Unplaced = Omit<PlannedSession, "order" | "week" | "phase">;
 
-function easySession(load: number, paces: Paces): Unplaced {
-  const minutes = Math.round((35 + 20 * load) / 5) * 5;
+function easySession(startMin: number, paces: Paces): Unplaced {
+  // Proportional to the long run rather than fixed, for the same reason: a
+  // fifty minute footing is a small thing to a regular runner and a whole
+  // afternoon to someone who has just started.
+  const minutes = Math.min(50, round5(Math.max(LONG_FLOOR_MIN, startMin) * 0.6));
   return {
     kind: "easy",
     targetSKm: paces.easy,
@@ -236,8 +344,7 @@ function easySession(load: number, paces: Paces): Unplaced {
   };
 }
 
-function longSession(goal: Goal, load: number, paces: Paces): Unplaced {
-  const minutes = Math.round((LONG_PEAK_MIN[goal] * (0.55 + 0.45 * load)) / 5) * 5;
+function longSession(minutes: number, paces: Paces): Unplaced {
   return {
     kind: "long",
     targetSKm: paces.long,
@@ -342,19 +449,20 @@ function weekBody(
   phase: Phase,
   load: number,
   paces: Paces,
-  goal: Goal,
+  longMin: number,
+  startMin: number,
 ): Unplaced[] {
   const quality = week % 2 === 1
     ? intervalSession(phase, load, paces)
     : tempoSession(phase, load, paces);
-  const long = longSession(goal, load, paces);
+  const long = longSession(longMin, paces);
 
   if (perWeek === 1) return [week % 3 === 0 ? quality : long];
   if (perWeek === 2) return [quality, long];
-  if (perWeek === 3) return [quality, easySession(load, paces), long];
+  if (perWeek === 3) return [quality, easySession(startMin, paces), long];
   return [
     intervalSession(phase, load, paces),
-    easySession(load, paces),
+    easySession(startMin, paces),
     tempoSession(phase, load, paces),
     long,
   ];
@@ -386,10 +494,19 @@ export function buildPlan(input: PlanInput): PlannedSession[] {
     // stay loose from, so it is the race alone.
     const body: Unplaced[] = week === weeks
       ? [
-          ...Array.from({ length: Math.min(2, input.perWeek - 1) }, () => easySession(load, paces)),
+          ...Array.from(
+            { length: Math.min(2, input.perWeek - 1) },
+            () => easySession(input.longestMin, paces),
+          ),
           raceSession(goal, paces),
         ]
-      : weekBody(input.perWeek, week, phase, load, paces, goal.id);
+      : weekBody(
+          input.perWeek, week, phase, load, paces,
+          longMinutes(
+            goal.id, week, weeks, goal.taperWeeks, input.longestMin, input.targetTimeS / 60,
+          ),
+          input.longestMin,
+        );
 
     for (const part of body) {
       order += 1;

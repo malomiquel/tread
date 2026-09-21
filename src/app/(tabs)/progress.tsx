@@ -1,5 +1,5 @@
-import { useFocusEffect } from "expo-router";
-import { useCallback, useState } from "react";
+import { useFocusEffect, useScrollToTop } from "expo-router";
+import { useCallback, useState, useRef } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -54,6 +54,16 @@ function RecordRow({ label, value, detail }: { label: string; value: string; det
 }
 
 export default function ProgressScreen() {
+  /**
+   * Tapping the section you are already in walks back to the top.
+   *
+   * The navigator emits a press even when the tab is already the one showing,
+   * and this hook is what listens for it. Without it that tap does nothing at
+   * all, which reads as the app having missed the finger rather than as
+   * having nothing to do.
+   */
+  const page = useRef<ScrollView>(null);
+  useScrollToTop(page);
   const [weeks, setWeeks] = useState<Week[] | null>(null);
   const [records, setRecords] = useState<PersonalRecords | null>(null);
   const tabBarSpace = useTabBarSpace();
@@ -84,7 +94,7 @@ export default function ProgressScreen() {
       {/* Same arrival as the history: the page settles in rather than
           replacing what was there between two frames. */}
       <Animated.View style={styles.fill} entering={FadeIn.duration(220)}>
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: tabBarSpace }]}>
+      <ScrollView ref={page} contentContainerStyle={[styles.content, { paddingBottom: tabBarSpace }]}>
         <Text style={styles.title}>Progression</Text>
 
         {records.totalRuns === 0 ? (

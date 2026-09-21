@@ -1,12 +1,14 @@
 import * as Haptics from "expo-haptics";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useScrollToTop } from "expo-router";
 import { personalRecords } from "@/lib/db";
 import { formatDuration, formatPace } from "@/lib/format";
 import { useTabBarSpace } from "@/lib/layout";
 import {
   buildPlan, clampWeeks, daysBetween, equivalentTimeS, GOALS, pacesFrom, projectedTimeS,
-  SLOT_DAYS, startOfDay, type Goal, type GoalSpec, type PerWeek,
+  longCeilingMin, longestReachedMin, SLOT_DAYS, startOfDay,
+  type Goal, type GoalSpec, type PerWeek,
 } from "@/lib/plan";
 import { colors, font } from "@/lib/theme";
 
@@ -26,6 +28,16 @@ const MONTHS = [
   "janvier", "février", "mars", "avril", "mai", "juin",
   "juillet", "août", "septembre", "octobre", "novembre", "décembre",
 ];
+
+const round5 = (minutes: number): number => Math.max(5, Math.round(minutes / 5) * 5);
+
+/** "1 h 15", "45 min" — displayed. */
+function durationName(minutes: number): string {
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest === 0 ? `${hours} h` : `${hours} h ${String(rest).padStart(2, "0")}`;
+}
 
 /** Where a weekday falls in a grid that starts on Monday. */
 function mondayIndex(day: number): number {
@@ -194,6 +206,8 @@ export interface PlanDraft {
   /** Weekdays to train on, as `Date.getDay` numbers. */
   days: number[];
   targetTimeS: number;
+  /** The runner's longest run today, in minutes. */
+  longestMin: number;
 }
 
 /**
@@ -218,11 +232,17 @@ export function PlanSetup({ onCreate }: { onCreate: (draft: PlanDraft) => void }
   const [month, setMonth] = useState(() => new Date());
   /** The run the time was first guessed from, for the line explaining it. */
   const [reference, setReference] = useState<{ distanceM: number; durationS: number } | null>(null);
+  /** Minutes of the longest run, once history has answered or the runner has. */
+  const [longestMin, setLongestMin] = useState<number | null>(null);
   /** Read after mount, never during a render: today is not a pure value. */
   const [today, setToday] = useState(0);
   // The bar floats over the screen rather than pushing it up, so the last
   // control has to leave room for it or it is simply unreachable.
   const tabBarSpace = useTabBarSpace();
+  // The setup is a long page too, and the plan tab has to answer a second tap
+  // here the same way it does once a programme exists.
+  const page = useRef<ScrollView>(null);
+  useScrollToTop(page);
 
   const goal = useMemo(() => GOALS.find((g) => g.id === goalId)!, [goalId]);
   const stepS = stepFor(goalId);
@@ -238,9 +258,15 @@ export function PlanSetup({ onCreate }: { onCreate: (draft: PlanDraft) => void }
     let live = true;
     personalRecords()
       .then((records) => {
+        if (!live) return;
         const best = records.bestAvgPace;
-        if (!live || !best || best.distanceM < 2000) return;
-        setReference({ distanceM: best.distanceM, durationS: best.durationS });
+        if (best && best.distanceM >= 2000) {
+          setReference({ distanceM: best.distanceM, durationS: best.durationS });
+        }
+        // Where the long run starts from. Only a suggestion, and left alone
+        // once the runner has touched it.
+        const longest = records.longest;
+        if (longest) setLongestMin((current) => current ?? round5(longest.durationS / 60));
       })
       .catch(() => undefined);
     return () => { live = false; };
@@ -266,16 +292,24 @@ export function PlanSetup({ onCreate }: { onCreate: (draft: PlanDraft) => void }
   // cleared, so that switching distance and back does not lose the choice.
   const chosen = raceAt !== null && raceAt >= earliest && raceAt <= latest ? raceAt : null;
 
+  // Thirty minutes for someone with no history: enough to be a run, short
+  // enough that nobody is handed an hour they have never done.
+  const longest = longestMin ?? 30;
   const weeks = chosen === null ? null : clampWeeks(goal, daysBetween(today, chosen) / 7);
+  const reached = weeks === null
+    ? null
+    : longestReachedMin(goalId, weeks, goal.taperWeeks, longest, targetTimeS / 60);
   const paces = pacesFrom(goal.distanceM, targetTimeS);
   const ready = chosen !== null && weeks !== null && paces !== null && days.length === perWeek;
-  const sessions = ready ? buildPlan({ goal: goalId, weeks, perWeek, targetTimeS }).length : 0;
+  const sessions = ready
+    ? buildPlan({ goal: goalId, weeks, perWeek, targetTimeS, longestMin: longest }).length
+    : 0;
 
   // One frame, before the clock has been read.
   if (today === 0) return <ScrollView contentContainerStyle={styles.content} />;
 
   return (
-    <ScrollView contentContainerStyle={[styles.content, { paddingBottom: tabBarSpace + 20 }]}>
+    <ScrollView ref={page} contentContainerStyle={[styles.content, { paddingBottom: tabBarSpace + 20 }]}>
       <Text style={styles.title}>Ton objectif</Text>
       <Text style={styles.lede}>
         {"Choisis une course et une date. Le programme se construit à l'envers, depuis le jour J."}
@@ -373,6 +407,38 @@ export function PlanSetup({ onCreate }: { onCreate: (draft: PlanDraft) => void }
         })}
       </View>
 
+      <Text style={styles.section}>Ta plus longue sortie</Text>
+      <Text style={styles.hint}>
+        {longestMin === null
+          ? "Aujourd'hui, pas ce que tu voudrais faire. Toute la progression part de là."
+          : "Reprise de ta plus longue course. Ajuste si elle ne te ressemble plus."}
+      </Text>
+      <View style={styles.stepper}>
+        <HoldButton
+          label="−"
+          accessibilityLabel="Sortie plus courte"
+          onStep={() => setLongestMin((current) => Math.max(10, (current ?? longest) - 5))}
+        />
+        <View style={styles.target}>
+          <Text style={styles.targetValue}>{durationName(longest)}</Text>
+          <Text style={styles.targetDetail}>
+            {reached === null
+              ? "aujourd'hui"
+              : `le programme t'amènera à ${durationName(reached)}`}
+          </Text>
+        </View>
+        <HoldButton
+          label="+"
+          accessibilityLabel="Sortie plus longue"
+          onStep={() => setLongestMin((current) => Math.min(240, (current ?? longest) + 5))}
+        />
+      </View>
+      {reached !== null && reached < longCeilingMin(goalId, targetTimeS / 60) * 0.7 ? (
+        <Text style={styles.warn}>
+          {`C'est en dessous de ce que ${goal.name} demande vraiment. Le programme t'y amènera aussi loin qu'il est raisonnable — plus vite serait une blessure écrite d'avance — mais vise une date plus lointaine si tu peux.`}
+        </Text>
+      ) : null}
+
       <Text style={styles.section}>Temps visé</Text>
       <Text style={styles.hint}>
         {reference
@@ -427,7 +493,10 @@ export function PlanSetup({ onCreate }: { onCreate: (draft: PlanDraft) => void }
       <Pressable
         onPress={() => {
           if (!ready) return;
-          onCreate({ goal: goalId, raceAt: chosen, weeks, perWeek, days, targetTimeS });
+          onCreate({
+            goal: goalId, raceAt: chosen, weeks, perWeek, days, targetTimeS,
+            longestMin: longest,
+          });
         }}
         disabled={!ready}
         accessibilityRole="button"
@@ -512,6 +581,10 @@ const styles = StyleSheet.create({
   },
   targetDetail: { color: colors.subtle, fontSize: 13.5, fontFamily: font.regular },
 
+  warn: {
+    color: colors.warning, fontFamily: font.regular, fontSize: 13.5,
+    lineHeight: 19, marginTop: 10,
+  },
   paces: {
     flexDirection: "row", flexWrap: "wrap", marginTop: 16,
     borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline, paddingTop: 12,
