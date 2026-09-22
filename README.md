@@ -2,46 +2,59 @@
 
 A running app with live GPS recording: distance, duration, current and average
 pace, elevation gain, your route on a map, per-kilometre splits, personal
-records, the weather you ran in, and local history. Expo SDK 57, React Native,
-TypeScript.
+records, the weather you ran in, and local history. A finished run draws
+itself back on its map and leaves as a picture, a GIF or a GPX; the whole app
+moves to a new phone in one file. Expo SDK 57, React Native, TypeScript.
 
-## Running it on your phone
+## Trying it in Expo Go
 
 ```bash
 npm install
 npx expo start
 ```
 
-Scan the QR code with Expo Go. Everything works: GPS, map, local database.
-One limitation only, the screen has to stay awake while you run, and the app
-takes care of that. GPS stops with the screen inside Expo Go; that is a system
-constraint, not an app one.
+Scan the QR code. The run itself works — GPS, map, database, programme,
+weather, GPX in and out, and the transfer by file. What is missing is
+everything that needs a native module Expo Go does not carry: background
+location, Apple Health, the Live Activity, reminders, the picture and GIF
+exports, and the direct transfer over wifi. Each of those says so where it
+would have been, rather than failing.
 
-## Getting locked-screen tracking
+That list is why Expo Go is for a quick look rather than for running with.
 
-Expo Go does not offer background location. That needs a development build, a
-version of the app bundling the native modules. With no Xcode on this machine,
-it gets made in the cloud:
+## Building the real thing
+
+Every native module is configured in `app.json`, so both of these need
+nothing but the toolchain.
 
 ```bash
-npm install -g eas-cli
-eas login
-eas build --profile development --platform ios
+npx expo run:ios --device      # Xcode, and an iPhone plugged in
+npx expo run:android           # Android Studio, or a device in debug mode
 ```
 
-Install the result on your phone, then `npx expo start` as before. The app
-detects background availability on its own and switches over. Everything is
-already configured in `app.json`: iOS background mode, permission prompts, and
-the Android foreground service.
+No EAS, no account, no queue — and nothing EAS would add that a Mac does not
+already do. What EAS cannot help with either is Apple's price: TestFlight and
+installing on somebody else's iPhone need the Developer Program whatever
+builds the app. Signed with a free Apple ID, a build stops opening after
+seven days and has to be installed again.
+
+Android has a third way, which is the one that produces something to keep:
+push a `v*` tag and the repository builds a signed APK and publishes it as a
+release. `workflow_dispatch` on the same workflow builds one without creating
+a release, for when you only want to try something.
 
 ## Checking it without a device
 
 ```bash
-npm test          # GPS maths, 14 tests
+npm test          # every pure library, no phone involved
 npm run typecheck
 npx expo lint
 npx expo-doctor
 ```
+
+The same three the CI runs on every push, called through the same scripts —
+a pipeline that checks something subtly different from what you run is a
+pipeline that eventually disagrees with you.
 
 ## Architecture
 
@@ -191,9 +204,10 @@ replays a single GPS point.
 
 ## Known limitations
 
-- **Expo Go**: screen-on tracking only, see above.
+- **Expo Go**: the run works, half the app does not — see the top of this
+  file for which half and why.
 - **No sync**: runs stay on the phone. Moving to another one is a direct
-  transfer, see below; the database layer is isolated in one file, ready for
+  transfer, see above; the database layer is isolated in one file, ready for
   Supabase if that ever changes.
 - **No heart rate of its own**: a phone cannot measure one. What a watch
   wrote into Apple Health is read back and shown with the run; without a
