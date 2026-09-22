@@ -1,3 +1,4 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { File, Paths } from "expo-file-system";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -5,7 +6,6 @@ import {
   useColorScheme, View,
 } from "react-native";
 import * as Sharing from "expo-sharing";
-import { Button } from "@/components/Button";
 import { CardMapSource, type CardMapHandle } from "@/components/CardMapSource";
 import { BOTTOM_VEIL, cardRegion, CARD_HEIGHT, CARD_WIDTH, ShareCard } from "@/components/ShareCard";
 import { TrackOverlay } from "@/components/TrackOverlay";
@@ -52,6 +52,19 @@ const PREVIEW_MS = FRAMES * FRAME_MS;
 
 /** What the sheet is set to produce. */
 type Kind = "image" | "gif";
+
+/**
+ * The dark behind the card, darker than the app's own scrim and fixed in
+ * both appearances.
+ *
+ * Every other dialog in the app veils a page somebody is coming back to, so
+ * it lets that page show through. This one is not a dialog over a page: it is
+ * a picture being looked at, and what surrounds a picture should get out of
+ * its way. The card carries its own colours whatever the phone is set to —
+ * it has to, since it outlives the moment it was made — and the room it is
+ * held up in follows the same rule.
+ */
+const VIEWING_DARK = "rgba(0, 0, 0, 0.82)";
 
 /**
  * Waits for what was just set to have been drawn.
@@ -382,44 +395,61 @@ function Sheet({ run, points, preparedMapUri, onClose }: Omit<Props, "visible">)
           />
         </View>
 
-        {/* The choice sits above the buttons rather than behind a menu: it
-            changes what the card in front of you is, so it belongs next to
-            it. */}
-        <View style={styles.kinds}>
-          {([["image", "Image"], ["gif", "GIF animé"]] as const).map(([which, label]) => (
-            <Pressable
-              key={which}
-              onPress={() => setKind(which)}
-              disabled={sharing}
-              accessibilityRole="button"
-              accessibilityState={{ selected: kind === which }}
-              style={({ pressed }) => [
-                styles.kind,
-                kind === which && styles.kindOn,
-                pressed && styles.kindPressed,
-              ]}
-            >
-              <Text style={[styles.kindLabel, kind === which && styles.kindLabelOn]}>{label}</Text>
-            </Pressable>
-          ))}
-        </View>
+        {/* One row under the picture, and nothing else.
+            What was here before was two buttons the width of the card — a
+            cancel that repeated what tapping the backdrop already does, and
+            a share sized as though it were the page's subject. It is not:
+            the picture is. So the choice of what to send sits on the left,
+            the sending on the right, and both are as small as a thumb allows.
 
-        <View style={styles.actions}>
-          <Button label="Fermer" variant="secondary" onPress={onClose} disabled={sharing} />
+            The row is also where the next option goes — a card without the
+            map, a square crop — which is the other reason it is a row rather
+            than a pair of buttons. */}
+        <View style={styles.bar}>
+          <View style={styles.kinds}>
+            {([["image", "Image"], ["gif", "GIF"]] as const).map(([which, label]) => (
+              <Pressable
+                key={which}
+                onPress={() => setKind(which)}
+                disabled={sharing}
+                accessibilityRole="button"
+                accessibilityState={{ selected: kind === which }}
+                hitSlop={6}
+                style={({ pressed }) => [
+                  styles.kind,
+                  kind === which && styles.kindOn,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text style={[styles.kindLabel, kind === which && styles.kindLabelOn]}>
+                  {label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
           {ready ? (
-            <Button
-              label={
-                made !== null
-                  ? `Image ${made} / ${FRAMES}`
-                  : sharing ? "Préparation…" : "Partager"
-              }
+            <Pressable
               onPress={() => void share()}
               disabled={sharing}
-            />
+              accessibilityRole="button"
+              accessibilityLabel="Partager"
+              hitSlop={8}
+              style={({ pressed }) => [styles.send, pressed && styles.pressed, sharing && styles.sending]}
+            >
+              {/* The count only while there is one. A label that changes
+                  width mid-press would jump the row about. */}
+              {made !== null ? (
+                <Text style={styles.sendLabel}>{`${made} / ${FRAMES}`}</Text>
+              ) : sharing ? (
+                <ActivityIndicator size="small" color={colors.accentText} />
+              ) : (
+                <Ionicons name="arrow-up" size={19} color={colors.accentText} />
+              )}
+            </Pressable>
           ) : (
-            <View style={styles.waiting}>
-              <ActivityIndicator size="small" color={colors.accent} />
-              <Text style={styles.waitingText}>Rendu de la carte…</Text>
+            <View style={styles.send}>
+              <ActivityIndicator size="small" color={colors.accentText} />
             </View>
           )}
         </View>
@@ -436,26 +466,37 @@ function Sheet({ run, points, preparedMapUri, onClose }: Omit<Props, "visible">)
 
 const styles = StyleSheet.create({
   backdrop: {
-    flex: 1, backgroundColor: colors.scrim,
+    flex: 1, backgroundColor: VIEWING_DARK,
     alignItems: "center", justifyContent: "center", padding: 16,
   },
-  // A card this tall leaves little room beside it, so the margins stay narrow
-  // and the waiting line stands in for the button rather than below it.
+  // A card this tall leaves little room around it, so the margins stay narrow
+  // and everything under it is one row.
   stack: { alignItems: "center", gap: 14 },
   // The shadow sits on a wrapper rather than on the card: the card is what
   // gets captured, and a shadow would be baked into the shared image.
   cardShadow: { width: CARD_WIDTH, height: CARD_HEIGHT, ...floatingShadow },
-  kinds: {
-    flexDirection: "row", gap: 6, padding: 3, borderRadius: 20,
-    backgroundColor: colors.background,
+  // Sits under the card, edge to edge with it, so the picture keeps the whole
+  // of the attention and the controls read as its caption.
+  bar: {
+    width: CARD_WIDTH, flexDirection: "row", alignItems: "center",
+    justifyContent: "space-between", gap: 12,
   },
-  kind: { paddingHorizontal: 16, paddingVertical: 7, borderRadius: 17 },
+  kinds: { flexDirection: "row", gap: 4, padding: 3, borderRadius: 16, backgroundColor: colors.background },
+  kind: { paddingHorizontal: 13, paddingVertical: 6, borderRadius: 13 },
   kindOn: { backgroundColor: colors.accentSoft },
-  kindPressed: { opacity: 0.6 },
-  kindLabel: { color: colors.muted, fontSize: 14.5, fontFamily: font.medium },
+  kindLabel: { color: colors.muted, fontSize: 14, fontFamily: font.medium },
   kindLabelOn: { color: colors.accent, fontFamily: font.semibold },
+  pressed: { opacity: 0.6 },
 
-  actions: { flexDirection: "row", alignItems: "center", gap: 10 },
-  waiting: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14 },
-  waitingText: { color: colors.background, fontSize: 15, fontFamily: font.medium },
+  // Round, and the only thing on the row wearing the accent: there is one
+  // action here, and it should be findable without being read.
+  send: {
+    minWidth: 42, height: 42, borderRadius: 21, paddingHorizontal: 12,
+    alignItems: "center", justifyContent: "center", backgroundColor: colors.accent,
+  },
+  sending: { opacity: 0.75 },
+  sendLabel: {
+    color: colors.accentText, fontSize: 14.5, fontFamily: font.semibold,
+    fontVariant: ["tabular-nums"],
+  },
 });
