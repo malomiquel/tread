@@ -53,7 +53,12 @@ src/lib/location.ts   initial fix and one-off recentring
 src/lib/format.ts     duration, pace, distance for display
 src/lib/weather.ts    conditions now, at a run's hour, days ahead     pure, tested
 src/lib/heart.ts      heart rate: weighted average, peak, zones       pure, tested
+src/lib/replay.ts     drawing a finished run back at its own pace     pure, tested
+src/lib/gif.ts        frames in, one animated GIF out                 pure, tested
+src/lib/raster.ts     drawing a line into pixels, by hand            pure, tested
 src/lib/reminders.ts  when a planned session is announced             pure, tested
+src/lib/transfer.ts   the whole app as one file, for a new phone      pure, tested
+src/lib/handover.ts   the same, served over the wifi to a QR scan     pure, tested
 src/lib/stats.ts      weeks, records, the weekly goal                 pure, tested
 src/app/(tabs)/       Run, Progress, History
 src/app/run/[id]      one run in detail
@@ -109,6 +114,41 @@ forecast goes further and never prompts at all — it uses the fix the system
 already has, because a permission dialog raised by a page of dates is one
 nobody expects and most refuse.
 
+**The shared animation is photographed once, then drawn into.** A GIF over a
+video because it plays by itself, inline, wherever somebody pastes it — no
+player, nothing to tap. The first version captured the screen and decoded a
+PNG for every one of its forty frames: the two most expensive things a phone
+can be asked for, done forty times, which took most of a minute and showed
+every step of it. Now the card is photographed once, without its track, and
+each frame is those same pixels with a little more route drawn into them by
+hand — the line only ever grows, so a frame costs the few hundred dabs of
+colour it adds and a palette pass, nothing else.
+
+Drawing the line ourselves means it and the map must agree about where a
+coordinate falls, so the region handed to the map is fitted to the card's
+shape first: a map asked for a picture of a differently shaped region widens
+one axis in silence, and the line would land somewhere else. The line is dimmed
+across the band where the card's gradient darkens the picture, since that
+gradient is already in the photograph and a route reaching into the text would
+otherwise cross it at full strength. The palette is quantised once, from the
+finished frame, the only one holding every colour the animation will ever show;
+per-frame palettes cost the same work thirty times and make the map flicker
+between shades as the line grows.
+
+**A replay lasts the same twelve seconds whatever the run.** Drawing a
+finished track back at the speed it was run is only worth doing if the speed
+survives the compression, and a duration that scaled with the run would be
+exactly what flattens it: every replay would advance at the same apparent rate
+and no hill would ever show. At a fixed total, one second of animation is the
+same number of seconds of running whatever the outing, so the only thing that
+slows the line down is the runner having slowed down. Pauses are skipped — and
+so is any gap over twenty seconds, which is a lost signal rather than a rest —
+because a replay that sits still for eleven minutes at a level crossing is one
+nobody watches to the end. The track is thinned to six hundred points first,
+keeping both ends and every segment boundary: a polyline rebuilt from five
+thousand fixes twenty-five times a second stutters, and a lost boundary would
+draw a line straight across a pause.
+
 **The heart rate is read, never measured.** A watch is already recording one
 every few seconds into Health, so the app asks for it afterwards instead of
 holding a sensor open during the run. It is asked for again on every visit to
@@ -116,6 +156,27 @@ a run that has none, because the three things it depends on each arrive at
 their own pace: the watch syncs when it likes, permission can be granted weeks
 later, and an imported run was never asked at all. Zones are cut against
 220 − age, which is a rule of thumb — the screen says as much under them.
+
+**A new phone gets the whole app, two ways.** Everything travels as one
+versioned, compressed file: runs, tracks, programme, exertions, weather, heart
+and settings. It goes over the local network — the sending phone serves it and
+shows a QR code, the receiving one scans and downloads, and neither leaves the
+app — or through the share sheet, by AirDrop, Quick Share, Bluetooth, a message
+or a cable. The second way exists because the first cannot be relied on: cafés
+and hotels routinely stop their clients talking to one another, and an iPhone
+and an Android are rarely on the same Wi-Fi at all.
+
+The server is up for two minutes at most, stops the moment its screen is left,
+and serves a folder holding one file whose name is a hundred-and-thirteen-bit
+token. The scanner refuses anything but a private address and that exact file
+shape, because a QR code is a url a stranger could have printed. Android needs
+cleartext http enabled for it, since the phone on the other side has no
+certificate to offer; that is the `expo-build-properties` line in `app.json`.
+
+Both ways share the same rules: the reader refuses a file from a newer version
+rather than guessing at it, the screen says what the file holds before anything
+is written, and the import is idempotent — a run is recognised by the moment it
+started, so the same transfer taken twice adds nothing.
 
 **A reminder is rewritten, never reconciled.** A plan reshapes itself
 constantly: a missed week slides every date, a hard session lightens the next
@@ -131,8 +192,9 @@ replays a single GPS point.
 ## Known limitations
 
 - **Expo Go**: screen-on tracking only, see above.
-- **No sync**: runs stay on the phone. The database layer is isolated in one
-  file, ready for Supabase.
+- **No sync**: runs stay on the phone. Moving to another one is a direct
+  transfer, see below; the database layer is isolated in one file, ready for
+  Supabase if that ever changes.
 - **No heart rate of its own**: a phone cannot measure one. What a watch
   wrote into Apple Health is read back and shown with the run; without a
   watch there is nothing to read.

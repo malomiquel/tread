@@ -4,6 +4,7 @@ import { forwardRef } from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
 import type { Run } from "@/lib/db";
 import { stepsFrom } from "@/lib/cadence";
+import { fitRegion, regionAround, type MapRegion, type TrackPoint } from "@/lib/geo";
 import {
   formatCount, formatDate, formatDistance, formatDuration, formatElevation, formatPace,
 } from "@/lib/format";
@@ -36,6 +37,19 @@ export const TRACK_MARGIN = 1.7;
 export const TRACK_LIFT = 0.14;
 
 /**
+ * The camera the card is drawn with, in one place.
+ *
+ * Shared because two things now have to agree about it: the map that is
+ * photographed, and the animated line drawn over that photograph. Fitted to
+ * the card's shape here rather than left to the map, which would widen it
+ * silently and leave the line landing somewhere else.
+ */
+export function cardRegion(points: TrackPoint[]): MapRegion | null {
+  const region = regionAround(points, TRACK_MARGIN, TRACK_LIFT);
+  return region === null ? null : fitRegion(region, CARD_WIDTH, CARD_HEIGHT);
+}
+
+/**
  * The card carries its own colours instead of the app's.
  *
  * Everything here sits on a photograph of a map, so the text is white whatever
@@ -56,6 +70,15 @@ interface Props {
   mapUri: string | null;
   /** "Chartres, France", or null when it could not be looked up. */
   place?: string | null;
+  /**
+   * Drawn over the map and under everything else.
+   *
+   * The animation puts the run's own line here, on a photograph of a map that
+   * has none. It sits under the gradients on purpose: they are what keeps the
+   * writing legible, and a line laid over them would be the one thing on the
+   * card fighting the words.
+   */
+  overlay?: React.ReactNode;
 }
 
 /** One figure over its label, as the rest of the app sets a metric. */
@@ -84,7 +107,10 @@ function Stat({ value, unit, label }: { value: string; unit?: string; label: str
  * the run was, and it is set large; the rest supports it. Giving every number
  * equal weight is what makes a share card look like a receipt.
  */
-export const ShareCard = forwardRef<View, Props>(function ShareCard({ run, mapUri, place = null }, ref) {
+export const ShareCard = forwardRef<View, Props>(function ShareCard(
+  { run, mapUri, place = null, overlay = null },
+  ref,
+) {
   const elevation = run.elevationGainM;
   // Read back out of the cadence, which is what the pedometer's count was
   // turned into before being stored. Every run already recorded therefore has
@@ -102,6 +128,7 @@ export const ShareCard = forwardRef<View, Props>(function ShareCard({ run, mapUr
       {mapUri ? (
         <Image source={{ uri: mapUri }} style={styles.mapImage} resizeMode="cover" />
       ) : null}
+      {overlay}
 
       <LinearGradient
         colors={["rgba(0, 0, 0, 0.55)", "rgba(0, 0, 0, 0)"]}
@@ -183,6 +210,16 @@ export const ShareCard = forwardRef<View, Props>(function ShareCard({ run, mapUr
 
 const GUTTER = 20;
 
+/**
+ * How far up the card the darkening at the bottom reaches.
+ *
+ * Shared, because the animation has to know it too: it draws its line into a
+ * photograph where this gradient is already baked in, and dims the line
+ * across the same band so that both versions of the card look like the same
+ * card.
+ */
+export const BOTTOM_VEIL = 272;
+
 /** Height of one line of the caption, and so the distance the block is lifted. */
 const DATE_LINE = 17;
 
@@ -199,7 +236,7 @@ const styles = StyleSheet.create({
   },
 
   topVeil: { position: "absolute", top: 0, left: 0, right: 0, height: 104 },
-  bottomVeil: { position: "absolute", left: 0, right: 0, bottom: 0, height: 272 },
+  bottomVeil: { position: "absolute", left: 0, right: 0, bottom: 0, height: BOTTOM_VEIL },
 
   brand: {
     position: "absolute", top: 16, left: GUTTER,

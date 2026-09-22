@@ -11,7 +11,7 @@ import { eased, sessionMinutes } from "./workout";
  * Rebuild the pending reminders from the programme as it stands.
  *
  * This is deliberately not a hook and belongs to no screen. The setting that
- * turns reminders on lives in the profile and the sessions they are about
+ * turns reminders on lives in the settings and the sessions they are about
  * live in the plan, and a runner who flicks the switch in one place and never
  * opens the other would otherwise have asked to be reminded and heard
  * nothing. Both call this instead.
@@ -20,11 +20,20 @@ import { eased, sessionMinutes } from "./workout";
  * off, the weather changes its mind. Silent throughout — a reminder that
  * could not be scheduled is one that does not arrive, and there is nothing
  * anybody could do about it from here.
+ *
+ * `force` is for the one caller that has just changed the setting. Without
+ * it, a launch with reminders off does nothing at all rather than cancelling
+ * an empty list: there is nothing pending by construction — reminders exist
+ * only while the setting is on, and switching it off cancels them on the way
+ * out — and asking anyway would load the notifications module on every start
+ * of the app, for a feature nobody has turned on. That module announces its
+ * own limitations to the console the moment it is loaded, which is a warning
+ * at every launch about something that is not happening.
  */
-export async function refreshReminders(): Promise<void> {
+export async function refreshReminders({ force = false } = {}): Promise<void> {
   const when = getSettings().reminder;
   if (when === "off") {
-    await syncReminders([]);
+    if (force) await syncReminders([]);
     return;
   }
 

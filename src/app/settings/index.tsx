@@ -32,6 +32,11 @@ export default function SettingsScreen() {
           onPress={() => router.push("/settings/notifications")}
         />
         <SettingRow
+          label="Transfert"
+          detail="Emporter tout sur un autre téléphone"
+          onPress={() => router.push("/settings/transfer")}
+        />
+        <SettingRow
           label="Plan"
           detail="Ce que tu vises, semaine après semaine"
           value={

@@ -139,6 +139,12 @@ export default function RootLayout() {
           options={{ title: "Notifications", headerBackTitle: "Réglages" }}
         />
         <Stack.Screen name="settings/plan" options={{ title: "Plan", headerBackTitle: "Réglages" }} />
+        <Stack.Screen
+          name="settings/transfer"
+          options={{ title: "Transfert", headerBackTitle: "Réglages" }}
+        />
+        <Stack.Screen name="settings/send" options={{ title: "Envoyer", headerBackTitle: "Transfert" }} />
+        <Stack.Screen name="settings/receive" options={{ title: "Recevoir", headerBackTitle: "Transfert" }} />
       </Stack>
     </GestureHandlerRootView>
   );

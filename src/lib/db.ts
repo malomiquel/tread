@@ -6,6 +6,7 @@ import {
   normaliseDays, type Done, type Exertion, type Goal, type PerWeek, type PlannedSession,
 } from "./plan";
 import { parseHeart, type Heart } from "./heart";
+import { TRANSFER_FORMAT, TRANSFER_VERSION, type Transfer, type TransferRun } from "./transfer";
 import { parseWeather, type Weather } from "./weather";
 import type { RanBlock } from "./workout";
 
@@ -371,6 +372,144 @@ export async function finishRun(id: number, totals: RunTotals): Promise<void> {
     totals.cadenceSpm ?? null,
     id,
   );
+}
+
+/**
+ * Everything this phone holds, ready to travel to another one.
+ *
+ * Read run by run rather than as one join: the points of a long history run
+ * into the hundreds of thousands, and a single query returning them all in
+ * one array is the one shape of this that a phone cannot hold in memory.
+ */
+export async function everythingForTransfer(): Promise<Transfer> {
+  const db = getDb();
+  const runs = await listRuns();
+  const carried: TransferRun[] = [];
+
+  for (const run of runs) {
+    const rows = await db.getAllAsync<{
+      ts: number; lat: number; lng: number; alt: number | null;
+      accuracy_m: number | null; speed: number | null; segment: number;
+    }>("SELECT ts, lat, lng, alt, accuracy_m, speed, segment FROM points WHERE run_id = ? ORDER BY ts", run.id);
+
+    carried.push({
+      startedAt: run.startedAt,
+      endedAt: run.endedAt,
+      distanceM: run.distanceM,
+      durationS: run.durationS,
+      avgPaceSKm: run.avgPaceSKm,
+      name: run.name,
+      elevationGainM: run.elevationGainM,
+      fastestKmS: run.fastestKmS,
+      cadenceSpm: run.cadenceSpm,
+      exertion: run.exertion,
+      sessionId: run.sessionId,
+      blocks: run.blocks,
+      weather: run.weather,
+      heart: run.heart,
+      points: rows.map((point) => ({
+        ts: point.ts, lat: point.lat, lng: point.lng, alt: point.alt,
+        accuracy: point.accuracy_m, speed: point.speed, segment: point.segment,
+      })),
+    });
+  }
+
+  const plan = await activePlan();
+  const done = plan ? await planDone(plan.id) : new Map<number, Done>();
+
+  return {
+    format: TRANSFER_FORMAT,
+    version: TRANSFER_VERSION,
+    exportedAt: Date.now(),
+    runs: carried,
+    plan: plan === null ? null : {
+      goal: plan.goal,
+      raceAt: plan.raceAt,
+      weeks: plan.weeks,
+      perWeek: plan.perWeek,
+      targetTimeS: plan.targetTimeS,
+      createdAt: plan.createdAt,
+      days: plan.days,
+      sessions: plan.sessions,
+      done: [...done.entries()].map(([order, tick]) => ({ order, runId: tick.runId, at: tick.at })),
+    },
+    settings: await readSettings(),
+  };
+}
+
+/** What an import actually did, so the screen can say it plainly. */
+export interface Restored {
+  added: number;
+  known: number;
+  plan: boolean;
+  settings: boolean;
+}
+
+/**
+ * Take a transfer in, without ever taking anything away.
+ *
+ * Idempotent by design: a run is recognised by the moment it started, which
+ * is the same rule the GPX import has always used, so the same file read
+ * twice adds nothing the second time. Nothing already here is overwritten or
+ * deleted — the worst an unwanted import can do is add runs, and those can be
+ * deleted one by one.
+ *
+ * The programme is the one exception to "add only", and it declines rather
+ * than replaces: a phone already following a plan keeps it, because a
+ * programme is a commitment in progress and the app has no way to merge two.
+ */
+export async function restoreTransfer(transfer: Transfer): Promise<Restored> {
+  const db = getDb();
+  let added = 0;
+  let known = 0;
+
+  for (const run of transfer.runs) {
+    const existing = await db.getFirstAsync<{ id: number }>(
+      "SELECT id FROM runs WHERE started_at = ?", run.startedAt,
+    );
+    if (existing) {
+      known += 1;
+      continue;
+    }
+
+    const id = await createRun(run.startedAt);
+    await insertPoints(id, run.points);
+    await db.runAsync(
+      "UPDATE runs SET ended_at = ?, distance_m = ?, duration_s = ?, avg_pace_s_km = ?, name = ?,"
+      + " elevation_gain_m = ?, fastest_km_s = ?, cadence_spm = ?, exertion = ?, session_id = ?,"
+      + " session_blocks = ?, weather = ?, heart = ? WHERE id = ?",
+      run.endedAt, run.distanceM, run.durationS, run.avgPaceSKm, run.name,
+      run.elevationGainM, run.fastestKmS, run.cadenceSpm, run.exertion, run.sessionId,
+      run.blocks?.length ? JSON.stringify(run.blocks) : null,
+      run.weather ? JSON.stringify(run.weather) : null,
+      run.heart ? JSON.stringify(run.heart) : null,
+      id,
+    );
+    added += 1;
+  }
+
+  const plan = transfer.plan;
+  const hasPlan = (await activePlan()) !== null;
+  if (plan && !hasPlan) {
+    const planId = await createPlan({
+      goal: plan.goal, raceAt: plan.raceAt, weeks: plan.weeks, perWeek: plan.perWeek,
+      targetTimeS: plan.targetTimeS, days: plan.days, sessions: plan.sessions,
+    });
+    for (const tick of plan.done) {
+      // The run ids in the file name rows on the old phone. The tick itself
+      // is what matters — a session done stays done — so it is kept without
+      // the link rather than pointed at a run that is not the same one here.
+      await db.runAsync(
+        "INSERT OR IGNORE INTO plan_done (plan_id, session_order, run_id, at) VALUES (?, ?, ?, ?)",
+        planId, tick.order, null, tick.at,
+      );
+    }
+  }
+
+  const settings = Object.entries(transfer.settings);
+  for (const [key, value] of settings) await writeSetting(key, value);
+
+  return { added, known, plan: Boolean(plan) && !hasPlan, settings: settings.length > 0 };
 }
 
 /**

@@ -2,7 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   bounds, currentPace, distanceM, elevationGainM, fastestKmS, isAcceptable,
-  paceSecPerKm, regionAround, splits, totalDistanceM, type TrackPoint, elevationProfile, ABSURD_SPEED_MS} from "./geo.ts";
+  paceSecPerKm, regionAround, splits, totalDistanceM, type TrackPoint, elevationProfile,
+  ABSURD_SPEED_MS, fitRegion, projectPoint } from "./geo.ts";
 
 const at = (ts: number, lat: number, lng: number, extra: Partial<TrackPoint> = {}): TrackPoint => ({
   ts, lat, lng, alt: null, accuracy: 5, speed: null, segment: 0, ...extra,
@@ -266,4 +267,54 @@ test("a runner's pace needs no vouching at all", () => {
   const previous = speedFix(1000, 45);
   // Four metres a second, and a chip reporting nothing.
   assert.equal(isAcceptable(previous, speedFix(2000, 45 + 4 * DEG_PER_M, null)), true);
+});
+
+test("a region takes the shape of the picture by growing, never shrinking", () => {
+  // A run up a long street: narrow on the ground, so the width has to grow
+  // to fill the card.
+  const narrow = { latitude: 48.45, longitude: 1.49, latitudeDelta: 0.01, longitudeDelta: 0.005 };
+  const widened = fitRegion(narrow, 288, 512);
+  assert.equal(widened.latitudeDelta, narrow.latitudeDelta);
+  assert.ok(widened.longitudeDelta > narrow.longitudeDelta);
+
+  // A run along a canal: wide and flat, so the height grows instead.
+  const flat = { latitude: 48.45, longitude: 1.49, latitudeDelta: 0.004, longitudeDelta: 0.02 };
+  const heightened = fitRegion(flat, 288, 512);
+  assert.equal(heightened.longitudeDelta, flat.longitudeDelta);
+  assert.ok(heightened.latitudeDelta > flat.latitudeDelta);
+
+  // Whatever the shape, the run that fitted before still fits.
+  for (const region of [narrow, flat]) {
+    const fitted = fitRegion(region, 288, 512);
+    assert.ok(fitted.latitudeDelta >= region.latitudeDelta);
+    assert.ok(fitted.longitudeDelta >= region.longitudeDelta);
+  }
+});
+
+test("the fitted region has the picture's shape on the ground", () => {
+  const region = fitRegion(
+    { latitude: 48.45, longitude: 1.49, latitudeDelta: 0.004, longitudeDelta: 0.02 },
+    288, 512,
+  );
+  const squash = Math.cos((region.latitude * Math.PI) / 180);
+  const shape = (region.longitudeDelta * squash) / region.latitudeDelta;
+  assert.ok(Math.abs(shape - 288 / 512) < 1e-9, `shape ${shape}`);
+});
+
+test("the centre of a region lands in the centre of its picture", () => {
+  const region = { latitude: 48.45, longitude: 1.49, latitudeDelta: 0.01, longitudeDelta: 0.01 };
+  const middle = projectPoint(region, { lat: 48.45, lng: 1.49 }, 288, 512);
+  assert.ok(Math.abs(middle.x - 144) < 1e-9);
+  assert.ok(Math.abs(middle.y - 256) < 1e-9);
+});
+
+test("north is up and east is right", () => {
+  const region = { latitude: 48.45, longitude: 1.49, latitudeDelta: 0.01, longitudeDelta: 0.01 };
+  const corner = projectPoint(region, { lat: 48.455, lng: 1.485 }, 288, 512);
+  assert.ok(Math.abs(corner.x) < 1e-9, `x ${corner.x}`);
+  assert.ok(Math.abs(corner.y) < 1e-9, `y ${corner.y}`);
+
+  const opposite = projectPoint(region, { lat: 48.445, lng: 1.495 }, 288, 512);
+  assert.ok(Math.abs(opposite.x - 288) < 1e-9);
+  assert.ok(Math.abs(opposite.y - 512) < 1e-9);
 });

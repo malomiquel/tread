@@ -470,6 +470,7 @@ export default function RunDetailScreen() {
       <RunMap
         points={points}
         fitAll
+        replayable
         onToggleFullscreen={() => setMapExpanded(true)}
         style={styles.map}
       />
@@ -484,6 +485,7 @@ export default function RunDetailScreen() {
             points={points}
             fitAll
             fullscreen
+            replayable
             onToggleFullscreen={() => setMapExpanded(false)}
             style={styles.fullMapInner}
           />

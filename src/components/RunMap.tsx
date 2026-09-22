@@ -1,16 +1,18 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useFocusEffect } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator, Pressable, StyleSheet, useColorScheme, View,
+  ActivityIndicator, Pressable, StyleSheet, Text, useColorScheme, View,
   type StyleProp, type ViewStyle,
 } from "react-native";
-import MapView, { Polyline } from "react-native-maps";
+import MapView, { Marker, Polyline } from "react-native-maps";
 import Animated, { useAnimatedStyle, type SharedValue } from "react-native-reanimated";
+import { formatDistance, formatDuration } from "@/lib/format";
 import { bounds, regionAround, segments, type TrackPoint } from "@/lib/geo";
 import { CONTROL_SIZE, CONTROLS_TOP } from "@/lib/layout";
 import { getCurrentCoords, type Coords } from "@/lib/location";
-import { colors, floatingShadow, literalColors } from "@/lib/theme";
+import { buildReplay, drawnSoFar, headAt, REPLAY_MS } from "@/lib/replay";
+import { colors, floatingShadow, font, literalColors } from "@/lib/theme";
 
 interface Props {
   points: TrackPoint[];
@@ -29,6 +31,13 @@ interface Props {
   fitAll?: boolean;
   /** Where to centre until a first point has been recorded. */
   initialCenter?: Coords | null;
+  /**
+   * Offers to draw the track from the start, at the speed it was run.
+   *
+   * Only on a finished run: mid-run the line is already being drawn, one fix
+   * at a time, by the run itself.
+   */
+  replayable?: boolean;
   /** Supplying this shows the expand button and reports every tap on it. */
   onToggleFullscreen?: () => void;
   /** Flips the expand button into a collapse button. */
@@ -73,8 +82,8 @@ const RUNNER_ZOOM = 0.006;
  */
 export function RunMap({
   points, follow = false, fitAll = false, initialCenter = null, locateOnFocus = false,
-  onToggleFullscreen, fullscreen = false, controlsBottom = 12, controlsAtTop = false,
-  controlsArrive, controlsAbove, style,
+  replayable = false, onToggleFullscreen, fullscreen = false, controlsBottom = 12,
+  controlsAtTop = false, controlsArrive, controlsAbove, style,
 }: Props) {
   const map = useRef<MapView>(null);
   const scheme = useColorScheme() === "dark" ? "dark" : "light";
@@ -91,6 +100,47 @@ export function RunMap({
   const empty = points.length === 0;
   const last = points.length ? points[points.length - 1] : null;
   const tracks = segments(points);
+
+  /**
+   * The replay's timeline, laid out once per track rather than per frame.
+   *
+   * Thinning, cumulative times and cumulative distances are all fixed for a
+   * finished run, and recomputing them twenty-five times a second is the
+   * difference between a line that draws itself and one that stutters.
+   */
+  const replay = useMemo(
+    () => (replayable ? buildReplay(points) : null),
+    [replayable, points],
+  );
+  /** Milliseconds into the animation, or null when it is not running. */
+  const [playedMs, setPlayedMs] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (playedMs === null || !replay) return;
+    const startedAt = Date.now();
+    // Forty milliseconds: twenty-five frames a second, which is smooth enough
+    // for a line and cheap enough for a map that redraws a whole polyline
+    // each time.
+    const timer = setInterval(() => {
+      const elapsed = Date.now() - startedAt;
+      // Held on the finished track for a moment rather than snapping back to
+      // the start: the last thing anybody wants to see is the run they have
+      // just watched being drawn disappear.
+      if (elapsed >= REPLAY_MS) {
+        clearInterval(timer);
+        setPlayedMs(null);
+        return;
+      }
+      setPlayedMs(elapsed);
+    }, 40);
+    return () => clearInterval(timer);
+    // Started once, by the tap that set the clock to zero. Every tick after
+    // that reads the clock rather than the state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playedMs !== null, replay]);
+
+  const head = replay && playedMs !== null ? headAt(replay, playedMs / REPLAY_MS) : null;
+  const drawn = replay && head ? drawnSoFar(replay, head) : null;
 
   useEffect(() => {
     if (!follow || !last) return;
@@ -181,7 +231,7 @@ export function RunMap({
         pitchEnabled={false}
         onMapReady={frameTrack}
       >
-        {tracks.map((track) => (
+        {(drawn ?? tracks).map((track) => (
           <Polyline
             // Keyed on the first timestamp rather than the array index, so a
             // segment keeps its identity as the track grows.
@@ -193,10 +243,41 @@ export function RunMap({
             lineJoin="round"
           />
         ))}
+
+        {/* The runner. A plain dot, because anything with a picture in it
+            would be redrawn from scratch on every one of its twenty-five
+            moves a second. */}
+        {head && (
+          <Marker
+            coordinate={{ latitude: head.lat, longitude: head.lng }}
+            anchor={{ x: 0.5, y: 0.5 }}
+            tracksViewChanges={false}
+          >
+            <View style={[styles.head, { borderColor: literalColors.track[scheme] }]} />
+          </Marker>
+        )}
       </MapView>
 
       <Animated.View style={[styles.controls, controlsAtTop ? styles.controlsTop : ride]}>
         <View style={styles.controlStack}>
+        {replay && (
+          <Pressable
+            onPress={() => setPlayedMs((running) => (running === null ? 0 : null))}
+            accessibilityRole="button"
+            accessibilityLabel={head ? "Arrêter le tracé animé" : "Rejouer le parcours"}
+            hitSlop={8}
+            style={({ pressed }) => [styles.control, pressed && styles.controlPressed]}
+          >
+            <Ionicons
+              name={head ? "stop" : "play"}
+              size={19}
+              color={colors.text}
+              // A play triangle centred geometrically reads as off-centre:
+              // its mass sits left of its box.
+              style={head ? undefined : styles.play}
+            />
+          </Pressable>
+        )}
         {onToggleFullscreen && (
           <Pressable
             onPress={onToggleFullscreen}
@@ -227,6 +308,17 @@ export function RunMap({
         )}
         </View>
       </Animated.View>
+
+      {/* What the line is worth, while it draws. Without the clock beside it
+          the animation is a pretty shape; with it, the pause halfway up the
+          hill is visible as the moment the numbers stop moving. */}
+      {head && replay && (
+        <View style={[styles.readout, fullscreen && styles.readoutBelowStatusBar]}>
+          <Text style={styles.readoutText}>
+            {`${formatDuration(head.elapsedMs / 1000)} · ${formatDistance(head.metresRun)} km`}
+          </Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -248,4 +340,26 @@ const styles = StyleSheet.create({
     ...floatingShadow,
   },
   controlPressed: { transform: [{ scale: 0.96 }], opacity: 0.9 },
+  play: { marginLeft: 2 },
+
+  // White ring, so the dot stays visible over the line it is drawing as well
+  // as over the map underneath it.
+  head: {
+    width: 13, height: 13, borderRadius: 6.5,
+    backgroundColor: "#ffffff", borderWidth: 3.5,
+  },
+  // In its own corner, twelve points in from both edges, which is where the
+  // map's own controls sit on the other side.
+  readout: {
+    position: "absolute", left: 12, top: 12,
+    paddingHorizontal: 11, paddingVertical: 6, borderRadius: 14,
+    backgroundColor: colors.background, ...floatingShadow,
+  },
+  // Except full screen, where the corner of the map is also the corner of the
+  // phone and the status bar is sitting in it.
+  readoutBelowStatusBar: { top: CONTROLS_TOP },
+  readoutText: {
+    color: colors.text, fontSize: 14.5, fontFamily: font.semibold,
+    fontVariant: ["tabular-nums"],
+  },
 });

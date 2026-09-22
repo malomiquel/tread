@@ -41,8 +41,9 @@ export default function NotificationSettings() {
       await setReminder(when);
       // Rebuilt straight away rather than on the next visit to the plan:
       // this is not the plan, and somebody could turn reminders on here and
-      // not open that tab for a fortnight.
-      await refreshReminders();
+      // not open that tab for a fortnight. Forced, because switching off is
+      // exactly the case where something pending has to be cancelled.
+      await refreshReminders({ force: true });
     } finally {
       setBusy(false);
     }

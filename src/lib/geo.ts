@@ -356,3 +356,51 @@ export function regionAround(points: TrackPoint[], margin = 1.35, lift = 0): Map
     longitudeDelta: Math.max((box.maxLng - box.minLng) * margin, MIN_DELTA),
   };
 }
+
+/**
+ * Widen a region to the shape of the picture it will be drawn into.
+ *
+ * A map asked for a snapshot of a region into a frame of a different shape
+ * quietly widens one axis to fit, and draws that instead. Harmless while the
+ * map itself draws the track — it moves both together — but the share
+ * animation draws the line itself, over a photograph of the map, and then the
+ * two have to agree about where a coordinate lands. Handing over a region
+ * that already has the picture's shape leaves the map nothing to adjust.
+ *
+ * Widened, never narrowed: the whole run has to stay inside the frame, so the
+ * axis with room to spare is the one that grows.
+ */
+export function fitRegion(region: MapRegion, width: number, height: number): MapRegion {
+  // A degree of longitude is shorter than a degree of latitude everywhere but
+  // the equator, and by the cosine of where you are standing.
+  const squash = Math.max(0.01, Math.cos((region.latitude * Math.PI) / 180));
+  const across = region.longitudeDelta * squash;
+  const wanted = width / height;
+
+  return across / region.latitudeDelta < wanted
+    ? { ...region, longitudeDelta: (region.latitudeDelta * wanted) / squash }
+    : { ...region, latitudeDelta: across / wanted };
+}
+
+/**
+ * Where a coordinate falls in that picture, in pixels from its top-left
+ * corner.
+ *
+ * Flat rather than properly projected. Over the few kilometres a run covers
+ * the difference between this and Mercator is a fraction of a pixel, and the
+ * line is drawn over a photograph of a map rather than beside the map itself,
+ * so nothing is there to compare it against.
+ */
+export function projectPoint(
+  region: MapRegion,
+  point: { lat: number; lng: number },
+  width: number,
+  height: number,
+): { x: number; y: number } {
+  const left = region.longitude - region.longitudeDelta / 2;
+  const top = region.latitude + region.latitudeDelta / 2;
+  return {
+    x: ((point.lng - left) / region.longitudeDelta) * width,
+    y: ((top - point.lat) / region.latitudeDelta) * height,
+  };
+}

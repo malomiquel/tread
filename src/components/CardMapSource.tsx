@@ -1,8 +1,8 @@
 import { forwardRef, useImperativeHandle, useRef } from "react";
 import { StyleSheet, View, useColorScheme} from "react-native";
 import MapView, { Polyline } from "react-native-maps";
-import { CARD_HEIGHT, CARD_WIDTH, TRACK_LIFT, TRACK_MARGIN } from "@/components/ShareCard";
-import { regionAround, segments, type TrackPoint } from "@/lib/geo";
+import { cardRegion, CARD_HEIGHT, CARD_WIDTH } from "@/components/ShareCard";
+import { segments, type TrackPoint } from "@/lib/geo";
 import { literalColors } from "@/lib/theme";
 
 /**
@@ -25,6 +25,14 @@ export interface CardMapHandle {
 
 interface Props {
   points: TrackPoint[];
+  /**
+   * Leaves the track out of the picture.
+   *
+   * For the animation, which draws its own line over this photograph. Two
+   * lines — one baked in and one drawn on top — would be one line too many,
+   * and would turn any disagreement between them into a visible double.
+   */
+  bare?: boolean;
   /** Fired once the map can be asked for its picture. */
   onReady?: () => void;
 }
@@ -43,7 +51,7 @@ interface Props {
  * two renderings that happen to agree.
  */
 export const CardMapSource = forwardRef<CardMapHandle, Props>(function CardMapSource(
-  { points, onReady },
+  { points, bare = false, onReady },
   ref,
 ) {
   /*
@@ -59,7 +67,7 @@ export const CardMapSource = forwardRef<CardMapHandle, Props>(function CardMapSo
   const scheme = useColorScheme() === "dark" ? "dark" : "light";
 
   const map = useRef<MapView>(null);
-  const region = regionAround(points, TRACK_MARGIN, TRACK_LIFT);
+  const region = cardRegion(points);
 
   useImperativeHandle(ref, () => ({
     render: () =>
@@ -85,7 +93,7 @@ export const CardMapSource = forwardRef<CardMapHandle, Props>(function CardMapSo
         showsCompass={false}
         onMapReady={onReady}
       >
-        {segments(points).map((track) => (
+        {(bare ? [] : segments(points)).map((track) => (
           <Polyline
             key={track[0].ts}
             coordinates={track.map((p) => ({ latitude: p.lat, longitude: p.lng }))}
