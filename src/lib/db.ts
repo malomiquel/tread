@@ -5,6 +5,7 @@ import { elevationGainM, fastestKmS, paceSecPerKm, segments, totalDistanceM, typ
 import {
   normaliseDays, type Done, type Exertion, type Goal, type PerWeek, type PlannedSession,
 } from "./plan";
+import { parseWeather, type Weather } from "./weather";
 import type { RanBlock } from "./workout";
 
 /**
@@ -77,6 +78,14 @@ export interface Run {
   sessionId: string | null;
   /** Each block as it was actually run. Empty for a free run. */
   blocks: RanBlock[];
+  /**
+   * The weather this run was run in, taken once at the end, or null.
+   *
+   * Null on every run recorded before this existed, on every run imported
+   * from a file, and on any run the network was not there to answer for.
+   * Whatever shows it is written to look complete without it.
+   */
+  weather: Weather | null;
 }
 
 /** Shape the SQL layer returns, before mapping to camelCase. */
@@ -95,6 +104,7 @@ interface RunRow {
   session_blocks: string | null;
   cadence_spm: number | null;
   exertion: number | null;
+  weather: string | null;
 }
 
 const toRun = (row: RunRow): Run => ({
@@ -115,6 +125,8 @@ const toRun = (row: RunRow): Run => ({
   // ever read with the run they belong to, and never queried across runs.
   // A table would buy joins nobody needs and cost a migration nobody wants.
   blocks: parseBlocks(row.session_blocks),
+  // One json column, for the reason given above the blocks.
+  weather: parseWeather(row.weather),
 });
 
 function parseBlocks(raw: string | null): RanBlock[] {
@@ -129,7 +141,7 @@ function parseBlocks(raw: string | null): RanBlock[] {
   }
 }
 
-const SCHEMA_VERSION = 11;
+const SCHEMA_VERSION = 12;
 
 /**
  * The plan's two tables, written once and used twice — by a fresh install and
@@ -187,7 +199,8 @@ export async function initDb(): Promise<void> {
         session_id TEXT,
         session_blocks TEXT,
         cadence_spm REAL,
-        exertion INTEGER
+        exertion INTEGER,
+        weather TEXT
       );
       CREATE TABLE IF NOT EXISTS points (
         id INTEGER PRIMARY KEY,
@@ -292,6 +305,11 @@ export async function initDb(): Promise<void> {
     version = 11;
   }
 
+  if (version < 12) {
+    await db.execAsync("ALTER TABLE runs ADD COLUMN weather TEXT");
+    version = 12;
+  }
+
   await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
   await recoverInterruptedRuns();
 }
@@ -345,6 +363,17 @@ export async function finishRun(id: number, totals: RunTotals): Promise<void> {
  */
 export async function setHealthUuid(id: number, uuid: string | null): Promise<void> {
   await getDb().runAsync("UPDATE runs SET health_uuid = ? WHERE id = ?", uuid, id);
+}
+
+/**
+ * Remember the weather a run was run in.
+ *
+ * Written after the run is already closed rather than as part of closing it:
+ * the reading comes off the network, and a run must never wait on a server
+ * to be saved.
+ */
+export async function setRunWeather(id: number, weather: Weather): Promise<void> {
+  await getDb().runAsync("UPDATE runs SET weather = ? WHERE id = ?", JSON.stringify(weather), id);
 }
 
 /**

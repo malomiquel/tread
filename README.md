@@ -2,7 +2,8 @@
 
 A running app with live GPS recording: distance, duration, current and average
 pace, elevation gain, your route on a map, per-kilometre splits, personal
-records and local history. Expo SDK 57, React Native, TypeScript.
+records, the weather you ran in, and local history. Expo SDK 57, React Native,
+TypeScript.
 
 ## Running it on your phone
 
@@ -50,6 +51,7 @@ src/lib/tracker.ts    the tracker: GPS, pauses, flushing to disk     external st
 src/lib/db.ts         local SQLite, migrations, crash recovery
 src/lib/location.ts   initial fix and one-off recentring
 src/lib/format.ts     duration, pace, distance for display
+src/lib/weather.ts    conditions now, at a run's hour, days ahead     pure, tested
 src/app/(tabs)/       Run, Progress, History
 src/app/run/[id]      one run in detail
 src/components/       RunMap, Metric, Button
@@ -91,6 +93,17 @@ closes it with its real totals.
 even with the screen locked. Inside Expo Go a foreground subscription takes
 over. Both call the same function, and the rest of the app never knows which
 one is live.
+
+**The weather costs nothing and gives nothing away.** Open-Meteo asks for no
+account and no key, so there is no secret to ship inside an app that runs on
+other people's phones. Coordinates are rounded to two decimals — a little over
+a kilometre, which is finer than the model's own grid — because a run starts
+at a front door and the full fix is that door. The reading is taken once the
+run is already saved and never blocks it: no network means no weather, and
+every screen that shows one is written to look complete without it. The plan's
+forecast goes further and never prompts at all — it uses the fix the system
+already has, because a permission dialog raised by a page of dates is one
+nobody expects and most refuse.
 
 **Records are read in SQL.** Every run stores its own totals, including its
 fastest kilometre computed at the finish. Answering a ranking question never

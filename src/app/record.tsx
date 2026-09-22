@@ -24,6 +24,7 @@ import { colors, font } from "@/lib/theme";
 import {
   activeDurationS, chooseSession, discard, finish, pause, resume, start, useTracker,
 } from "@/lib/tracker";
+import { useCurrentWeather, weatherIcon, weatherLine } from "@/lib/weather";
 import { sessionById, stepLabel, stepRemaining } from "@/lib/workout";
 
 /** How long the panel takes to change shape, and everything above it with it. */
@@ -47,7 +48,7 @@ const ARRIVE = { duration: 300 } as const;
  * nothing, a clipped distance costs the number you went out to get. They are
  * the two values to revisit if the type ever changes size again.
  */
-const PANEL_HEIGHT = { idle: 96, live: 146 } as const;
+const PANEL_HEIGHT = { idle: 96, idleWeather: 122, live: 146 } as const;
 
 /**
  * Holds the screen awake for as long as it is mounted. Inside Expo Go the GPS
@@ -122,6 +123,10 @@ export default function RecordScreen() {
   const tracker = useTracker();
   const router = useRouter();
   const { coords, granted } = useInitialLocation();
+  // Asked of the sky as soon as the screen knows where it is. Null until it
+  // answers, and null for good when it cannot: the line is then simply absent
+  // and the panel keeps the height it has always had.
+  const weather = useCurrentWeather(coords);
   const settings = useSettings();
   // The tab bar is hidden here, so the panel takes the room it used to leave
   // for it and sits where the bar would have been.
@@ -240,7 +245,7 @@ export default function RecordScreen() {
    * all the way. Moving them at once puts them a single frame apart — the one
    * it takes to measure — which nobody can see, and nothing ever overlaps.
    */
-  const target = PANEL_HEIGHT[recording ? "live" : "idle"];
+  const target = PANEL_HEIGHT[recording ? "live" : weather ? "idleWeather" : "idle"];
 
   /**
    * The panel's live height, and the single figure every piece above it
@@ -498,12 +503,32 @@ export default function RecordScreen() {
                   // is itself arriving, a child's own entering can be dropped
                   // and leave the view stuck at the opacity it started from —
                   // which is how the week's distance went missing entirely.
-                  <Metric
-                    compact
-                    label="Cette semaine"
-                    value={`${formatDistance(week.distanceM)} km`}
-                    unit={week.runs > 0 ? `· ${week.runs} sortie${week.runs > 1 ? "s" : ""}` : undefined}
-                  />
+                  <>
+                    <Metric
+                      compact
+                      label="Cette semaine"
+                      value={`${formatDistance(week.distanceM)} km`}
+                      unit={week.runs > 0 ? `· ${week.runs} sortie${week.runs > 1 ? "s" : ""}` : undefined}
+                    />
+                    {/* What it is like outside, on the one screen where the
+                        question is still open. Everything else the app knows
+                        is about a run already run; this is the only line that
+                        changes what you put on before going out — and it is
+                        written the way you would say it out loud rather than
+                        as another measurement with a label over it. */}
+                    {weather ? (
+                      <View style={styles.weather}>
+                        <Ionicons
+                          name={weatherIcon(weather.code, weather.day)}
+                          size={15}
+                          color={colors.muted}
+                        />
+                        <Text style={styles.weatherText} numberOfLines={1}>
+                          {weatherLine(weather)}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </>
                 )}
                 {tracker.error && <Text style={styles.error}>{tracker.error}</Text>}
               </View>
@@ -685,6 +710,9 @@ const styles = StyleSheet.create({
   roundDisabled: { opacity: 0.35 },
   pressed: { opacity: 0.55 },
   play: { marginLeft: 2 },
+
+  weather: { flexDirection: "row", alignItems: "center", gap: 6 },
+  weatherText: { color: colors.muted, fontSize: 14.5, fontFamily: font.medium, flexShrink: 1 },
 
   error: { color: colors.danger, fontSize: 15 },
 });

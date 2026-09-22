@@ -3,7 +3,7 @@ import { Pedometer } from "expo-sensors";
 import * as TaskManager from "expo-task-manager";
 import { useSyncExternalStore } from "react";
 import { cadenceSpm } from "./cadence";
-import { createRun, finishRun, insertPoints, markPlanSessionDone } from "./db";
+import { createRun, finishRun, insertPoints, markPlanSessionDone, setRunWeather } from "./db";
 import { syncRunToHealth } from "./health";
 import { autoName } from "./format";
 import { announceKilometre, announcePace, announceStep, stopSpeaking } from "./feedback";
@@ -14,6 +14,7 @@ import {
 import { reflectRun, stopRun, type RunProgress } from "./liveActivity";
 import { paceDrift } from "./pace";
 import { getSettings } from "./settings";
+import { weatherAt, type Weather } from "./weather";
 import {
   hasSinglePace, isPaced, stepIsDone, stepLabel, type RanBlock, type Session,
 } from "./workout";
@@ -303,6 +304,45 @@ async function cadenceOf(from: number, to: number, activeS: number): Promise<num
   }
 }
 
+/**
+ * The reading still on its way for the run just finished.
+ *
+ * Kept so that the summary screen, which opens a fraction of a second after
+ * the run is closed, can wait for the same answer rather than asking the
+ * server the same question twice — or showing a run as having had no weather
+ * when the truth is only that it has not arrived yet.
+ */
+let pending: { runId: number; reading: Promise<Weather | null> } | null = null;
+
+/** The weather being fetched for this run, or null when none is on its way. */
+export function pendingWeather(runId: number): Promise<Weather | null> | null {
+  return pending !== null && pending.runId === runId ? pending.reading : null;
+}
+
+/**
+ * Ask what the weather was, and remember it against the run.
+ *
+ * Deliberately not awaited, and deliberately last: the reading comes off a
+ * server, and a run that had to reach one before it could be called finished
+ * would be a run lost every time a phone came home out of signal. It is asked
+ * for the middle of the outing rather than for its end, because that is the
+ * single hour that best stands for the whole of it, and from where the run
+ * set off, because that is the only place the app knows the runner was.
+ */
+function recordWeather(runId: number, points: TrackPoint[], from: number, to: number): void {
+  const start = points[0];
+  if (!start) return;
+  pending = {
+    runId,
+    reading: weatherAt(start.lat, start.lng, from + (to - from) / 2)
+      .then(async (weather) => {
+        if (weather !== null) await setRunWeather(runId, weather).catch(() => undefined);
+        return weather;
+      })
+      .catch(() => null),
+  };
+}
+
 /** Write pending points to disk, never letting two writes overlap. */
 function flush(): Promise<void> {
   writeQueue = writeQueue
@@ -494,6 +534,7 @@ export async function finish(): Promise<number | null> {
   // and iOS already owns it — a second switch inside the app could only ever
   // disagree with the one in Settings, or quietly countermand a yes.
   void syncRunToHealth(runId);
+  recordWeather(runId, points, startedAt ?? endedAt, endedAt);
 
   reset();
   return runId;

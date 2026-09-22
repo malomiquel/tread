@@ -27,6 +27,8 @@ import {
   syncRunToHealth,
 } from "@/lib/health";
 import { colors, floatingShadow, font } from "@/lib/theme";
+import { pendingWeather } from "@/lib/tracker";
+import { formatTemperature, formatWind, weatherIcon, weatherLabel, type Weather } from "@/lib/weather";
 
 type Loaded = { run: Run; points: TrackPoint[] };
 
@@ -71,6 +73,15 @@ export default function RunDetailScreen() {
   /** Set when this run is what ticked a session off a programme. */
   const [planLinked, setPlanLinked] = useState(false);
   const [cardMap, setCardMap] = useState<string | null>(null);
+  /**
+   * The reading for a run that has only just ended.
+   *
+   * It is fetched as the run is closed and stored a moment later, so this
+   * screen — which opens in between — reads the run without it. Kept beside
+   * the run rather than merged into it, because the two arrive in whichever
+   * order they please and merging would have them overwrite each other.
+   */
+  const [lateWeather, setLateWeather] = useState<Weather | null>(null);
   // Energy needs a weight, and the app keeps none of its own.
   const [weightKg, setWeightKg] = useState<number | null>(null);
   const cardMapSource = useRef<CardMapHandle>(null);
@@ -84,6 +95,17 @@ export default function RunDetailScreen() {
         .then((linked) => active && setPlanLinked(linked !== null))
         .catch(() => undefined);
     }
+    return () => { active = false; };
+  }, [id]);
+
+  // Only ever has anything to wait for when arriving straight off a run.
+  useEffect(() => {
+    const waiting = pendingWeather(Number(id));
+    if (!waiting) return;
+    let active = true;
+    void waiting.then((weather) => {
+      if (active && weather) setLateWeather(weather);
+    });
     return () => { active = false; };
   }, [id]);
 
@@ -121,6 +143,13 @@ export default function RunDetailScreen() {
   }
 
   const { run, points } = data;
+  const weather = run.weather ?? lateWeather;
+  const sky = weather === null ? null : [
+    weatherLabel(weather.code),
+    weather.precipitationMm >= 0.1
+      ? `${weather.precipitationMm.toFixed(1).replace(".", ",")} mm`
+      : null,
+  ].filter(Boolean).join(" · ");
   const kilometres = splits(points);
   const profile = elevationProfile(points);
 
@@ -329,6 +358,41 @@ export default function RunDetailScreen() {
           <View style={styles.row}>
             <Metric label="Cadence" value={String(run.cadenceSpm)} unit="pas/min" />
           </View>
+        )}
+        {/* Among the measurements rather than off in a section of its own:
+            the weather is a fact about this run, the same as its dénivelé,
+            and it explains an allure that the other figures alone cannot.
+            Absent on runs recorded before the app knew how to ask, and on
+            runs imported from a file — so nothing here is ever a placeholder
+            waiting to be filled. */}
+        {weather && (
+          <>
+            <View style={styles.row}>
+              <Metric
+                label="Météo"
+                value={formatTemperature(weather.temperatureC)}
+                unit={
+                  Math.round(weather.feelsLikeC) !== Math.round(weather.temperatureC)
+                    ? `ressenti ${formatTemperature(weather.feelsLikeC)}`
+                    : undefined
+                }
+              />
+              <Metric label="Vent" value={formatWind(weather.windKmh)} unit="km/h" />
+            </View>
+            {/* The sky in words, and the rain only when there was some.
+                Absent altogether when the model gave no code: an icon beside
+                an empty line reads as something that failed to load. */}
+            {sky ? (
+              <View style={styles.sky}>
+                <Ionicons
+                  name={weatherIcon(weather.code, weather.day)}
+                  size={16}
+                  color={colors.muted}
+                />
+                <Text style={styles.skyText}>{sky}</Text>
+              </View>
+            ) : null}
+          </>
         )}
       </View>
 
@@ -552,7 +616,10 @@ export default function RunDetailScreen() {
 
       <ShareRunSheet
         visible={sharingImage}
-        run={run}
+        // The run as it now stands rather than as it was read off disk: a
+        // reading that arrived after the screen opened belongs on the picture
+        // too, and the card is drawn from whatever it is handed.
+        run={weather === run.weather ? run : { ...run, weather }}
         points={points}
         preparedMapUri={cardMap}
         onClose={() => setSharingImage(false)}
@@ -656,6 +723,8 @@ const styles = StyleSheet.create({
     letterSpacing: 1.3, textTransform: "uppercase",
   },
   row: { flexDirection: "row", gap: 16 },
+  sky: { flexDirection: "row", alignItems: "center", gap: 7, marginTop: -2 },
+  skyText: { color: colors.muted, fontFamily: font.medium, fontSize: 15.5 },
 
   map: { height: 260, borderRadius: 0, marginTop: 4 },
   fullMap: { flex: 1, backgroundColor: colors.background },

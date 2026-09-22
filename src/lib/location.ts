@@ -83,6 +83,40 @@ export async function getCurrentCoords(): Promise<Coords | null> {
 
 
 /**
+ * Where the phone last knew itself to be, asked without ever prompting.
+ *
+ * The plan screen wants a forecast, and a forecast needs a position — but a
+ * system prompt raised by a page of dates and distances is a prompt nobody
+ * expected, asked at the one moment it is least likely to be granted. So this
+ * takes the fix the system already has and settles for nothing when there is
+ * none: permission is asked for on the screen that genuinely cannot work
+ * without it, which is the map.
+ */
+export function useKnownLocation(): Coords | null {
+  const [coords, setCoords] = useState<Coords | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    const locate = async () => {
+      const existing = await Location.getForegroundPermissionsAsync();
+      if (!active || existing.status !== "granted") return;
+      const known = await Location.getLastKnownPositionAsync();
+      if (active && known) {
+        setCoords({ lat: known.coords.latitude, lng: known.coords.longitude });
+      }
+    };
+
+    locate().catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  return coords;
+}
+
+/**
  * Where a run happened, as a person would say it: "Chartres, France".
  *
  * Reverse geocoding goes through Apple or Google depending on the platform,

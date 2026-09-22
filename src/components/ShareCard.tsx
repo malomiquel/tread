@@ -1,3 +1,4 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
 import { forwardRef } from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
@@ -7,6 +8,7 @@ import {
   formatCount, formatDate, formatDistance, formatDuration, formatElevation, formatPace,
 } from "@/lib/format";
 import { font } from "@/lib/theme";
+import { formatTemperature, weatherIcon } from "@/lib/weather";
 
 /**
  * The card is laid out at a fixed size rather than filling its container, so
@@ -90,6 +92,7 @@ export const ShareCard = forwardRef<View, Props>(function ShareCard({ run, mapUr
   // history without.
   const steps = stepsFrom(run.cadenceSpm, run.durationS);
   const when = formatDate(run.startedAt);
+  const weather = run.weather;
 
   return (
     // collapsable={false} keeps this view real in the native tree; React
@@ -123,6 +126,22 @@ export const ShareCard = forwardRef<View, Props>(function ShareCard({ run, mapUr
         <Image source={require("@/assets/images/icon.png")} style={styles.brandMark} />
         <Text style={styles.brandName}>TREAD</Text>
       </View>
+
+      {/* Across the top from the name, where a photograph carries the weather
+          rather than in the row of figures below.
+          The figures down there answer how the run went, and each of them is
+          something the runner did; the weather is the one fact on the card
+          that was done to them. It also keeps the footer to two rows of two —
+          a fifth stat would have opened a third row and shrunk everything in
+          it. Degrees alone, no felt temperature: the icon has already said
+          what kind of day it was, and a picture read in a second cannot
+          afford the second figure. */}
+      {weather ? (
+        <View style={styles.weather}>
+          <Ionicons name={weatherIcon(weather.code, weather.day)} size={16} color={INK_SOFT} />
+          <Text style={styles.weatherValue}>{formatTemperature(weather.temperatureC)}</Text>
+        </View>
+      ) : null}
 
       <View style={styles.footer}>
         {/* No name. A picture of a run is read in a second, and a line saying
@@ -190,6 +209,18 @@ const styles = StyleSheet.create({
   // logo someone drew for the occasion.
   brandMark: { width: 22, height: 22, borderRadius: 5 },
   brandName: { color: INK, fontSize: 19, fontFamily: font.extrabold, letterSpacing: 3.4 },
+
+  // Level with the brand across the card, and centred against it rather than
+  // against its own box: the mark is 22 points tall and this is not, so the
+  // two would otherwise sit a couple of points out from one another.
+  weather: {
+    position: "absolute", top: 16, right: GUTTER, height: 22,
+    flexDirection: "row", alignItems: "center", gap: 5,
+  },
+  weatherValue: {
+    color: INK, fontSize: 16, fontFamily: font.semibold,
+    letterSpacing: -0.2, fontVariant: ["tabular-nums"],
+  },
 
   footer: { position: "absolute", left: GUTTER, right: GUTTER, bottom: 18 },
 

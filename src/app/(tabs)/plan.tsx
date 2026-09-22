@@ -11,6 +11,7 @@ import {
 } from "@/lib/db";
 import { formatDuration, formatPace } from "@/lib/format";
 import { useTabBarSpace } from "@/lib/layout";
+import { useKnownLocation } from "@/lib/location";
 import {
   buildPlan, daysBetween, goalById, KIND_NAMES, nextSession, PHASE_NAMES, planProgress, ranCount,
   schedule,
@@ -18,6 +19,9 @@ import {
 } from "@/lib/plan";
 import { colors, font } from "@/lib/theme";
 import { chooseSession } from "@/lib/tracker";
+import {
+  forecastBrief, forecastLine, forecastOn, useForecasts, weatherIcon, type Forecast,
+} from "@/lib/weather";
 import { eased, sessionMinutes } from "@/lib/workout";
 
 /** Displayed, indexed by `Date.getDay`. */
@@ -50,11 +54,29 @@ const ICONS: Record<string, React.ComponentProps<typeof Ionicons>["name"]> = {
   race: "flag",
 };
 
+/**
+ * What the sky is expected to do, under the session it belongs to.
+ *
+ * Handed its forecast rather than going to get one: the whole fortnight
+ * arrives in a single answer, read once at the top of the screen, so a
+ * programme showing a dozen sessions costs exactly one request.
+ */
+function ForecastLine({ forecast }: { forecast: Forecast }) {
+  return (
+    <View style={styles.forecast}>
+      <Ionicons name={weatherIcon(forecast.code, true)} size={14} color={colors.accentText} />
+      <Text style={styles.forecastText} numberOfLines={1}>{forecastLine(forecast)}</Text>
+    </View>
+  );
+}
+
 function SessionRow({
-  entry, today, onPress,
+  entry, today, forecast, onPress,
 }: {
   entry: ScheduledSession;
   today: number;
+  /** The day's outlook, or null for a day no model reaches. */
+  forecast: Forecast | null;
   onPress: (entry: ScheduledSession) => void;
 }) {
   const done = entry.settled;
@@ -90,9 +112,22 @@ function SessionRow({
           {skipped ? "Passée" : KIND_NAMES[entry.kind]} · {minutes} min · {formatPace(entry.targetSKm)}
         </Text>
       </View>
-      <Text style={[styles.rowDay, isToday && styles.rowDayToday]}>
-        {isToday && !done ? "aujourd'hui" : dayName(entry.at)}
-      </Text>
+      {/* The day and its weather in one column, because the weather belongs
+          to the day rather than to the session: it is the same thing the
+          right-hand side was already answering — when — said twice over.
+          Only ahead of you. What the sky did on a session already run or
+          already passed changes nothing anybody can act on. */}
+      <View style={styles.rowWhen}>
+        <Text style={[styles.rowDay, isToday && styles.rowDayToday]}>
+          {isToday && !done ? "aujourd'hui" : dayName(entry.at)}
+        </Text>
+        {forecast && !entry.settled ? (
+          <View style={styles.rowWeather}>
+            <Ionicons name={weatherIcon(forecast.code, true)} size={12} color={colors.subtle} />
+            <Text style={styles.rowWeatherText}>{forecastBrief(forecast)}</Text>
+          </View>
+        ) : null}
+      </View>
       {/* A done session leads somewhere, so it says so. Without the chevron
           nothing suggests the line is still worth touching. */}
       {done && !skipped ? <Ionicons name="chevron-forward" size={15} color={colors.subtle} /> : null}
@@ -121,6 +156,11 @@ export default function PlanScreen() {
   const [recent, setRecent] = useState<Exertion[]>([]);
   const tabBarSpace = useTabBarSpace();
   const router = useRouter();
+  // Asked once for the whole screen, and before anything is known about the
+  // programme: a hook cannot be called after the early returns below, and the
+  // forecast does not depend on there being a programme at all.
+  const known = useKnownLocation();
+  const forecasts = useForecasts(known);
 
   const load = useCallback(() => {
     let live = true;
@@ -246,6 +286,7 @@ export default function PlanScreen() {
       ? { ...entry, session: eased(entry.session, factor) }
       : entry);
   const next = nextSession(scheduled);
+  const nextForecast = next === null ? null : forecastOn(forecasts, next.at);
   const ran = ranCount(done);
   const progress = planProgress(plan.sessions, ran);
   const daysLeft = daysBetween(today, plan.raceAt);
@@ -308,6 +349,7 @@ export default function PlanScreen() {
                 <Text style={styles.nextDetail}>
                   {KIND_NAMES[next.kind]} · {formatPace(next.targetSKm)} · semaine {next.week}
                 </Text>
+                {nextForecast ? <ForecastLine forecast={nextForecast} /> : null}
               </View>
               <Ionicons name="play" size={20} color={colors.accentText} />
             </Pressable>
@@ -325,7 +367,13 @@ export default function PlanScreen() {
                   Semaine {week} · {PHASE_NAMES[entries[0].phase]}
                 </Text>
                 {entries.map((entry) => (
-                  <SessionRow key={entry.order} entry={entry} today={today} onPress={open} />
+                  <SessionRow
+                    key={entry.order}
+                    entry={entry}
+                    today={today}
+                    forecast={forecastOn(forecasts, entry.at)}
+                    onPress={open}
+                  />
                 ))}
               </View>
             );
@@ -397,6 +445,13 @@ const styles = StyleSheet.create({
   },
   nextName: { color: colors.accentText, fontSize: 21, fontFamily: font.bold, letterSpacing: -0.3 },
   nextDetail: { color: colors.accentText, opacity: 0.8, fontSize: 13.5, fontFamily: font.regular },
+  // Set apart from the line above it, because it is the one thing in the card
+  // that is not about the session itself.
+  forecast: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 5 },
+  forecastText: {
+    color: colors.accentText, opacity: 0.8, fontSize: 13.5,
+    fontFamily: font.medium, flexShrink: 1,
+  },
   finished: {
     color: colors.muted, fontFamily: font.regular, fontSize: 15.5,
     paddingHorizontal: GUTTER, marginTop: 20, lineHeight: 22,
@@ -426,7 +481,13 @@ const styles = StyleSheet.create({
   rowName: { color: colors.text, fontSize: 16.5, fontFamily: font.semibold },
   rowDone: { color: colors.subtle, textDecorationLine: "line-through" },
   rowDetail: { color: colors.subtle, fontSize: 13, fontFamily: font.regular },
+  rowWhen: { alignItems: "flex-end", gap: 2 },
   rowDay: { color: colors.subtle, fontSize: 13, fontFamily: font.regular },
+  rowWeather: { flexDirection: "row", alignItems: "center", gap: 3 },
+  rowWeatherText: {
+    color: colors.subtle, fontSize: 12, fontFamily: font.medium,
+    fontVariant: ["tabular-nums"],
+  },
   rowDayToday: { color: colors.accent, fontFamily: font.semibold },
 
   abandon: { alignItems: "center", paddingVertical: 24 },
