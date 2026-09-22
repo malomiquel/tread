@@ -120,6 +120,91 @@ export function parseGpx(xml: string): { name: string | null; points: TrackPoint
   return { name, points };
 }
 
+/**
+ * Write a route as GPX: a line, and no clock.
+ *
+ * As a `<trk>` rather than the `<rte>` the format intends for a planned
+ * route, and that is a choice about the world rather than about the
+ * standard. Watches and websites read tracks everywhere and routes
+ * unevenly — several ignore `<rte>` outright — so the tag that gets the
+ * route onto a device wins over the tag that describes it best.
+ *
+ * What makes it a route rather than a run is what is missing: no `<time>` on
+ * any point. A reader that wants a run out of this will find one of no
+ * duration, which is visibly not a run rather than quietly a wrong one.
+ */
+export function routeToGpx(name: string, line: { lat: number; lng: number }[]): string {
+  const title = escapeXml(name);
+  const points = line
+    .map((p) => `      <trkpt lat="${p.lat.toFixed(7)}" lon="${p.lng.toFixed(7)}"></trkpt>`)
+    .join("\n");
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Tread" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata>
+    <name>${title}</name>
+  </metadata>
+  <trk>
+    <name>${title}</name>
+    <trkseg>
+${points}
+    </trkseg>
+  </trk>
+</gpx>
+`;
+}
+
+/** File name for a shared route: named after it, safe on every file system. */
+export function routeGpxFileName(name: string): string {
+  const slug = name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+  return `${slug || "parcours"}.gpx`;
+}
+
+/**
+ * Read a GPX file as a line on a map, with no clock attached.
+ *
+ * A route is not a run: it has no times, no pauses and no segments, so none
+ * of that is looked for. What it may have that a run never does is `<rtept>`
+ * — the tag a route planner writes, where a watch writes `<trkpt>` — and a
+ * file offered as a route can be either. Both are read, in the order the
+ * document puts them, which is the order somebody intends to run them.
+ */
+export function parseGpxLine(xml: string): { name: string | null; line: { lat: number; lng: number }[] } {
+  const line: { lat: number; lng: number }[] = [];
+
+  for (const match of xml.matchAll(/<(?:trkpt|rtept)\b([^>]*)>/gi)) {
+    const attributes = match[1] ?? "";
+    const lat = Number(/\blat\s*=\s*"([^"]+)"/i.exec(attributes)?.[1]);
+    const lng = Number(/\blon\s*=\s*"([^"]+)"/i.exec(attributes)?.[1]);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+    // Two fixes in the same place are one place. A planner that repeats a
+    // point at a junction would otherwise put a leg of no length in the
+    // route, which nothing downstream can draw.
+    const previous = line[line.length - 1];
+    if (previous && previous.lat === lat && previous.lng === lng) continue;
+    line.push({ lat, lng });
+  }
+
+  return { name: gpxName(xml), line };
+}
+
+/** The name a GPX file gives itself, from wherever it chose to put it. */
+function gpxName(xml: string): string | null {
+  const raw = /<metadata>[\s\S]*?<name>([^<]+)<\/name>/i.exec(xml)?.[1]
+    ?? /<rte>[\s\S]*?<name>([^<]+)<\/name>/i.exec(xml)?.[1]
+    ?? /<trk>[\s\S]*?<name>([^<]+)<\/name>/i.exec(xml)?.[1]
+    ?? null;
+  return raw
+    ? raw.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&apos;/g, "'")
+        .replace(/&quot;/g, '"').replace(/&amp;/g, "&").trim() || null
+    : null;
+}
+
 /** File name for an exported run: sortable, and safe on every file system. */
 export function gpxFileName(run: GpxRun): string {
   const date = new Date(run.startedAt).toISOString().slice(0, 16).replace(/[:T]/g, "-");

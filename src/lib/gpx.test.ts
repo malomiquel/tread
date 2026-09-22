@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { gpxFileName, parseGpx, toGpx } from "./gpx.ts";
+import {
+  gpxFileName, parseGpx, parseGpxLine, routeGpxFileName, routeToGpx, toGpx,
+} from "./gpx.ts";
 import type { TrackPoint } from "./geo.ts";
 
 const at = (ts: number, lat: number, lng: number, extra: Partial<TrackPoint> = {}): TrackPoint => ({
@@ -86,4 +88,81 @@ test("parseGpx accepts a file from somewhere else", () => {
 test("parseGpx returns nothing rather than throwing on rubbish", () => {
   assert.deepEqual(parseGpx("bonjour").points, []);
   assert.deepEqual(parseGpx("<gpx></gpx>").points, []);
+});
+
+test("a route file is read whether it holds a track or a route", () => {
+  const track = `<?xml version="1.0"?><gpx><trk><name>Boucle du canal</name><trkseg>
+    <trkpt lat="48.4470" lon="1.4890"/><trkpt lat="48.4480" lon="1.4900"/>
+  </trkseg></trk></gpx>`;
+  assert.deepEqual(parseGpxLine(track), {
+    name: "Boucle du canal",
+    line: [{ lat: 48.447, lng: 1.489 }, { lat: 48.448, lng: 1.49 }],
+  });
+
+  // What a route planner writes instead.
+  const planned = `<?xml version="1.0"?><gpx><rte><name>Sortie du dimanche</name>
+    <rtept lat="48.4470" lon="1.4890"><ele>128</ele></rtept>
+    <rtept lat="48.4480" lon="1.4900"></rtept>
+  </rte></gpx>`;
+  assert.deepEqual(parseGpxLine(planned), {
+    name: "Sortie du dimanche",
+    line: [{ lat: 48.447, lng: 1.489 }, { lat: 48.448, lng: 1.49 }],
+  });
+});
+
+test("the points come back in the order the file puts them", () => {
+  // No times to sort by, and none needed: a route is run in the order it was
+  // written, which is the one thing the document does say.
+  const xml = `<gpx><rte>
+    <rtept lat="48.4490" lon="1.4890"/><rtept lat="48.4470" lon="1.4890"/>
+    <rtept lat="48.4480" lon="1.4890"/></rte></gpx>`;
+  assert.deepEqual(parseGpxLine(xml).line.map((p) => p.lat), [48.449, 48.447, 48.448]);
+});
+
+test("a point repeated in place is one point", () => {
+  const xml = `<gpx><rte>
+    <rtept lat="48.4470" lon="1.4890"/><rtept lat="48.4470" lon="1.4890"/>
+    <rtept lat="48.4480" lon="1.4900"/></rte></gpx>`;
+  assert.equal(parseGpxLine(xml).line.length, 2);
+});
+
+test("a file with no name and no points is read without complaint", () => {
+  assert.deepEqual(parseGpxLine("<gpx></gpx>"), { name: null, line: [] });
+  assert.deepEqual(parseGpxLine("pas du xml du tout"), { name: null, line: [] });
+  // Coordinates that are not coordinates are skipped rather than kept as NaN.
+  assert.deepEqual(parseGpxLine('<gpx><rtept lat="nord" lon="1.0"/></gpx>').line, []);
+});
+
+test("a route written out and read back is the same route", () => {
+  const line = [
+    { lat: 48.447044, lng: 1.489076 },
+    { lat: 48.448, lng: 1.4901 },
+    { lat: 48.4495, lng: 1.4920 },
+  ];
+  const back = parseGpxLine(routeToGpx("Boucle du canal", line));
+
+  assert.equal(back.name, "Boucle du canal");
+  assert.equal(back.line.length, 3);
+  back.line.forEach((point, index) => {
+    assert.ok(Math.abs(point.lat - line[index].lat) < 1e-6, `lat ${index}`);
+    assert.ok(Math.abs(point.lng - line[index].lng) < 1e-6, `lng ${index}`);
+  });
+});
+
+test("a written route carries no times, which is what makes it a route", () => {
+  const xml = routeToGpx("Sortie", [{ lat: 48.45, lng: 1.49 }, { lat: 48.46, lng: 1.49 }]);
+  assert.equal(/<time>/i.test(xml), false);
+  assert.match(xml, /<trkseg>/);
+});
+
+test("a name with anything in it still writes a valid file", () => {
+  const xml = routeToGpx('Boucle "Saint-Jean" & <co>', [{ lat: 48.45, lng: 1.49 }, { lat: 48.46, lng: 1.49 }]);
+  assert.equal(xml.includes("<co>"), false);
+  assert.equal(parseGpxLine(xml).name, 'Boucle "Saint-Jean" & <co>');
+});
+
+test("a route's file is named after it, and survives any file system", () => {
+  assert.equal(routeGpxFileName("Boucle du canal"), "boucle-du-canal.gpx");
+  assert.equal(routeGpxFileName("Sortie d'été · 10 km"), "sortie-d-ete-10-km.gpx");
+  assert.equal(routeGpxFileName("···"), "parcours.gpx");
 });

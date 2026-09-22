@@ -175,6 +175,20 @@ dependency: the straight line is drawn the instant a finger lands and
 replaced when the answer comes, so a route can still be drawn on a train with
 no signal, wrong about the streets and right about the intention.
 
+Routes go out as GPX and come back the same way — as a `<trk>` rather than
+the `<rte>` the format intends for a plan, because watches and websites read
+tracks everywhere and routes unevenly. What makes it a route rather than a run
+is what is missing: no time on any point, so a reader that insists on seeing a
+run finds one of no duration, which is visibly not a run rather than quietly a
+wrong one.
+
+A route imported from GPX has no taps in it — a file is a few hundred points
+and no decisions — so handles are invented along it at even intervals, and the
+geometry between them is kept exactly as the file has it. That gives an
+imported route the same shape as a drawn one, which is what lets it be dragged
+about and cut like any other; the line itself is never simplified, because
+what was imported is what will be run.
+
 **The heart rate is read, never measured.** A watch is already recording one
 every few seconds into Health, so the app asks for it afterwards instead of
 holding a sensor open during the run. It is asked for again on every visit to

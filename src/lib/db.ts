@@ -1,3 +1,4 @@
+import { File } from "expo-file-system";
 import { openDatabaseSync, type SQLiteDatabase } from "expo-sqlite";
 import { Platform } from "react-native";
 import { autoName } from "./format";
@@ -153,7 +154,7 @@ function parseBlocks(raw: string | null): RanBlock[] {
   }
 }
 
-const SCHEMA_VERSION = 14;
+const SCHEMA_VERSION = 15;
 
 /**
  * The plan's two tables, written once and used twice — by a fresh install and
@@ -180,7 +181,9 @@ const ROUTE_TABLE = `
     created_at INTEGER NOT NULL,
     distance_m REAL NOT NULL,
     waypoints TEXT NOT NULL,
-    legs TEXT NOT NULL
+    legs TEXT NOT NULL,
+    place TEXT,
+    preview TEXT
   );
 `;
 
@@ -350,6 +353,14 @@ export async function initDb(): Promise<void> {
   if (version < 14) {
     await db.execAsync(ROUTE_TABLE);
     version = 14;
+  }
+
+  if (version < 15) {
+    // Created with both columns above, so this only has anything to do on a
+    // device that drew a route under version 14.
+    await db.execAsync("ALTER TABLE routes ADD COLUMN place TEXT").catch(() => undefined);
+    await db.execAsync("ALTER TABLE routes ADD COLUMN preview TEXT").catch(() => undefined);
+    version = 15;
   }
 
   await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
@@ -552,6 +563,8 @@ interface RouteRow {
   distance_m: number;
   waypoints: string;
   legs: string;
+  place: string | null;
+  preview: string | null;
 }
 
 const toRoute = (row: RouteRow): StoredRoute => ({
@@ -559,15 +572,24 @@ const toRoute = (row: RouteRow): StoredRoute => ({
   name: row.name,
   createdAt: row.created_at,
   distanceM: row.distance_m,
+  place: row.place,
+  preview: row.preview,
   ...parseRoute(row.waypoints, row.legs),
 });
 
+/** What a route is shown with: where it is, and a picture of it on its map. */
+export interface RouteLook {
+  place: string | null;
+  preview: string | null;
+}
+
 /** Keep a drawn route, and hand back the id it was given. */
-export async function saveRoute(name: string, route: Route): Promise<number> {
+export async function saveRoute(name: string, route: Route, look: RouteLook): Promise<number> {
   const result = await getDb().runAsync(
-    "INSERT INTO routes (name, created_at, distance_m, waypoints, legs) VALUES (?, ?, ?, ?, ?)",
+    "INSERT INTO routes (name, created_at, distance_m, waypoints, legs, place, preview)"
+    + " VALUES (?, ?, ?, ?, ?, ?, ?)",
     name, Date.now(), routeDistanceM(route),
-    JSON.stringify(route.waypoints), JSON.stringify(route.legs),
+    JSON.stringify(route.waypoints), JSON.stringify(route.legs), look.place, look.preview,
   );
   return Number(result.lastInsertRowId);
 }
@@ -585,12 +607,67 @@ export async function readRoute(id: number): Promise<StoredRoute | null> {
   return row ? toRoute(row) : null;
 }
 
+/**
+ * Write a drawn route over the one that was there.
+ *
+ * The day it was created is left alone: editing a route is changing where it
+ * goes, not making a different one. Somebody who wants a variant keeps the
+ * original and draws another.
+ */
+export async function updateRoute(
+  id: number, name: string, route: Route, look: RouteLook,
+): Promise<void> {
+  // The picture it had is about to stop being the picture it has. Left alone,
+  // every edit would leave one behind in a folder nothing ever reads.
+  const before = await readRoute(id);
+  if (before?.preview && before.preview !== look.preview) forgetPicture(before.preview);
+
+  await getDb().runAsync(
+    "UPDATE routes SET name = ?, distance_m = ?, waypoints = ?, legs = ?, place = ?, preview = ?"
+    + " WHERE id = ?",
+    name, routeDistanceM(route), JSON.stringify(route.waypoints), JSON.stringify(route.legs),
+    look.place, look.preview, id,
+  );
+}
+
+/**
+ * Remember the picture taken of a route.
+ *
+ * Its own writer because a picture can arrive long after the route did: one
+ * imported from a file has never been on a map, so the list photographs it
+ * the first time it shows it.
+ */
+export async function setRoutePreview(id: number, preview: string): Promise<void> {
+  const before = await readRoute(id);
+  if (before?.preview && before.preview !== preview) forgetPicture(before.preview);
+  await getDb().runAsync("UPDATE routes SET preview = ? WHERE id = ?", preview, id);
+}
+
 export async function renameRoute(id: number, name: string): Promise<void> {
   await getDb().runAsync("UPDATE routes SET name = ? WHERE id = ?", name.trim(), id);
 }
 
 export async function deleteRoute(id: number): Promise<void> {
+  const route = await readRoute(id);
   await getDb().runAsync("DELETE FROM routes WHERE id = ?", id);
+  if (route?.preview) forgetPicture(route.preview);
+}
+
+/**
+ * Throw away a route's picture.
+ *
+ * Silent, and deliberately after the row is gone rather than before: a file
+ * that refuses to be deleted must not stop a route being deleted. The worst
+ * that can happen here is one orphaned picture; the worst the other way round
+ * is a route nobody can get rid of.
+ */
+function forgetPicture(uri: string): void {
+  try {
+    const file = new File(uri);
+    if (file.exists) file.delete();
+  } catch {
+    /* the row is what mattered */
+  }
 }
 
 /**

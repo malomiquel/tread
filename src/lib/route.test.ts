@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   autoRouteName, drawnLine, emptyRoute, isLoop, lastWaypoint, legUrl, parseRoute, readLeg,
-  routeDistanceM, snapped, withoutLast, withWaypoint, type RoutePoint,
+  legsAround, movedWaypoint, routeDistanceM, routeFromLine, snapped, thumbnail, withoutLast,
+  withoutWaypoint, withWaypoint, type RoutePoint,
 } from "./route.ts";
 
 const at = (lat: number, lng: number): RoutePoint => ({ lat, lng });
@@ -152,4 +153,167 @@ test("an answer about a leg that is not there changes nothing", () => {
   assert.equal(snapped(route, 5, [at(1, 1), at(2, 2)]), route);
   assert.equal(snapped(route, -1, [at(1, 1), at(2, 2)]), route);
   assert.equal(snapped(route, 0, [at(1, 1)]), route);
+});
+
+test("a thumbnail fits the shape in its box, and keeps its shape", () => {
+  // A route twice as wide as it is tall, on the ground.
+  const line = [at(48.450, 1.490), at(48.450, 1.494), at(48.4515, 1.494), at(48.450, 1.490)];
+  const drawn = thumbnail(line, 48, 4);
+
+  for (const point of drawn) {
+    assert.ok(point.x >= 4 - 1e-9 && point.x <= 44 + 1e-9, `x ${point.x}`);
+    assert.ok(point.y >= 4 - 1e-9 && point.y <= 44 + 1e-9, `y ${point.y}`);
+  }
+
+  // Wider than it is tall on the ground, and wider than it is tall in the
+  // box: a shape stretched to fill the square would have come out even.
+  const width = Math.max(...drawn.map((p) => p.x)) - Math.min(...drawn.map((p) => p.x));
+  const height = Math.max(...drawn.map((p) => p.y)) - Math.min(...drawn.map((p) => p.y));
+  assert.ok(width > height * 1.3, `${width} × ${height}`);
+  // And it touches the side it is bound by.
+  assert.ok(Math.abs(width - 40) < 1e-6, `width ${width}`);
+});
+
+test("north is up in a thumbnail too", () => {
+  const line = [at(48.450, 1.490), at(48.452, 1.490)];
+  const [south, north] = thumbnail(line, 48);
+  assert.ok(north.y < south.y, `${north.y} < ${south.y}`);
+});
+
+test("a shape with nothing to draw draws nothing", () => {
+  assert.deepEqual(thumbnail([], 48), []);
+  assert.deepEqual(thumbnail([at(48.45, 1.49)], 48), []);
+  // Two points at the same place have no extent, and must not divide by zero.
+  const flat = thumbnail([at(48.45, 1.49), at(48.45, 1.49)], 48);
+  assert.equal(flat.length, 2);
+  assert.ok(Number.isFinite(flat[0].x) && Number.isFinite(flat[0].y));
+});
+
+/** Three taps: a start, a corner, an end, each leg following a path. */
+function bentTwice() {
+  const a = at(48.450, 1.490);
+  const b = at(48.452, 1.492);
+  const c = at(48.454, 1.490);
+  return withWaypoint(
+    withWaypoint(withWaypoint(emptyRoute(), a), b, [a, at(48.451, 1.4915), b]),
+    c,
+    [b, at(48.453, 1.4915), c],
+  );
+}
+
+test("moving a waypoint straightens only the legs that touch it", () => {
+  const route = bentTwice();
+  const moved = movedWaypoint(route, 1, at(48.4525, 1.4950));
+
+  assert.deepEqual(moved.waypoints[1], at(48.4525, 1.4950));
+  // Both legs met at that corner, so both are guesses again.
+  assert.equal(moved.legs[0].length, 2);
+  assert.equal(moved.legs[1].length, 2);
+  assert.deepEqual(moved.legs[0], [route.waypoints[0], at(48.4525, 1.4950)]);
+  assert.deepEqual(moved.legs[1], [at(48.4525, 1.4950), route.waypoints[2]]);
+});
+
+test("moving an end straightens the one leg that reaches it", () => {
+  const route = bentTwice();
+  const moved = movedWaypoint(route, 2, at(48.456, 1.488));
+  // The first leg never touched it and keeps the path it had.
+  assert.equal(moved.legs[0].length, 3);
+  assert.equal(moved.legs[1].length, 2);
+  assert.equal(movedWaypoint(route, 9, at(1, 1)), route);
+});
+
+test("which legs have to be asked about again", () => {
+  const route = bentTwice();
+  assert.deepEqual(legsAround(route, 0), [0]);
+  assert.deepEqual(legsAround(route, 1), [0, 1]);
+  assert.deepEqual(legsAround(route, 2), [1]);
+});
+
+test("removing a corner joins what it separated", () => {
+  const route = bentTwice();
+  const without = withoutWaypoint(route, 1);
+
+  assert.equal(without.waypoints.length, 2);
+  assert.equal(without.legs.length, 1);
+  assert.deepEqual(without.legs[0], [route.waypoints[0], route.waypoints[2]]);
+});
+
+test("removing an end takes its leg with it", () => {
+  const route = bentTwice();
+  const first = withoutWaypoint(route, 0);
+  assert.equal(first.waypoints.length, 2);
+  assert.equal(first.legs.length, 1);
+  assert.deepEqual(first.legs[0], route.legs[1]);
+
+  const last = withoutWaypoint(route, 2);
+  assert.equal(last.legs.length, 1);
+  assert.deepEqual(last.legs[0], route.legs[0]);
+});
+
+test("removing the only point leaves nothing, and a point that is not there changes nothing", () => {
+  const one = withWaypoint(emptyRoute(), at(48.45, 1.49));
+  assert.deepEqual(withoutWaypoint(one, 0), emptyRoute());
+  const route = bentTwice();
+  assert.equal(withoutWaypoint(route, 7), route);
+  assert.equal(withoutWaypoint(route, -1), route);
+});
+
+test("a route stays consistent however it is cut about", () => {
+  // One leg fewer than waypoints, always: that invariant is what lets undo
+  // take back a decision rather than a few hundred points of pavement.
+  const shapes = [
+    bentTwice(),
+    withoutWaypoint(bentTwice(), 1),
+    movedWaypoint(bentTwice(), 0, at(48.449, 1.489)),
+    withoutWaypoint(withoutWaypoint(bentTwice(), 0), 0),
+  ];
+  for (const route of shapes) {
+    assert.equal(route.legs.length, Math.max(0, route.waypoints.length - 1));
+  }
+});
+
+/** A line of `count` points, twenty metres apart, running north. */
+function imported(count: number): RoutePoint[] {
+  return Array.from({ length: count }, (_, i) => at(48.45 + i * 0.00018, 1.49));
+}
+
+test("an imported line keeps every metre of itself", () => {
+  const line = imported(400);
+  const route = routeFromLine(line);
+
+  // The legs, joined end to end, are the file back again.
+  const joined = route.legs.reduce<RoutePoint[]>(
+    (all, leg, index) => all.concat(index === 0 ? leg : leg.slice(1)), [],
+  );
+  assert.deepEqual(joined, line);
+});
+
+test("an imported route gets handles, not too many", () => {
+  const route = routeFromLine(imported(400));
+  assert.ok(route.waypoints.length >= 3, `${route.waypoints.length} handles`);
+  assert.ok(route.waypoints.length <= 12, `${route.waypoints.length} handles`);
+  assert.equal(route.legs.length, route.waypoints.length - 1);
+  // Every handle sits on the line, since that is what it is a handle for.
+  for (const waypoint of route.waypoints) {
+    assert.ok(imported(400).some((point) => point.lat === waypoint.lat), "a handle off the line");
+  }
+});
+
+test("the handles start and end where the file does", () => {
+  const line = imported(400);
+  const route = routeFromLine(line);
+  assert.deepEqual(route.waypoints[0], line[0]);
+  assert.deepEqual(route.waypoints.at(-1), line.at(-1));
+});
+
+test("a short file gets the two handles it deserves", () => {
+  const route = routeFromLine(imported(6));
+  assert.equal(route.waypoints.length, 2);
+  assert.equal(route.legs.length, 1);
+  assert.equal(route.legs[0].length, 6);
+});
+
+test("a file with nothing in it is no route", () => {
+  assert.deepEqual(routeFromLine([]), emptyRoute());
+  assert.deepEqual(routeFromLine([at(48.45, 1.49)]), { waypoints: [at(48.45, 1.49)], legs: [] });
 });

@@ -31,12 +31,23 @@ export interface Route {
   legs: RoutePoint[][];
 }
 
-/** A route on disk, with what it is called. */
+/** A route on disk, with what it is called and what it looks like. */
 export interface StoredRoute extends Route {
   id: number;
   name: string;
   createdAt: number;
   distanceM: number;
+  /** "Chartres, France", or null when the lookup could not answer. */
+  place: string | null;
+  /**
+   * A picture of the route on its map, taken once when it was drawn.
+   *
+   * Once, and kept: a live map on every row of a list would want tiles, a
+   * network and a view of its own for each. This is one file, written when
+   * there is already a map on screen with the route on it — which is exactly
+   * the moment somebody finishes drawing one.
+   */
+  preview: string | null;
 }
 
 export const emptyRoute = (): Route => ({ waypoints: [], legs: [] });
@@ -110,6 +121,58 @@ export function withoutLast(route: Route): Route {
   return { waypoints: route.waypoints.slice(0, -1), legs: route.legs.slice(0, -1) };
 }
 
+/**
+ * Move one waypoint, and put the legs touching it back to straight lines.
+ *
+ * Straight because they are wrong now and honestly wrong: the paths they held
+ * went somewhere this point no longer is. The screen asks the router about
+ * them again, and until it answers the drawing says plainly that those two
+ * stretches are guesses.
+ *
+ * Which legs touch it is the whole of the arithmetic: the one arriving and
+ * the one leaving, either of which may not exist at the ends of the route.
+ */
+export function movedWaypoint(route: Route, index: number, to: RoutePoint): Route {
+  if (index < 0 || index >= route.waypoints.length) return route;
+  const waypoints = route.waypoints.map((point, at) => (at === index ? to : point));
+
+  return {
+    waypoints,
+    legs: route.legs.map((leg, at) => {
+      if (at === index - 1) return [waypoints[at], to];
+      if (at === index) return [to, waypoints[at + 1]];
+      return leg;
+    }),
+  };
+}
+
+/**
+ * Take one waypoint out, wherever it sits.
+ *
+ * The two legs that met there become one, which is a straight line until the
+ * router says otherwise — the same bargain as moving a point. Removing an end
+ * is simpler: the leg that reached it goes with it.
+ */
+export function withoutWaypoint(route: Route, index: number): Route {
+  if (index < 0 || index >= route.waypoints.length) return route;
+  if (route.waypoints.length <= 1) return emptyRoute();
+
+  const waypoints = route.waypoints.filter((_, at) => at !== index);
+  if (index === 0) return { waypoints, legs: route.legs.slice(1) };
+  if (index === route.waypoints.length - 1) return { waypoints, legs: route.legs.slice(0, -1) };
+
+  const legs = [...route.legs];
+  // The leg arriving and the leg leaving become the one that joins their two
+  // far ends.
+  legs.splice(index - 1, 2, [route.waypoints[index - 1], route.waypoints[index + 1]]);
+  return { waypoints, legs };
+}
+
+/** Which legs a waypoint touches, and so which have to be asked about again. */
+export function legsAround(route: Route, index: number): number[] {
+  return [index - 1, index].filter((at) => at >= 0 && at < route.legs.length);
+}
+
 /** Where the next leg starts from, or null on an empty route. */
 export function lastWaypoint(route: Route): RoutePoint | null {
   return route.waypoints[route.waypoints.length - 1] ?? null;
@@ -169,6 +232,131 @@ export function readLeg(payload: unknown): RoutePoint[] {
     // GeoJSON is longitude first, which is the opposite of how everything
     // else in this app, and every map, says a coordinate.
     .map(([lng, lat]) => ({ lat, lng }));
+}
+
+/**
+ * A camera framing a whole route, for a map opening on one.
+ *
+ * The same job `regionAround` does for a run, and deliberately not the same
+ * function: that one takes the points of a track and this one takes a route,
+ * and giving either of them the other's shape would only make both harder to
+ * read.
+ */
+export function regionAroundRoute(route: Route, margin = 1.4) {
+  const line = drawnLine(route);
+  if (line.length === 0) return null;
+
+  let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+  for (const point of line) {
+    if (point.lat < minLat) minLat = point.lat;
+    if (point.lat > maxLat) maxLat = point.lat;
+    if (point.lng < minLng) minLng = point.lng;
+    if (point.lng > maxLng) maxLng = point.lng;
+  }
+
+  // A floor, so a route around one block does not open magnified to the point
+  // where the street names crowd it out.
+  const FLOOR = 0.004;
+  return {
+    latitude: (minLat + maxLat) / 2,
+    longitude: (minLng + maxLng) / 2,
+    latitudeDelta: Math.max((maxLat - minLat) * margin, FLOOR),
+    longitudeDelta: Math.max((maxLng - minLng) * margin, FLOOR),
+  };
+}
+
+/**
+ * The shape of a route, fitted into a small square.
+ *
+ * A thumbnail on a list row, drawn as a line rather than as a map. A map
+ * needs tiles, a network and a view of its own per row; the shape needs none
+ * of that, and the shape is what anybody recognises — nobody identifies their
+ * saturday loop by the street names on it.
+ *
+ * The aspect is kept, so an out-and-back along a canal stays flat and a loop
+ * stays round. Stretching each to fill the box would make every route look
+ * like every other one, which is the one thing a thumbnail must not do.
+ */
+export function thumbnail(line: RoutePoint[], size: number, padding = 4): { x: number; y: number }[] {
+  if (line.length < 2) return [];
+
+  let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+  for (const point of line) {
+    if (point.lat < minLat) minLat = point.lat;
+    if (point.lat > maxLat) maxLat = point.lat;
+    if (point.lng < minLng) minLng = point.lng;
+    if (point.lng > maxLng) maxLng = point.lng;
+  }
+
+  // A degree of longitude is shorter than a degree of latitude everywhere but
+  // the equator, so a square in degrees is a rectangle on the ground.
+  const squash = Math.max(0.01, Math.cos(((minLat + maxLat) / 2 * Math.PI) / 180));
+  const wide = Math.max((maxLng - minLng) * squash, 1e-9);
+  const tall = Math.max(maxLat - minLat, 1e-9);
+
+  const box = size - padding * 2;
+  const scale = Math.min(box / wide, box / tall);
+  // Centred in whichever direction has room left over.
+  const left = padding + (box - wide * scale) / 2;
+  const top = padding + (box - tall * scale) / 2;
+
+  return line.map((point) => ({
+    x: left + (point.lng - minLng) * squash * scale,
+    // Latitude grows northwards and a screen grows downwards.
+    y: top + (maxLat - point.lat) * scale,
+  }));
+}
+
+/**
+ * How far apart the waypoints of an imported route are put, at the closest.
+ *
+ * Five hundred metres. Closer than that and a ten-kilometre file arrives as
+ * twenty markers nobody can drag apart; further and a route has too few
+ * handles to be worth editing at all.
+ */
+const IMPORT_SPACING_M = 500;
+
+/** At most this many handles, however long the file is. */
+const IMPORT_WAYPOINTS = 12;
+
+/**
+ * Turn a line from a file into a route somebody can edit.
+ *
+ * A file has no taps in it — it is a few hundred points and no decisions —
+ * so the decisions are invented: handles are placed along the line at even
+ * intervals, and the real geometry between them becomes the legs. That gives
+ * an imported route the same shape as a drawn one, which is what lets it be
+ * dragged about, cut and extended like any other.
+ *
+ * The line itself is never simplified. What was imported is what will be
+ * run; the handles are only somewhere to take hold of it.
+ */
+export function routeFromLine(
+  line: RoutePoint[],
+  { spacingM = IMPORT_SPACING_M, most = IMPORT_WAYPOINTS } = {},
+): Route {
+  if (line.length < 2) return line.length === 1 ? { waypoints: [line[0]], legs: [] } : emptyRoute();
+
+  let total = 0;
+  for (let i = 1; i < line.length; i += 1) total += distanceM(line[i - 1], line[i]);
+  // Whichever is the coarser: the floor above, or the spacing that keeps the
+  // count down on a long route.
+  const spacing = Math.max(spacingM, total / Math.max(1, most - 1));
+
+  const cuts = [0];
+  let since = 0;
+  for (let i = 1; i < line.length - 1; i += 1) {
+    since += distanceM(line[i - 1], line[i]);
+    if (since < spacing) continue;
+    cuts.push(i);
+    since = 0;
+  }
+  cuts.push(line.length - 1);
+
+  return {
+    waypoints: cuts.map((at) => line[at]),
+    legs: cuts.slice(1).map((to, index) => line.slice(cuts[index], to + 1)),
+  };
 }
 
 /** A route back out of the database, where it is kept as two json columns. */
