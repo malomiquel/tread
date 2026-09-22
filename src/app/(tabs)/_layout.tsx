@@ -67,20 +67,29 @@ export default function TabsLayout() {
         }}
       />
       {/*
-        * Last, and deliberately light.
-        *
-        * Who this runner is, how the programmes are built, which build of the
-        * app this is. It is also what makes the bar even, which is what lets
-        * the run button sit in the middle of it rather than off to one side.
+        * The routes, where the programme's sessions are not: one says what to
+        * run, the other says where. They were behind a button on the running
+        * map until that stopped making sense — a route outlives the run it
+        * was drawn for, and nothing that outlives a run should only be
+        * reachable from inside one.
         */}
       <Tabs.Screen
-        name="progress"
+        name="routes"
         options={{
-          title: "Progression",
+          title: "Parcours",
           animation: "none",
-          tabBarIcon: ({ color, size }) => <Ionicons name="stats-chart" size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name="map" size={size} color={color} />,
         }}
       />
+      {/*
+        * Last, and no longer light.
+        *
+        * The week, the records, the totals, who this runner is, and the way
+        * into the settings. Progression was a tab beside this one until the
+        * two were found to be about the same person. It is also what makes
+        * the bar even, which is what lets the run button sit in the middle of
+        * it rather than off to one side.
+        */}
       <Tabs.Screen
         name="profile"
         options={{

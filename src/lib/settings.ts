@@ -31,9 +31,19 @@ export interface Settings {
    * notifications get turned off wholesale a week later.
    */
   reminder: ReminderWhen;
+  /**
+   * The route to follow, or null to run wherever the legs go.
+   *
+   * Kept here rather than on the tracker for the same reason the target pace
+   * is: it is a decision about how you run, not part of what a run was, and
+   * it should still be chosen tomorrow morning.
+   */
+  routeId: number | null;
 }
 
-const DEFAULTS: Settings = { voice: true, targetPaceSKm: null, weeklyGoalM: null, reminder: "off" };
+const DEFAULTS: Settings = {
+  voice: true, targetPaceSKm: null, weeklyGoalM: null, reminder: "off", routeId: null,
+};
 
 /**
  * Settings live in SQLite but are read synchronously from a cache, because
@@ -56,6 +66,7 @@ export async function loadSettings(): Promise<void> {
       targetPaceSKm: readTarget(stored.targetPaceSKm),
       weeklyGoalM: readGoal(stored.weeklyGoalM),
       reminder: readReminderWhen(stored.reminder),
+      routeId: readId(stored.routeId),
     });
   } catch {
     // Unreadable settings are not worth failing a launch over.
@@ -98,6 +109,13 @@ function readGoal(raw: string | undefined): number | null {
   return Number.isFinite(metres) && metres > 0 && metres <= 500_000 ? metres : null;
 }
 
+/** A stored row id, or null. A route that has been deleted reads as none. */
+function readId(raw: string | undefined): number | null {
+  if (!raw || raw === "null") return null;
+  const id = Number(raw);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
 /** Speak the kilometres, or stop speaking them. */
 export async function toggleVoice(): Promise<void> {
   await store({ ...current, voice: !current.voice }, "voice", String(!current.voice));
@@ -116,6 +134,11 @@ export async function setWeeklyGoal(metres: number | null): Promise<void> {
 /** Say when planned sessions are announced, or "off" to stop announcing them. */
 export async function setReminder(when: ReminderWhen): Promise<void> {
   await store({ ...current, reminder: when }, "reminder", when);
+}
+
+/** Follow a drawn route, or null to run free. */
+export async function setRoute(id: number | null): Promise<void> {
+  await store({ ...current, routeId: id }, "routeId", String(id));
 }
 
 /** The cache moves first, so the interface reacts before the disk answers. */

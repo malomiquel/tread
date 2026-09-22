@@ -11,7 +11,9 @@ import { formatDistance, formatDuration } from "@/lib/format";
 import { bounds, regionAround, segments, type TrackPoint } from "@/lib/geo";
 import { CONTROL_SIZE, CONTROLS_TOP } from "@/lib/layout";
 import { getCurrentCoords, type Coords } from "@/lib/location";
+import { readColour } from "@/lib/raster";
 import { buildReplay, drawnSoFar, headAt, REPLAY_MS } from "@/lib/replay";
+import type { RoutePoint } from "@/lib/route";
 import { colors, floatingShadow, font, literalColors } from "@/lib/theme";
 
 interface Props {
@@ -38,6 +40,20 @@ interface Props {
    * at a time, by the run itself.
    */
   replayable?: boolean;
+  /**
+   * A drawn route to follow, under the track.
+   *
+   * It changes appearance depending on whether there is anything over it. On
+   * its own — before a run starts — it is the subject of the map and is drawn
+   * as such: solid, full ink. Once a track is being laid over it, it steps
+   * back into dashes and half the ink, because from that moment the question
+   * is no longer "where am I going" but "am I still on it", and that question
+   * is only readable if the two lines cannot be confused.
+   *
+   * Drawn faint from the start, as it was first, it read as a line that had
+   * failed to load rather than as a plan.
+   */
+  route?: RoutePoint[] | null;
   /** Supplying this shows the expand button and reports every tap on it. */
   onToggleFullscreen?: () => void;
   /** Flips the expand button into a collapse button. */
@@ -82,7 +98,7 @@ const RUNNER_ZOOM = 0.006;
  */
 export function RunMap({
   points, follow = false, fitAll = false, initialCenter = null, locateOnFocus = false,
-  replayable = false, onToggleFullscreen, fullscreen = false, controlsBottom = 12,
+  replayable = false, route = null, onToggleFullscreen, fullscreen = false, controlsBottom = 12,
   controlsAtTop = false, controlsArrive, controlsAbove, style,
 }: Props) {
   const map = useRef<MapView>(null);
@@ -100,6 +116,11 @@ export function RunMap({
   const empty = points.length === 0;
   const last = points.length ? points[points.length - 1] : null;
   const tracks = segments(points);
+
+  /** Whether anything is being drawn over the route, which changes how it is drawn. */
+  const underway = points.length > 1;
+  const plan = readColour(literalColors.track[scheme]);
+  const planInk = `rgba(${plan[0]}, ${plan[1]}, ${plan[2]}, 0.45)`;
 
   /**
    * The replay's timeline, laid out once per track rather than per frame.
@@ -231,6 +252,20 @@ export function RunMap({
         pitchEnabled={false}
         onMapReady={frameTrack}
       >
+        {/* Drawn first, so the track is drawn over it rather than under. */}
+        {route && route.length > 1 && (
+          <Polyline
+            coordinates={route.map((point) => ({ latitude: point.lat, longitude: point.lng }))}
+            strokeColor={underway ? planInk : literalColors.track[scheme]}
+            strokeWidth={underway ? 7 : 4}
+            // Only once there is a track to tell it apart from. A solid pale
+            // line under a solid dark one reads as one line with a halo.
+            lineDashPattern={underway ? [3, 9] : undefined}
+            lineCap="round"
+            lineJoin="round"
+          />
+        )}
+
         {(drawn ?? tracks).map((track) => (
           <Polyline
             // Keyed on the first timestamp rather than the array index, so a

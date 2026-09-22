@@ -6,6 +6,7 @@ import {
   normaliseDays, type Done, type Exertion, type Goal, type PerWeek, type PlannedSession,
 } from "./plan";
 import { parseHeart, type Heart } from "./heart";
+import { parseRoute, routeDistanceM, type Route, type StoredRoute } from "./route";
 import { TRANSFER_FORMAT, TRANSFER_VERSION, type Transfer, type TransferRun } from "./transfer";
 import { parseWeather, type Weather } from "./weather";
 import type { RanBlock } from "./workout";
@@ -152,7 +153,7 @@ function parseBlocks(raw: string | null): RanBlock[] {
   }
 }
 
-const SCHEMA_VERSION = 13;
+const SCHEMA_VERSION = 14;
 
 /**
  * The plan's two tables, written once and used twice — by a fresh install and
@@ -165,6 +166,24 @@ const SCHEMA_VERSION = 13;
  * No date is stored anywhere here. Dates are laid out afresh on every read,
  * which is what lets a missed week slide.
  */
+/**
+ * Routes are plans, so they are kept apart from runs entirely.
+ *
+ * Two json columns rather than a table of points: a route is only ever read
+ * whole, and the taps have to be kept beside the drawn line so that a corner
+ * can still be taken back a week later.
+ */
+const ROUTE_TABLE = `
+  CREATE TABLE IF NOT EXISTS routes (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    distance_m REAL NOT NULL,
+    waypoints TEXT NOT NULL,
+    legs TEXT NOT NULL
+  );
+`;
+
 const PLAN_TABLES = `
   CREATE TABLE IF NOT EXISTS plans (
     id INTEGER PRIMARY KEY,
@@ -227,6 +246,7 @@ export async function initDb(): Promise<void> {
       );
       CREATE INDEX IF NOT EXISTS idx_points_run ON points(run_id, ts);
       CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+      ${ROUTE_TABLE}
       ${PLAN_TABLES}
     `);
     version = SCHEMA_VERSION;
@@ -325,6 +345,11 @@ export async function initDb(): Promise<void> {
   if (version < 13) {
     await db.execAsync("ALTER TABLE runs ADD COLUMN heart TEXT");
     version = 13;
+  }
+
+  if (version < 14) {
+    await db.execAsync(ROUTE_TABLE);
+    version = 14;
   }
 
   await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
@@ -518,6 +543,54 @@ export async function restoreTransfer(transfer: Transfer): Promise<Restored> {
  */
 export async function setHealthUuid(id: number, uuid: string | null): Promise<void> {
   await getDb().runAsync("UPDATE runs SET health_uuid = ? WHERE id = ?", uuid, id);
+}
+
+interface RouteRow {
+  id: number;
+  name: string;
+  created_at: number;
+  distance_m: number;
+  waypoints: string;
+  legs: string;
+}
+
+const toRoute = (row: RouteRow): StoredRoute => ({
+  id: row.id,
+  name: row.name,
+  createdAt: row.created_at,
+  distanceM: row.distance_m,
+  ...parseRoute(row.waypoints, row.legs),
+});
+
+/** Keep a drawn route, and hand back the id it was given. */
+export async function saveRoute(name: string, route: Route): Promise<number> {
+  const result = await getDb().runAsync(
+    "INSERT INTO routes (name, created_at, distance_m, waypoints, legs) VALUES (?, ?, ?, ?, ?)",
+    name, Date.now(), routeDistanceM(route),
+    JSON.stringify(route.waypoints), JSON.stringify(route.legs),
+  );
+  return Number(result.lastInsertRowId);
+}
+
+/** Every route, newest first. */
+export async function listRoutes(): Promise<StoredRoute[]> {
+  const rows = await getDb().getAllAsync<RouteRow>(
+    "SELECT * FROM routes ORDER BY created_at DESC",
+  );
+  return rows.map(toRoute);
+}
+
+export async function readRoute(id: number): Promise<StoredRoute | null> {
+  const row = await getDb().getFirstAsync<RouteRow>("SELECT * FROM routes WHERE id = ?", id);
+  return row ? toRoute(row) : null;
+}
+
+export async function renameRoute(id: number, name: string): Promise<void> {
+  await getDb().runAsync("UPDATE routes SET name = ? WHERE id = ?", name.trim(), id);
+}
+
+export async function deleteRoute(id: number): Promise<void> {
+  await getDb().runAsync("DELETE FROM routes WHERE id = ?", id);
 }
 
 /**

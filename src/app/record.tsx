@@ -13,11 +13,12 @@ import { Metric } from "@/components/Metric";
 import { RunMap } from "@/components/RunMap";
 import { SessionDetail } from "@/components/SessionDetail";
 import { SessionPicker } from "@/components/SessionPicker";
-import { listRuns, type Run } from "@/lib/db";
+import { listRuns, readRoute, type Run } from "@/lib/db";
 import { formatDistance, formatDuration, formatElevation, formatPace } from "@/lib/format";
 import { currentPace, elevationGainM, MAX_ACCURACY_M, paceSecPerKm, totalDistanceM } from "@/lib/geo";
 import { CONTROL_SIZE, CONTROLS_TOP, useTabBarBottom } from "@/lib/layout";
 import { useInitialLocation } from "@/lib/location";
+import { drawnLine, type RoutePoint } from "@/lib/route";
 import { toggleVoice, useSettings } from "@/lib/settings";
 import { goalProgress, weekTotals } from "@/lib/stats";
 import { colors, font } from "@/lib/theme";
@@ -136,6 +137,34 @@ export default function RecordScreen() {
   /** The block list, opened from the session line. */
   const [showingSteps, setShowingSteps] = useState(false);
   const [choosing, setChoosing] = useState(false);
+  /**
+   * The chosen route, drawn out, kept with the id it was read from.
+   *
+   * Kept together so that what is on screen can be worked out rather than
+   * switched off and on: a route the setting no longer names is simply not
+   * the one loaded, and nothing has to be cleared for the map to stop
+   * showing it.
+   */
+  const [loaded, setLoaded] = useState<{ id: number; line: RoutePoint[] } | null>(null);
+  /**
+   * Its id rather than the route itself, because the settings are consulted
+   * on every GPS fix and a route is a few hundred points. It is chosen in the
+   * Parcours tab and only drawn here: a route outlives the run it was drawn
+   * for, so managing them from inside a run was always the wrong way round.
+   */
+  const chosenRoute = settings.routeId;
+  const routeLine = chosenRoute !== null && loaded?.id === chosenRoute ? loaded.line : null;
+
+  useEffect(() => {
+    if (chosenRoute === null) return;
+    let active = true;
+    void readRoute(chosenRoute).then((found) => {
+      // A route deleted while it was the chosen one never loads, so the map
+      // goes on showing nothing rather than a line that no longer exists.
+      if (active && found) setLoaded({ id: chosenRoute, line: drawnLine(found) });
+    });
+    return () => { active = false; };
+  }, [chosenRoute]);
   const [history, setHistory] = useState<Run[]>([]);
   // Measured rather than assumed: the panel grows when a run starts, and the
   // controls stacked above it have to move with it instead of being buried.
@@ -395,6 +424,7 @@ export default function RecordScreen() {
       <RunMap
         points={tracker.points}
         follow
+        route={routeLine}
         initialCenter={coords}
         locateOnFocus
         controlsAbove={locateAbove}

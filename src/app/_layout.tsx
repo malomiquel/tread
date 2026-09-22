@@ -130,6 +130,10 @@ export default function RootLayout() {
         />
         <Stack.Screen name="run/[id]" options={{ title: "Course", headerBackTitle: "Retour" }} />
         <Stack.Screen name="plan-method" options={{ title: "Méthode", headerBackTitle: "Retour" }} />
+        <Stack.Screen
+          name="route/new"
+          options={{ title: "Nouveau parcours", headerBackTitle: "Retour" }}
+        />
         {/* A page of its own, with its own rooms under it. Naming each back
             button after the page it returns to is what makes a hierarchy
             readable from inside it. */}

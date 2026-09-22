@@ -2,7 +2,8 @@
 
 A running app with live GPS recording: distance, duration, current and average
 pace, elevation gain, your route on a map, per-kilometre splits, personal
-records, the weather you ran in, and local history. A finished run draws
+records, the weather you ran in, routes drawn before they are run, and local
+history. A finished run draws
 itself back on its map and leaves as a picture, a GIF or a GPX; the whole app
 moves to a new phone in one file. Expo SDK 57, React Native, TypeScript.
 
@@ -67,13 +68,14 @@ src/lib/format.ts     duration, pace, distance for display
 src/lib/weather.ts    conditions now, at a run's hour, days ahead     pure, tested
 src/lib/heart.ts      heart rate: weighted average, peak, zones       pure, tested
 src/lib/replay.ts     drawing a finished run back at its own pace     pure, tested
+src/lib/route.ts      routes drawn before they are run               pure, tested
 src/lib/gif.ts        frames in, one animated GIF out                 pure, tested
 src/lib/raster.ts     drawing a line into pixels, by hand            pure, tested
 src/lib/reminders.ts  when a planned session is announced             pure, tested
 src/lib/transfer.ts   the whole app as one file, for a new phone      pure, tested
 src/lib/handover.ts   the same, served over the wifi to a QR scan     pure, tested
 src/lib/stats.ts      weeks, records, the weekly goal                 pure, tested
-src/app/(tabs)/       Run, Progress, History
+src/app/(tabs)/       Plan, History, Routes, Profile
 src/app/run/[id]      one run in detail
 src/app/settings/     settings, one page per subject
 src/components/       RunMap, Metric, Button
@@ -161,6 +163,17 @@ nobody watches to the end. The track is thinned to six hundred points first,
 keeping both ends and every segment boundary: a polyline rebuilt from five
 thousand fixes twenty-five times a second stutters, and a lost boundary would
 draw a line straight across a pause.
+
+**A drawn route keeps the taps, not just the line.** Tapping a map builds a
+route leg by leg, each leg asked of OpenStreetMap's walking router — keyless,
+like the weather, because an app on other people's phones cannot keep a
+secret. Both lists are stored: what the finger put down, and the paths the
+streets actually take between them. Keeping only the drawn line would make
+every mistake unpickable, since undo has to take back a decision rather than
+a few hundred points of pavement. The router is a convenience and not a
+dependency: the straight line is drawn the instant a finger lands and
+replaced when the answer comes, so a route can still be drawn on a train with
+no signal, wrong about the streets and right about the intention.
 
 **The heart rate is read, never measured.** A watch is already recording one
 every few seconds into Health, so the app asks for it afterwards instead of
