@@ -24,18 +24,17 @@ export default function SettingsScreen() {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+      {/*
+        * Grouped by subject rather than listed.
+        *
+        * Four rows fit in a list; the twelfth does not, and by then nobody
+        * remembers whether the weekly goal was under "Plan" or somewhere
+        * else. Themes give every setting added later a place it obviously
+        * belongs, which is the only thing that stops a settings page turning
+        * into a drawer.
+        */}
       <View style={styles.group}>
-        <SettingRow
-          label="Notifications"
-          detail="Quand le programme te rappelle une séance"
-          value={REMINDER_NAMES[settings.reminder]}
-          onPress={() => router.push("/settings/notifications")}
-        />
-        <SettingRow
-          label="Transfert"
-          detail="Emporter tout sur un autre téléphone"
-          onPress={() => router.push("/settings/transfer")}
-        />
+        <Text style={styles.groupTitle}>Entraînement</Text>
         <SettingRow
           label="Plan"
           detail="Ce que tu vises, semaine après semaine"
@@ -45,6 +44,21 @@ export default function SettingsScreen() {
               : `${formatDistance(settings.weeklyGoalM)} km / sem.`
           }
           onPress={() => router.push("/settings/plan")}
+        />
+        <SettingRow
+          label="Notifications"
+          detail="Quand le programme te rappelle une séance"
+          value={REMINDER_NAMES[settings.reminder]}
+          onPress={() => router.push("/settings/notifications")}
+        />
+      </View>
+
+      <View style={styles.group}>
+        <Text style={styles.groupTitle}>Données</Text>
+        <SettingRow
+          label="Transfert"
+          detail="Emporter tout sur un autre téléphone"
+          onPress={() => router.push("/settings/transfer")}
         />
       </View>
 
@@ -64,9 +78,13 @@ const styles = StyleSheet.create({
   // Sections run edge to edge, told apart by a rule rather than by floating
   // on their own surface, as everywhere else in the app.
   group: {
-    paddingHorizontal: GUTTER, paddingVertical: 6, marginTop: 10,
+    paddingHorizontal: GUTTER, paddingVertical: 6, marginTop: 18,
     borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.hairline,
+  },
+  groupTitle: {
+    color: colors.subtle, fontSize: 12.5, fontFamily: font.semibold,
+    letterSpacing: 1.3, textTransform: "uppercase", paddingTop: 8,
   },
   note: {
     color: colors.subtle, fontSize: 13.5, fontFamily: font.regular, lineHeight: 20,
