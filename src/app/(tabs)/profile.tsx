@@ -48,7 +48,9 @@ export default function ProfileScreen() {
   if (!records) {
     return (
       <SafeAreaView style={styles.screen} edges={["top"]}>
-        <Text style={styles.title}>Profil</Text>
+        <View style={styles.head}>
+          <Text style={styles.title}>Profil</Text>
+        </View>
       </SafeAreaView>
     );
   }
@@ -65,7 +67,21 @@ export default function ProfileScreen() {
           appeared on some tab changes and not others. */}
       <View style={styles.fill}>
       <ScrollView ref={page} contentContainerStyle={[styles.content, { paddingBottom: tabBarSpace }]}>
-        <Text style={styles.title}>Profil</Text>
+        <View style={styles.head}>
+          <Text style={styles.title}>Profil</Text>
+          {/* Settings are a page, not a section. They were a section here for
+              exactly as long as there was one of them; a cog is where anybody
+              looks for the rest. */}
+          <Pressable
+            onPress={() => router.push("/settings")}
+            accessibilityRole="button"
+            accessibilityLabel="Réglages"
+            hitSlop={10}
+            style={({ pressed }) => [styles.cog, pressed && styles.linkPressed]}
+          >
+            <Ionicons name="settings-outline" size={22} color={colors.text} />
+          </Pressable>
+        </View>
         {records.totalRuns > 0 ? (
           <Text style={styles.lede}>
             {records.totalRuns} course{records.totalRuns > 1 ? "s" : ""} ·{" "}
@@ -105,9 +121,15 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   fill: { flex: 1 },
   content: {},
-  title: {
-    color: colors.text, fontSize: 32, fontFamily: font.bold,
-    letterSpacing: -0.6, paddingHorizontal: GUTTER, paddingTop: 10,
+  head: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: GUTTER, paddingTop: 10,
+  },
+  title: { color: colors.text, fontSize: 32, fontFamily: font.bold, letterSpacing: -0.6 },
+  cog: {
+    width: 40, height: 40, borderRadius: 20,
+    alignItems: "center", justifyContent: "center",
+    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline,
   },
   // The one line that says who this is: everything below it is the detail.
   lede: {

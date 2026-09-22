@@ -1,7 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { formatEnergy, formatSpeed } from "./format.ts";
-import { timeAgo, weeklyVolumeKm, weekStart, weekTotals } from "./stats.ts";
+import {
+  goalProgress, suggestedWeeklyGoalM, timeAgo, weeklyVolumeKm, weekStart, weekTotals,
+} from "./stats.ts";
 
 const run = (startedAt: number, distanceM = 5000, durationS = 1500) =>
   ({
@@ -95,4 +97,50 @@ test("no runs means no figure rather than a zero", () => {
   assert.equal(weeklyVolumeKm([], WEDNESDAY, 8), null);
   // And runs older than the window do not count.
   assert.equal(weeklyVolumeKm([run(WEDNESDAY - 200 * DAY_MS)], WEDNESDAY, 8), null);
+});
+
+test("a week without a goal has no progress to report", () => {
+  assert.equal(goalProgress(12_000, null), null);
+  assert.equal(goalProgress(12_000, 0), null);
+  assert.equal(goalProgress(12_000, Number.NaN), null);
+});
+
+test("the bar stops at full and the percentage does not", () => {
+  const good = goalProgress(39_000, 30_000);
+  assert.equal(good?.share, 1);
+  assert.equal(good?.percent, 130);
+  assert.equal(good?.remainingM, 0);
+  assert.equal(good?.reached, true);
+});
+
+test("an unfinished week says what is left of it", () => {
+  const half = goalProgress(12_000, 30_000);
+  assert.equal(half?.share, 0.4);
+  assert.equal(half?.percent, 40);
+  assert.equal(half?.remainingM, 18_000);
+  assert.equal(half?.reached, false);
+});
+
+test("a week that has not started yet is empty, never negative", () => {
+  const none = goalProgress(0, 30_000);
+  assert.equal(none?.share, 0);
+  assert.equal(none?.remainingM, 30_000);
+  assert.equal(goalProgress(-5, 30_000)?.share, 0);
+});
+
+test("the goal suggested is their own average, to the nearest five", () => {
+  const now = new Date(2026, 8, 22).getTime();
+  const lastWeek = weekStart(now) - 3 * 86_400_000;
+  // Four weeks back, 32 km in one of them: an average of 4 km a week rounds
+  // to five, which is also the floor.
+  assert.equal(suggestedWeeklyGoalM([run(lastWeek, 32_000)], now), 5000);
+
+  // Eight weeks at roughly 27 km each rounds to 25.
+  const weekly = Array.from({ length: 8 }, (_, i) =>
+    run(weekStart(now) - (i + 1) * 7 * 86_400_000, 27_000));
+  assert.equal(suggestedWeeklyGoalM(weekly, now), 25_000);
+});
+
+test("somebody who has never run is offered five kilometres, not zero", () => {
+  assert.equal(suggestedWeeklyGoalM([], Date.now()), 5000);
 });

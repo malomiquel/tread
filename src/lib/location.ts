@@ -92,22 +92,26 @@ export async function getCurrentCoords(): Promise<Coords | null> {
  * none: permission is asked for on the screen that genuinely cannot work
  * without it, which is the map.
  */
+export async function lastKnownCoords(): Promise<Coords | null> {
+  try {
+    const existing = await Location.getForegroundPermissionsAsync();
+    if (existing.status !== "granted") return null;
+    const known = await Location.getLastKnownPositionAsync();
+    return known ? { lat: known.coords.latitude, lng: known.coords.longitude } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The same thing, for a screen that wants it as it arrives. */
 export function useKnownLocation(): Coords | null {
   const [coords, setCoords] = useState<Coords | null>(null);
 
   useEffect(() => {
     let active = true;
-
-    const locate = async () => {
-      const existing = await Location.getForegroundPermissionsAsync();
-      if (!active || existing.status !== "granted") return;
-      const known = await Location.getLastKnownPositionAsync();
-      if (active && known) {
-        setCoords({ lat: known.coords.latitude, lng: known.coords.longitude });
-      }
-    };
-
-    locate().catch(() => undefined);
+    void lastKnownCoords().then((found) => {
+      if (active && found) setCoords(found);
+    });
     return () => {
       active = false;
     };

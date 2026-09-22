@@ -19,7 +19,7 @@ import { currentPace, elevationGainM, MAX_ACCURACY_M, paceSecPerKm, totalDistanc
 import { CONTROL_SIZE, CONTROLS_TOP, useTabBarBottom } from "@/lib/layout";
 import { useInitialLocation } from "@/lib/location";
 import { toggleVoice, useSettings } from "@/lib/settings";
-import { weekTotals } from "@/lib/stats";
+import { goalProgress, weekTotals } from "@/lib/stats";
 import { colors, font } from "@/lib/theme";
 import {
   activeDurationS, chooseSession, discard, finish, pause, resume, start, useTracker,
@@ -295,6 +295,11 @@ export default function RecordScreen() {
   const pace = tracker.status === "running" ? currentPace(tracker.points, now) : null;
   const elevation = elevationGainM(tracker.points);
   const week = weekTotals(history);
+  // Where the week stands, on the screen where it can still be changed. The
+  // count of outings says what has happened; against a goal the same line
+  // says what is left, which is the only version of it worth reading with a
+  // hand on the play button.
+  const goal = goalProgress(week.distanceM, settings.weeklyGoalM);
 
   const signal =
     tracker.accuracyM === null ? "recherche du GPS"
@@ -508,7 +513,13 @@ export default function RecordScreen() {
                       compact
                       label="Cette semaine"
                       value={`${formatDistance(week.distanceM)} km`}
-                      unit={week.runs > 0 ? `· ${week.runs} sortie${week.runs > 1 ? "s" : ""}` : undefined}
+                      unit={
+                        goal
+                          ? `· objectif ${goal.percent} %`
+                          : week.runs > 0
+                            ? `· ${week.runs} sortie${week.runs > 1 ? "s" : ""}`
+                            : undefined
+                      }
                     />
                     {/* What it is like outside, on the one screen where the
                         question is still open. Everything else the app knows

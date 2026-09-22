@@ -1,6 +1,7 @@
 import { Platform, TurboModuleRegistry } from "react-native";
 import { readRun, setHealthUuid, type Run } from "./db";
 import { estimateActiveEnergyKcal } from "./energy";
+import { maxHeartRateFor, summarise, type Beat, type Heart } from "./heart";
 import { segments, totalDistanceM, type TrackPoint } from "./geo";
 
 type Api = typeof import("@kingstinct/react-native-healthkit");
@@ -9,6 +10,8 @@ type Types = typeof import("@kingstinct/react-native-healthkit/types");
 const DISTANCE = "HKQuantityTypeIdentifierDistanceWalkingRunning";
 const ENERGY = "HKQuantityTypeIdentifierActiveEnergyBurned";
 const BODY_MASS = "HKQuantityTypeIdentifierBodyMass";
+const HEART_RATE = "HKQuantityTypeIdentifierHeartRate";
+const DATE_OF_BIRTH = "HKCharacteristicTypeIdentifierDateOfBirth";
 
 /**
  * HealthKit sits behind a lazy require, and behind a check that the native
@@ -58,13 +61,17 @@ export function healthAvailable(): boolean {
  * What the app asks Health for, and nothing beyond it. The workout and its
  * route are what a running app is there to write; distance and energy are the
  * samples that make a run count towards the day's totals and the move ring.
- * Body mass is the single thing read back, and only because active energy
- * cannot be worked out without a weight.
+ *
+ * Three things are read back, each for something the app cannot do without
+ * it: body mass, because active energy cannot be worked out without a weight;
+ * heart rate, which the phone has no way of measuring and the watch has
+ * already written down; and the date of birth, without which a heart rate is
+ * a number with nothing to be high or low against.
  */
 function permissions(types: Types) {
   return {
     toShare: [types.WorkoutTypeIdentifier, types.WorkoutRouteTypeIdentifier, DISTANCE, ENERGY],
-    toRead: [BODY_MASS],
+    toRead: [BODY_MASS, HEART_RATE, DATE_OF_BIRTH],
   } as const;
 }
 
@@ -124,6 +131,62 @@ export async function readBodyMassKg(): Promise<number | null> {
   const health = healthKit();
   if (!health) return null;
   return bodyMassKg(health.api);
+}
+
+/**
+ * What a run's heart did, read back out of Health.
+ *
+ * Read rather than measured, and read afterwards rather than during: the
+ * watch on the wrist is already recording every few seconds, into the same
+ * place this app would have written to. Asking it later costs nothing at the
+ * time and works for a run recorded with the phone left at home.
+ *
+ * Null all the way down when there is no watch, no permission, or simply no
+ * samples in that window — which is every run by anybody who does not wear
+ * one, and is not a failure.
+ */
+export async function readRunHeart(
+  startedAt: number, endedAt: number,
+): Promise<Heart | null> {
+  const health = healthKit();
+  if (!health) return null;
+
+  try {
+    const samples = await health.api.queryQuantitySamples(HEART_RATE, {
+      limit: 0,
+      unit: "count/min",
+      ascending: true,
+      // Loose rather than strict on both ends: a sample taken a moment before
+      // the start belongs to the warm-up, and the watch's clock and the
+      // phone's are never quite the same anyway.
+      filter: { date: { startDate: new Date(startedAt), endDate: new Date(endedAt) } },
+    });
+
+    const beats: Beat[] = samples.map((sample) => ({
+      ts: sample.startDate.getTime(),
+      bpm: sample.quantity,
+    }));
+    return summarise(beats, ceiling(health.api, endedAt));
+  } catch {
+    // A read is never confirmed nor denied out loud; an exception here means
+    // the same as an empty answer.
+    return null;
+  }
+}
+
+/**
+ * The maximum heart rate to cut the zones against, from the date of birth
+ * Health holds. Null when it holds none, and the run then keeps its average
+ * and its peak without zones — the same bargain the energy estimate strikes
+ * over a missing weight.
+ */
+function ceiling(api: Api, at: number): number | null {
+  try {
+    const born = api.getDateOfBirth();
+    return maxHeartRateFor(born ? born.getTime() : null, at);
+  } catch {
+    return null;
+  }
 }
 
 /**

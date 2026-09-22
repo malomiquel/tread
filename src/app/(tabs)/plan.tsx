@@ -17,6 +17,8 @@ import {
   schedule,
   easeFactor, startOfDay, type Done, type Exertion, type ScheduledSession,
 } from "@/lib/plan";
+import { refreshReminders } from "@/lib/planReminders";
+import { syncReminders } from "@/lib/reminders";
 import { colors, font } from "@/lib/theme";
 import { chooseSession } from "@/lib/tracker";
 import {
@@ -173,6 +175,10 @@ export default function PlanScreen() {
         setPlan(found);
         setDone(found ? await planDone(found.id) : new Map());
         setRecent(await recentExertions());
+        // What is pending on the lock screen is rebuilt from the programme
+        // every time the programme is looked at, which is the cheapest place
+        // to notice that a session has been run, skipped or slid a week.
+        void refreshReminders();
       })
       .catch(() => live && setPlan(null));
     return () => { live = false; };
@@ -196,7 +202,12 @@ export default function PlanScreen() {
         {
           text: "Abandonner",
           style: "destructive",
-          onPress: () => void deletePlan().then(load).catch(() => undefined),
+          // The reminders go with it. A programme nobody is following any
+          // more must not go on tapping them on the shoulder about it.
+          onPress: () => void deletePlan()
+            .then(() => syncReminders([]))
+            .then(load)
+            .catch(() => undefined),
         },
       ],
     );

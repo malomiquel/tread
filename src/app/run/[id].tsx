@@ -13,7 +13,7 @@ import { RunMap } from "@/components/RunMap";
 import { PlanAttachment } from "@/components/PlanAttachment";
 import { canShareImage, ShareRunSheet } from "@/components/ShareRunSheet";
 import { EXERTION_NAMES, type Exertion } from "@/lib/plan";
-import { deleteRun, readRun, renameRun, type Run, setRunExertion, planSessionOfRun,
+import { deleteRun, readRun, renameRun, type Run, setRunExertion, setRunHeart, planSessionOfRun,
 } from "@/lib/db";
 import {
   formatDate, formatDistance, formatDuration, formatElevation, formatEnergy, formatPace, formatSpeed,
@@ -23,9 +23,10 @@ import { sessionById, type RanBlock } from "@/lib/workout";
 import { gpxFileName, toGpx } from "@/lib/gpx";
 import { estimateActiveEnergyKcal } from "@/lib/energy";
 import {
-  forgetRunInHealth, healthAvailable, readBodyMassKg, requestHealthAccess, sharingRefused,
-  syncRunToHealth,
+  forgetRunInHealth, healthAvailable, readBodyMassKg, readRunHeart, requestHealthAccess,
+  sharingRefused, syncRunToHealth,
 } from "@/lib/health";
+import { formatBpm, ZONE_NAMES, type Heart } from "@/lib/heart";
 import { colors, floatingShadow, font } from "@/lib/theme";
 import { pendingWeather } from "@/lib/tracker";
 import { formatTemperature, formatWind, weatherIcon, weatherLabel, type Weather } from "@/lib/weather";
@@ -52,6 +53,35 @@ function BlockRow({ block, rank }: { block: RanBlock; rank: number }) {
         </Text>
       </View>
       <Text style={[styles.blockPace, effort && styles.blockEffort]}>{formatPace(pace)}</Text>
+    </View>
+  );
+}
+
+/**
+ * The five zones as bars, longest first in time rather than in effort.
+ *
+ * Drawn against the zone the run spent most in rather than against the run's
+ * whole duration: an hour of endurance with two minutes at threshold would
+ * otherwise show four empty bars and one full one, which says nothing about
+ * the two minutes. Empty zones are dropped entirely — a row of zeros is a
+ * form, not a reading.
+ */
+function Zones({ heart }: { heart: Heart }) {
+  const longest = Math.max(...heart.zonesS, 1);
+  return (
+    <View style={styles.zones}>
+      {heart.zonesS.map((seconds, zone) =>
+        seconds > 0 ? (
+          <View key={zone} style={styles.zoneRow}>
+            <Text style={styles.zoneName} numberOfLines={1}>
+              {`Z${zone + 1} ${ZONE_NAMES[zone]}`}
+            </Text>
+            <View style={styles.zoneTrack}>
+              <View style={[styles.zoneFill, { width: `${(seconds / longest) * 100}%` }]} />
+            </View>
+            <Text style={styles.zoneTime}>{formatDuration(seconds)}</Text>
+          </View>
+        ) : null)}
     </View>
   );
 }
@@ -108,6 +138,27 @@ export default function RunDetailScreen() {
     });
     return () => { active = false; };
   }, [id]);
+
+  /**
+   * Ask Health what this run's heart did, whenever the run has no answer yet.
+   *
+   * Asked here rather than as the run is closed, and asked again on every
+   * visit until it answers, because the three things it depends on arrive at
+   * their own pace: a watch syncs when it feels like it, permission may be
+   * granted weeks later, and a run imported from a file was never asked at
+   * all. A read costs nothing and returns nothing when there is nothing —
+   * which is every run by anybody who does not wear a watch.
+   */
+  useEffect(() => {
+    if (!data || data.run.heart !== null || data.run.endedAt === null) return;
+    let active = true;
+    void readRunHeart(data.run.startedAt, data.run.endedAt).then((found) => {
+      if (!found || !active) return;
+      setData((current) => (current ? { run: { ...current.run, heart: found }, points: current.points } : current));
+      void setRunHeart(Number(id), found).catch(() => undefined);
+    });
+    return () => { active = false; };
+  }, [data, id]);
 
   useEffect(() => {
     let active = true;
@@ -394,7 +445,27 @@ export default function RunDetailScreen() {
             ) : null}
           </>
         )}
+        {run.heart && (
+          <View style={styles.row}>
+            <Metric label="FC moyenne" value={formatBpm(run.heart.avgBpm)} unit="bpm" />
+            <Metric label="FC max" value={formatBpm(run.heart.maxBpm)} unit="bpm" />
+          </View>
+        )}
       </View>
+
+      {/* Its own section rather than another pair of figures: five bars are a
+          shape of an effort, and the shape is the point. A steady endurance
+          run and a session of intervals can share an average to the beat and
+          look nothing alike here. */}
+      {run.heart && run.heart.maxHeartRate !== null && run.heart.zonesS.some((s) => s > 0) ? (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Zones cardiaques</Text>
+          <Zones heart={run.heart} />
+          <Text style={styles.zoneNote}>
+            {`Calculées sur une fréquence maximale de ${run.heart.maxHeartRate} bpm, estimée à partir de ton âge. C'est une règle générale, pas une mesure : la tienne peut s'en écarter d'une dizaine de battements.`}
+          </Text>
+        </View>
+      ) : null}
 
       <RunMap
         points={points}
@@ -723,6 +794,20 @@ const styles = StyleSheet.create({
     letterSpacing: 1.3, textTransform: "uppercase",
   },
   row: { flexDirection: "row", gap: 16 },
+  zones: { gap: 7 },
+  zoneRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  // Stated rather than shared: the five names have to line their bars up with
+  // one another, and a column that sizes itself to its text would step in and
+  // out down the list.
+  zoneName: { width: 108, color: colors.muted, fontSize: 14, fontFamily: font.medium },
+  zoneTrack: { flex: 1, height: 7, borderRadius: 3.5, backgroundColor: colors.sunken },
+  zoneFill: { height: 7, borderRadius: 3.5, backgroundColor: colors.accent },
+  zoneTime: {
+    width: 52, textAlign: "right", color: colors.text, fontSize: 14,
+    fontFamily: font.semibold, fontVariant: ["tabular-nums"],
+  },
+  zoneNote: { color: colors.subtle, fontSize: 13, fontFamily: font.regular, lineHeight: 19 },
+
   sky: { flexDirection: "row", alignItems: "center", gap: 7, marginTop: -2 },
   skyText: { color: colors.muted, fontFamily: font.medium, fontSize: 15.5 },
 

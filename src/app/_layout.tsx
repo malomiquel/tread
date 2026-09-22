@@ -12,6 +12,7 @@ import { IncomingGpx } from "@/components/IncomingGpx";
 import { initDb } from "@/lib/db";
 import { requestHealthAccess } from "@/lib/health";
 import { clearStaleRun } from "@/lib/liveActivity";
+import { refreshReminders } from "@/lib/planReminders";
 import { loadSettings } from "@/lib/settings";
 import { colors, literalColors } from "@/lib/theme";
 
@@ -42,7 +43,13 @@ export default function RootLayout() {
     void requestHealthAccess();
     initDb()
       .then(loadSettings)
-      .then(() => setReady(true))
+      .then(() => {
+        setReady(true);
+        // The settings are loaded by now, so this knows whether reminders are
+        // wanted at all. Not awaited: it reaches the network for the weather,
+        // and nothing about opening the app depends on its answer.
+        void refreshReminders();
+      })
       .catch((cause: unknown) => {
         setError(cause instanceof Error ? cause.message : "Base de données inaccessible.");
       });
@@ -123,6 +130,15 @@ export default function RootLayout() {
         />
         <Stack.Screen name="run/[id]" options={{ title: "Course", headerBackTitle: "Retour" }} />
         <Stack.Screen name="plan-method" options={{ title: "Méthode", headerBackTitle: "Retour" }} />
+        {/* A page of its own, with its own rooms under it. Naming each back
+            button after the page it returns to is what makes a hierarchy
+            readable from inside it. */}
+        <Stack.Screen name="settings/index" options={{ title: "Réglages", headerBackTitle: "Profil" }} />
+        <Stack.Screen
+          name="settings/notifications"
+          options={{ title: "Notifications", headerBackTitle: "Réglages" }}
+        />
+        <Stack.Screen name="settings/plan" options={{ title: "Plan", headerBackTitle: "Réglages" }} />
       </Stack>
     </GestureHandlerRootView>
   );

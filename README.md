@@ -52,8 +52,12 @@ src/lib/db.ts         local SQLite, migrations, crash recovery
 src/lib/location.ts   initial fix and one-off recentring
 src/lib/format.ts     duration, pace, distance for display
 src/lib/weather.ts    conditions now, at a run's hour, days ahead     pure, tested
+src/lib/heart.ts      heart rate: weighted average, peak, zones       pure, tested
+src/lib/reminders.ts  when a planned session is announced             pure, tested
+src/lib/stats.ts      weeks, records, the weekly goal                 pure, tested
 src/app/(tabs)/       Run, Progress, History
 src/app/run/[id]      one run in detail
+src/app/settings/     settings, one page per subject
 src/components/       RunMap, Metric, Button
 ```
 
@@ -105,6 +109,21 @@ forecast goes further and never prompts at all — it uses the fix the system
 already has, because a permission dialog raised by a page of dates is one
 nobody expects and most refuse.
 
+**The heart rate is read, never measured.** A watch is already recording one
+every few seconds into Health, so the app asks for it afterwards instead of
+holding a sensor open during the run. It is asked for again on every visit to
+a run that has none, because the three things it depends on each arrive at
+their own pace: the watch syncs when it likes, permission can be granted weeks
+later, and an imported run was never asked at all. Zones are cut against
+220 − age, which is a rule of thumb — the screen says as much under them.
+
+**A reminder is rewritten, never reconciled.** A plan reshapes itself
+constantly: a missed week slides every date, a hard session lightens the next
+one, a finished run ticks one off. Working out which of yesterday's pending
+notifications are still right would cost more than asking again, so the whole
+list is cancelled and rebuilt on every visit to the plan. Ten at a time,
+because iOS keeps sixty-four and drops the rest in silence.
+
 **Records are read in SQL.** Every run stores its own totals, including its
 fastest kilometre computed at the finish. Answering a ranking question never
 replays a single GPS point.
@@ -114,7 +133,9 @@ replays a single GPS point.
 - **Expo Go**: screen-on tracking only, see above.
 - **No sync**: runs stay on the phone. The database layer is isolated in one
   file, ready for Supabase.
-- **No heart rate**: that would need Apple Health or a chest strap.
+- **No heart rate of its own**: a phone cannot measure one. What a watch
+  wrote into Apple Health is read back and shown with the run; without a
+  watch there is nothing to read.
 - **Android outside Expo Go**: Google Maps needs an API key in `app.json`.
 - **The database file is still named `running.db`.** Renaming it would hide
   runs already recorded on a device, for a purely cosmetic gain nobody sees.
@@ -124,4 +145,3 @@ replays a single GPS point.
 1. Auto-pause at traffic lights.
 2. Apple Health import for runs recorded on a watch.
 3. Supabase sync and backup.
-4. Editable run names.

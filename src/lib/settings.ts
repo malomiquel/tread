@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { readSettings, writeSetting } from "./db";
+import { readReminderWhen, type ReminderWhen } from "./reminders";
 
 export interface Settings {
   /** Speak each kilometre out loud. The buzz happens either way. */
@@ -12,9 +13,27 @@ export interface Settings {
    * different session at four minutes a kilometre than at six.
    */
   targetPaceSKm: number | null;
+  /**
+   * Kilometres to cover between monday and sunday, in metres, or null for no
+   * target at all.
+   *
+   * A week rather than a month or a day, because a week is the unit training
+   * is actually built in: a day is too short to mean anything and a month is
+   * long enough to lose. Null is a real answer and the default one — a goal
+   * nobody chose is a reproach nobody earned.
+   */
+  weeklyGoalM: number | null;
+  /**
+   * When a planned session is announced, or off.
+   *
+   * Off by default, and asked for rather than assumed: an app that starts
+   * interrupting somebody the day it is installed is an app whose
+   * notifications get turned off wholesale a week later.
+   */
+  reminder: ReminderWhen;
 }
 
-const DEFAULTS: Settings = { voice: true, targetPaceSKm: null };
+const DEFAULTS: Settings = { voice: true, targetPaceSKm: null, weeklyGoalM: null, reminder: "off" };
 
 /**
  * Settings live in SQLite but are read synchronously from a cache, because
@@ -35,6 +54,8 @@ export async function loadSettings(): Promise<void> {
     publish({
       voice: stored.voice ? stored.voice === "true" : DEFAULTS.voice,
       targetPaceSKm: readTarget(stored.targetPaceSKm),
+      weeklyGoalM: readGoal(stored.weeklyGoalM),
+      reminder: readReminderWhen(stored.reminder),
     });
   } catch {
     // Unreadable settings are not worth failing a launch over.
@@ -66,6 +87,17 @@ function readTarget(raw: string | undefined): number | null {
   return Number.isFinite(seconds) && seconds > 0 ? seconds : null;
 }
 
+/**
+ * A stored weekly goal, or null. Anything unreadable, or so large it could
+ * only be a mistake, reads as no goal: a target nobody can reach is worse
+ * than none.
+ */
+function readGoal(raw: string | undefined): number | null {
+  if (!raw || raw === "null") return null;
+  const metres = Number(raw);
+  return Number.isFinite(metres) && metres > 0 && metres <= 500_000 ? metres : null;
+}
+
 /** Speak the kilometres, or stop speaking them. */
 export async function toggleVoice(): Promise<void> {
   await store({ ...current, voice: !current.voice }, "voice", String(!current.voice));
@@ -74,6 +106,16 @@ export async function toggleVoice(): Promise<void> {
 /** Set the pace to hold, or null to run free. */
 export async function setTargetPace(seconds: number | null): Promise<void> {
   await store({ ...current, targetPaceSKm: seconds }, "targetPaceSKm", String(seconds));
+}
+
+/** Set the week's distance to aim for, in metres, or null to drop the goal. */
+export async function setWeeklyGoal(metres: number | null): Promise<void> {
+  await store({ ...current, weeklyGoalM: metres }, "weeklyGoalM", String(metres));
+}
+
+/** Say when planned sessions are announced, or "off" to stop announcing them. */
+export async function setReminder(when: ReminderWhen): Promise<void> {
+  await store({ ...current, reminder: when }, "reminder", when);
 }
 
 /** The cache moves first, so the interface reacts before the disk answers. */

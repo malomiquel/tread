@@ -1,9 +1,9 @@
-import * as Haptics from "expo-haptics";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useScrollToTop } from "expo-router";
 import { listRuns, personalRecords } from "@/lib/db";
 import { formatDuration, formatPace } from "@/lib/format";
+import { HoldButton } from "@/components/HoldButton";
 import { useTabBarSpace } from "@/lib/layout";
 import {
   buildPlan, clampWeeks, daysBetween, equivalentTimeS, GOALS, pacesFrom, projectedTimeS,
@@ -146,66 +146,6 @@ function Choice({
       {detail ? (
         <Text style={[styles.choiceDetail, on && styles.choiceDetailOn]}>{detail}</Text>
       ) : null}
-    </Pressable>
-  );
-}
-
-/**
- * A stepper side that repeats while it is held.
- *
- * Reaching a target time thirty seconds at a time means forty taps to move
- * twenty minutes, which is how a control teaches someone to give up. Holding
- * covers the distance and tapping lands the second, so both gestures do the
- * thing they are naturally good at.
- *
- * The repeat starts slowly and quickens. A hold that accelerates immediately
- * overshoots every time, and the pause before the first repeat is also what
- * keeps a plain tap from being read as the beginning of a hold.
- */
-function HoldButton({
-  onStep, label, accessibilityLabel,
-}: {
-  onStep: () => void;
-  label: string;
-  accessibilityLabel: string;
-}) {
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const ticks = useRef(0);
-  /** Read by the running chain, so a re-render never leaves it on stale state. */
-  const step = useRef(onStep);
-  step.current = onStep;
-
-  function stop() {
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = null;
-    ticks.current = 0;
-  }
-
-  // A finger lifted outside the button, or a screen left mid-hold, would
-  // otherwise leave the chain running against a component nobody can see.
-  useEffect(() => stop, []);
-
-  function tick() {
-    ticks.current += 1;
-    step.current();
-    void Haptics.selectionAsync().catch(() => undefined);
-    const delay = ticks.current < 6 ? 130 : ticks.current < 18 ? 70 : 40;
-    timer.current = setTimeout(tick, delay);
-  }
-
-  return (
-    <Pressable
-      onPressIn={() => {
-        step.current();
-        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
-        timer.current = setTimeout(tick, 420);
-      }}
-      onPressOut={stop}
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel}
-      style={({ pressed }) => [styles.step, pressed && styles.stepPressed]}
-    >
-      <Text style={styles.stepLabel}>{label}</Text>
     </Pressable>
   );
 }
@@ -625,12 +565,6 @@ const styles = StyleSheet.create({
   dayPickLabelOn: { color: colors.accentText },
 
   stepper: { flexDirection: "row", alignItems: "center", gap: 12 },
-  step: {
-    width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center",
-    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline,
-  },
-  stepPressed: { backgroundColor: colors.sunken },
-  stepLabel: { color: colors.text, fontSize: 24, fontFamily: font.semibold, lineHeight: 28 },
   target: { flex: 1, alignItems: "center" },
   targetValue: {
     color: colors.text, fontSize: 34, fontFamily: font.bold,

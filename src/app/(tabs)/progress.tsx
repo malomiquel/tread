@@ -1,11 +1,14 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useFocusEffect, useScrollToTop } from "expo-router";
 import { useCallback, useState, useRef } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { WeeklyGoalSheet } from "@/components/WeeklyGoalSheet";
 import { listRuns, personalRecords, type PersonalRecords, type Run } from "@/lib/db";
 import { formatDistance, formatDuration, formatElevation, formatPace } from "@/lib/format";
 import { useTabBarSpace } from "@/lib/layout";
-import { weekStart } from "@/lib/stats";
+import { useSettings } from "@/lib/settings";
+import { goalProgress, suggestedWeeklyGoalM, weekStart } from "@/lib/stats";
 import { colors, font } from "@/lib/theme";
 
 const WEEKS_SHOWN = 6;
@@ -64,6 +67,10 @@ export default function ProgressScreen() {
   useScrollToTop(page);
   const [weeks, setWeeks] = useState<Week[] | null>(null);
   const [records, setRecords] = useState<PersonalRecords | null>(null);
+  /** Their own recent average, to open the goal sheet on something familiar. */
+  const [suggestedM, setSuggestedM] = useState(5000);
+  const [settingGoal, setSettingGoal] = useState(false);
+  const settings = useSettings();
   const tabBarSpace = useTabBarSpace();
 
   useFocusEffect(
@@ -74,6 +81,7 @@ export default function ProgressScreen() {
           if (!active) return;
           setWeeks(byWeek(runs));
           setRecords(best);
+          setSuggestedM(suggestedWeeklyGoalM(runs));
         })
         .catch(() => undefined);
       return () => {
@@ -95,6 +103,7 @@ export default function ProgressScreen() {
 
   const current = weeks[weeks.length - 1];
   const peak = Math.max(...weeks.map((w) => w.distanceM), 1);
+  const goal = goalProgress(current.distanceM, settings.weeklyGoalM);
 
   return (
     <SafeAreaView style={styles.screen} edges={["top"]}>
@@ -124,6 +133,42 @@ export default function ProgressScreen() {
               <Text style={styles.heroSub}>
                 {current.runs} course{current.runs > 1 ? "s" : ""} · {formatDuration(current.durationS)}
               </Text>
+
+              {/* The week's figure on its own says how far; against a goal it
+                  says whether that is enough, which is the only question
+                  anybody was really asking of it. Tappable whether or not one
+                  is set, because the way in has to exist before the goal
+                  does. */}
+              <Pressable
+                onPress={() => setSettingGoal(true)}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  goal
+                    ? `Objectif hebdomadaire, ${formatDistance(settings.weeklyGoalM ?? 0)} kilomètres, modifier`
+                    : "Définir un objectif hebdomadaire"
+                }
+                style={({ pressed }) => [styles.goal, pressed && styles.goalPressed]}
+              >
+                {goal ? (
+                  <>
+                    <View style={styles.goalBar}>
+                      <View
+                        style={[styles.goalFill, { width: `${goal.share * 100}%` }]}
+                      />
+                    </View>
+                    <Text style={styles.goalText}>
+                      {goal.reached
+                        ? `Objectif de ${formatDistance(settings.weeklyGoalM ?? 0)} km atteint · ${goal.percent} %`
+                        : `${formatDistance(goal.remainingM)} km pour tenir l'objectif de ${formatDistance(settings.weeklyGoalM ?? 0)} km`}
+                    </Text>
+                  </>
+                ) : (
+                  <View style={styles.goalInvite}>
+                    <Ionicons name="flag-outline" size={15} color={colors.accent} />
+                    <Text style={styles.goalInviteText}>Se fixer un objectif hebdomadaire</Text>
+                  </View>
+                )}
+              </Pressable>
 
               <View style={styles.chart}>
                 {weeks.map((week, i) => (
@@ -191,6 +236,13 @@ export default function ProgressScreen() {
 
       </ScrollView>
       </View>
+
+      <WeeklyGoalSheet
+        visible={settingGoal}
+        goalM={settings.weeklyGoalM}
+        suggestedM={suggestedM}
+        onClose={() => setSettingGoal(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -241,6 +293,14 @@ const styles = StyleSheet.create({
   barCurrent: { backgroundColor: colors.accent },
   weekLabel: { color: colors.subtle, fontFamily: font.regular, fontSize: 13, fontVariant: ["tabular-nums"] },
   caption: { color: colors.subtle, fontSize: 13 },
+
+  goal: { gap: 6, paddingTop: 4 },
+  goalPressed: { opacity: 0.6 },
+  goalBar: { height: 7, borderRadius: 3.5, backgroundColor: colors.sunken, overflow: "hidden" },
+  goalFill: { height: 7, borderRadius: 3.5, backgroundColor: colors.accent },
+  goalText: { color: colors.muted, fontFamily: font.regular, fontSize: 14, fontVariant: ["tabular-nums"] },
+  goalInvite: { flexDirection: "row", alignItems: "center", gap: 6 },
+  goalInviteText: { color: colors.accent, fontFamily: font.semibold, fontSize: 14.5 },
 
   build: {
     color: colors.subtle, fontFamily: font.regular, fontSize: 12,

@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  forecastBrief, forecastLine, forecastOn, formatTemperature, formatWind, isoDay, parseWeather,
+  forecastBrief, forecastLine, forecastOn, forecastSentence, formatTemperature, formatWind,
+  isoDay, parseWeather,
   readCurrent, readForecast, readHourly, weatherIcon, weatherLabel, weatherLine,
   type Forecast, type Weather,
 } from "./weather.ts";
@@ -242,4 +243,15 @@ test("a day of one temperature still states both ends", () => {
     windKmh: 9, precipitationMm: 0,
   };
   assert.equal(forecastLine(flat), "Couvert · 6° à 6° · vent 9 km/h");
+});
+
+test("a notification gets a sentence, not a readout", () => {
+  const rainy: Forecast = {
+    day: "2026-09-24", code: 61, highC: 11.8, lowC: 8.4,
+    windKmh: 26.8, precipitationMm: 4.2,
+  };
+  // No millimetres: the word for the sky is what decides anything at six in
+  // the morning, and it is already there.
+  assert.equal(forecastSentence(rainy), "Pluie faible, 8° à 12°, vent 27 km/h");
+  assert.equal(forecastSentence({ ...rainy, code: null }), "8° à 12°, vent 27 km/h");
 });

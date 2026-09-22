@@ -5,6 +5,7 @@ import { elevationGainM, fastestKmS, paceSecPerKm, segments, totalDistanceM, typ
 import {
   normaliseDays, type Done, type Exertion, type Goal, type PerWeek, type PlannedSession,
 } from "./plan";
+import { parseHeart, type Heart } from "./heart";
 import { parseWeather, type Weather } from "./weather";
 import type { RanBlock } from "./workout";
 
@@ -86,6 +87,13 @@ export interface Run {
    * Whatever shows it is written to look complete without it.
    */
   weather: Weather | null;
+  /**
+   * What this run's heart did, read back from Apple Health, or null.
+   *
+   * Null for everyone who runs without a watch, which is most runs: the app
+   * measures nothing itself here, it only reads what the watch wrote.
+   */
+  heart: Heart | null;
 }
 
 /** Shape the SQL layer returns, before mapping to camelCase. */
@@ -105,6 +113,7 @@ interface RunRow {
   cadence_spm: number | null;
   exertion: number | null;
   weather: string | null;
+  heart: string | null;
 }
 
 const toRun = (row: RunRow): Run => ({
@@ -127,6 +136,7 @@ const toRun = (row: RunRow): Run => ({
   blocks: parseBlocks(row.session_blocks),
   // One json column, for the reason given above the blocks.
   weather: parseWeather(row.weather),
+  heart: parseHeart(row.heart),
 });
 
 function parseBlocks(raw: string | null): RanBlock[] {
@@ -141,7 +151,7 @@ function parseBlocks(raw: string | null): RanBlock[] {
   }
 }
 
-const SCHEMA_VERSION = 12;
+const SCHEMA_VERSION = 13;
 
 /**
  * The plan's two tables, written once and used twice — by a fresh install and
@@ -200,7 +210,8 @@ export async function initDb(): Promise<void> {
         session_blocks TEXT,
         cadence_spm REAL,
         exertion INTEGER,
-        weather TEXT
+        weather TEXT,
+        heart TEXT
       );
       CREATE TABLE IF NOT EXISTS points (
         id INTEGER PRIMARY KEY,
@@ -310,6 +321,11 @@ export async function initDb(): Promise<void> {
     version = 12;
   }
 
+  if (version < 13) {
+    await db.execAsync("ALTER TABLE runs ADD COLUMN heart TEXT");
+    version = 13;
+  }
+
   await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
   await recoverInterruptedRuns();
 }
@@ -374,6 +390,16 @@ export async function setHealthUuid(id: number, uuid: string | null): Promise<vo
  */
 export async function setRunWeather(id: number, weather: Weather): Promise<void> {
   await getDb().runAsync("UPDATE runs SET weather = ? WHERE id = ?", JSON.stringify(weather), id);
+}
+
+/**
+ * Remember what a run's heart did.
+ *
+ * Written whenever the app manages to read it, which may be long after the
+ * run: permission can be granted later, and a watch can sync later still.
+ */
+export async function setRunHeart(id: number, heart: Heart): Promise<void> {
+  await getDb().runAsync("UPDATE runs SET heart = ? WHERE id = ?", JSON.stringify(heart), id);
 }
 
 /**

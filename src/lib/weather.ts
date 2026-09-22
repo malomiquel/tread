@@ -381,6 +381,22 @@ export function forecastLine(forecast: Forecast): string {
 }
 
 /**
+ * The same day said as a sentence — "Couvert, 8° à 12°, vent 27 km/h".
+ *
+ * For a notification, where a chain of middots reads as a readout rather than
+ * as a line somebody wrote. The millimetres are dropped too: on a lock screen
+ * the word for the sky is the part that decides anything, and "4,2 mm" is a
+ * figure nobody converts into a decision at six in the morning.
+ */
+export function forecastSentence(forecast: Forecast): string {
+  return [
+    weatherLabel(forecast.code),
+    `${formatTemperature(forecast.lowC)} à ${formatTemperature(forecast.highC)}`,
+    `vent ${formatWind(forecast.windKmh)} km/h`,
+  ].filter(Boolean).join(", ");
+}
+
+/**
  * Both ends of a day and nothing else — "8°/12°".
  *
  * For a list, where a session is one line among twenty and the column it sits
