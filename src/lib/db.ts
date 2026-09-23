@@ -10,6 +10,7 @@ import { parseGroups, type CustomSession, type DraftGroup } from "./customSessio
 import { bestEfforts, EFFORT_KEYS, parseEfforts, type BestEfforts } from "./efforts";
 import { parseHeart, type Heart } from "./heart";
 import { parseLaps, type LapMark } from "./laps";
+import type { EditedRun } from "./runEdit";
 import type { Shoe } from "./shoes";
 import { parseRoute, routeDistanceM, type Route, type StoredRoute } from "./route";
 import {
@@ -1126,6 +1127,35 @@ export async function importRun(name: string | null, points: TrackPoint[]): Prom
     fastestKmS: fastestKmS(points),
   });
   return id;
+}
+
+/**
+ * Write a run back as edited: its fixes replaced by the ones kept, its totals
+ * by the ones worked out from them.
+ *
+ * In one transaction, since a run whose points were deleted and whose new
+ * ones never arrived would be worse than the mistake being put right. The
+ * Health link is dropped: that copy holds the old figures, and the caller
+ * replaces it.
+ */
+export async function rewriteRun(id: number, edited: EditedRun): Promise<void> {
+  const db = getDb();
+  await db.withTransactionAsync(async () => {
+    await db.runAsync("DELETE FROM points WHERE run_id = ?", id);
+    for (const p of edited.points) {
+      await db.runAsync(
+        "INSERT INTO points (run_id, ts, lat, lng, alt, accuracy_m, speed, segment) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        id, p.ts, p.lat, p.lng, p.alt, p.accuracy, p.speed, p.segment,
+      );
+    }
+    await db.runAsync(
+      "UPDATE runs SET started_at = ?, ended_at = ?, distance_m = ?, duration_s = ?, avg_pace_s_km = ?,"
+      + " elevation_gain_m = ?, fastest_km_s = ?, best_efforts = ?, laps = ?, health_uuid = NULL WHERE id = ?",
+      edited.startedAt, edited.endedAt, edited.distanceM, edited.durationS, edited.avgPaceSKm,
+      edited.elevationGainM, edited.fastestKmS, JSON.stringify(edited.bestEfforts),
+      edited.laps.length ? JSON.stringify(edited.laps) : null, id,
+    );
+  });
 }
 
 export async function renameRun(id: number, name: string): Promise<void> {

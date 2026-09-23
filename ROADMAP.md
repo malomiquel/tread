@@ -83,7 +83,7 @@ when it is done; add a line when something new comes up.
 ### Quality
 - [x] Pace rounding fixed (4'59"6 showed as 4'00")
 - [x] `DESIGN.md` design system, loaded by `CLAUDE.md` in every session
-- [x] 349 unit tests; typecheck, lint, expo-doctor 21/21, iOS bundle
+- [x] 354 unit tests; typecheck, lint, expo-doctor 21/21, iOS bundle
 
 ### Earlier work
 - [x] Weather before/after runs, forecasts on plan sessions, on the share card
@@ -157,7 +157,9 @@ High value, moderate effort
   marathon found inside every run (interpolated, pauses excluded), with
   records in Profile and a "Record" mark on the run; older and imported runs
   worked out in the background
-- [ ] **Edit a run**: trim a forgotten start or finish, correct the distance
+- [x] **Edit a run**: "Edit run" on a run's page: cut the start or the end
+  by time (5 s steps, faster while held, the map shows what is kept), correct
+  the distance; totals, records and laps recomputed, the Health copy replaced
 - [ ] **Add a run by hand**: treadmill, a forgotten phone
 - [x] **Charts on a run**: pace and heart rate (from Health, when a watch
   recorded it) against distance, lined up with the elevation profile

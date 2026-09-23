@@ -1,8 +1,8 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { File, Paths } from "expo-file-system";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import * as Sharing from "expo-sharing";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
@@ -105,6 +105,7 @@ const runStrings = defineStrings({
     validate: "Valider",
     exporting: "Export…",
     exportGpx: "Exporter en GPX",
+    editRun: "Modifier la course",
     runName: "Nom de la course",
     namePlaceholder: "Course matinale",
     save: "Enregistrer",
@@ -169,6 +170,7 @@ const runStrings = defineStrings({
     validate: "Done",
     exporting: "Exporting…",
     exportGpx: "Export as GPX",
+    editRun: "Edit run",
     runName: "Run name",
     namePlaceholder: "Morning run",
     save: "Save",
@@ -366,7 +368,9 @@ export default function RunDetailScreen() {
     return () => { active = false; };
   }, [coveredRouteId]);
 
-  useEffect(() => {
+  // Read again each time the page comes back into view: an edited run
+  // returns here with different figures.
+  useFocusEffect(useCallback(() => {
     let active = true;
     void effortRecords()
       .then((records) => {
@@ -386,7 +390,7 @@ export default function RunDetailScreen() {
     return () => {
       active = false;
     };
-  }, [id]);
+  }, [id]));
 
   if (data === undefined) {
     return (
@@ -957,6 +961,13 @@ export default function RunDetailScreen() {
       ) : null}
 
       <View style={styles.actions}>
+        {points.length > 1 ? (
+          <Button
+            label={s.editRun}
+            variant="secondary"
+            onPress={() => router.push({ pathname: "/run/edit/[id]", params: { id: String(run.id) } })}
+          />
+        ) : null}
         <Button
           label={exporting ? s.exporting : s.exportGpx}
           variant="secondary"
