@@ -83,7 +83,7 @@ when it is done; add a line when something new comes up.
 ### Quality
 - [x] Pace rounding fixed (4'59"6 showed as 4'00")
 - [x] `DESIGN.md` design system, loaded by `CLAUDE.md` in every session
-- [x] 302 unit tests; typecheck, lint, expo-doctor 21/21, iOS bundle
+- [x] 313 unit tests; typecheck, lint, expo-doctor 21/21, iOS bundle
 
 ### Earlier work
 - [x] Weather before/after runs, forecasts on plan sessions, on the share card
@@ -113,15 +113,19 @@ when it is done; add a line when something new comes up.
   a run, create a plan; add `testID`s
 - [ ] Live Activity labels in the app's chosen language, not the phone's
 - [ ] Target-pace stepper in miles: step per mile rather than 5 s/km
-- [ ] "Fastest kilometre" record in miles: store and show a fastest mile
+- [ ] "Fastest kilometre" record in miles: now covered by best efforts (1
+  mile); drop or rename the old record
 - [ ] Offer to update the weekly goal when the runner profile changes
 - [ ] More languages (the `{ fr, en }` tables are ready to take a third)
 
 ### Feature ideas, by priority
 
 High value, moderate effort
-- [ ] **Route records**: best time on each route, the gap to it after every
-  run ("−42 s"), then a **ghost runner** on the map during a run on it
+- [x] **Route records**: a run counts for its route once it covers 90 % of
+  it; best time shown in the list, and on each run "new best", "first time"
+  or the gap to the best
+- [ ] **Ghost runner**: your best run on a route, moving on the map as you
+  run it
 - [ ] **Custom sessions**: an editor for your own intervals (blocks,
   repetitions, paces); today there are five fixed sessions
 - [ ] **Shoe tracking**: distance per pair, reminder to replace around 700 km
@@ -130,11 +134,36 @@ High value, moderate effort
 - [ ] **Home-screen widgets** (iOS and Android): week progress, next session
 - [ ] **Streaks and recaps**: weeks in a row on goal; a monthly and yearly
   recap to share, like the run card
+- [x] **Privacy zones**: shared pictures and GIFs hide the track within
+  200 m / 500 m / 1 km of the start and finish (Settings › Sharing, 200 m by
+  default); figures stay the whole run's
+- [x] **Best efforts**: fastest 400 m, 1 km, 1 mile, 5K, 10K, half and
+  marathon found inside every run (interpolated, pauses excluded), with
+  records in Profile and a "Record" mark on the run; older and imported runs
+  worked out in the background
+- [ ] **Edit a run**: trim a forgotten start or finish, correct the distance
+- [ ] **Add a run by hand**: treadmill, a forgotten phone
+- [ ] **Charts on a run**: pace, heart rate and cadence over the run, beside
+  the elevation profile
+- [ ] **Lap button** during a run, for track and hill repeats
+- [ ] **Activity types and tags**: walk, hike, trail, treadmill; race, long
+  run, workout
+- [ ] **Notes and photos** on a run
+- [ ] **Grade-adjusted pace** (the flat equivalent, for trail)
+- [ ] **Training calendar**: the log week by week, beside the list
+- [ ] **Goals in time or climb**, not only distance; year-on-year comparison
+- [ ] **Personal heatmap**: every run on one map
 
 High value, large effort
 - [ ] **Strava upload** after each run (OAuth, activity upload API)
 - [ ] **Watch app**: Apple Watch first, then Wear OS
 - [ ] **Live heart rate** from a Bluetooth chest strap, with zone alerts
+- [ ] **Automatic import of watch runs** from Apple Health (then Garmin),
+  instead of GPX files
+- [ ] **Route guidance**: off-route alert, turn cues, distance left
+- [ ] **Offline maps** for routes without signal
+- [ ] **Training load**: relative effort from heart rate; fitness and
+  freshness curves
 
 Comfort and safety
 - [ ] **Treadmill mode**: no GPS, distance from the pedometer, corrected at
