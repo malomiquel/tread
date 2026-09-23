@@ -202,6 +202,11 @@ defaults.
 
 ### Sheets and dialogs
 
+- `ChoiceSheet`: one answer out of a short list (a run's pair of shoes, its
+  type): the chosen one ticked, a tap chooses and closes.
+- `RunDetails`: on a run's page, what the runner says about it that the phone
+  could not measure, as a settings block of rows.
+
 - **Sheets** (`FeelSheet`, `WeeklyGoalSheet`, `RoutePicker`, `SessionPicker`,
   `SessionDetail`): a centred card, max width 380, over `scrim`. Tapping
   outside closes; a tap inside does not.

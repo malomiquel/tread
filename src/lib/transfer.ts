@@ -60,6 +60,8 @@ export interface TransferRun {
   heart: Heart | null;
   /** Absent from files written before laps existed. */
   laps?: LapMark[];
+  /** The pair it was run in, by its id in `shoes`. */
+  shoeId?: number | null;
   points: TrackPoint[];
   /*
    * No `healthUuid`. It names a workout inside the old phone's HealthKit
@@ -108,6 +110,17 @@ export interface TransferSession {
   groups: DraftGroup[];
 }
 
+/** A pair of shoes. Its id travels with it, because runs name their pair by it. */
+export interface TransferShoe {
+  id: number;
+  name: string;
+  addedAt: number;
+  startM: number;
+  limitM: number;
+  retired: boolean;
+  isDefault: boolean;
+}
+
 export interface Transfer {
   format: typeof TRANSFER_FORMAT;
   version: number;
@@ -121,6 +134,8 @@ export interface Transfer {
   plan: TransferPlan | null;
   /** The runner's own sessions. Absent from older files, which read as none. */
   sessions?: TransferSession[];
+  /** Running shoes. Absent from older files, which read as none. */
+  shoes?: TransferShoe[];
   /** Voice, target pace, weekly goal, reminders — as they are stored. */
   settings: Record<string, string>;
 }
@@ -163,6 +178,7 @@ export function readTransfer(text: string): Transfer | null {
       routes: readRoutes(file.routes),
       plan: readPlan(file.plan),
       ...(Array.isArray(file.sessions) ? { sessions: readSessions(file.sessions) } : {}),
+      ...(Array.isArray(file.shoes) ? { shoes: readShoes(file.shoes) } : {}),
       settings: readSettingsBag(file.settings),
     };
   } catch {
@@ -179,6 +195,23 @@ function readPlan(plan: unknown): TransferPlan | null {
     sessions: found.sessions.map((planned) => ({ ...planned, session: currentSession(planned.session) })),
     done: Array.isArray(found.done) ? found.done : [],
   };
+}
+
+function readShoes(shoes: unknown[]): TransferShoe[] {
+  return shoes.flatMap((shoe): TransferShoe[] => {
+    if (!shoe || typeof shoe !== "object") return [];
+    const found = shoe as Partial<TransferShoe>;
+    if (typeof found.id !== "number" || typeof found.name !== "string") return [];
+    return [{
+      id: found.id,
+      name: found.name,
+      addedAt: typeof found.addedAt === "number" ? found.addedAt : 0,
+      startM: typeof found.startM === "number" ? found.startM : 0,
+      limitM: typeof found.limitM === "number" && found.limitM > 0 ? found.limitM : 700_000,
+      retired: found.retired === true,
+      isDefault: found.isDefault === true,
+    }];
+  });
 }
 
 function readSessions(sessions: unknown[]): TransferSession[] {

@@ -13,6 +13,7 @@ import { FeelSheet } from "@/components/FeelSheet";
 import { RunMap } from "@/components/RunMap";
 import { PlanAttachment } from "@/components/PlanAttachment";
 import { LineChart } from "@/components/LineChart";
+import { RunDetails } from "@/components/RunDetails";
 import { canShareImage, ShareRunSheet } from "@/components/ShareRunSheet";
 import { exertionName, type Exertion } from "@/lib/plan";
 import { deleteRun, effortRecords, readRoute, readRun, routeRecords, type RouteRecord, renameRun, type Run, setRunExertion, setRunHeart, planSessionOfRun,
@@ -839,6 +840,9 @@ export default function RunDetailScreen() {
           <LineChart points={heartLine} format={(bpm) => String(Math.round(bpm))} unit="bpm" />
         </View>
       )}
+
+      {/* The run's section of the page: what the runner says about it. */}
+      <RunDetails run={run} onChange={(patch) => setData({ ...data, run: { ...run, ...patch } })} />
 
       {run.blocks.length > 0 && (
         <View style={styles.section}>

@@ -5,7 +5,7 @@ import { SettingRow } from "@/components/SettingRow";
 import { SettingsGroup } from "@/components/SettingsGroup";
 import { WeeklyGoalSheet } from "@/components/WeeklyGoalSheet";
 import { currentBuild } from "@/lib/build";
-import { listRuns } from "@/lib/db";
+import { listRuns, listShoes } from "@/lib/db";
 import { formatDistance } from "@/lib/format";
 import { defineStrings, useStrings } from "@/lib/i18n";
 import { LANGUAGE_NAMES } from "@/lib/language";
@@ -25,6 +25,8 @@ const settingsStrings = defineStrings({
     noGoal: "Aucun",
     goalValue: (km: string) => `${km} ${distanceUnit()}`,
     reminders: "Rappels de séance",
+    shoes: "Chaussures",
+    noShoe: "Aucune",
     runner: "Mon profil de coureur",
     runnerUnset: "À définir",
     running: "Pendant la course",
@@ -52,6 +54,8 @@ const settingsStrings = defineStrings({
     noGoal: "None",
     goalValue: (km: string) => `${km} ${distanceUnit()}`,
     reminders: "Session reminders",
+    shoes: "Shoes",
+    noShoe: "None",
     runner: "My runner profile",
     runnerUnset: "Not set",
     running: "While running",
@@ -99,6 +103,8 @@ export default function SettingsScreen() {
   const [editingGoal, setEditingGoal] = useState(false);
   /** Their own recent average, so the goal sheet opens on a figure they know. */
   const [suggestedM, setSuggestedM] = useState(5000);
+  /** The pair new runs go to, shown on its row. */
+  const [shoeName, setShoeName] = useState<string | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -106,6 +112,11 @@ export default function SettingsScreen() {
       void listRuns()
         .then((runs) => {
           if (active) setSuggestedM(suggestedWeeklyGoalM(runs));
+        })
+        .catch(() => undefined);
+      void listShoes()
+        .then((shoes) => {
+          if (active) setShoeName(shoes.find((shoe) => shoe.isDefault)?.name ?? null);
         })
         .catch(() => undefined);
       return () => { active = false; };
@@ -133,6 +144,12 @@ export default function SettingsScreen() {
             ? s.runnerUnset
             : runnerWords().frequencyShort(settings.runner.perWeek)}
           onPress={() => router.push("/settings/runner")}
+        />
+        <SettingRow
+          icon="footsteps-outline"
+          label={s.shoes}
+          value={shoeName ?? s.noShoe}
+          onPress={() => router.push("/settings/shoes")}
         />
         <SettingRow
           icon="notifications-outline"

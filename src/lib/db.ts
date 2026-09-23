@@ -10,9 +10,11 @@ import { parseGroups, type CustomSession, type DraftGroup } from "./customSessio
 import { bestEfforts, EFFORT_KEYS, parseEfforts, type BestEfforts } from "./efforts";
 import { parseHeart, type Heart } from "./heart";
 import { parseLaps, type LapMark } from "./laps";
+import type { Shoe } from "./shoes";
 import { parseRoute, routeDistanceM, type Route, type StoredRoute } from "./route";
 import {
   TRANSFER_FORMAT, TRANSFER_VERSION, type Restored, type Transfer, type TransferRun, type TransferSession,
+  type TransferShoe,
 } from "./transfer";
 import { parseWeather, type Weather } from "./weather";
 import { currentEffort, currentSession, currentSessionId, type RanBlock } from "./workout";
@@ -108,6 +110,8 @@ export interface Run {
   routeId: number | null;
   /** Where the lap button was pressed, in order. Empty for a run nobody lapped. */
   laps: LapMark[];
+  /** The pair it was run in, or null when nobody said. */
+  shoeId: number | null;
 }
 
 /** Shape the SQL layer returns, before mapping to camelCase. */
@@ -131,6 +135,7 @@ interface RunRow {
   best_efforts: string | null;
   route_id: number | null;
   laps: string | null;
+  shoe_id: number | null;
 }
 
 const toRun = (row: RunRow): Run => ({
@@ -157,6 +162,7 @@ const toRun = (row: RunRow): Run => ({
   bestEfforts: parseEfforts(row.best_efforts),
   routeId: row.route_id ?? null,
   laps: parseLaps(row.laps ?? null),
+  shoeId: row.shoe_id ?? null,
 });
 
 function parseBlocks(raw: string | null): RanBlock[] {
@@ -171,7 +177,7 @@ function parseBlocks(raw: string | null): RanBlock[] {
   }
 }
 
-const SCHEMA_VERSION = 19;
+const SCHEMA_VERSION = 20;
 
 /**
  * The plan's two tables, written once and used twice — by a fresh install and
@@ -210,6 +216,18 @@ const CUSTOM_SESSION_TABLE = `
     name TEXT NOT NULL,
     groups_json TEXT NOT NULL,
     created_at INTEGER NOT NULL
+  );
+`;
+
+const SHOE_TABLE = `
+  CREATE TABLE IF NOT EXISTS shoes (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    added_at INTEGER NOT NULL,
+    start_m REAL NOT NULL DEFAULT 0,
+    limit_m REAL NOT NULL,
+    retired INTEGER NOT NULL DEFAULT 0,
+    is_default INTEGER NOT NULL DEFAULT 0
   );
 `;
 
@@ -304,7 +322,8 @@ export async function initDb(): Promise<void> {
         heart TEXT,
         best_efforts TEXT,
         route_id INTEGER,
-        laps TEXT
+        laps TEXT,
+        shoe_id INTEGER
       );
       CREATE TABLE IF NOT EXISTS points (
         id INTEGER PRIMARY KEY,
@@ -322,6 +341,7 @@ export async function initDb(): Promise<void> {
       ${ROUTE_TABLE}
       ${PLAN_TABLES}
       ${CUSTOM_SESSION_TABLE}
+      ${SHOE_TABLE}
     `);
     version = SCHEMA_VERSION;
   }
@@ -456,6 +476,12 @@ export async function initDb(): Promise<void> {
     version = 19;
   }
 
+  if (version < 20) {
+    await db.execAsync(SHOE_TABLE);
+    await db.execAsync("ALTER TABLE runs ADD COLUMN shoe_id INTEGER");
+    version = 20;
+  }
+
   await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
   await recoverInterruptedRuns();
 }
@@ -497,7 +523,10 @@ export interface RunTotals {
 
 export async function finishRun(id: number, totals: RunTotals): Promise<void> {
   await getDb().runAsync(
-    "UPDATE runs SET ended_at = ?, distance_m = ?, duration_s = ?, avg_pace_s_km = ?, name = ?, elevation_gain_m = ?, fastest_km_s = ?, session_id = ?, session_blocks = ?, cadence_spm = ?, best_efforts = ?, route_id = ?, laps = ? WHERE id = ?",
+    "UPDATE runs SET ended_at = ?, distance_m = ?, duration_s = ?, avg_pace_s_km = ?, name = ?, elevation_gain_m = ?, fastest_km_s = ?, session_id = ?, session_blocks = ?, cadence_spm = ?, best_efforts = ?, route_id = ?, laps = ?,"
+    // Put against the pair on the runner's feet, which is the default one:
+    // asked here rather than by the tracker, so it is the pair at the finish.
+    + " shoe_id = (SELECT id FROM shoes WHERE is_default = 1 AND retired = 0 LIMIT 1) WHERE id = ?",
     totals.endedAt, totals.distanceM, totals.durationS, totals.avgPaceSKm,
     totals.name, totals.elevationGainM, totals.fastestKmS,
     totals.sessionId ?? null,
@@ -627,6 +656,7 @@ export async function everythingForTransfer(): Promise<Transfer> {
       weather: run.weather,
       heart: run.heart,
       laps: run.laps,
+      shoeId: run.shoeId,
       points: rows.map((point) => ({
         ts: point.ts, lat: point.lat, lng: point.lng, alt: point.alt,
         accuracy: point.accuracy_m, speed: point.speed, segment: point.segment,
@@ -650,6 +680,10 @@ export async function everythingForTransfer(): Promise<Transfer> {
       place: route.place,
     })),
     sessions: await listCustomSessionsForTransfer(),
+    shoes: (await listShoes()).map((shoe): TransferShoe => ({
+      id: shoe.id, name: shoe.name, addedAt: shoe.addedAt, startM: shoe.startM,
+      limitM: shoe.limitM, retired: shoe.retired, isDefault: shoe.isDefault,
+    })),
     plan: plan === null ? null : {
       goal: plan.goal,
       raceAt: plan.raceAt,
@@ -683,6 +717,27 @@ export async function restoreTransfer(transfer: Transfer): Promise<Restored> {
   let added = 0;
   let known = 0;
 
+  // Pairs first, so the runs below can name theirs. Each keeps its id when it
+  // is free here; otherwise it gets a new one, and its runs follow it.
+  const shoeIds = new Map<number, number>();
+  const hasDefault = await db.getFirstAsync<{ id: number }>("SELECT id FROM shoes WHERE is_default = 1");
+  for (const shoe of transfer.shoes ?? []) {
+    const same = await db.getFirstAsync<{ id: number }>(
+      "SELECT id FROM shoes WHERE name = ? AND added_at = ?", shoe.name, shoe.addedAt,
+    );
+    if (same) {
+      shoeIds.set(shoe.id, same.id);
+      continue;
+    }
+    const taken = await db.getFirstAsync<{ id: number }>("SELECT id FROM shoes WHERE id = ?", shoe.id);
+    const result = await db.runAsync(
+      "INSERT INTO shoes (id, name, added_at, start_m, limit_m, retired, is_default) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      taken ? null : shoe.id, shoe.name, shoe.addedAt || Date.now(), shoe.startM, shoe.limitM,
+      shoe.retired ? 1 : 0, shoe.isDefault && !hasDefault ? 1 : 0,
+    );
+    shoeIds.set(shoe.id, Number(result.lastInsertRowId));
+  }
+
   for (const run of transfer.runs) {
     const existing = await db.getFirstAsync<{ id: number }>(
       "SELECT id FROM runs WHERE started_at = ?", run.startedAt,
@@ -697,13 +752,14 @@ export async function restoreTransfer(transfer: Transfer): Promise<Restored> {
     await db.runAsync(
       "UPDATE runs SET ended_at = ?, distance_m = ?, duration_s = ?, avg_pace_s_km = ?, name = ?,"
       + " elevation_gain_m = ?, fastest_km_s = ?, cadence_spm = ?, exertion = ?, session_id = ?,"
-      + " session_blocks = ?, weather = ?, heart = ?, laps = ? WHERE id = ?",
+      + " session_blocks = ?, weather = ?, heart = ?, laps = ?, shoe_id = ? WHERE id = ?",
       run.endedAt, run.distanceM, run.durationS, run.avgPaceSKm, run.name,
       run.elevationGainM, run.fastestKmS, run.cadenceSpm, run.exertion, run.sessionId,
       run.blocks?.length ? JSON.stringify(run.blocks) : null,
       run.weather ? JSON.stringify(run.weather) : null,
       run.heart ? JSON.stringify(run.heart) : null,
       run.laps?.length ? JSON.stringify(run.laps) : null,
+      run.shoeId == null ? null : shoeIds.get(run.shoeId) ?? null,
       id,
     );
     added += 1;
@@ -817,6 +873,76 @@ export async function saveRoute(name: string, route: Route, look: RouteLook): Pr
 }
 
 /** Every route, newest first. */
+interface ShoeRow {
+  id: number; name: string; added_at: number; start_m: number; limit_m: number;
+  retired: number; is_default: number; covered: number | null; runs: number;
+}
+
+/** Every pair, with what it has covered. */
+export async function listShoes(): Promise<Shoe[]> {
+  const rows = await getDb().getAllAsync<ShoeRow>(
+    "SELECT shoes.*, SUM(runs.distance_m) AS covered, COUNT(runs.id) AS runs"
+    + " FROM shoes LEFT JOIN runs ON runs.shoe_id = shoes.id AND runs.ended_at IS NOT NULL"
+    + " GROUP BY shoes.id",
+  );
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    addedAt: row.added_at,
+    startM: row.start_m,
+    limitM: row.limit_m,
+    retired: row.retired === 1,
+    isDefault: row.is_default === 1,
+    distanceM: row.start_m + (row.covered ?? 0),
+    runs: row.runs,
+  }));
+}
+
+export interface ShoeFields {
+  name: string;
+  startM: number;
+  limitM: number;
+  retired: boolean;
+  isDefault: boolean;
+}
+
+/**
+ * Write a pair, new or changed, and return its id.
+ *
+ * Only one pair is the default, and a retired pair is never it: making one
+ * the default takes it from the others, and retiring the default leaves
+ * none rather than guessing which pair replaced it.
+ */
+export async function saveShoe(id: number | null, fields: ShoeFields): Promise<number> {
+  const db = getDb();
+  const isDefault = fields.isDefault && !fields.retired;
+  if (isDefault) await db.runAsync("UPDATE shoes SET is_default = 0");
+  if (id !== null) {
+    await db.runAsync(
+      "UPDATE shoes SET name = ?, start_m = ?, limit_m = ?, retired = ?, is_default = ? WHERE id = ?",
+      fields.name.trim(), fields.startM, fields.limitM, fields.retired ? 1 : 0, isDefault ? 1 : 0, id,
+    );
+    return id;
+  }
+  const result = await db.runAsync(
+    "INSERT INTO shoes (name, added_at, start_m, limit_m, retired, is_default) VALUES (?, ?, ?, ?, ?, ?)",
+    fields.name.trim(), Date.now(), fields.startM, fields.limitM, fields.retired ? 1 : 0, isDefault ? 1 : 0,
+  );
+  return Number(result.lastInsertRowId);
+}
+
+/** Remove a pair. Its runs stay, run in no pair anybody names. */
+export async function deleteShoe(id: number): Promise<void> {
+  const db = getDb();
+  await db.runAsync("UPDATE runs SET shoe_id = NULL WHERE shoe_id = ?", id);
+  await db.runAsync("DELETE FROM shoes WHERE id = ?", id);
+}
+
+/** Put a run against another pair, or none. */
+export async function setRunShoe(runId: number, shoeId: number | null): Promise<void> {
+  await getDb().runAsync("UPDATE runs SET shoe_id = ? WHERE id = ?", shoeId, runId);
+}
+
 /** The runner's own sessions, oldest first: the order they were written in. */
 export async function listCustomSessions(): Promise<CustomSession[]> {
   const rows = await getDb().getAllAsync<{ id: number; name: string; groups_json: string }>(

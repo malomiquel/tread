@@ -34,6 +34,7 @@ const layoutStrings = defineStrings({
     runner: "Mon profil de coureur",
     units: "Unités",
     sharing: "Partage",
+    shoes: "Chaussures",
     data: "Données",
     about: "À propos",
     privacy: "Confidentialité",
@@ -53,6 +54,7 @@ const layoutStrings = defineStrings({
     runner: "My runner profile",
     units: "Units",
     sharing: "Sharing",
+    shoes: "Shoes",
     data: "Data",
     about: "About",
     privacy: "Privacy",
@@ -236,6 +238,8 @@ export default function RootLayout() {
             name="settings/sharing"
             options={{ title: s.sharing, headerBackTitle: s.settings }}
           />
+          <Stack.Screen name="settings/shoes" options={{ title: s.shoes, headerBackTitle: s.settings }} />
+          <Stack.Screen name="settings/shoe/[id]" options={{ headerBackTitle: s.shoes }} />
           <Stack.Screen name="settings/data" options={{ title: s.data, headerBackTitle: s.settings }} />
           <Stack.Screen name="settings/about" options={{ title: s.about, headerBackTitle: s.settings }} />
           <Stack.Screen
