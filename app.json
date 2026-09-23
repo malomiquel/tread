@@ -52,6 +52,11 @@
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true
         }
+      },
+      "entitlements": {
+        "com.apple.security.application-groups": [
+          "group.com.malomiquel.tread"
+        ]
       }
     },
     "android": {
@@ -110,7 +115,29 @@
         }
       ],
       "./plugins/withoutPushEntitlement",
-      "expo-localization"
+      "expo-localization",
+      [
+        "react-native-android-widget",
+        {
+          "fonts": [
+            "./node_modules/@expo-google-fonts/barlow-condensed/600SemiBold/BarlowCondensed_600SemiBold.ttf",
+            "./node_modules/@expo-google-fonts/barlow-condensed/700Bold/BarlowCondensed_700Bold.ttf"
+          ],
+          "widgets": [
+            {
+              "name": "TreadWeek",
+              "label": "Tread",
+              "description": "Ta semaine et ta prochaine séance",
+              "minWidth": "110dp",
+              "minHeight": "110dp",
+              "targetCellWidth": 2,
+              "targetCellHeight": 2,
+              "resizeMode": "horizontal|vertical",
+              "updatePeriodMillis": 1800000
+            }
+          ]
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

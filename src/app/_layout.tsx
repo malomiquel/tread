@@ -8,9 +8,10 @@ import { Stack } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, StyleSheet, Text, useColorScheme, View } from "react-native";
+import { ActivityIndicator, AppState, StyleSheet, Text, useColorScheme, View } from "react-native";
 import { IncomingGpx } from "@/components/IncomingGpx";
 import { backfillEfforts, initDb } from "@/lib/db";
+import { refreshHomeWidget } from "@/lib/homeWidget";
 import { defineStrings, useStrings } from "@/lib/i18n";
 import { applyLanguage } from "@/lib/language";
 import { clearStaleRun } from "@/lib/liveActivity";
@@ -96,6 +97,8 @@ export default function RootLayout() {
       .then(loadSettings)
       .then(() => {
         setReady(true);
+        // The home-screen widget, as things stand at launch.
+        void refreshHomeWidget();
         // Runs that predate best efforts, or came from a file or another
         // phone, have theirs worked out quietly, one at a time.
         void backfillEfforts().catch(() => undefined);
@@ -107,6 +110,15 @@ export default function RootLayout() {
       .catch((cause: unknown) => {
         setError(cause instanceof Error ? cause.message : layoutStrings().databaseUnavailable);
       });
+  }, []);
+
+  // Leaving the app is when anything the widget shows may have changed — a
+  // goal set, a plan made, a language switched — so it is rewritten then.
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (next) => {
+      if (next === "background") void refreshHomeWidget();
+    });
+    return () => subscription.remove();
   }, []);
 
   if (error) {

@@ -83,7 +83,7 @@ when it is done; add a line when something new comes up.
 ### Quality
 - [x] Pace rounding fixed (4'59"6 showed as 4'00")
 - [x] `DESIGN.md` design system, loaded by `CLAUDE.md` in every session
-- [x] 313 unit tests; typecheck, lint, expo-doctor 21/21, iOS bundle
+- [x] 322 unit tests; typecheck, lint, expo-doctor 21/21, iOS bundle
 
 ### Earlier work
 - [x] Weather before/after runs, forecasts on plan sessions, on the share card
@@ -131,7 +131,14 @@ High value, moderate effort
 - [ ] **Shoe tracking**: distance per pair, reminder to replace around 700 km
 - [ ] **Predicted race times** in Profile (5K, 10K, half, marathon), from the
   Riegel projection the plans already use
-- [ ] **Home-screen widgets** (iOS and Android): week progress, next session
+- [x] **Home-screen widget (iOS)** 📱: small (week and goal) and medium (plus
+  the next session), in the app's language and units, refreshed at launch,
+  after a run and when the app goes to the background; needs a native rebuild
+- [x] **Home-screen widget (Android)** 📱: the same snapshot as iOS, drawn
+  with react-native-android-widget; the week at 2×2, the next session beside
+  it once widened; light and dark palettes; redrawn by the app and every
+  30 min by a headless task; needs a native rebuild
+- [ ] **Android widget preview image** for the launcher's widget picker
 - [ ] **Streaks and recaps**: weeks in a row on goal; a monthly and yearly
   recap to share, like the run card
 - [x] **Privacy zones**: shared pictures and GIFs hide the track within
@@ -143,8 +150,10 @@ High value, moderate effort
   worked out in the background
 - [ ] **Edit a run**: trim a forgotten start or finish, correct the distance
 - [ ] **Add a run by hand**: treadmill, a forgotten phone
-- [ ] **Charts on a run**: pace, heart rate and cadence over the run, beside
-  the elevation profile
+- [x] **Charts on a run**: pace and heart rate (from Health, when a watch
+  recorded it) against distance, lined up with the elevation profile
+- [ ] **Cadence chart**: needs steps recorded minute by minute during the run
+  (only the average is kept today, and the pedometer's history is short)
 - [ ] **Lap button** during a run, for track and hill repeats
 - [ ] **Activity types and tags**: walk, hike, trail, treadmill; race, long
   run, workout
