@@ -22,6 +22,7 @@ import {
   formatDate, formatDistance, formatDuration, formatElevation, formatEnergy, formatPace, formatSpeed,
 } from "@/lib/format";
 import { elevationProfile, splits, type TrackPoint } from "@/lib/geo";
+import { gradeAdjustedPace } from "@/lib/gradePace";
 import { lapsOf, type Lap } from "@/lib/laps";
 import { findSession } from "@/lib/sessionLibrary";
 import { effortName, sessionName, vmaFromBlocks, type RanBlock } from "@/lib/workout";
@@ -65,6 +66,7 @@ const runStrings = defineStrings({
     distance: "Distance",
     duration: "Durée",
     avgPace: "Allure moyenne",
+    gradePace: "Allure ajustée pente",
     elevationGain: "Dénivelé positif",
     bestSplit: (unit: string): string => (unit === "km" ? "Meilleur km" : "Meilleur mile"),
     avgSpeed: "Vitesse moyenne",
@@ -131,6 +133,7 @@ const runStrings = defineStrings({
     distance: "Distance",
     duration: "Duration",
     avgPace: "Average pace",
+    gradePace: "Grade-adjusted pace",
     elevationGain: "Elevation gain",
     bestSplit: (unit: string): string => (unit === "km" ? "Best km" : "Best mile"),
     avgSpeed: "Average speed",
@@ -421,6 +424,10 @@ export default function RunDetailScreen() {
   const kilometres = splits(points, unitLengthM());
   const laps = lapsOf(run.laps, run.distanceM, run.durationS);
   const vma = vmaFromBlocks(run.sessionId, run.blocks);
+  // Only where the hills made a difference worth reading: on the flat it is
+  // the pace again, and a second figure saying the same thing is noise.
+  const gradePace = (run.elevationGainM ?? 0) >= 20 ? gradeAdjustedPace(points, run.durationS) : null;
+  const showGradePace = gradePace !== null && run.avgPaceSKm !== null && Math.abs(gradePace - run.avgPaceSKm) >= 3;
   // Only worth pointing out among two full laps or more.
   const fullLaps = laps.filter((lap) => !lap.partial && lap.paceSKm !== null);
   const fastestLap = fullLaps.length > 1
@@ -650,11 +657,16 @@ export default function RunDetailScreen() {
             <Metric label={s.estimatedCalories} value={formatEnergy(energyKcal)} unit="kcal" />
           ) : null}
         </View>
-        {run.cadenceSpm !== null && (
+        {run.cadenceSpm !== null || showGradePace ? (
           <View style={styles.row}>
-            <Metric label={s.cadence} value={String(run.cadenceSpm)} unit={s.stepsPerMin} />
+            {showGradePace ? (
+              <Metric label={s.gradePace} value={formatPace(gradePace)} unit={paceUnit()} />
+            ) : null}
+            {run.cadenceSpm !== null ? (
+              <Metric label={s.cadence} value={String(run.cadenceSpm)} unit={s.stepsPerMin} />
+            ) : null}
           </View>
-        )}
+        ) : null}
         {/* Among the measurements rather than off in a section of its own:
             the weather is a fact about this run, the same as its dénivelé,
             and it explains an allure that the other figures alone cannot.
