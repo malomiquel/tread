@@ -146,7 +146,7 @@ High value, moderate effort
   with react-native-android-widget; the week at 2×2, the next session beside
   it once widened; light and dark palettes; redrawn by the app and every
   30 min by a headless task; needs a native rebuild
-- [ ] **Android widget preview image** for the launcher's widget picker
+- [x] **Android widget preview image** for the launcher's widget picker (`assets/images/widget-preview.png`) 📱
 - [x] **Streaks**: weeks in a row on the weekly goal (or with a run, without
   a goal), as a tag on Profile's banner, and the longest in the records
 - [x] **Recaps**: a month or a year on one picture the size of the run card
