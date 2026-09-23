@@ -1,6 +1,7 @@
 import JSZip from "jszip";
 import type { TrackPoint } from "./geo";
 import type { Heart } from "./heart";
+import { parseGroups, type DraftGroup } from "./customSession.ts";
 import { parseLaps, type LapMark } from "./laps.ts";
 import type { Exertion, Goal, PerWeek, PlannedSession } from "./plan";
 import { defineStrings, intlLocale } from "./i18n.ts";
@@ -96,6 +97,17 @@ export interface TransferRoute {
   place: string | null;
 }
 
+/**
+ * A session the runner wrote. Its id travels with it, because runs name the
+ * session they followed by it ("custom-3").
+ */
+export interface TransferSession {
+  id: number;
+  name: string;
+  createdAt: number;
+  groups: DraftGroup[];
+}
+
 export interface Transfer {
   format: typeof TRANSFER_FORMAT;
   version: number;
@@ -107,6 +119,8 @@ export interface Transfer {
    */
   routes: TransferRoute[];
   plan: TransferPlan | null;
+  /** The runner's own sessions. Absent from older files, which read as none. */
+  sessions?: TransferSession[];
   /** Voice, target pace, weekly goal, reminders — as they are stored. */
   settings: Record<string, string>;
 }
@@ -148,6 +162,7 @@ export function readTransfer(text: string): Transfer | null {
         })),
       routes: readRoutes(file.routes),
       plan: readPlan(file.plan),
+      ...(Array.isArray(file.sessions) ? { sessions: readSessions(file.sessions) } : {}),
       settings: readSettingsBag(file.settings),
     };
   } catch {
@@ -164,6 +179,21 @@ function readPlan(plan: unknown): TransferPlan | null {
     sessions: found.sessions.map((planned) => ({ ...planned, session: currentSession(planned.session) })),
     done: Array.isArray(found.done) ? found.done : [],
   };
+}
+
+function readSessions(sessions: unknown[]): TransferSession[] {
+  return sessions.flatMap((session): TransferSession[] => {
+    if (!session || typeof session !== "object") return [];
+    const found = session as Partial<TransferSession>;
+    const groups = parseGroups(JSON.stringify(found.groups ?? null));
+    if (typeof found.id !== "number" || !groups) return [];
+    return [{
+      id: found.id,
+      name: typeof found.name === "string" ? found.name : "",
+      createdAt: typeof found.createdAt === "number" ? found.createdAt : 0,
+      groups,
+    }];
+  });
 }
 
 function readRoutes(routes: unknown): TransferRoute[] {

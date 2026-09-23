@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  eased, groupLabel, groupSteps, hasSinglePace, SESSIONS, sessionById, sessionMinutes,
+  eased, groupLabel, groupSteps, hasSinglePace, KNOWN_SESSIONS, SESSIONS, sessionById, sessionMinutes,
+  sessionAdvice, sessionName, vmaFromBlocks,
   stepIsDone, stepLabel, stepRemaining,
 } from "./workout.ts";
 
@@ -32,7 +33,7 @@ test("steps say what they are", () => {
 
 test("every session in the catalogue holds together", () => {
   const seen = new Set<string>();
-  for (const s of SESSIONS) {
+  for (const s of KNOWN_SESSIONS) {
     assert.ok(!seen.has(s.id), `duplicate identifier: ${s.id}`);
     seen.add(s.id);
     assert.ok(s.steps.length > 0, `${s.name} is empty`);
@@ -54,7 +55,7 @@ test("a session is found by its identifier, and only then", () => {
 });
 
 test("only the blocks you hold a pace through decide whether a target fits", () => {
-  const by = (id: string) => SESSIONS.find((s) => s.id === id)!;
+  const by = (id: string) => KNOWN_SESSIONS.find((s) => s.id === id)!;
 
   assert.equal(hasSinglePace(by("easy")), true, "a plain run holds one pace");
   // A long run warms up and cools down around a single sustained block: those
@@ -80,7 +81,7 @@ test("repeated blocks fold into the shape the session was designed in", () => {
 });
 
 test("folding never loses or invents a block", () => {
-  for (const session of SESSIONS) {
+  for (const session of KNOWN_SESSIONS) {
     const total = groupSteps(session.steps).reduce((sum, g) => sum + g.times * g.steps.length, 0);
     assert.equal(total, session.steps.length, session.id);
   }
@@ -114,7 +115,7 @@ test("easing takes repetitions off before anything else", () => {
 });
 
 test("the name never outlives the blocks it describes", () => {
-  for (const session of SESSIONS) {
+  for (const session of KNOWN_SESSIONS) {
     for (const factor of [0.7, 0.85]) {
       const lighter = eased(session, factor);
       const repeated = groupSteps(lighter.steps).find((g) => g.times > 1);
@@ -145,9 +146,32 @@ test("the warm-up and the cool-down are never cut", () => {
 });
 
 test("easing by nothing changes nothing at all", () => {
-  for (const session of SESSIONS) {
+  for (const session of KNOWN_SESSIONS) {
     assert.equal(eased(session, 1), session);
     assert.equal(eased(session, 1.4), session);
     assert.equal(eased(session, 0), session);
   }
+});
+
+test("the picker offers the two classics, and older sessions are still found", () => {
+  assert.deepEqual(SESSIONS.map((s) => s.id), ["thirty-thirty", "vma-test", "1000"]);
+  assert.equal(sessionName(sessionById("thirty-thirty")!), "30/30");
+  assert.equal(sessionName(sessionById("1000")!), "5 × 1000 m");
+  assert.equal(sessionById("pyramid")?.id, "pyramid");
+});
+
+test("a VMA test run through gives the speed held over its six minutes", () => {
+  const block = (distanceM: number, durationS: number) =>
+    ({ effort: "fast" as const, targetMetres: null, targetSeconds: 360, distanceM, durationS });
+  // 1 620 m in six minutes: 16.2 km/h, the half-Cooper's metres over a hundred.
+  const speed = vmaFromBlocks("vma-test", [block(1620, 360)]);
+  assert.ok(speed !== null && Math.abs(speed * 3.6 - 16.2) < 1e-9);
+  assert.equal(vmaFromBlocks("vma-test", [block(600, 120)]), null);
+  assert.equal(vmaFromBlocks("1000", [block(1620, 360)]), null);
+  assert.equal(sessionName(sessionById("vma-test")!), "Test VMA (demi-Cooper)");
+});
+
+test("only the VMA test comes with advice", () => {
+  assert.equal(sessionAdvice(sessionById("vma-test")!).length, 4);
+  assert.equal(sessionAdvice(sessionById("1000")!).length, 0);
 });

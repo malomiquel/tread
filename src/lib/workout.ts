@@ -113,18 +113,21 @@ export function sessionMinutes(session: Session): number {
   return Math.round(seconds / 60);
 }
 
+/** Length of the VMA test's block: the half-Cooper's six minutes. */
+const VMA_TEST_S = 360;
+
 const repeat = (times: number, ...block: Step[]): Step[] =>
   Array.from({ length: times }, () => block).flat();
 
 /**
- * The catalogue, kept deliberately short.
+ * Every session the app has ever offered, so that a run which followed one
+ * is still named after it.
  *
- * Five sessions that between them cover what a runner actually alternates
- * between — short repetitions, threshold, a pyramid, an easy run and a long
- * one. A longer list would need a builder, and a builder is a different
- * feature.
+ * The first five were the original catalogue. They are no longer offered —
+ * a runner now writes their own — but runs recorded with them keep their
+ * ids, and a past run should not lose its name because a list changed.
  */
-export const SESSIONS: Session[] = [
+export const KNOWN_SESSIONS: Session[] = [
   {
     id: "400",
     name: "5 × 400 m",
@@ -169,7 +172,63 @@ export const SESSIONS: Session[] = [
     // and run for an hour.
     steps: [{ effort: "steady", seconds: 3600 }],
   },
+  {
+    // Billat's 30-30: thirty seconds at maximal aerobic speed, thirty
+    // seconds jogged. Known by that name in every running club, and in the
+    // same words in both languages.
+    id: "thirty-thirty",
+    name: "30/30",
+    steps: [
+      { effort: "warmup", seconds: 900 },
+      ...repeat(10, { effort: "fast", seconds: 30 }, { effort: "recovery", seconds: 30 }),
+      { effort: "cooldown", seconds: 600 },
+    ],
+  },
+  {
+    // The half-Cooper: six minutes as far as you can. Run evenly, the
+    // distance in metres divided by a hundred is the maximal aerobic speed in
+    // km/h — which is what every interval pace is set from.
+    id: "vma-test",
+    name: "Test VMA (demi-Cooper)",
+    steps: [
+      { effort: "warmup", seconds: 900 },
+      { effort: "fast", seconds: VMA_TEST_S },
+      { effort: "cooldown", seconds: 600 },
+    ],
+  },
+  {
+    id: "1000",
+    name: "5 × 1000 m",
+    steps: [
+      { effort: "warmup", seconds: 900 },
+      ...repeat(5, { effort: "fast", metres: 1000 }, { effort: "recovery", seconds: 120 }),
+      { effort: "cooldown", seconds: 600 },
+    ],
+  },
 ];
+
+/**
+ * What the session picker offers beside the runner's own: the two sessions
+ * every runner has heard of, one on time and one on distance. Anything else
+ * is written in the editor, the way the runner wants it.
+ */
+export const SESSIONS: Session[] = KNOWN_SESSIONS.filter((session) =>
+  session.id === "thirty-thirty" || session.id === "1000" || session.id === "vma-test");
+
+/**
+ * The maximal aerobic speed a VMA test measured, in metres per second, or
+ * null when the test was not run through.
+ *
+ * The average speed over the six-minute block. Stopped well short of the six
+ * minutes it says nothing: a VMA is the speed held for about that long, not
+ * the speed of a sprint.
+ */
+export function vmaFromBlocks(sessionId: string | null, blocks: readonly RanBlock[]): number | null {
+  if (sessionId !== "vma-test") return null;
+  const test = blocks.find((block) => block.effort === "fast");
+  if (!test || test.durationS < VMA_TEST_S * 0.9 || test.distanceM <= 0) return null;
+  return test.distanceM / test.durationS;
+}
 
 /** Consecutive blocks that repeat, folded into one line. */
 export interface StepGroup {
@@ -271,6 +330,8 @@ function durationName(minutes: number): string {
  */
 export function eased(session: Session, factor: number): Session {
   if (!(factor > 0) || factor >= 1) return session;
+  // A test is a measurement: lightened, it measures something else.
+  if (session.id === "vma-test") return session;
   const steps: Step[] = [];
   let repetitions: number | null = null;
 
@@ -307,6 +368,7 @@ const sessionWords = defineStrings({
     long: (duration: string) => `Sortie longue ${duration}`,
     threshold: (blocks: number, minutes: number) => `${blocks} × ${minutes} min au seuil`,
     pyramid: "Pyramide 1-2-3-2-1",
+    vmaTest: "Test VMA (demi-Cooper)",
     races: { fiveK: "5 km", tenK: "10 km", half: "Semi-marathon", marathon: "Marathon" },
   },
   en: {
@@ -314,9 +376,39 @@ const sessionWords = defineStrings({
     long: (duration: string) => `Long run ${duration}`,
     threshold: (blocks: number, minutes: number) => `${blocks} × ${minutes} min at threshold`,
     pyramid: "Pyramid 1-2-3-2-1",
+    vmaTest: "VMA test (half-Cooper)",
     races: { fiveK: "5 km", tenK: "10 km", half: "Half marathon", marathon: "Marathon" },
   },
 });
+
+const adviceWords = defineStrings({
+  fr: {
+    vmaTest: [
+      "Sur piste de préférence : le GPS y est plus juste, et les lignes permettent de vérifier la distance.",
+      "Pars à une allure que tu penses tenir six minutes, et garde-la jusqu'au bout.",
+      "Accélère seulement dans la dernière minute, s'il te reste de la marge.",
+      "Frais et bien échauffé : pas au lendemain d'une séance dure.",
+    ],
+  },
+  en: {
+    vmaTest: [
+      "On a track if you can: GPS is more accurate there, and the lines let you check the distance.",
+      "Start at a pace you think you can hold for six minutes, and keep it to the end.",
+      "Only speed up in the last minute, if you have something left.",
+      "Fresh and well warmed up: not the day after a hard session.",
+    ],
+  },
+});
+
+/**
+ * What to know before running a session, when there is anything.
+ *
+ * Only the test has any: a measurement is only as good as the way it is
+ * taken, and six minutes started too fast measures the start.
+ */
+export function sessionAdvice(session: Session): readonly string[] {
+  return session.id === "vma-test" ? adviceWords().vmaTest : [];
+}
 
 /** The name of a race distance, by the goal id the programme stores. */
 export function raceName(goal: string): string | null {
@@ -344,6 +436,7 @@ export function sessionName(session: Session): string {
   if (kind === "easy" || kind.startsWith("easy-")) return words.easy(durationName(minutesOf(paced[0])));
   if (kind === "long" || kind.startsWith("long-")) return words.long(durationName(minutesOf(paced[0])));
   if (kind === "pyramid") return words.pyramid;
+  if (kind === "vma-test") return words.vmaTest;
   if ((kind === "400" || kind.startsWith("interval-")) && fast[0]?.metres !== undefined) {
     return `${fast.length} × ${fast[0].metres} m`;
   }
@@ -398,4 +491,4 @@ export function currentSession(session: Session): Session {
 }
 
 export const sessionById = (id: string | null): Session | null =>
-  SESSIONS.find((s) => s.id === id) ?? null;
+  KNOWN_SESSIONS.find((s) => s.id === id) ?? null;

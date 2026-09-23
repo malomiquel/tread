@@ -10,6 +10,7 @@ import { everythingForTransfer, restoreTransfer } from "@/lib/db";
 import { handoverAvailable } from "@/lib/handover";
 import { defineStrings, useStrings } from "@/lib/i18n";
 import { refreshReminders } from "@/lib/planReminders";
+import { loadCustomSessions } from "@/lib/sessionLibrary";
 import { loadSettings } from "@/lib/settings";
 import { colors, font } from "@/lib/theme";
 import { describeTransfer, restoredSummary, packTransfer, transferFileName, unpackTransfer } from "@/lib/transfer";
@@ -195,6 +196,7 @@ export default function TransferSettings() {
       // The settings cache and the pending notifications both came from the
       // old state of this phone, and neither would notice on its own.
       await loadSettings();
+      await loadCustomSessions();
       // Forced: the file may have brought a different answer with it, and if
       // that answer is "off" there are notifications here to take down.
       await refreshReminders({ force: true });

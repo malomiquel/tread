@@ -17,6 +17,7 @@ import { applyLanguage } from "@/lib/language";
 import { clearStaleRun } from "@/lib/liveActivity";
 import { refreshReminders } from "@/lib/planReminders";
 import { configureServices } from "@/lib/services";
+import { loadCustomSessions } from "@/lib/sessionLibrary";
 import { loadSettings, useSettings } from "@/lib/settings";
 import { colors, literalColors } from "@/lib/theme";
 
@@ -94,7 +95,7 @@ export default function RootLayout() {
     // sheet was the first thing a new user saw, with nothing to say what it
     // was for; the welcome asks instead, with the reason beside the button.
     initDb()
-      .then(loadSettings)
+      .then(() => Promise.all([loadSettings(), loadCustomSessions()]))
       .then(() => {
         setReady(true);
         // The home-screen widget, as things stand at launch.
@@ -210,6 +211,8 @@ export default function RootLayout() {
           {/* A page of its own, with its own rooms under it. Naming each back
               button after the page it returns to is what makes a hierarchy
               readable from inside it. */}
+          {/* Titled by the page itself: a new session or one being changed. */}
+          <Stack.Screen name="session/[id]" options={{ headerBackTitle: s.back }} />
           {/* Titled by the page itself, from the list it was opened on. */}
           <Stack.Screen name="performance/[section]" options={{ headerBackTitle: s.profile }} />
           <Stack.Screen name="settings/index" options={{ title: s.settings, headerBackTitle: s.profile }} />

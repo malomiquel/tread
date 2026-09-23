@@ -83,7 +83,7 @@ when it is done; add a line when something new comes up.
 ### Quality
 - [x] Pace rounding fixed (4'59"6 showed as 4'00")
 - [x] `DESIGN.md` design system, loaded by `CLAUDE.md` in every session
-- [x] 336 unit tests; typecheck, lint, expo-doctor 21/21, iOS bundle
+- [x] 346 unit tests; typecheck, lint, expo-doctor 21/21, iOS bundle
 
 ### Earlier work
 - [x] Weather before/after runs, forecasts on plan sessions, on the share card
@@ -126,8 +126,12 @@ High value, moderate effort
   or the gap to the best
 - [ ] **Ghost runner**: your best run on a route, moving on the map as you
   run it
-- [ ] **Custom sessions**: an editor for your own intervals (blocks,
-  repetitions, paces); today there are five fixed sessions
+- [x] **Custom sessions**: an editor (steps repeated ×N, blocks by effort,
+  distance or time, figures by steps rather than typed), in the session
+  picker under "My sessions" with a pencil to edit; migration 19; carried by
+  transfer under the same id; the fixed catalogue is down to two classics
+  (30/30 and 5 × 1000 m) plus a VMA test (half-Cooper, 6 min all out, the
+  estimated VMA shown on the run, tips in the session sheet); older ones still named on past runs
 - [ ] **Shoe tracking**: distance per pair, reminder to replace around 700 km
 - [x] **Predicted race times** in Profile (5K, 10K, half, marathon): the
   fastest projection from the best efforts of the last 12 weeks, with the

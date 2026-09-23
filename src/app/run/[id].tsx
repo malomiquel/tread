@@ -22,7 +22,8 @@ import {
 } from "@/lib/format";
 import { elevationProfile, splits, type TrackPoint } from "@/lib/geo";
 import { lapsOf, type Lap } from "@/lib/laps";
-import { effortName, sessionById, sessionName, type RanBlock } from "@/lib/workout";
+import { findSession } from "@/lib/sessionLibrary";
+import { effortName, sessionName, vmaFromBlocks, type RanBlock } from "@/lib/workout";
 import { gpxFileName, toGpx } from "@/lib/gpx";
 import { estimateActiveEnergyKcal } from "@/lib/energy";
 import {
@@ -90,6 +91,8 @@ const runStrings = defineStrings({
     routeBehind: (gap: string) => `+${gap} sur ton record`,
     record: "Record",
     splits: "Fractionnés",
+    vma: "VMA estimée",
+    vmaDetail: "La vitesse que tes allures de fractionné prennent pour base.",
     laps: "Tours",
     lapName: (number: number) => `Tour ${number}`,
     lapRest: "Jusqu'à l'arrivée",
@@ -152,6 +155,8 @@ const runStrings = defineStrings({
     routeBehind: (gap: string) => `+${gap} on your best`,
     record: "Record",
     splits: "Splits",
+    vma: "Estimated MAS",
+    vmaDetail: "Maximal aerobic speed: what interval paces are set from.",
     laps: "Laps",
     lapName: (number: number) => `Lap ${number}`,
     lapRest: "To the finish",
@@ -408,6 +413,7 @@ export default function RunDetailScreen() {
   ].filter(Boolean).join(" · ");
   const kilometres = splits(points, unitLengthM());
   const laps = lapsOf(run.laps, run.distanceM, run.durationS);
+  const vma = vmaFromBlocks(run.sessionId, run.blocks);
   // Only worth pointing out among two full laps or more.
   const fullLaps = laps.filter((lap) => !lap.partial && lap.paceSKm !== null);
   const fastestLap = fullLaps.length > 1
@@ -424,7 +430,7 @@ export default function RunDetailScreen() {
     .filter((key) => efforts[key] !== undefined)
     .map((key) => [key, efforts[key]] as const);
   const profile = elevationProfile(points);
-  const plannedSession = sessionById(run.sessionId);
+  const plannedSession = findSession(run.sessionId);
 
   /**
    * Close a run that was just finished, and land where it came from.
@@ -845,6 +851,19 @@ export default function RunDetailScreen() {
           {run.blocks.map((block, index) => (
             <BlockRow key={index} block={block} rank={index + 1} />
           ))}
+          {/* What the test was for, said once it has been run through. */}
+          {vma !== null ? (
+            <View style={styles.vma}>
+              <View style={styles.vmaText}>
+                <Text style={styles.vmaLabel}>{s.vma}</Text>
+                <Text style={styles.vmaDetail}>{s.vmaDetail}</Text>
+              </View>
+              <Text style={styles.vmaValue}>
+                {formatSpeed(vma)}
+                <Text style={styles.vmaUnit}> {speedUnit()}</Text>
+              </Text>
+            </View>
+          ) : null}
         </View>
       )}
 
@@ -1082,6 +1101,15 @@ const styles = StyleSheet.create({
   blockText: { flex: 1, gap: 1 },
   blockName: { color: colors.text, fontSize: 14, fontFamily: font.semibold },
   blockDone: { color: colors.muted, fontSize: 12, fontVariant: ["tabular-nums"] },
+  vma: {
+    flexDirection: "row", alignItems: "center", gap: 12, marginTop: 10,
+    padding: 14, borderRadius: 14, backgroundColor: colors.accentSoft,
+  },
+  vmaText: { flex: 1, gap: 2 },
+  vmaLabel: { color: colors.accent, fontSize: 16.5, fontFamily: font.semibold },
+  vmaDetail: { color: colors.muted, fontSize: 13.5, fontFamily: font.regular },
+  vmaValue: { color: colors.accent, fontSize: 26, fontFamily: font.bold, fontVariant: ["tabular-nums"] },
+  vmaUnit: { fontSize: 15, fontFamily: font.semibold },
   blockPace: {
     color: colors.text, fontSize: 14, fontFamily: font.semibold,
     fontVariant: ["tabular-nums"],

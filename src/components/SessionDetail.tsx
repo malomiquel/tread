@@ -4,11 +4,12 @@ import { GlassPanel } from "@/components/GlassPanel";
 import { formatPace } from "@/lib/format";
 import { defineStrings, plural, useStrings } from "@/lib/i18n";
 import { colors, floatingShadow, font } from "@/lib/theme";
-import { groupLabel, groupSteps, sessionMinutes, sessionName, type Session } from "@/lib/workout";
+import { groupLabel, groupSteps, sessionAdvice, sessionMinutes, sessionName, type Session } from "@/lib/workout";
 
 const sessionDetailStrings = defineStrings({
   fr: {
     kicker: "Séance",
+    advice: "Conseils",
     summary: (blocks: number, minutes: number) =>
       `${plural(blocks, "bloc", "blocs")} · environ ${minutes} min`,
     noteRunning: "Un bloc mesuré en distance finit quand la distance est faite, pas au bout d'un temps.",
@@ -19,6 +20,7 @@ const sessionDetailStrings = defineStrings({
   },
   en: {
     kicker: "Session",
+    advice: "Tips",
     summary: (blocks: number, minutes: number) =>
       `${plural(blocks, "block", "blocks")} · about ${minutes} min`,
     noteRunning: "A distance block ends when the distance is covered, not when a time runs out.",
@@ -75,6 +77,7 @@ export function SessionDetail({
   const groups = spans(session);
   const running = currentIndex !== null;
   const over = running && currentIndex >= session.steps.length;
+  const advice = sessionAdvice(session);
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -125,6 +128,20 @@ export function SessionDetail({
             <Text style={styles.note}>
               {running ? s.noteRunning : s.noteBefore}
             </Text>
+
+            {/* Before the run only: once it is under way the sheet is about
+                how much is left, and the advice has already been taken or not. */}
+            {!running && advice.length > 0 ? (
+              <View style={styles.advice}>
+                <Text style={styles.adviceTitle}>{s.advice}</Text>
+                {advice.map((line) => (
+                  <View key={line} style={styles.adviceRow}>
+                    <View style={styles.adviceDot} />
+                    <Text style={styles.adviceText}>{line}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
 
             {onStart ? (
               <Pressable
@@ -185,6 +202,14 @@ const styles = StyleSheet.create({
   },
 
   list: { maxHeight: 320 },
+  advice: { gap: 6, padding: 12, borderRadius: 12, backgroundColor: colors.accentSoft },
+  adviceTitle: {
+    color: colors.accent, fontSize: 11.5, fontFamily: font.semibold,
+    letterSpacing: 1.2, textTransform: "uppercase",
+  },
+  adviceRow: { flexDirection: "row", gap: 8, alignItems: "flex-start" },
+  adviceDot: { width: 5, height: 5, borderRadius: 2.5, marginTop: 7, backgroundColor: colors.accent },
+  adviceText: { flex: 1, color: colors.text, fontSize: 14.5, fontFamily: font.regular, lineHeight: 19 },
   block: {
     flexDirection: "row", alignItems: "center", gap: 11,
     paddingVertical: 8, paddingHorizontal: 8, borderRadius: 8,

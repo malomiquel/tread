@@ -29,7 +29,8 @@ import {
   activeDurationS, chooseSession, discard, finish, lap, pause, resume, start, useTracker,
 } from "@/lib/tracker";
 import { useCurrentWeather, weatherIcon, weatherLine } from "@/lib/weather";
-import { sessionById, sessionName, stepLabel, stepRemaining } from "@/lib/workout";
+import { findSession } from "@/lib/sessionLibrary";
+import { sessionName, stepLabel, stepRemaining } from "@/lib/workout";
 
 const recordStrings = defineStrings({
   fr: {
@@ -809,8 +810,10 @@ export default function RecordScreen() {
         chosen={tracker.session?.id ?? null}
         // The picker offers the catalogue, so it deals in names; a session
         // coming from a programme is handed over whole by the plan screen.
-        onChoose={(id) => chooseSession(sessionById(id))}
+        onChoose={(id) => chooseSession(findSession(id))}
         onClose={() => setChoosing(false)}
+        onCreate={() => router.push("/session/new")}
+        onEdit={(id) => router.push({ pathname: "/session/[id]", params: { id: String(id) } })}
       />
 
     </Animated.View>

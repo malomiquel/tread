@@ -6,12 +6,13 @@ import { elevationGainM, fastestKmS, paceSecPerKm, segments, totalDistanceM, typ
 import {
   normaliseDays, type Done, type Exertion, type Goal, type PerWeek, type PlannedSession,
 } from "./plan";
+import { parseGroups, type CustomSession, type DraftGroup } from "./customSession";
 import { bestEfforts, EFFORT_KEYS, parseEfforts, type BestEfforts } from "./efforts";
 import { parseHeart, type Heart } from "./heart";
 import { parseLaps, type LapMark } from "./laps";
 import { parseRoute, routeDistanceM, type Route, type StoredRoute } from "./route";
 import {
-  TRANSFER_FORMAT, TRANSFER_VERSION, type Restored, type Transfer, type TransferRun,
+  TRANSFER_FORMAT, TRANSFER_VERSION, type Restored, type Transfer, type TransferRun, type TransferSession,
 } from "./transfer";
 import { parseWeather, type Weather } from "./weather";
 import { currentEffort, currentSession, currentSessionId, type RanBlock } from "./workout";
@@ -170,7 +171,7 @@ function parseBlocks(raw: string | null): RanBlock[] {
   }
 }
 
-const SCHEMA_VERSION = 18;
+const SCHEMA_VERSION = 19;
 
 /**
  * The plan's two tables, written once and used twice — by a fresh install and
@@ -200,6 +201,15 @@ const ROUTE_TABLE = `
     legs TEXT NOT NULL,
     place TEXT,
     preview TEXT
+  );
+`;
+
+const CUSTOM_SESSION_TABLE = `
+  CREATE TABLE IF NOT EXISTS custom_sessions (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    groups_json TEXT NOT NULL,
+    created_at INTEGER NOT NULL
   );
 `;
 
@@ -311,6 +321,7 @@ export async function initDb(): Promise<void> {
       CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
       ${ROUTE_TABLE}
       ${PLAN_TABLES}
+      ${CUSTOM_SESSION_TABLE}
     `);
     version = SCHEMA_VERSION;
   }
@@ -438,6 +449,11 @@ export async function initDb(): Promise<void> {
   if (version < 18) {
     await db.execAsync("ALTER TABLE runs ADD COLUMN laps TEXT");
     version = 18;
+  }
+
+  if (version < 19) {
+    await db.execAsync(CUSTOM_SESSION_TABLE);
+    version = 19;
   }
 
   await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
@@ -633,6 +649,7 @@ export async function everythingForTransfer(): Promise<Transfer> {
       legs: route.legs,
       place: route.place,
     })),
+    sessions: await listCustomSessionsForTransfer(),
     plan: plan === null ? null : {
       goal: plan.goal,
       raceAt: plan.raceAt,
@@ -711,6 +728,21 @@ export async function restoreTransfer(transfer: Transfer): Promise<Restored> {
     routes += 1;
   }
 
+  // Kept under the same id when it is free, since runs name the session they
+  // followed by it; the same session read twice is added once.
+  for (const session of transfer.sessions ?? []) {
+    const groups = JSON.stringify(session.groups);
+    const same = await db.getFirstAsync<{ id: number }>(
+      "SELECT id FROM custom_sessions WHERE name = ? AND groups_json = ?", session.name, groups,
+    );
+    if (same) continue;
+    const taken = await db.getFirstAsync<{ id: number }>("SELECT id FROM custom_sessions WHERE id = ?", session.id);
+    await db.runAsync(
+      "INSERT INTO custom_sessions (id, name, groups_json, created_at) VALUES (?, ?, ?, ?)",
+      taken ? null : session.id, session.name, groups, session.createdAt || Date.now(),
+    );
+  }
+
   const plan = transfer.plan;
   const hasPlan = (await activePlan()) !== null;
   if (plan && !hasPlan) {
@@ -785,6 +817,55 @@ export async function saveRoute(name: string, route: Route, look: RouteLook): Pr
 }
 
 /** Every route, newest first. */
+/** The runner's own sessions, oldest first: the order they were written in. */
+export async function listCustomSessions(): Promise<CustomSession[]> {
+  const rows = await getDb().getAllAsync<{ id: number; name: string; groups_json: string }>(
+    "SELECT id, name, groups_json FROM custom_sessions ORDER BY created_at ASC, id ASC",
+  );
+  return rows.flatMap((row) => {
+    const groups = parseGroups(row.groups_json);
+    // A session that cannot be read has nothing left to run.
+    return groups ? [{ id: row.id, name: row.name, groups }] : [];
+  });
+}
+
+async function listCustomSessionsForTransfer(): Promise<TransferSession[]> {
+  const rows = await getDb().getAllAsync<{ id: number; name: string; groups_json: string; created_at: number }>(
+    "SELECT * FROM custom_sessions ORDER BY id",
+  );
+  return rows.flatMap((row) => {
+    const groups = parseGroups(row.groups_json);
+    return groups ? [{ id: row.id, name: row.name, createdAt: row.created_at, groups }] : [];
+  });
+}
+
+/** Write a session, new or changed, and return its id. */
+export async function saveCustomSession(
+  id: number | null, name: string, groups: DraftGroup[], createdAt = Date.now(),
+): Promise<number> {
+  const db = getDb();
+  if (id !== null) {
+    await db.runAsync(
+      "UPDATE custom_sessions SET name = ?, groups_json = ? WHERE id = ?",
+      name.trim(), JSON.stringify(groups), id,
+    );
+    return id;
+  }
+  const result = await db.runAsync(
+    "INSERT INTO custom_sessions (name, groups_json, created_at) VALUES (?, ?, ?)",
+    name.trim(), JSON.stringify(groups), createdAt,
+  );
+  return Number(result.lastInsertRowId);
+}
+
+/**
+ * Remove a session. Runs that followed it keep their blocks, each with the
+ * target it was run against: a training log does not change behind you.
+ */
+export async function deleteCustomSession(id: number): Promise<void> {
+  await getDb().runAsync("DELETE FROM custom_sessions WHERE id = ?", id);
+}
+
 export async function listRoutes(): Promise<StoredRoute[]> {
   const rows = await getDb().getAllAsync<RouteRow>(
     "SELECT * FROM routes ORDER BY created_at DESC",

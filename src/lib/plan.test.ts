@@ -464,10 +464,10 @@ test("every session is named the same whether read from disk or worked out", asy
   // The name stored with a session is French and permanent; the one shown is
   // worked out from the session itself, so the two have to agree in French or
   // an old programme would change names the day the app learned English.
-  const { eased, SESSIONS, sessionName } = await import("./workout.ts");
+  const { eased, KNOWN_SESSIONS, sessionName } = await import("./workout.ts");
   const plans = GOALS.flatMap((goal) => [2, 3, 4].map((perWeek) =>
     buildPlan({ goal: goal.id, weeks: goal.maxWeeks, perWeek: perWeek as 2 | 3 | 4, targetTimeS: goal.defaultTimeS, longestMin: 60 })));
-  const sessions = [...SESSIONS, ...plans.flat().map((planned) => planned.session)];
+  const sessions = [...KNOWN_SESSIONS, ...plans.flat().map((planned) => planned.session)];
   for (const session of sessions) {
     assert.equal(sessionName(session), session.name, session.id);
     for (const factor of [0.9, 0.8, 0.7]) {
@@ -480,10 +480,10 @@ test("every session is named the same whether read from disk or worked out", asy
 
 test("a session is named in English when the interface is", async () => {
   const { setLanguage } = await import("./i18n.ts");
-  const { sessionName, stepLabel, SESSIONS } = await import("./workout.ts");
+  const { sessionName, stepLabel, KNOWN_SESSIONS } = await import("./workout.ts");
   setLanguage("en");
   try {
-    const [interval, threshold, , easy, long] = SESSIONS;
+    const [interval, threshold, , easy, long] = KNOWN_SESSIONS;
     assert.equal(sessionName(interval), "5 × 400 m");
     assert.equal(sessionName(threshold), "3 × 8 min at threshold");
     assert.equal(sessionName(easy), "Easy run 30 min");

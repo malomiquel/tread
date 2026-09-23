@@ -6,8 +6,10 @@ import { defineStrings, useStrings } from "@/lib/i18n";
 import { clampTarget, TARGET_MAX_S, TARGET_MIN_S, TARGET_STEP_S } from "@/lib/pace";
 import { setTargetPace, useSettings } from "@/lib/settings";
 import { colors, floatingShadow, font } from "@/lib/theme";
+import { customSessionId, toSession } from "@/lib/customSession";
+import { findSession, useCustomSessions } from "@/lib/sessionLibrary";
 import {
-  hasSinglePace, SESSIONS, sessionById, sessionMinutes, sessionName, stepLabel, type Session,
+  hasSinglePace, SESSIONS, sessionMinutes, sessionName, stepLabel, type Session,
 } from "@/lib/workout";
 
 const sessionPickerStrings = defineStrings({
@@ -23,6 +25,11 @@ const sessionPickerStrings = defineStrings({
     title: "Séance",
     freeRun: "Course libre",
     freeRunDetail: "Aucun bloc, aucune annonce",
+    library: "Classiques",
+    mine: "Mes séances",
+    create: "Créer une séance",
+    createDetail: "Tes propres blocs, répétés autant de fois que tu veux",
+    edit: (name: string) => `Modifier ${name}`,
   },
   en: {
     about: (minutes: number) => `about ${minutes} min`,
@@ -36,6 +43,11 @@ const sessionPickerStrings = defineStrings({
     title: "Session",
     freeRun: "Free run",
     freeRunDetail: "No blocks, no announcements",
+    library: "Classics",
+    mine: "My sessions",
+    create: "Create a session",
+    createDetail: "Your own blocks, repeated as often as you like",
+    edit: (name: string) => `Edit ${name}`,
   },
 });
 
@@ -45,6 +57,10 @@ interface Props {
   chosen: string | null;
   onChoose: (id: string | null) => void;
   onClose: () => void;
+  /** Opens the editor on a blank session. */
+  onCreate: () => void;
+  /** Opens the editor on one of the runner's sessions. */
+  onEdit: (id: number) => void;
 }
 
 /** A line describing what a session is made of, without listing every block. */
@@ -148,9 +164,10 @@ function TargetPace({ session }: { session: Session | null }) {
  * rather than being the absence of a choice, so that stopping following a
  * session is as explicit as starting to.
  */
-export function SessionPicker({ visible, chosen, onChoose, onClose }: Props) {
+export function SessionPicker({ visible, chosen, onChoose, onClose, onCreate, onEdit }: Props) {
   const s = useStrings(sessionPickerStrings);
-  const row = (id: string | null, title: string, detail: string) => {
+  const custom = useCustomSessions();
+  const row = (id: string | null, title: string, detail: string, editId: number | null = null) => {
     const selected = chosen === id;
     return (
       <Pressable
@@ -168,6 +185,20 @@ export function SessionPicker({ visible, chosen, onChoose, onClose }: Props) {
           <Text style={styles.detail}>{detail}</Text>
         </View>
         {selected && <Ionicons name="checkmark" size={20} color={colors.accent} />}
+        {editId !== null ? (
+          <Pressable
+            onPress={() => {
+              onClose();
+              onEdit(editId);
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={s.edit(title)}
+            hitSlop={8}
+            style={({ pressed }) => [styles.edit, pressed && styles.pressed]}
+          >
+            <Ionicons name="create-outline" size={19} color={colors.accent} />
+          </Pressable>
+        ) : null}
       </Pressable>
     );
   };
@@ -181,9 +212,31 @@ export function SessionPicker({ visible, chosen, onChoose, onClose }: Props) {
             <Text style={styles.title}>{s.title}</Text>
             <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
               {row(null, s.freeRun, s.freeRunDetail)}
+              {/* The runner's own first: they wrote them for a reason, and the
+                  way to write another sits with them. */}
+              <Text style={styles.group}>{s.mine}</Text>
+              {custom.map((session) => {
+                const runnable = toSession(session);
+                return row(customSessionId(session.id), runnable.name, summary(runnable), session.id);
+              })}
+              <Pressable
+                onPress={() => {
+                  onClose();
+                  onCreate();
+                }}
+                accessibilityRole="button"
+                style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+              >
+                <View style={styles.rowText}>
+                  <Text style={[styles.name, styles.nameOn]}>{s.create}</Text>
+                  <Text style={styles.detail}>{s.createDetail}</Text>
+                </View>
+                <Ionicons name="add" size={22} color={colors.accent} />
+              </Pressable>
+              <Text style={styles.group}>{s.library}</Text>
               {SESSIONS.map((session) => row(session.id, sessionName(session), summary(session)))}
             </ScrollView>
-            <TargetPace session={sessionById(chosen)} />
+            <TargetPace session={findSession(chosen)} />
           </GlassPanel>
         </Pressable>
       </Pressable>
@@ -202,7 +255,15 @@ const styles = StyleSheet.create({
     color: colors.subtle, fontSize: 11, fontFamily: font.semibold,
     letterSpacing: 1.4, textTransform: "uppercase",
   },
-  list: { maxHeight: 380 },
+  list: { maxHeight: 420 },
+  group: {
+    color: colors.subtle, fontSize: 11, fontFamily: font.semibold,
+    letterSpacing: 1.4, textTransform: "uppercase", paddingTop: 14, paddingBottom: 6,
+  },
+  edit: {
+    width: 34, height: 34, borderRadius: 17, marginRight: -6,
+    alignItems: "center", justifyContent: "center",
+  },
   row: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12,
     paddingVertical: 12,
