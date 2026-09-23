@@ -2,10 +2,12 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Button } from "@/components/Button";
+import { ChoiceSheet } from "@/components/ChoiceSheet";
 import { HoldButton } from "@/components/HoldButton";
 import { Metric } from "@/components/Metric";
 import { SettingRow } from "@/components/SettingRow";
 import { SettingsGroup } from "@/components/SettingsGroup";
+import { ACTIVITY_ICONS, ACTIVITY_TYPES, activityName, type ActivityType } from "@/lib/activity";
 import { addManualRun } from "@/lib/db";
 import { autoName, formatDistance, formatDuration, formatPace } from "@/lib/format";
 import { paceSecPerKm } from "@/lib/geo";
@@ -27,6 +29,7 @@ const strings = defineStrings({
     earlier: "Plus tôt",
     later: "Plus tard",
     run: "La course",
+    type: "Type",
     distance: "Distance",
     shorter: "Distance plus courte",
     longer: "Distance plus longue",
@@ -55,6 +58,7 @@ const strings = defineStrings({
     earlier: "Earlier",
     later: "Later",
     run: "The run",
+    type: "Type",
     distance: "Distance",
     shorter: "Shorter distance",
     longer: "Longer distance",
@@ -114,9 +118,15 @@ export default function AddRunScreen() {
   const [distanceM, setDistanceM] = useState(() => 5 * unitLengthM());
   const [durationS, setDurationS] = useState(30 * 60);
   const [name, setName] = useState("");
+  // A run typed in is most often a treadmill one: the phone recorded every
+  // other kind.
+  const [activity, setActivity] = useState<ActivityType>("treadmill");
+  const [choosingType, setChoosingType] = useState(false);
   const [saving, setSaving] = useState(false);
+  /** When the page opened: what "today" and "not in the future" are measured from. */
+  const [openedAt] = useState(() => Date.now());
 
-  const today = startOfDay(Date.now());
+  const today = startOfDay(openedAt);
   const day = startOfDay(startedAt);
   const dayName = day === today
     ? s.today
@@ -125,13 +135,13 @@ export default function AddRunScreen() {
       : new Date(startedAt).toLocaleDateString(intlLocale(), { weekday: "short", day: "numeric", month: "short" });
   const clock = new Date(startedAt).toLocaleTimeString(intlLocale(), { hour: "2-digit", minute: "2-digit" });
   // Nothing in the future: a run typed in has happened.
-  const latest = Date.now() - durationS * 1000;
+  const latest = openedAt - durationS * 1000;
   const tenth = unitLengthM() / 10;
 
   const save = async () => {
     setSaving(true);
     try {
-      const id = await addManualRun({ startedAt, durationS, distanceM, name });
+      const id = await addManualRun({ startedAt, durationS, distanceM, name, activity });
       void refreshHomeWidget();
       router.replace({ pathname: "/run/[id]", params: { id: String(id) } });
     } catch {
@@ -174,6 +184,12 @@ export default function AddRunScreen() {
       </SettingsGroup>
 
       <SettingsGroup title={s.run} footer={s.footer}>
+        <SettingRow
+          icon={ACTIVITY_ICONS[activity] as "walk-outline"}
+          label={s.type}
+          value={activityName(activity)}
+          onPress={() => setChoosingType(true)}
+        />
         <SettingRow
           icon="resize-outline"
           label={s.distance}
@@ -239,6 +255,15 @@ export default function AddRunScreen() {
       <View style={styles.actions}>
         <Button label={s.save} onPress={() => void save()} disabled={saving} />
       </View>
+
+      <ChoiceSheet
+        visible={choosingType}
+        title={s.type}
+        selected={activity}
+        choices={ACTIVITY_TYPES.map((type) => ({ value: type, label: activityName(type) }))}
+        onChoose={setActivity}
+        onClose={() => setChoosingType(false)}
+      />
     </ScrollView>
   );
 }

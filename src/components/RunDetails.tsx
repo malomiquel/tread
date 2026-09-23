@@ -1,16 +1,23 @@
 import { useEffect, useState } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { ChoiceSheet } from "@/components/ChoiceSheet";
 import { SettingRow } from "@/components/SettingRow";
 import { SettingsGroup } from "@/components/SettingsGroup";
-import { listShoes, setRunShoe, type Run } from "@/lib/db";
+import {
+  ACTIVITY_ICONS, ACTIVITY_TYPES, activityName, RUN_TAGS, tagName, toggleTag,
+} from "@/lib/activity";
+import { listShoes, setRunActivity, setRunShoe, setRunTags, type Run } from "@/lib/db";
 import { formatDistance } from "@/lib/format";
 import { defineStrings, useStrings } from "@/lib/i18n";
 import { shoeOrder, wearOf, type Shoe } from "@/lib/shoes";
+import { colors, font } from "@/lib/theme";
 import { distanceUnit } from "@/lib/units";
 
 const strings = defineStrings({
   fr: {
     title: "Détails",
+    type: "Type",
+    tags: "Étiquettes",
     shoes: "Chaussures",
     noShoe: "Aucune",
     noShoeDetail: "Cette course ne compte pour aucune paire",
@@ -20,6 +27,8 @@ const strings = defineStrings({
   },
   en: {
     title: "Details",
+    type: "Type",
+    tags: "Tags",
     shoes: "Shoes",
     noShoe: "None",
     noShoeDetail: "This run counts for no pair",
@@ -36,13 +45,14 @@ interface Props {
 }
 
 /**
- * What the runner can say about a run that the phone could not measure:
- * which pair it was run in.
+ * What the runner can say about a run that the phone could not measure: what
+ * kind of outing it was, what it was for, which pair it was run in.
  */
 export function RunDetails({ run, onChange }: Props) {
   const s = useStrings(strings);
   const [shoes, setShoes] = useState<Shoe[]>([]);
   const [choosingShoe, setChoosingShoe] = useState(false);
+  const [choosingType, setChoosingType] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -61,21 +71,62 @@ export function RunDetails({ run, onChange }: Props) {
   // Retired pairs are not offered, except the one this run was already in.
   const offered = shoes.filter((held) => !held.retired || held.id === run.shoeId);
 
-  // Nothing to say about shoes before any pair exists: the row would only
-  // offer "none".
-  if (shoes.length === 0) return null;
-
   return (
     <>
       <SettingsGroup title={s.title}>
         <SettingRow
-          icon="footsteps-outline"
-          label={s.shoes}
-          value={shoe?.name ?? s.noShoe}
-          detail={shoe ? shoeLine(shoe) : undefined}
-          onPress={() => setChoosingShoe(true)}
+          icon={ACTIVITY_ICONS[run.activity] as "walk-outline"}
+          label={s.type}
+          value={activityName(run.activity)}
+          onPress={() => setChoosingType(true)}
         />
+        {/* Nothing to say about shoes before any pair exists: the row would
+            only offer "none". */}
+        {shoes.length > 0 ? (
+          <SettingRow
+            icon="footsteps-outline"
+            label={s.shoes}
+            value={shoe?.name ?? s.noShoe}
+            detail={shoe ? shoeLine(shoe) : undefined}
+            onPress={() => setChoosingShoe(true)}
+          />
+        ) : null}
       </SettingsGroup>
+
+      {/* Chips rather than a sheet: several can be on at once, and each is
+          one tap either way. */}
+      <View style={styles.tags} accessibilityLabel={s.tags}>
+        {RUN_TAGS.map((tag) => {
+          const on = run.tags.includes(tag);
+          return (
+            <Pressable
+              key={tag}
+              onPress={() => {
+                const tags = toggleTag(run.tags, tag);
+                onChange({ tags });
+                void setRunTags(run.id, tags).catch(() => undefined);
+              }}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: on }}
+              style={({ pressed }) => [styles.tag, on && styles.tagOn, pressed && styles.pressed]}
+            >
+              <Text style={[styles.tagText, on && styles.tagTextOn]}>{tagName(tag)}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <ChoiceSheet
+        visible={choosingType}
+        title={s.type}
+        selected={run.activity}
+        choices={ACTIVITY_TYPES.map((type) => ({ value: type, label: activityName(type) }))}
+        onChoose={(activity) => {
+          onChange({ activity });
+          void setRunActivity(run.id, activity).catch(() => undefined);
+        }}
+        onClose={() => setChoosingType(false)}
+      />
 
       <ChoiceSheet
         visible={choosingShoe}
@@ -94,3 +145,15 @@ export function RunDetails({ run, onChange }: Props) {
     </>
   );
 }
+
+const styles = StyleSheet.create({
+  tags: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: 20, paddingTop: 12 },
+  tag: {
+    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline,
+  },
+  tagOn: { backgroundColor: colors.accentSoft, borderColor: colors.accentSoft },
+  tagText: { color: colors.muted, fontSize: 14.5, fontFamily: font.medium },
+  tagTextOn: { color: colors.accent, fontFamily: font.semibold },
+  pressed: { opacity: 0.55 },
+});

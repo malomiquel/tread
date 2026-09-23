@@ -83,7 +83,7 @@ when it is done; add a line when something new comes up.
 ### Quality
 - [x] Pace rounding fixed (4'59"6 showed as 4'00")
 - [x] `DESIGN.md` design system, loaded by `CLAUDE.md` in every session
-- [x] 354 unit tests; typecheck, lint, expo-doctor 21/21, iOS bundle
+- [x] 358 unit tests; typecheck, lint, expo-doctor 21/21, iOS bundle
 
 ### Earlier work
 - [x] Weather before/after runs, forecasts on plan sessions, on the share card
@@ -170,8 +170,10 @@ High value, moderate effort
 - [x] **Lap button** during a run, for track and hill repeats: under pause
   and stop, the lap said aloud, the lap under way on the status line, a
   "Laps" section on the run with the fastest one marked; carried by transfer
-- [ ] **Activity types and tags**: walk, hike, trail, treadmill; race, long
-  run, workout
+- [x] **Activity types and tags**: run, trail, treadmill, walk, hike (one per
+  run, chosen on its "Details" and when entering a run by hand); tags race,
+  long run, workout, easy run, recovery as chips; type and race shown in
+  History; migration 21; carried by transfer
 - [ ] **Notes and photos** on a run
 - [ ] **Grade-adjusted pace** (the flat equivalent, for trail)
 - [ ] **Training calendar**: the log week by week, beside the list

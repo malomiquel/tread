@@ -6,6 +6,7 @@ import { elevationGainM, fastestKmS, paceSecPerKm, segments, totalDistanceM, typ
 import {
   normaliseDays, type Done, type Exertion, type Goal, type PerWeek, type PlannedSession,
 } from "./plan";
+import { parseTags, readActivity, type ActivityType, type RunTag } from "./activity";
 import { parseGroups, type CustomSession, type DraftGroup } from "./customSession";
 import { bestEfforts, EFFORT_KEYS, parseEfforts, type BestEfforts } from "./efforts";
 import { parseHeart, type Heart } from "./heart";
@@ -113,6 +114,10 @@ export interface Run {
   laps: LapMark[];
   /** The pair it was run in, or null when nobody said. */
   shoeId: number | null;
+  /** What kind of outing it was: a run unless the runner said otherwise. */
+  activity: ActivityType;
+  /** What it was for: a race, a long run… */
+  tags: RunTag[];
 }
 
 /** Shape the SQL layer returns, before mapping to camelCase. */
@@ -137,6 +142,8 @@ interface RunRow {
   route_id: number | null;
   laps: string | null;
   shoe_id: number | null;
+  activity: string | null;
+  tags: string | null;
 }
 
 const toRun = (row: RunRow): Run => ({
@@ -164,6 +171,8 @@ const toRun = (row: RunRow): Run => ({
   routeId: row.route_id ?? null,
   laps: parseLaps(row.laps ?? null),
   shoeId: row.shoe_id ?? null,
+  activity: readActivity(row.activity ?? null),
+  tags: parseTags(row.tags ?? null),
 });
 
 function parseBlocks(raw: string | null): RanBlock[] {
@@ -178,7 +187,7 @@ function parseBlocks(raw: string | null): RanBlock[] {
   }
 }
 
-const SCHEMA_VERSION = 20;
+const SCHEMA_VERSION = 21;
 
 /**
  * The plan's two tables, written once and used twice — by a fresh install and
@@ -324,7 +333,9 @@ export async function initDb(): Promise<void> {
         best_efforts TEXT,
         route_id INTEGER,
         laps TEXT,
-        shoe_id INTEGER
+        shoe_id INTEGER,
+        activity TEXT,
+        tags TEXT
       );
       CREATE TABLE IF NOT EXISTS points (
         id INTEGER PRIMARY KEY,
@@ -481,6 +492,12 @@ export async function initDb(): Promise<void> {
     await db.execAsync(SHOE_TABLE);
     await db.execAsync("ALTER TABLE runs ADD COLUMN shoe_id INTEGER");
     version = 20;
+  }
+
+  if (version < 21) {
+    await db.execAsync("ALTER TABLE runs ADD COLUMN activity TEXT");
+    await db.execAsync("ALTER TABLE runs ADD COLUMN tags TEXT");
+    version = 21;
   }
 
   await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
@@ -658,6 +675,8 @@ export async function everythingForTransfer(): Promise<Transfer> {
       heart: run.heart,
       laps: run.laps,
       shoeId: run.shoeId,
+      activity: run.activity,
+      tags: run.tags,
       points: rows.map((point) => ({
         ts: point.ts, lat: point.lat, lng: point.lng, alt: point.alt,
         accuracy: point.accuracy_m, speed: point.speed, segment: point.segment,
@@ -753,7 +772,7 @@ export async function restoreTransfer(transfer: Transfer): Promise<Restored> {
     await db.runAsync(
       "UPDATE runs SET ended_at = ?, distance_m = ?, duration_s = ?, avg_pace_s_km = ?, name = ?,"
       + " elevation_gain_m = ?, fastest_km_s = ?, cadence_spm = ?, exertion = ?, session_id = ?,"
-      + " session_blocks = ?, weather = ?, heart = ?, laps = ?, shoe_id = ? WHERE id = ?",
+      + " session_blocks = ?, weather = ?, heart = ?, laps = ?, shoe_id = ?, activity = ?, tags = ? WHERE id = ?",
       run.endedAt, run.distanceM, run.durationS, run.avgPaceSKm, run.name,
       run.elevationGainM, run.fastestKmS, run.cadenceSpm, run.exertion, run.sessionId,
       run.blocks?.length ? JSON.stringify(run.blocks) : null,
@@ -761,6 +780,8 @@ export async function restoreTransfer(transfer: Transfer): Promise<Restored> {
       run.heart ? JSON.stringify(run.heart) : null,
       run.laps?.length ? JSON.stringify(run.laps) : null,
       run.shoeId == null ? null : shoeIds.get(run.shoeId) ?? null,
+      run.activity && run.activity !== "run" ? readActivity(run.activity) : null,
+      run.tags?.length ? JSON.stringify(parseTags(JSON.stringify(run.tags))) : null,
       id,
     );
     added += 1;
@@ -937,6 +958,15 @@ export async function deleteShoe(id: number): Promise<void> {
   const db = getDb();
   await db.runAsync("UPDATE runs SET shoe_id = NULL WHERE shoe_id = ?", id);
   await db.runAsync("DELETE FROM shoes WHERE id = ?", id);
+}
+
+/** Say what kind of outing a run was. A plain run is stored as nothing. */
+export async function setRunActivity(runId: number, activity: ActivityType): Promise<void> {
+  await getDb().runAsync("UPDATE runs SET activity = ? WHERE id = ?", activity === "run" ? null : activity, runId);
+}
+
+export async function setRunTags(runId: number, tags: RunTag[]): Promise<void> {
+  await getDb().runAsync("UPDATE runs SET tags = ? WHERE id = ?", tags.length ? JSON.stringify(tags) : null, runId);
 }
 
 /** Put a run against another pair, or none. */
@@ -1164,13 +1194,14 @@ export async function rewriteRun(id: number, edited: EditedRun): Promise<void> {
  * shoes counts it all the same.
  */
 export async function addManualRun(run: {
-  startedAt: number; durationS: number; distanceM: number; name: string;
+  startedAt: number; durationS: number; distanceM: number; name: string; activity: ActivityType;
 }): Promise<number> {
   const result = await getDb().runAsync(
-    "INSERT INTO runs (started_at, ended_at, distance_m, duration_s, avg_pace_s_km, name, best_efforts, shoe_id)"
-    + " VALUES (?, ?, ?, ?, ?, ?, '{}', (SELECT id FROM shoes WHERE is_default = 1 AND retired = 0 LIMIT 1))",
+    "INSERT INTO runs (started_at, ended_at, distance_m, duration_s, avg_pace_s_km, name, best_efforts, activity, shoe_id)"
+    + " VALUES (?, ?, ?, ?, ?, ?, '{}', ?, (SELECT id FROM shoes WHERE is_default = 1 AND retired = 0 LIMIT 1))",
     run.startedAt, run.startedAt + run.durationS * 1000, run.distanceM, run.durationS,
     paceSecPerKm(run.distanceM, run.durationS), run.name.trim() || autoName(run.startedAt),
+    run.activity === "run" ? null : run.activity,
   );
   return Number(result.lastInsertRowId);
 }

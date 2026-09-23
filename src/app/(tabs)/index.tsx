@@ -10,6 +10,7 @@ import { SectionHeader } from "@/components/SectionHeader";
 import { BannerTag, bannerText, SummaryBanner } from "@/components/SummaryBanner";
 import { SwipeToDelete } from "@/components/SwipeToDelete";
 import { deleteRun, listRuns, planSessionOfRun, type Run } from "@/lib/db";
+import { activityName, tagName } from "@/lib/activity";
 import { importRunFiles } from "@/lib/files";
 import { formatDate, formatDistance, formatDuration, formatPace } from "@/lib/format";
 import { forgetRunInHealth } from "@/lib/health";
@@ -350,6 +351,10 @@ function MonthBanner({ runs, now }: { runs: Run[]; now: number }) {
  */
 function RunRow({ run, first, onPress }: { run: Run; first: boolean; onPress: () => void }) {
   const kind = sessionKind(run.sessionId);
+  // What sets this outing apart, as marks: the type when it is not a plain
+  // run, and a race tag, which is the one worth spotting in a long list.
+  const typed = run.activity !== "run" ? activityName(run.activity) : null;
+  const raced = kind !== "race" && run.tags.includes("race") ? tagName("race") : null;
   return (
     <Pressable
       onPress={onPress}
@@ -361,7 +366,7 @@ function RunRow({ run, first, onPress }: { run: Run; first: boolean; onPress: ()
         <View style={styles.rowText}>
           <Text style={styles.name} numberOfLines={1}>{run.name ?? formatDate(run.startedAt)}</Text>
           <Text style={styles.when} numberOfLines={1}>{formatDate(run.startedAt)}</Text>
-          {run.weather || kind ? (
+          {run.weather || kind || typed || raced ? (
             <View style={styles.marks}>
               {run.weather ? (
                 <View style={styles.mark}>
@@ -378,6 +383,16 @@ function RunRow({ run, first, onPress }: { run: Run; first: boolean; onPress: ()
                   <Text style={[styles.chipText, kind === "race" && styles.chipRaceText]}>
                     {kindName(kind)}
                   </Text>
+                </View>
+              ) : null}
+              {typed ? (
+                <View style={styles.chip}>
+                  <Text style={styles.chipText}>{typed}</Text>
+                </View>
+              ) : null}
+              {raced ? (
+                <View style={[styles.chip, styles.chipRace]}>
+                  <Text style={[styles.chipText, styles.chipRaceText]}>{raced}</Text>
                 </View>
               ) : null}
             </View>

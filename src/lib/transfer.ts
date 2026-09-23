@@ -62,6 +62,9 @@ export interface TransferRun {
   laps?: LapMark[];
   /** The pair it was run in, by its id in `shoes`. */
   shoeId?: number | null;
+  /** Absent from older files: a run, untagged. */
+  activity?: string;
+  tags?: string[];
   points: TrackPoint[];
   /*
    * No `healthUuid`. It names a workout inside the old phone's HealthKit
