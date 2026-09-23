@@ -1,4 +1,15 @@
 @AGENTS.md
+@DESIGN.md
+
+# Design
+
+Toute interface nouvelle ou modifiée suit `DESIGN.md` : les couleurs de
+`colors`, l'échelle typographique, la gouttière de 20, et d'abord les
+composants existants (`SummaryBanner`, `SectionHeader`, `HeaderButton`,
+`EmptyState`, `SettingsGroup`, `SettingRow`…) avant tout style nouveau. Deux
+écrans qui se ressemblent sont construits avec les mêmes pièces. Si un besoin
+n'est couvert par aucun composant, on crée le composant, puis on le documente
+dans `DESIGN.md`.
 
 # Langue
 
