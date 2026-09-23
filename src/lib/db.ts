@@ -1265,6 +1265,26 @@ export async function runShape(id: number, points = 60): Promise<{ lat: number; 
   );
 }
 
+/**
+ * Every finished run's track, sampled down to about `points` fixes each, for
+ * the map of all of them. One query, sampled by SQLite per run, so a long
+ * history reads a few hundred rows a run rather than every fix.
+ */
+export async function allShapes(since = 0, points = 150): Promise<{ run_id: number; lat: number; lng: number }[]> {
+  return getDb().getAllAsync<{ run_id: number; lat: number; lng: number }>(
+    `SELECT run_id, lat, lng FROM (
+       SELECT points.run_id, points.lat, points.lng, points.ts,
+              ROW_NUMBER() OVER (PARTITION BY points.run_id ORDER BY points.ts) AS position,
+              COUNT(*) OVER (PARTITION BY points.run_id) AS total
+       FROM points JOIN runs ON runs.id = points.run_id
+       WHERE runs.ended_at IS NOT NULL AND runs.started_at >= ?
+     )
+     WHERE (position - 1) % MAX(1, total / ?) = 0 OR position = total
+     ORDER BY run_id, ts`,
+    since, points,
+  );
+}
+
 export async function readRun(id: number): Promise<{ run: Run; points: TrackPoint[] } | null> {
   const db = getDb();
   const row = await db.getFirstAsync<RunRow>("SELECT * FROM runs WHERE id = ?", id);

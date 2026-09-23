@@ -48,6 +48,8 @@ const profileStrings = defineStrings({
     performance: "Performances",
     longest: "Plus longue sortie",
     allTime: "Depuis le début",
+    heatmap: "Carte de toutes tes courses",
+    heatmapDetail: "Les rues que tu cours le plus ressortent",
     thisYear: (year: number) => `En ${year}`,
     yearAside: "à la même date l'an dernier",
     yearDistance: "Distance",
@@ -82,6 +84,8 @@ const profileStrings = defineStrings({
     performance: "Performance",
     longest: "Longest run",
     allTime: "All time",
+    heatmap: "Map of all your runs",
+    heatmapDetail: "The streets you run most stand out",
     thisYear: (year: number) => `In ${year}`,
     yearAside: "against last year to date",
     yearDistance: "Distance",
@@ -426,6 +430,16 @@ export default function ProfileScreen() {
               <Total label={s.time} value={formatDuration(records.totalDurationS)} />
               <Total label={s.elevation} value={formatElevation(records.totalElevationM)} unit={elevationUnit()} />
             </View>
+            <View style={styles.heatmap}>
+              <RecordRow
+                first
+                icon="map-outline"
+                label={s.heatmap}
+                detail={s.heatmapDetail}
+                value=""
+                onPress={() => router.push("/heatmap")}
+              />
+            </View>
           </>
         )}
       </ScrollView>
@@ -475,6 +489,7 @@ const styles = StyleSheet.create({
   weekLabel: { color: colors.subtle, fontFamily: font.regular, fontSize: 13, fontVariant: ["tabular-nums"] },
   weekLabelCurrent: { color: colors.accent, fontFamily: font.semibold },
 
+  heatmap: { marginTop: 10 },
   totals: { flexDirection: "row", flexWrap: "wrap", gap: 10, paddingHorizontal: GUTTER, paddingTop: 2 },
   total: {
     flexBasis: "47%", flexGrow: 1, gap: 2,

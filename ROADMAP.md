@@ -83,7 +83,7 @@ when it is done; add a line when something new comes up.
 ### Quality
 - [x] Pace rounding fixed (4'59"6 showed as 4'00")
 - [x] `DESIGN.md` design system, loaded by `CLAUDE.md` in every session
-- [x] 372 unit tests; typecheck, lint, expo-doctor 21/21, iOS bundle
+- [x] 374 unit tests; typecheck, lint, expo-doctor 21/21, iOS bundle
 
 ### Earlier work
 - [x] Weather before/after runs, forecasts on plan sessions, on the share card
@@ -188,7 +188,9 @@ High value, moderate effort
   Time / Climb (each keeps its own figure); the week, the run screen, the
   streaks, Settings and the home widget follow it. **Year on year**: Profile
   › "In 2026" against last year at the same date
-- [ ] **Personal heatmap**: every run on one map
+- [x] **Personal heatmap**: Profile › "Map of all your runs": every track
+  sampled to ~150 points, translucent lines whose overlaps darken; opens on
+  where most runs are; All / This year
 
 High value, large effort
 - [ ] **Strava upload** after each run (OAuth, activity upload API)
