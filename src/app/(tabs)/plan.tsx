@@ -4,12 +4,13 @@ import { useCallback, useState, useRef } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { PlanSetup, type PlanDraft } from "@/components/PlanSetup";
+import { RunButtonText } from "@/components/RunButtonText";
 import { SessionDetail } from "@/components/SessionDetail";
 import {
   activePlan, createPlan, deletePlan, markPlanSessionDone, planDone, recentExertions,
   type StoredPlan,
 } from "@/lib/db";
-import { formatDuration, formatPace } from "@/lib/format";
+import { formatDistance, formatDuration, formatPace } from "@/lib/format";
 import { defineStrings, plural, useStrings } from "@/lib/i18n";
 import { useTabBarSpace } from "@/lib/layout";
 import { useKnownLocation } from "@/lib/location";
@@ -20,6 +21,7 @@ import {
 } from "@/lib/plan";
 import { refreshReminders } from "@/lib/planReminders";
 import { syncReminders } from "@/lib/reminders";
+import { markRaceSetupOffered, useSettings } from "@/lib/settings";
 import { colors, font } from "@/lib/theme";
 import { chooseSession } from "@/lib/tracker";
 import {
@@ -52,6 +54,8 @@ const planStrings = defineStrings({
     today: "aujourd'hui",
     title: "Plan",
     noPlan: "Aucun programme en cours.",
+    noPlanWithGoal: (km: string, perWeek: number) =>
+      `Aucun programme en cours : tu cours à ton rythme, avec un objectif de ${km} km par semaine en ${perWeek} sorties.`,
     runNow: "Courir maintenant",
     runNowDetail: "Une sortie libre. Tu peux choisir une séance ou un parcours sur la carte avant de partir.",
     prepareRace: "Préparer une course",
@@ -90,6 +94,8 @@ const planStrings = defineStrings({
     today: "today",
     title: "Plan",
     noPlan: "No training plan in progress.",
+    noPlanWithGoal: (km: string, perWeek: number) =>
+      `No training plan in progress: you run at your own pace, aiming for ${km} km a week over ${perWeek} runs.`,
     runNow: "Run now",
     runNowDetail: "A free run. You can pick a session or a route on the map before you set off.",
     prepareRace: "Train for a race",
@@ -234,6 +240,19 @@ export default function PlanScreen() {
   const [viewing, setViewing] = useState<ScheduledSession | null>(null);
   /** The programme form, opened from the page shown when there is none. */
   const [settingUp, setSettingUp] = useState(false);
+  const settings = useSettings();
+  /*
+   * Somebody who said in the welcome that they came to prepare a race lands
+   * on the programme form, already filled in from their answers — once.
+   * Derived rather than stored in state, so it needs no effect to open.
+   */
+  const offeringRace = settings.runner?.goal === "race" && !settings.raceSetupOffered;
+  const showingSetup = settingUp || offeringRace;
+
+  function closeSetup() {
+    setSettingUp(false);
+    if (offeringRace) void markRaceSetupOffered();
+  }
   /** How the last few sessions felt, newest first. */
   const [recent, setRecent] = useState<Exertion[]>([]);
   const tabBarSpace = useTabBarSpace();
@@ -270,7 +289,7 @@ export default function PlanScreen() {
     const sessions = buildPlan(draft);
     if (!sessions.length) return;
     await createPlan({ ...draft, sessions });
-    setSettingUp(false);
+    closeSetup();
     load();
   }
 
@@ -360,14 +379,18 @@ export default function PlanScreen() {
    * run that the app would not let them until they had signed up for a
    * marathon.
    */
-  if (plan === null && !settingUp) {
+  if (plan === null && !showingSetup) {
     return (
       <SafeAreaView style={styles.screen} edges={["top"]}>
         <ScrollView contentContainerStyle={{ paddingBottom: tabBarSpace }}>
           <View style={styles.head}>
             <Text style={styles.title}>{s.title}</Text>
           </View>
-          <Text style={styles.lede}>{s.noPlan}</Text>
+          <Text style={styles.lede}>
+            {settings.weeklyGoalM !== null && settings.runner !== null
+              ? s.noPlanWithGoal(formatDistance(settings.weeklyGoalM), settings.runner.perWeek)
+              : s.noPlan}
+          </Text>
 
           <View style={styles.starts}>
             <Pressable
@@ -399,7 +422,7 @@ export default function PlanScreen() {
             </Pressable>
           </View>
 
-          <Text style={styles.startNote}>{s.startNote}</Text>
+          <RunButtonText style={styles.startNote}>{s.startNote}</RunButtonText>
         </ScrollView>
       </SafeAreaView>
     );
@@ -414,7 +437,11 @@ export default function PlanScreen() {
           completion the screen stayed at zero, which is the white page that
           appeared on some tab changes and not others. */}
         <View style={styles.fill}>
-          <PlanSetup onCreate={(draft) => void create(draft)} onCancel={() => setSettingUp(false)} />
+          <PlanSetup
+            onCreate={(draft) => void create(draft)}
+            onCancel={closeSetup}
+            profile={settings.runner}
+          />
         </View>
       </SafeAreaView>
     );

@@ -11,6 +11,9 @@ import {
   longCeilingMin, longestReachedMin, SLOT_DAYS, startOfDay,
   type Goal, type GoalSpec, type PerWeek,
 } from "@/lib/plan";
+import {
+  startingLongestMin, startingVolumeKm, suggestedRace, type RunnerProfile,
+} from "@/lib/runner";
 import { weeklyVolumeKm } from "@/lib/stats";
 import { colors, font } from "@/lib/theme";
 
@@ -279,17 +282,23 @@ function stepFor(goal: Goal): number {
 }
 
 export function PlanSetup({
-  onCreate, onCancel,
+  onCreate, onCancel, profile = null,
 }: {
   onCreate: (draft: PlanDraft) => void;
   /** The way back out, for somebody who opened the form to see what it asks. */
   onCancel?: () => void;
+  /**
+   * What the runner said in the welcome. It picks the distance and the
+   * rhythm to start from, and stands in for a history that does not exist
+   * yet — real runs, once there are any, always win.
+   */
+  profile?: RunnerProfile | null;
 }) {
   const s = useStrings(planSetupStrings);
-  const [goalId, setGoalId] = useState<Goal>("half");
+  const [goalId, setGoalId] = useState<Goal>(() => (profile ? suggestedRace(profile) : "half"));
   const [raceAt, setRaceAt] = useState<number | null>(null);
-  const [perWeek, setPerWeek] = useState<PerWeek>(2);
-  const [days, setDays] = useState<number[]>(SLOT_DAYS[2]);
+  const [perWeek, setPerWeek] = useState<PerWeek>(() => profile?.perWeek ?? 2);
+  const [days, setDays] = useState<number[]>(() => SLOT_DAYS[profile?.perWeek ?? 2]);
   /** Set only once the runner moves the figure; null leaves the suggestion. */
   const [override, setOverride] = useState<number | null>(null);
   const [month, setMonth] = useState(() => new Date());
@@ -358,7 +367,7 @@ export function PlanSetup({
   // source of truth for one number.
   // No history to measure means the cautious end, not the middle. An
   // optimistic guess here becomes three months of paces nobody can hold.
-  const weeklyKm = declaredKm ?? measuredKm ?? 20;
+  const weeklyKm = declaredKm ?? measuredKm ?? (profile ? startingVolumeKm(profile) : 20);
 
   const suggested = useMemo(() => {
     const projected = reference
@@ -379,7 +388,7 @@ export function PlanSetup({
 
   // Thirty minutes for someone with no history: enough to be a run, short
   // enough that nobody is handed an hour they have never done.
-  const longest = longestMin ?? 30;
+  const longest = longestMin ?? (profile ? startingLongestMin(profile) : 30);
   const weeks = chosen === null ? null : clampWeeks(goal, daysBetween(today, chosen) / 7);
   const reached = weeks === null
     ? null

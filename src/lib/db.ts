@@ -896,6 +896,15 @@ export async function readSettings(): Promise<Record<string, string>> {
   return Object.fromEntries(rows.map((row) => [row.key, row.value]));
 }
 
+/** Remove settings outright, so they read as never having been set. */
+export async function deleteSettings(keys: readonly string[]): Promise<void> {
+  if (keys.length === 0) return;
+  await getDb().runAsync(
+    `DELETE FROM settings WHERE key IN (${keys.map(() => "?").join(", ")})`,
+    ...keys,
+  );
+}
+
 export async function writeSetting(key: string, value: string): Promise<void> {
   await getDb().runAsync(
     "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",

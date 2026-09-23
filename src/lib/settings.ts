@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
-import { readSettings, writeSetting } from "./db";
+import { deleteSettings, readSettings, writeSetting } from "./db";
 import { applyLanguage, readLanguageChoice, type LanguageChoice } from "./language";
+import { readRunnerProfile, type RunnerProfile } from "./runner";
 import { readReminderWhen, type ReminderWhen } from "./reminders";
 
 export interface Settings {
@@ -50,11 +51,19 @@ export interface Settings {
   welcomed: boolean;
   /** The phone's language, or one of the two the app speaks. */
   language: LanguageChoice;
+  /** What the runner said about themselves in the welcome, or null if skipped. */
+  runner: RunnerProfile | null;
+  /**
+   * The programme form has been put in front of a runner who came to
+   * prepare a race. Once, straight after the welcome: after that the plan
+   * tab opens on its usual page, and the form is a tap away like for anyone.
+   */
+  raceSetupOffered: boolean;
 }
 
 const DEFAULTS: Settings = {
   voice: true, targetPaceSKm: null, weeklyGoalM: null, reminder: "off", routeId: null,
-  welcomed: false, language: "auto",
+  welcomed: false, language: "auto", runner: null, raceSetupOffered: false,
 };
 
 /**
@@ -81,6 +90,8 @@ export async function loadSettings(): Promise<void> {
       routeId: readId(stored.routeId),
       welcomed: stored.welcomed === "true",
       language: readLanguageChoice(stored.language),
+      runner: readRunnerProfile(stored.runner),
+      raceSetupOffered: stored.raceSetupOffered === "true",
     });
   } catch {
     // Unreadable settings are not worth failing a launch over.
@@ -159,6 +170,28 @@ export async function setRoute(id: number | null): Promise<void> {
 /** The welcome is behind us: the app opens on its tabs from now on. */
 export async function markWelcomed(): Promise<void> {
   await store({ ...current, welcomed: true }, "welcomed", "true");
+}
+
+/**
+ * Development only: forget the welcome and everything it asked, so the next
+ * frame shows it again from the first page.
+ *
+ * The rows are deleted rather than set to false, so the app is in exactly the
+ * state a fresh install leaves it in — which is the state being tested.
+ */
+export async function forgetWelcome(): Promise<void> {
+  publish({ ...current, welcomed: false, runner: null, raceSetupOffered: false });
+  await deleteSettings(["welcomed", "runner", "raceSetupOffered"]).catch(() => undefined);
+}
+
+/** Remember what the runner said about themselves. */
+export async function setRunner(profile: RunnerProfile): Promise<void> {
+  await store({ ...current, runner: profile }, "runner", JSON.stringify(profile));
+}
+
+/** The programme form has been offered once after the welcome. */
+export async function markRaceSetupOffered(): Promise<void> {
+  await store({ ...current, raceSetupOffered: true }, "raceSetupOffered", "true");
 }
 
 /** Speak the phone's language, or one chosen here. Takes effect at once. */

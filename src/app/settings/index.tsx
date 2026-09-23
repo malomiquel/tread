@@ -8,7 +8,7 @@ import { formatDistance } from "@/lib/format";
 import { defineStrings, useStrings } from "@/lib/i18n";
 import { LANGUAGE_NAMES } from "@/lib/language";
 import { reminderName } from "@/lib/reminders";
-import { toggleVoice, useSettings } from "@/lib/settings";
+import { forgetWelcome, toggleVoice, useSettings } from "@/lib/settings";
 import { suggestedWeeklyGoalM } from "@/lib/stats";
 import { colors, font } from "@/lib/theme";
 
@@ -30,6 +30,9 @@ const settingsStrings = defineStrings({
     importExportDetail: "Fichiers GPX, depuis ou vers une autre app",
     transfer: "Changer de téléphone",
     transferDetail: "Tout emporter sur un nouveau téléphone",
+    developer: "Développement",
+    replayWelcome: "Revoir l'accueil",
+    replayWelcomeDetail: "Efface « welcomed » et le profil de coureur, puis relance l'accueil",
     about: "À propos",
     aboutDetail: "Version, confidentialité, sources des données",
   },
@@ -50,6 +53,9 @@ const settingsStrings = defineStrings({
     importExportDetail: "GPX files, from or to another app",
     transfer: "Switch phones",
     transferDetail: "Bring everything over to a new phone",
+    developer: "Development",
+    replayWelcome: "Replay the welcome",
+    replayWelcomeDetail: "Deletes \"welcomed\" and the runner profile, then shows the welcome again",
     about: "About",
     aboutDetail: "Version, privacy, data sources",
   },
@@ -159,6 +165,18 @@ export default function SettingsScreen() {
           onPress={() => router.push("/settings/about")}
         />
       </View>
+
+      {/* Development builds only: never compiled into what ships. */}
+      {__DEV__ ? (
+        <View style={styles.group}>
+          <Text style={styles.groupTitle}>{s.developer}</Text>
+          <SettingRow
+            label={s.replayWelcome}
+            detail={s.replayWelcomeDetail}
+            onPress={() => void forgetWelcome()}
+          />
+        </View>
+      ) : null}
 
       <WeeklyGoalSheet
         visible={editingGoal}

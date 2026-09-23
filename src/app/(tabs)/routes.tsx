@@ -7,6 +7,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Polyline } from "react-native-svg";
 import { Button } from "@/components/Button";
+import { RunButtonText } from "@/components/RunButtonText";
 import { SwipeToDelete } from "@/components/SwipeToDelete";
 import { RouteSnapshot, type RouteSnapshotHandle } from "@/components/RouteSnapshot";
 import { deleteRoute, listRoutes, setRoutePreview } from "@/lib/db";
@@ -230,9 +231,9 @@ export default function RoutesScreen() {
           <View style={styles.headText}>
             <Text style={styles.title}>{s.title}</Text>
             {routes && routes.length > 0 ? (
-              <Text style={styles.subtitle}>
+              <RunButtonText style={styles.subtitle}>
                 {chosen === null ? s.hintNone : s.hintChosen}
-              </Text>
+              </RunButtonText>
             ) : null}
           </View>
           {/* One way in, said in words. Two bare icons side by side — an

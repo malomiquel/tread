@@ -3,6 +3,7 @@ import { useCallback, useState, useRef } from "react";
 import { Alert, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "@/components/Button";
+import { RunButtonText } from "@/components/RunButtonText";
 import { SwipeToDelete } from "@/components/SwipeToDelete";
 import { deleteRun, listRuns, planSessionOfRun, type Run } from "@/lib/db";
 import { importRunFiles } from "@/lib/files";
@@ -186,7 +187,7 @@ export default function HistoryScreen() {
         ListEmptyComponent={
           runs === null ? null : (
             <View style={styles.emptyBlock}>
-              <Text style={styles.empty}>{s.empty}</Text>
+              <RunButtonText style={styles.empty}>{s.empty}</RunButtonText>
               <Button
                 label={importing ? s.importing : s.importFromApp}
                 variant="secondary"

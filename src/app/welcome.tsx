@@ -4,9 +4,14 @@ import { useEffect, useState } from "react";
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "@/components/Button";
+import { StepSlider } from "@/components/StepSlider";
 import { healthAvailable, requestHealthAccess } from "@/lib/health";
 import { defineStrings, useStrings } from "@/lib/i18n";
-import { markWelcomed } from "@/lib/settings";
+import {
+  RUNNER_FREQUENCIES, RUNNER_GOALS, RUNNER_LEVELS, startingWeeklyGoalM, suggestedFrequency,
+  type RunnerFrequency, type RunnerGoal, type RunnerLevel,
+} from "@/lib/runner";
+import { getSettings, markWelcomed, setRunner, setWeeklyGoal } from "@/lib/settings";
 import { colors, font } from "@/lib/theme";
 
 type Icon = React.ComponentProps<typeof Ionicons>["name"];
@@ -26,6 +31,32 @@ const welcomeStrings = defineStrings({
     routesDetail: "Dessine une boucle qui suit les rues, puis cours dessus en la voyant sur la carte.",
     note: "Pas de compte, pas de publicité. Tes courses restent sur ton téléphone.",
     continue: "Continuer",
+    back: "Retour",
+    skip: "Passer",
+    goalQuestion: "Pourquoi tu cours ?",
+    goalLede: "C'est ce qui décide par où l'app commence.",
+    goals: {
+      regular: { title: "Courir régulièrement", detail: "Un objectif de distance chaque semaine" },
+      race: { title: "Préparer une course", detail: "Un programme jusqu'au jour J" },
+      comeback: { title: "Reprendre la course", detail: "Repartir en douceur après une pause" },
+    } as Record<RunnerGoal, { title: string; detail: string }>,
+    levelQuestion: "Où en es-tu ?",
+    levelLede: "Pour partir de tes jambes d'aujourd'hui, pas de celles que tu voudrais avoir.",
+    levels: {
+      new: { title: "Je débute", detail: "Courir 20 minutes d'affilée est déjà un défi" },
+      occasional: { title: "Je cours de temps en temps", detail: "Quelques sorties par mois, jusqu'à 40 minutes" },
+      weekly: { title: "Je cours chaque semaine", detail: "Une heure ne me fait pas peur" },
+    } as Record<RunnerLevel, { title: string; detail: string }>,
+    frequencyQuestion: "Combien de sorties par semaine ?",
+    frequencyLede: "Ce que tu peux tenir, pas ce que tu voudrais faire. Ça se change plus tard.",
+    frequencyUnit: (n: number): string => (n > 1 ? "sorties par semaine" : "sortie par semaine"),
+    frequencyHints: {
+      1: "De quoi garder le fil, même les semaines chargées.",
+      2: "Assez pour progresser, assez peu pour tenir.",
+      3: "Un vrai entraînement, avec de la place pour récupérer.",
+      4: "Pour viser haut, avec un corps déjà habitué.",
+    } as Record<RunnerFrequency, string>,
+    frequencyLabel: "Sorties par semaine",
     twoPermissions: "Deux autorisations",
     onePermission: "Une autorisation",
     permissionsLede:
@@ -56,6 +87,32 @@ const welcomeStrings = defineStrings({
     routesDetail: "Sketch a loop that follows the streets, then run it with the map in view.",
     note: "No account, no ads. Your runs stay on your phone.",
     continue: "Continue",
+    back: "Back",
+    skip: "Skip",
+    goalQuestion: "Why do you run?",
+    goalLede: "This decides where the app starts you.",
+    goals: {
+      regular: { title: "Run regularly", detail: "A distance goal every week" },
+      race: { title: "Train for a race", detail: "A plan all the way to race day" },
+      comeback: { title: "Get back into running", detail: "Ease back in after a break" },
+    },
+    levelQuestion: "Where are you now?",
+    levelLede: "So we start from the legs you have today, not the ones you wish you had.",
+    levels: {
+      new: { title: "I'm just starting", detail: "Running 20 minutes straight is already a challenge" },
+      occasional: { title: "I run now and then", detail: "A few runs a month, up to 40 minutes" },
+      weekly: { title: "I run every week", detail: "An hour doesn't scare me" },
+    },
+    frequencyQuestion: "How many runs a week?",
+    frequencyLede: "What you can keep up, not what you wish you did. You can change it later.",
+    frequencyUnit: (n: number): string => (n > 1 ? "runs a week" : "run a week"),
+    frequencyHints: {
+      1: "Enough to keep the habit, even in busy weeks.",
+      2: "Enough to improve, few enough to stick with.",
+      3: "Real training, with room to recover.",
+      4: "To aim high, with a body already used to it.",
+    },
+    frequencyLabel: "Runs a week",
     twoPermissions: "Two permissions",
     onePermission: "One permission",
     permissionsLede:
@@ -81,22 +138,170 @@ const welcomeStrings = defineStrings({
 /**
  * The first thing the app shows, once.
  *
- * Two pages: what Tread does, then what it needs and why. Before this, the
- * first thing anybody saw was the Health sheet, raised by the app launching
- * with no word of explanation — the one moment a permission is least likely
- * to be granted — followed by an empty history.
+ * One idea per page: what Tread does, then three questions about the runner —
+ * each alone on its page, with the room to read its choices — then what the
+ * app needs and why. Before this, the first thing anybody saw was the Health
+ * sheet, raised by the app launching with no word of explanation.
  *
- * Nothing here is compulsory. Every permission can be refused and asked for
- * again later where it is used; the page only makes sure that the first time
- * the question comes up, the person being asked knows what it is for.
+ * Nothing here is compulsory. The questions can be skipped, and every
+ * permission can be refused and asked for again later where it is used.
  */
+type Step = "intro" | "goal" | "level" | "frequency" | "permissions";
+
+/** The steps a progress bar counts: everything after the introduction. */
+const COUNTED: Step[] = ["goal", "level", "frequency", "permissions"];
+
 export default function WelcomeScreen() {
-  const [page, setPage] = useState<0 | 1>(0);
+  const [step, setStep] = useState<Step>("intro");
+  const [goal, setGoal] = useState<RunnerGoal | null>(null);
+  const [level, setLevel] = useState<RunnerLevel | null>(null);
+  /** Null until the slider is touched, so it follows the level until then. */
+  const [perWeek, setPerWeek] = useState<RunnerFrequency | null>(null);
+  const frequency = perWeek ?? suggestedFrequency(level ?? "occasional");
+
+  async function keep() {
+    if (goal === null || level === null) return;
+    const profile = { goal, level, perWeek: frequency };
+    await setRunner(profile);
+    // A race is prepared with a programme, which sets its own weeks. Anybody
+    // else gets a weekly goal to aim at — unless they already set one.
+    if (goal !== "race" && getSettings().weeklyGoalM === null) {
+      await setWeeklyGoal(startingWeeklyGoalM(profile));
+    }
+    setStep("permissions");
+  }
+
+  const skip = () => setStep("permissions");
 
   return (
     <SafeAreaView style={styles.screen}>
-      {page === 0 ? <Introduction onNext={() => setPage(1)} /> : <Permissions />}
+      {step === "intro" ? <Introduction onNext={() => setStep("goal")} /> : null}
+
+      {step === "goal" ? (
+        <Question step={step} onBack={() => setStep("intro")} onSkip={skip}
+          onNext={() => setStep("level")} ready={goal !== null}>
+          <Choices kind="goals" options={RUNNER_GOALS} chosen={goal} onChoose={setGoal} />
+        </Question>
+      ) : null}
+
+      {step === "level" ? (
+        <Question step={step} onBack={() => setStep("goal")} onSkip={skip}
+          onNext={() => setStep("frequency")} ready={level !== null}>
+          <Choices kind="levels" options={RUNNER_LEVELS} chosen={level} onChoose={setLevel} />
+        </Question>
+      ) : null}
+
+      {step === "frequency" ? (
+        <Question step={step} onBack={() => setStep("level")} onSkip={skip}
+          onNext={() => void keep()} ready={goal !== null && level !== null}>
+          <Frequency value={frequency} onChange={setPerWeek} />
+        </Question>
+      ) : null}
+
+      {step === "permissions" ? <Permissions /> : null}
     </SafeAreaView>
+  );
+}
+
+/** How far through the welcome, as segments that fill. */
+function Progress({ step }: { step: Step }) {
+  const reached = COUNTED.indexOf(step);
+  return (
+    <View style={styles.progress}>
+      {COUNTED.map((counted, at) => (
+        <View key={counted} style={[styles.segment, at <= reached && styles.segmentOn]} />
+      ))}
+    </View>
+  );
+}
+
+const QUESTION_TEXT = {
+  goal: ["goalQuestion", "goalLede"],
+  level: ["levelQuestion", "levelLede"],
+  frequency: ["frequencyQuestion", "frequencyLede"],
+} as const;
+
+/** One question on its own page: the way back, the question, the answers, the way on. */
+function Question({
+  step, onBack, onSkip, onNext, ready, children,
+}: {
+  step: "goal" | "level" | "frequency";
+  onBack: () => void;
+  onSkip: () => void;
+  onNext: () => void;
+  ready: boolean;
+  children: React.ReactNode;
+}) {
+  const s = useStrings(welcomeStrings);
+  const [question, lede] = QUESTION_TEXT[step];
+  return (
+    <View style={styles.page}>
+      <View style={styles.bar}>
+        <Pressable onPress={onBack} accessibilityRole="button" accessibilityLabel={s.back} hitSlop={12}>
+          <Ionicons name="chevron-back" size={24} color={colors.text} />
+        </Pressable>
+        <Progress step={step} />
+        <Pressable onPress={onSkip} accessibilityRole="button" hitSlop={12}>
+          <Text style={styles.skipLabel}>{s.skip}</Text>
+        </Pressable>
+      </View>
+
+      <ScrollView contentContainerStyle={styles.questionBody}>
+        <Text style={styles.title}>{s[question]}</Text>
+        <Text style={styles.lede}>{s[lede]}</Text>
+        <View style={styles.answers}>{children}</View>
+      </ScrollView>
+
+      <View style={styles.footer}>
+        <Button label={s.continue} onPress={onNext} disabled={!ready} />
+      </View>
+    </View>
+  );
+}
+
+/** A list of answers, each a title with a line saying what it means. */
+function Choices<K extends "goals" | "levels", T extends string>({
+  kind, options, chosen, onChoose,
+}: {
+  kind: K;
+  options: readonly T[];
+  chosen: T | null;
+  onChoose: (option: T) => void;
+}) {
+  const s = useStrings(welcomeStrings);
+  const words = s[kind] as Record<string, { title: string; detail: string }>;
+  return (
+    <>
+      {options.map((option) => (
+        <Choice
+          key={option}
+          title={words[option].title}
+          detail={words[option].detail}
+          selected={chosen === option}
+          onPress={() => onChoose(option)}
+        />
+      ))}
+    </>
+  );
+}
+
+/** The number, what it means, and the slider that sets it. */
+function Frequency({ value, onChange }: { value: RunnerFrequency; onChange: (value: RunnerFrequency) => void }) {
+  const s = useStrings(welcomeStrings);
+  return (
+    <View style={styles.frequency}>
+      <View style={styles.frequencyReadout}>
+        <Text style={styles.frequencyNumber}>{value}</Text>
+        <Text style={styles.frequencyUnit}>{s.frequencyUnit(value)}</Text>
+      </View>
+      <Text style={styles.frequencyHint}>{s.frequencyHints[value]}</Text>
+      <StepSlider
+        values={RUNNER_FREQUENCIES}
+        value={value}
+        onChange={onChange}
+        accessibilityLabel={s.frequencyLabel}
+      />
+    </View>
   );
 }
 
@@ -147,6 +352,30 @@ function Feature({ icon, title, detail }: { icon: Icon; title: string; detail: s
         <Text style={styles.featureDetail}>{detail}</Text>
       </View>
     </View>
+  );
+}
+
+function Choice({
+  title, detail, selected, onPress,
+}: {
+  title: string;
+  detail: string;
+  selected: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="radio"
+      accessibilityState={{ selected }}
+      style={({ pressed }) => [styles.choice, selected && styles.chosen, pressed && styles.pressed]}
+    >
+      <View style={styles.choiceText}>
+        <Text style={[styles.choiceTitle, selected && styles.chosenText]}>{title}</Text>
+        <Text style={styles.choiceDetail}>{detail}</Text>
+      </View>
+      {selected ? <Ionicons name="checkmark-circle" size={22} color={colors.accent} /> : null}
+    </Pressable>
   );
 }
 
@@ -271,6 +500,38 @@ const styles = StyleSheet.create({
   page: { flex: 1 },
   body: { paddingHorizontal: GUTTER, paddingTop: 36, paddingBottom: 24, gap: 14 },
   footer: { paddingHorizontal: GUTTER, paddingTop: 8, paddingBottom: 12 },
+  bar: {
+    flexDirection: "row", alignItems: "center", gap: 16,
+    paddingHorizontal: GUTTER, paddingTop: 12, paddingBottom: 4,
+  },
+  progress: { flex: 1, flexDirection: "row", gap: 6 },
+  segment: { flex: 1, height: 4, borderRadius: 2, backgroundColor: colors.accentSoft },
+  segmentOn: { backgroundColor: colors.accent },
+  skipLabel: { color: colors.subtle, fontSize: 16, fontFamily: font.semibold },
+  questionBody: { paddingHorizontal: GUTTER, paddingTop: 28, paddingBottom: 24, gap: 10 },
+  answers: { gap: 10, marginTop: 18 },
+
+  choice: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    paddingVertical: 12, paddingHorizontal: 14, borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline,
+  },
+  chosen: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
+  chosenText: { color: colors.accent },
+  choiceText: { flex: 1, gap: 2 },
+  choiceTitle: { color: colors.text, fontSize: 17, fontFamily: font.semibold },
+  choiceDetail: { color: colors.muted, fontSize: 14, fontFamily: font.regular, lineHeight: 19 },
+  frequency: { gap: 14, marginTop: 8 },
+  frequencyReadout: { flexDirection: "row", alignItems: "baseline", gap: 10 },
+  frequencyNumber: {
+    color: colors.accent, fontSize: 72, fontFamily: font.bold,
+    letterSpacing: -2, lineHeight: 76, fontVariant: ["tabular-nums"],
+  },
+  frequencyUnit: { color: colors.text, fontSize: 20, fontFamily: font.semibold },
+  frequencyHint: {
+    color: colors.muted, fontSize: 15.5, fontFamily: font.regular, lineHeight: 22,
+    minHeight: 44, marginBottom: 10,
+  },
 
   brand: {
     color: colors.accent, fontSize: 17, fontFamily: font.bold,
