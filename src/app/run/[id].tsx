@@ -105,6 +105,7 @@ const runStrings = defineStrings({
     validate: "Valider",
     exporting: "Export…",
     exportGpx: "Exporter en GPX",
+    manual: "Saisie à la main, sans tracé GPS",
     editRun: "Modifier la course",
     runName: "Nom de la course",
     namePlaceholder: "Course matinale",
@@ -170,6 +171,7 @@ const runStrings = defineStrings({
     validate: "Done",
     exporting: "Exporting…",
     exportGpx: "Export as GPX",
+    manual: "Entered by hand, with no GPS track",
     editRun: "Edit run",
     runName: "Run name",
     namePlaceholder: "Morning run",
@@ -710,13 +712,16 @@ export default function RunDetailScreen() {
         </View>
       ) : null}
 
-      <RunMap
-        points={points}
-        fitAll
-        replayable
-        onToggleFullscreen={() => setMapExpanded(true)}
-        style={styles.map}
-      />
+      {/* A run typed in by hand has no track to draw. */}
+      {points.length > 1 ? (
+        <RunMap
+          points={points}
+          fitAll
+          replayable
+          onToggleFullscreen={() => setMapExpanded(true)}
+          style={styles.map}
+        />
+      ) : null}
 
       {sharedPoints.length > 0 && (
         <CardMapSource ref={cardMapSource} points={sharedPoints} onReady={prepareCard} />
@@ -929,7 +934,7 @@ export default function RunDetailScreen() {
       )}
 
       <View style={styles.footnotes}>
-        <Text style={styles.muted}>{s.gpsPoints(points.length)}</Text>
+        <Text style={styles.muted}>{points.length === 0 ? s.manual : s.gpsPoints(points.length)}</Text>
         {hasHealth && run.healthUuid && (
           <View style={styles.synced}>
             <Ionicons name="heart" size={12} color={colors.accent} />

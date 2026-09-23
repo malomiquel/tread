@@ -160,7 +160,9 @@ High value, moderate effort
 - [x] **Edit a run**: "Edit run" on a run's page: cut the start or the end
   by time (5 s steps, faster while held, the map shows what is kept), correct
   the distance; totals, records and laps recomputed, the Health copy replaced
-- [ ] **Add a run by hand**: treadmill, a forgotten phone
+- [x] **Add a run by hand**: History › "Add" (enter by hand or import GPX),
+  and a card on the empty History: day, start time, distance, time and name
+  by steps; no map, "entered by hand" on its page; counts for the default pair
 - [x] **Charts on a run**: pace and heart rate (from Health, when a watch
   recorded it) against distance, lined up with the elevation profile
 - [ ] **Cadence chart**: needs steps recorded minute by minute during the run

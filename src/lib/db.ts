@@ -1158,6 +1158,23 @@ export async function rewriteRun(id: number, edited: EditedRun): Promise<void> {
   });
 }
 
+/**
+ * A run typed in rather than recorded: on a treadmill, or with the phone
+ * left at home. No track, so nothing to draw or split; the default pair of
+ * shoes counts it all the same.
+ */
+export async function addManualRun(run: {
+  startedAt: number; durationS: number; distanceM: number; name: string;
+}): Promise<number> {
+  const result = await getDb().runAsync(
+    "INSERT INTO runs (started_at, ended_at, distance_m, duration_s, avg_pace_s_km, name, best_efforts, shoe_id)"
+    + " VALUES (?, ?, ?, ?, ?, ?, '{}', (SELECT id FROM shoes WHERE is_default = 1 AND retired = 0 LIMIT 1))",
+    run.startedAt, run.startedAt + run.durationS * 1000, run.distanceM, run.durationS,
+    paceSecPerKm(run.distanceM, run.durationS), run.name.trim() || autoName(run.startedAt),
+  );
+  return Number(result.lastInsertRowId);
+}
+
 export async function renameRun(id: number, name: string): Promise<void> {
   await getDb().runAsync("UPDATE runs SET name = ? WHERE id = ?", name.trim() || null, id);
 }

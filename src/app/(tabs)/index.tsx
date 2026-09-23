@@ -40,6 +40,12 @@ const historyStrings = defineStrings({
     importing: "Import…",
     importFromApp: "Importer depuis une autre app",
     importShort: "Importer",
+    add: "Ajouter",
+    addTitle: "Ajouter une course",
+    addByHand: "Saisir à la main",
+    addFiles: "Importer des fichiers GPX",
+    byHand: "Saisir une course",
+    byHandHint: "Sur tapis, ou sortie sans téléphone : distance et temps.",
     importHint: "Depuis Strava, Garmin ou une montre, en fichiers GPX.",
     thisRun: "cette course",
     thisMonth: "Ce mois-ci",
@@ -65,6 +71,12 @@ const historyStrings = defineStrings({
     importing: "Importing…",
     importFromApp: "Import from another app",
     importShort: "Import",
+    add: "Add",
+    addTitle: "Add a run",
+    addByHand: "Enter by hand",
+    addFiles: "Import GPX files",
+    byHand: "Enter a run",
+    byHandHint: "Treadmill, or a run without your phone: distance and time.",
     importHint: "From Strava, Garmin or a watch, as GPX files.",
     thisRun: "this run",
     thisMonth: "This month",
@@ -208,11 +220,15 @@ export default function HistoryScreen() {
             the import card below does this job instead. */}
         {runs && runs.length > 0 ? (
           <HeaderButton
-            icon="download-outline"
-            label={s.importShort}
-            accessibilityLabel={s.importFromApp}
+            icon="add"
+            label={s.add}
+            accessibilityLabel={s.addTitle}
             busy={importing}
-            onPress={() => void importGpx()}
+            onPress={() => Alert.alert(s.addTitle, undefined, [
+              { text: s.addByHand, onPress: () => router.push("/run/add") },
+              { text: s.addFiles, onPress: () => void importGpx() },
+              { text: s.cancel, style: "cancel" },
+            ])}
           />
         ) : null}
       </View>
@@ -248,6 +264,12 @@ export default function HistoryScreen() {
                   detail: s.importHint,
                   busy: importing,
                   onPress: () => void importGpx(),
+                },
+                {
+                  icon: "create-outline",
+                  title: s.byHand,
+                  detail: s.byHandHint,
+                  onPress: () => router.push("/run/add"),
                 },
               ]}
             />

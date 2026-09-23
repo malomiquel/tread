@@ -27,6 +27,7 @@ const layoutStrings = defineStrings({
     back: "Retour",
     run: "Course",
     editRun: "Modifier la course",
+    addRun: "Ajouter une course",
     method: "Méthode",
     settings: "Réglages",
     profile: "Profil",
@@ -48,6 +49,7 @@ const layoutStrings = defineStrings({
     back: "Back",
     run: "Run",
     editRun: "Edit run",
+    addRun: "Add a run",
     method: "Method",
     settings: "Settings",
     profile: "Profile",
@@ -209,6 +211,7 @@ export default function RootLayout() {
           />
           <Stack.Screen name="run/[id]" options={{ title: s.run, headerBackTitle: s.back }} />
           <Stack.Screen name="run/edit/[id]" options={{ title: s.editRun, headerBackTitle: s.run }} />
+          <Stack.Screen name="run/add" options={{ title: s.addRun, headerBackTitle: s.back }} />
           <Stack.Screen name="plan-method" options={{ title: s.method, headerBackTitle: s.back }} />
           {/* One screen for both: drawing a route and changing one are the same
               act, and the title is set by the screen from what it was given. */}
