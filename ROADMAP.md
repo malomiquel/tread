@@ -83,7 +83,7 @@ when it is done; add a line when something new comes up.
 ### Quality
 - [x] Pace rounding fixed (4'59"6 showed as 4'00")
 - [x] `DESIGN.md` design system, loaded by `CLAUDE.md` in every session
-- [x] 362 unit tests; typecheck, lint, expo-doctor 21/21, iOS bundle
+- [x] 366 unit tests; typecheck, lint, expo-doctor 21/21, iOS bundle
 
 ### Earlier work
 - [x] Weather before/after runs, forecasts on plan sessions, on the share card
@@ -181,7 +181,9 @@ High value, moderate effort
 - [x] **Grade-adjusted pace**: Minetti's cost of running on a slope, over
   stretches of 50 m or more, descents floored at 80 %; shown on a run beside
   the pace when it climbed 20 m or more and the two differ by 3 s or more
-- [ ] **Training calendar**: the log week by week, beside the list
+- [x] **Training calendar**: History › List / Calendar; months back to the
+  first run, a dot per day sized by distance, week totals, tap a day to open
+  its run
 - [ ] **Goals in time or climb**, not only distance; year-on-year comparison
 - [ ] **Personal heatmap**: every run on one map
 

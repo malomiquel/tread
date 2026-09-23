@@ -185,6 +185,7 @@ defaults.
 |---|---|
 | `Button` | Full-width actions in sheets and forms. `primary`, `secondary`, `danger`. Min height 50, radius 6. |
 | `HoldButton` | Steppers that repeat while held (goal, pace). |
+| `Segmented` | Two or three ways of seeing the same thing (History: list or calendar). The one showing is filled on the `sunken` track. |
 | `StepSlider` | A choice among a few ordered stops (1–4 runs a week). Snaps, ticks with a haptic, works with VoiceOver. |
 | `SwipeToDelete` | Deleting a row in a list. Never the only way: the item's own page has a delete too. |
 | `RunButtonText` | Any sentence that mentions the run button. |
@@ -195,6 +196,7 @@ defaults.
 |---|---|
 | `RecordRow` | A figure worth keeping: tile, name and detail, figure right. With `onPress` it leads somewhere and ends in a chevron (Profile's Performance block, the performance pages). |
 | `Metric` | A labelled figure: label uppercase above, value, unit. `compact` over the map, `large` for the run's distance. |
+| `TrainingCalendar` | The history as months of Monday-first weeks: a dot per day sized by distance, today outlined, each week's total at the end of its row. |
 | `RunShape` | A run's outline in a tile, from a 60-point sample, cached. |
 | `RunMap`, `TrackOverlay` | The map and the track drawn on it. |
 | `ShareCard` | The picture a run leaves as. |

@@ -8,7 +8,9 @@ import { HeaderButton } from "@/components/HeaderButton";
 import { RunShape } from "@/components/RunShape";
 import { SectionHeader } from "@/components/SectionHeader";
 import { BannerTag, bannerText, SummaryBanner } from "@/components/SummaryBanner";
+import { Segmented } from "@/components/Segmented";
 import { SwipeToDelete } from "@/components/SwipeToDelete";
+import { TrainingCalendar } from "@/components/TrainingCalendar";
 import { deleteRun, listRuns, planSessionOfRun, type Run } from "@/lib/db";
 import { activityName, tagName } from "@/lib/activity";
 import { importRunFiles } from "@/lib/files";
@@ -41,6 +43,8 @@ const historyStrings = defineStrings({
     importing: "Import…",
     importFromApp: "Importer depuis une autre app",
     importShort: "Importer",
+    list: "Liste",
+    calendar: "Calendrier",
     add: "Ajouter",
     addTitle: "Ajouter une course",
     addByHand: "Saisir à la main",
@@ -72,6 +76,8 @@ const historyStrings = defineStrings({
     importing: "Importing…",
     importFromApp: "Import from another app",
     importShort: "Import",
+    list: "List",
+    calendar: "Calendar",
     add: "Add",
     addTitle: "Add a run",
     addByHand: "Enter by hand",
@@ -107,6 +113,7 @@ export default function HistoryScreen() {
   const router = useRouter();
   const tabBarSpace = useTabBarSpace();
   const [importing, setImporting] = useState(false);
+  const [view, setView] = useState<"list" | "calendar">("list");
 
   const reload = useCallback(() => listRuns().then(setRuns).catch(() => setRuns([])), []);
 
@@ -234,6 +241,25 @@ export default function HistoryScreen() {
         ) : null}
       </View>
 
+      {/* Two ways of reading the same history: what was run, or when. */}
+      {runs && runs.length > 0 ? (
+        <View style={styles.views}>
+          <Segmented
+            options={[{ value: "list", label: s.list }, { value: "calendar", label: s.calendar }]}
+            value={view}
+            onChange={setView}
+          />
+        </View>
+      ) : null}
+
+      {view === "calendar" && runs && runs.length > 0 ? (
+        <TrainingCalendar
+          runs={runs}
+          now={readAt}
+          bottomSpace={tabBarSpace + 60}
+          onOpenRun={(id) => router.push({ pathname: "/run/[id]", params: { id: String(id) } })}
+        />
+      ) : (
       <SectionList
         ref={list}
         sections={sections}
@@ -292,6 +318,7 @@ export default function HistoryScreen() {
           </SwipeToDelete>
         )}
       />
+      )}
       </View>
     </SafeAreaView>
   );
@@ -421,6 +448,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: GUTTER, paddingTop: 10, paddingBottom: 14,
   },
   headerText: { flex: 1 },
+  views: { paddingHorizontal: GUTTER, paddingBottom: 10 },
   title: { color: colors.text, fontSize: 32, fontFamily: font.bold, letterSpacing: -0.6 },
   subtitle: { color: colors.subtle, fontFamily: font.regular, fontSize: 15, marginTop: 3 },
 
