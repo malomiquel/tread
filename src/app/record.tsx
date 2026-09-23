@@ -885,7 +885,16 @@ function Toggle({
       style={({ pressed }) => [styles.toggle, pressed && styles.pressed]}
     >
       <Ionicons name={icon} size={18} color={tint} />
-      <Text style={[styles.toggleName, { color: tint }]}>{name}</Text>
+      {/* Shrunk rather than cut: "PARCOURS" is the longest word here and the
+          widest this square has to hold. */}
+      <Text
+        style={[styles.toggleName, { color: tint }]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.75}
+      >
+        {name}
+      </Text>
     </Pressable>
   );
 }
@@ -918,7 +927,10 @@ const styles = StyleSheet.create({
     width: CONTROL_SIZE, height: CONTROL_SIZE,
     alignItems: "center", justifyContent: "center", gap: 1,
   },
-  toggleName: { fontSize: 9, fontFamily: font.semibold, letterSpacing: 0.6 },
+  toggleName: {
+    fontSize: 9, fontFamily: font.semibold, letterSpacing: 0.2,
+    maxWidth: CONTROL_SIZE - 4, textAlign: "center",
+  },
 
   bottom: { position: "absolute", left: 12, right: 12 },
   panelClip: { borderRadius: 22, overflow: "hidden" },
