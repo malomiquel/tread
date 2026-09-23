@@ -2,6 +2,7 @@
 // node test, and node resolves a relative import literally.
 import { distanceM } from "./geo.ts";
 import { getLanguage, intlLocale } from "./i18n.ts";
+import { services } from "./services.ts";
 
 /**
  * Drawing a route before running it.
@@ -194,8 +195,9 @@ export function isLoop(route: Route): boolean {
 }
 
 /**
- * The routing service: OSRM's walking profile, on the instance the
- * OpenStreetMap project runs.
+ * The routing service: OSRM's walking profile — by default on the instance
+ * the OpenStreetMap project runs, or on whichever server the build names
+ * (see services.ts).
  *
  * Keyless, like the weather, and for the same reason — an app that ships on
  * other people's phones cannot keep a secret. It is a shared public service
@@ -206,11 +208,10 @@ export function isLoop(route: Route): boolean {
  * runner takes the footpath through the park that no car can use and no
  * cyclist is allowed on.
  */
-const OSRM = "https://routing.openstreetmap.de/routed-foot/route/v1/foot";
 
 export function legUrl(from: RoutePoint, to: RoutePoint): string {
   const place = (point: RoutePoint) => `${point.lng.toFixed(6)},${point.lat.toFixed(6)}`;
-  return `${OSRM}/${place(from)};${place(to)}?overview=full&geometries=geojson`;
+  return `${services().routingUrl}/${place(from)};${place(to)}?overview=full&geometries=geojson`;
 }
 
 /**

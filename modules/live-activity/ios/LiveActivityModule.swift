@@ -11,7 +11,9 @@ struct RunActivityState: Record {
   @Field var clockOriginMs: Double?
   @Field var elapsed: String = "00:00"
   @Field var distance: String = "0,00"
+  @Field var distanceUnit: String = "km"
   @Field var pace: String = "--'--"
+  @Field var paceUnit: String = "/km"
 }
 
 @available(iOS 16.2, *)
@@ -21,7 +23,9 @@ private func content(from state: RunActivityState) -> ActivityContent<RunActivit
       clockOrigin: state.clockOriginMs.map { Date(timeIntervalSince1970: $0 / 1000) },
       elapsed: state.elapsed,
       distance: state.distance,
-      pace: state.pace
+      distanceUnit: state.distanceUnit,
+      pace: state.pace,
+      paceUnit: state.paceUnit
     ),
     // No stale date: a run's numbers stop being true the moment the phone
     // stops hearing from the app, and there is nothing useful to show then

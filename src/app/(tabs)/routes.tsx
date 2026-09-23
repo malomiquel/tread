@@ -19,6 +19,7 @@ import { useTabBarSpace } from "@/lib/layout";
 import { drawnLine, isLoop, thumbnail, type StoredRoute } from "@/lib/route";
 import { setRoute, useSettings } from "@/lib/settings";
 import { colors, font, literalColors } from "@/lib/theme";
+import { distanceUnit } from "@/lib/units";
 
 const routesStrings = defineStrings({
   fr: {
@@ -27,7 +28,7 @@ const routesStrings = defineStrings({
     importFailed: "Import impossible",
     unexpectedError: "Erreur inattendue.",
     deleteTitle: "Supprimer ce parcours ?",
-    deleteBody: (name: string, km: string) => `${name}, ${km} km. Tes courses ne sont pas touchées.`,
+    deleteBody: (name: string, km: string) => `${name}, ${km} ${distanceUnit()}. Tes courses ne sont pas touchées.`,
     cancel: "Annuler",
     delete: "Supprimer",
     hintNone: "Touche pour modifier, ▶ pour partir courir dessus",
@@ -51,7 +52,7 @@ const routesStrings = defineStrings({
     importFailed: "Import failed",
     unexpectedError: "Unexpected error.",
     deleteTitle: "Delete this route?",
-    deleteBody: (name: string, km: string) => `${name}, ${km} km. Your runs are not affected.`,
+    deleteBody: (name: string, km: string) => `${name}, ${km} ${distanceUnit()}. Your runs are not affected.`,
     cancel: "Cancel",
     delete: "Delete",
     hintNone: "Tap to edit, ▶ to go run it",
@@ -287,7 +288,7 @@ export default function RoutesScreen() {
                           {item.name}
                         </Text>
                         <Text style={styles.detail} numberOfLines={1}>
-                          {formatDistance(item.distanceM)} km · {isLoop(item) ? s.loop : s.oneWay}
+                          {formatDistance(item.distanceM)} {distanceUnit()} · {isLoop(item) ? s.loop : s.oneWay}
                           {item.place ? ` · ${item.place}` : ""}
                           {on ? s.onMap : ""}
                         </Text>

@@ -2,6 +2,7 @@ import { useSyncExternalStore } from "react";
 import { deleteSettings, readSettings, writeSetting } from "./db";
 import { applyLanguage, readLanguageChoice, type LanguageChoice } from "./language";
 import { readRunnerProfile, type RunnerProfile } from "./runner";
+import { applyUnits, readUnitChoice, type UnitChoice } from "./unitChoice";
 import { readReminderWhen, type ReminderWhen } from "./reminders";
 
 export interface Settings {
@@ -51,6 +52,10 @@ export interface Settings {
   welcomed: boolean;
   /** The phone's language, or one of the two the app speaks. */
   language: LanguageChoice;
+  /** Pause the run when the runner stops, and resume when they set off. Off by default. */
+  autoPause: boolean;
+  /** Kilometres or miles, or whatever the phone's region uses. */
+  units: UnitChoice;
   /** What the runner said about themselves in the welcome, or null if skipped. */
   runner: RunnerProfile | null;
   /**
@@ -63,7 +68,7 @@ export interface Settings {
 
 const DEFAULTS: Settings = {
   voice: true, targetPaceSKm: null, weeklyGoalM: null, reminder: "off", routeId: null,
-  welcomed: false, language: "auto", runner: null, raceSetupOffered: false,
+  welcomed: false, language: "auto", runner: null, raceSetupOffered: false, autoPause: false, units: "auto",
 };
 
 /**
@@ -92,12 +97,15 @@ export async function loadSettings(): Promise<void> {
       language: readLanguageChoice(stored.language),
       runner: readRunnerProfile(stored.runner),
       raceSetupOffered: stored.raceSetupOffered === "true",
+      autoPause: stored.autoPause === "true",
+      units: readUnitChoice(stored.units),
     });
   } catch {
     // Unreadable settings are not worth failing a launch over.
     publish(DEFAULTS);
   }
   applyLanguage(current.language);
+  applyUnits(current.units);
 }
 
 export const getSettings = (): Settings => current;
@@ -140,6 +148,17 @@ function readId(raw: string | undefined): number | null {
   if (!raw || raw === "null") return null;
   const id = Number(raw);
   return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+/** Show kilometres or miles, or follow the phone. Takes effect at once. */
+export async function setUnitChoice(choice: UnitChoice): Promise<void> {
+  applyUnits(choice);
+  await store({ ...current, units: choice }, "units", choice);
+}
+
+/** Pause by itself at a stop, or only when asked. */
+export async function toggleAutoPause(): Promise<void> {
+  await store({ ...current, autoPause: !current.autoPause }, "autoPause", String(!current.autoPause));
 }
 
 /** Speak the kilometres, or stop speaking them. */

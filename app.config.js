@@ -60,6 +60,22 @@ module.exports = ({ config }) => ({
   android: { ...config.android, versionCode: Number(buildNumber) },
   extra: {
     ...config.extra,
+    /*
+     * Where the app gets its weather and its routes, and where support mail
+     * goes. Unset, the free public services are used and no support row is
+     * shown; set these before selling the app (see src/lib/services.ts).
+     *
+     *   TREAD_WEATHER_URL    e.g. https://customer-api.open-meteo.com/v1/forecast
+     *   TREAD_WEATHER_KEY    the Open-Meteo plan's API key
+     *   TREAD_ROUTING_URL    e.g. https://routing.example.com/route/v1/foot
+     *   TREAD_SUPPORT_EMAIL  e.g. support@example.com
+     */
+    services: {
+      weatherUrl: process.env.TREAD_WEATHER_URL,
+      weatherKey: process.env.TREAD_WEATHER_KEY,
+      routingUrl: process.env.TREAD_ROUTING_URL,
+      supportEmail: process.env.TREAD_SUPPORT_EMAIL,
+    },
     build: {
       commit: clean ? commit : `${commit}+`,
       buildNumber,

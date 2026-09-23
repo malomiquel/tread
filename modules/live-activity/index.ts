@@ -11,7 +11,11 @@ export interface RunActivityState {
   /** The elapsed time as text, shown while the clock is stopped. */
   elapsed: string;
   distance: string;
+  /** "km" or "mi". */
+  distanceUnit: string;
   pace: string;
+  /** "/km" or "/mi". */
+  paceUnit: string;
 }
 
 interface LiveActivityModule {

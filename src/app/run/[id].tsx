@@ -30,6 +30,7 @@ import {
 import { formatBpm, zoneName, type Heart } from "@/lib/heart";
 import { decimal, defineStrings, useStrings } from "@/lib/i18n";
 import { colors, floatingShadow, font } from "@/lib/theme";
+import { distanceUnit, elevationUnit, paceUnit, speedUnit, unitLengthM } from "@/lib/units";
 import { pendingWeather } from "@/lib/tracker";
 import { formatTemperature, formatWind, weatherIcon, weatherLabel, type Weather } from "@/lib/weather";
 
@@ -57,7 +58,7 @@ const runStrings = defineStrings({
     duration: "Durée",
     avgPace: "Allure moyenne",
     elevationGain: "Dénivelé positif",
-    bestKm: "Meilleur km",
+    bestSplit: (unit: string): string => (unit === "km" ? "Meilleur km" : "Meilleur mile"),
     avgSpeed: "Vitesse moyenne",
     estimatedCalories: "Calories estimées",
     cadence: "Cadence",
@@ -108,7 +109,7 @@ const runStrings = defineStrings({
     duration: "Duration",
     avgPace: "Average pace",
     elevationGain: "Elevation gain",
-    bestKm: "Best km",
+    bestSplit: (unit: string): string => (unit === "km" ? "Best km" : "Best mile"),
     avgSpeed: "Average speed",
     estimatedCalories: "Estimated calories",
     cadence: "Cadence",
@@ -156,7 +157,7 @@ function BlockRow({ block, rank }: { block: RanBlock; rank: number }) {
           {asked} {effortName(block.effort)}
         </Text>
         <Text style={styles.blockDone}>
-          {formatDistance(block.distanceM)} km · {formatDuration(Math.round(block.durationS))}
+          {formatDistance(block.distanceM)} {distanceUnit()} · {formatDuration(Math.round(block.durationS))}
         </Text>
       </View>
       <Text style={[styles.blockPace, effort && styles.blockEffort]}>{formatPace(pace)}</Text>
@@ -311,7 +312,7 @@ export default function RunDetailScreen() {
       ? `${decimal(weather.precipitationMm.toFixed(1))} mm`
       : null,
   ].filter(Boolean).join(" · ");
-  const kilometres = splits(points);
+  const kilometres = splits(points, unitLengthM());
   const profile = elevationProfile(points);
   const plannedSession = sessionById(run.sessionId);
 
@@ -340,6 +341,10 @@ export default function RunDetailScreen() {
     .filter((split) => !split.partial)
     .reduce<number | null>((best, split) => (best === null || split.durationS < best ? split.durationS : best), null);
   const fullCount = kilometres.filter((split) => !split.partial).length;
+  // The fastest split as a pace per kilometre, which is what every other pace
+  // on this screen is and what the formatter converts: a split in miles is a
+  // mile's time, not a kilometre's.
+  const fastestPaceSKm = fastest === null ? null : fastest / (unitLengthM() / 1000);
   // Null until Health has answered, and null for good if it has no weight on
   // file: an invented figure would be worse than a missing one.
   const energyKcal = weightKg === null ? null : estimateActiveEnergyKcal(run.distanceM, weightKg);
@@ -490,16 +495,16 @@ export default function RunDetailScreen() {
       </View>
 
       <View style={styles.section}>
-        <Metric label={s.distance} value={formatDistance(run.distanceM)} unit="km" large />
+        <Metric label={s.distance} value={formatDistance(run.distanceM)} unit={distanceUnit()} large />
         <View style={styles.row}>
           <Metric label={s.duration} value={formatDuration(run.durationS)} />
-          <Metric label={s.avgPace} value={formatPace(run.avgPaceSKm)} unit="/km" />
+          <Metric label={s.avgPace} value={formatPace(run.avgPaceSKm)} unit={paceUnit()} />
         </View>
         {run.elevationGainM !== null && (
           <View style={styles.row}>
-            <Metric label={s.elevationGain} value={formatElevation(run.elevationGainM)} unit="m" />
-            {run.fastestKmS !== null ? (
-              <Metric label={s.bestKm} value={formatPace(run.fastestKmS)} unit="/km" />
+            <Metric label={s.elevationGain} value={formatElevation(run.elevationGainM)} unit={elevationUnit()} />
+            {fastestPaceSKm !== null ? (
+              <Metric label={s.bestSplit(distanceUnit())} value={formatPace(fastestPaceSKm)} unit={paceUnit()} />
             ) : null}
           </View>
         )}
@@ -507,7 +512,7 @@ export default function RunDetailScreen() {
           <Metric
             label={s.avgSpeed}
             value={formatSpeed(run.durationS > 0 ? run.distanceM / run.durationS : 0)}
-            unit="km/h"
+            unit={speedUnit()}
           />
           {energyKcal !== null ? (
             <Metric label={s.estimatedCalories} value={formatEnergy(energyKcal)} unit="kcal" />
@@ -536,7 +541,7 @@ export default function RunDetailScreen() {
                     : undefined
                 }
               />
-              <Metric label={s.wind} value={formatWind(weather.windKmh)} unit="km/h" />
+              <Metric label={s.wind} value={formatWind(weather.windKmh)} unit={speedUnit()} />
             </View>
             {/* The sky in words, and the rain only when there was some.
                 Absent altogether when the model gave no code: an icon beside
@@ -700,10 +705,10 @@ export default function RunDetailScreen() {
           </View>
           <View style={styles.profileScale}>
             <Text style={styles.profileMark}>
-              {formatElevation(Math.min(...profile.map((p) => p.altitudeM)))} m
+              {formatElevation(Math.min(...profile.map((p) => p.altitudeM)))} {elevationUnit()}
             </Text>
             <Text style={styles.profileMark}>
-              {formatElevation(Math.max(...profile.map((p) => p.altitudeM)))} m
+              {formatElevation(Math.max(...profile.map((p) => p.altitudeM)))} {elevationUnit()}
             </Text>
           </View>
         </View>
@@ -732,13 +737,13 @@ export default function RunDetailScreen() {
             return (
               <View key={split.km} style={styles.split}>
                 <Text style={styles.splitKm}>
-                  {split.partial ? `${formatDistance(split.distanceM)} km` : `km ${split.km}`}
+                  {split.partial ? `${formatDistance(split.distanceM)} ${distanceUnit()}` : `${distanceUnit()} ${split.km}`}
                 </Text>
                 <View style={styles.barTrack}>
                   <View
                     style={[
                       styles.bar,
-                      { width: `${Math.min(100, ((fastest ?? pace) / pace) * 100)}%` },
+                      { width: `${Math.min(100, ((fastestPaceSKm ?? pace) / pace) * 100)}%` },
                       isBest && styles.barBest,
                     ]}
                   />

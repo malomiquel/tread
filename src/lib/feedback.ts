@@ -1,4 +1,5 @@
 import { defineStrings, speechLocale } from "./i18n";
+import { getUnitSystem } from "./units";
 import * as Speech from "expo-speech";
 import { Platform, Vibration } from "react-native";
 
@@ -69,24 +70,42 @@ function buzz(times: number, gapMs = 0): void {
 /** What the voice says, written to be heard rather than read. */
 const spokenWords = defineStrings({
   fr: {
-    kilometre: (km: number, minutes: number, seconds: number) => `Kilomètre ${km}. ${
+    kilometre: (km: number, minutes: number, seconds: number) => `${
+      getUnitSystem() === "metric" ? "Kilomètre" : "Mile"} ${km}. ${
       minutes > 0
         ? `${minutes} minute${minutes > 1 ? "s" : ""} ${seconds > 0 ? `${seconds}` : ""}`
         : `${seconds} secondes`}`,
     sessionDone: "Séance terminée",
+    autoPaused: "Pause automatique",
+    autoResumed: "Reprise",
     drift: (seconds: number, slow: boolean) =>
       `${seconds} seconde${seconds > 1 ? "s" : ""} ${slow ? "trop lent" : "trop rapide"}`,
   },
   en: {
-    kilometre: (km: number, minutes: number, seconds: number) => `Kilometre ${km}. ${
+    kilometre: (km: number, minutes: number, seconds: number) => `${
+      getUnitSystem() === "metric" ? "Kilometre" : "Mile"} ${km}. ${
       minutes > 0
         ? `${minutes} minute${minutes > 1 ? "s" : ""}${seconds > 0 ? ` ${seconds}` : ""}`
         : `${seconds} seconds`}`,
     sessionDone: "Session complete",
+    autoPaused: "Auto-paused",
+    autoResumed: "Resumed",
     drift: (seconds: number, slow: boolean) =>
       `${seconds} second${seconds > 1 ? "s" : ""} ${slow ? "too slow" : "too fast"}`,
   },
 });
+
+/**
+ * The run paused or resumed by itself. Always felt, spoken when the voice is
+ * on: a watch that stops counting without a word is a watch that seems
+ * broken the first time it happens.
+ */
+export function announceAutoPause(paused: boolean, spoken: boolean): void {
+  buzz(paused ? 2 : 1, GAP_MS);
+  if (!spoken) return;
+  const words = spokenWords();
+  Speech.speak(paused ? words.autoPaused : words.autoResumed, { language: speechLocale(), rate: 1 });
+}
 
 export function announceKilometre(km: number, splitS: number, spoken: boolean): void {
   // The buzz fires whatever happens: it is the part that works with headphones

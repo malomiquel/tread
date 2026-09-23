@@ -151,9 +151,9 @@ export function currentPace(points: TrackPoint[], nowTs: number, windowS = 30): 
 }
 
 export interface Split {
-  /** 1 for the first kilometre, and so on. */
+  /** 1 for the first kilometre (or mile), and so on. */
   km: number;
-  /** Duration of this kilometre in seconds. */
+  /** Duration of this kilometre (or mile) in seconds. */
   durationS: number;
   /** True for the trailing chunk when it falls short of a kilometre. */
   partial: boolean;
@@ -162,15 +162,15 @@ export interface Split {
 }
 
 /**
- * Per-kilometre times. Each marker is interpolated inside the leg that crosses
- * it rather than rounded to the nearest fix, which would shift every split by
- * several seconds. Pauses are excluded: the walk works segment by segment, in
- * active time only.
+ * Per-kilometre times — or per mile, given the length of a mile. Each marker
+ * is interpolated inside the leg that crosses it rather than rounded to the
+ * nearest fix, which would shift every split by several seconds. Pauses are
+ * excluded: the walk works segment by segment, in active time only.
  */
-export function splits(points: TrackPoint[]): Split[] {
+export function splits(points: TrackPoint[], unitM = 1000): Split[] {
   const result: Split[] = [];
   let covered = 0;
-  let marker = 1000;
+  let marker = unitM;
   let activeS = 0; // active seconds elapsed before the current segment
   let lastMarkerS = 0;
 
@@ -188,18 +188,18 @@ export function splits(points: TrackPoint[]): Split[] {
       while (covered >= marker) {
         const ratio = legM > 0 ? (marker - before) / legM : 1;
         const markerS = fromS + ratio * (toS - fromS);
-        result.push({ km: marker / 1000, durationS: markerS - lastMarkerS, partial: false, distanceM: 1000 });
+        result.push({ km: Math.round(marker / unitM), durationS: markerS - lastMarkerS, partial: false, distanceM: unitM });
         lastMarkerS = markerS;
         before = marker;
-        marker += 1000;
+        marker += unitM;
       }
     }
     activeS += (segment[segment.length - 1].ts - segmentStart) / 1000;
   }
 
-  const remainder = covered - (marker - 1000);
+  const remainder = covered - (marker - unitM);
   if (remainder > 50) {
-    result.push({ km: marker / 1000, durationS: activeS - lastMarkerS, partial: true, distanceM: remainder });
+    result.push({ km: Math.round(marker / unitM), durationS: activeS - lastMarkerS, partial: true, distanceM: remainder });
   }
   return result;
 }

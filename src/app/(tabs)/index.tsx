@@ -18,13 +18,14 @@ import { useTabBarSpace } from "@/lib/layout";
 import { kindName, sessionKind } from "@/lib/plan";
 import { byMonth, monthSummary, type MonthGroup } from "@/lib/stats";
 import { colors, font } from "@/lib/theme";
+import { distanceUnit, paceUnit } from "@/lib/units";
 import { chooseSession } from "@/lib/tracker";
 import { formatTemperature, weatherIcon } from "@/lib/weather";
 
 const historyStrings = defineStrings({
   fr: {
     title: "Historique",
-    summary: (count: number, km: string) => `${plural(count, "course", "courses")} · ${km} km au total`,
+    summary: (count: number, km: string) => `${plural(count, "course", "courses")} · ${km} ${distanceUnit()} au total`,
     importDone: "Import terminé",
     importFailed: "Import impossible",
     unexpectedError: "Erreur inattendue.",
@@ -44,12 +45,12 @@ const historyStrings = defineStrings({
     thisMonth: "Ce mois-ci",
     monthRuns: (count: number, time: string) => `${plural(count, "course", "courses")} · ${time}`,
     nothingYet: "Pas encore de course ce mois-ci",
-    lastMonth: (month: string, km: string) => `${month} : ${km} km`,
-    monthTotal: (km: string, count: number) => `${km} km · ${count}`,
+    lastMonth: (month: string, km: string) => `${month} : ${km} ${distanceUnit()}`,
+    monthTotal: (km: string, count: number) => `${km} ${distanceUnit()} · ${count}`,
   },
   en: {
     title: "History",
-    summary: (count: number, km: string) => `${plural(count, "run", "runs")} · ${km} km in total`,
+    summary: (count: number, km: string) => `${plural(count, "run", "runs")} · ${km} ${distanceUnit()} in total`,
     importDone: "Import complete",
     importFailed: "Import failed",
     unexpectedError: "Unexpected error.",
@@ -69,8 +70,8 @@ const historyStrings = defineStrings({
     thisMonth: "This month",
     monthRuns: (count: number, time: string) => `${plural(count, "run", "runs")} · ${time}`,
     nothingYet: "No runs this month yet",
-    lastMonth: (month: string, km: string) => `${month}: ${km} km`,
-    monthTotal: (km: string, count: number) => `${km} km · ${count}`,
+    lastMonth: (month: string, km: string) => `${month}: ${km} ${distanceUnit()}`,
+    monthTotal: (km: string, count: number) => `${km} ${distanceUnit()} · ${count}`,
   },
 });
 
@@ -171,7 +172,7 @@ export default function HistoryScreen() {
     const text = historyStrings();
     Alert.alert(
       text.deleteTitle,
-      `${run.name ?? text.defaultRunName}, ${formatDistance(run.distanceM)} km. `
+      `${run.name ?? text.defaultRunName}, ${formatDistance(run.distanceM)} ${distanceUnit()}. `
       + text.deleteBody
       + (linked ? text.deleteLinked : ""),
       [
@@ -296,7 +297,7 @@ function MonthBanner({ runs, now }: { runs: Run[]; now: number }) {
     <SummaryBanner
       label={s.thisMonth}
       value={current.runs > 0 ? formatDistance(current.distanceM) : "0"}
-      unit="km"
+      unit={distanceUnit()}
       detail={current.runs > 0
         ? s.monthRuns(current.runs, formatDuration(current.durationS))
         : s.nothingYet}
@@ -363,9 +364,9 @@ function RunRow({ run, first, onPress }: { run: Run; first: boolean; onPress: ()
         <View style={styles.figures}>
           <Text style={styles.distance}>
             {formatDistance(run.distanceM)}
-            <Text style={styles.km}> km</Text>
+            <Text style={styles.km}> {distanceUnit()}</Text>
           </Text>
-          <Text style={styles.pace}>{formatPace(run.avgPaceSKm)} /km</Text>
+          <Text style={styles.pace}>{formatPace(run.avgPaceSKm)} {paceUnit()}</Text>
         </View>
       </View>
     </Pressable>

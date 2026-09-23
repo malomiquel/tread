@@ -15,26 +15,27 @@ import { useTabBarSpace } from "@/lib/layout";
 import { useSettings } from "@/lib/settings";
 import { goalProgress, suggestedWeeklyGoalM, weekStart } from "@/lib/stats";
 import { colors, font } from "@/lib/theme";
+import { distanceUnit, elevationUnit } from "@/lib/units";
 import { chooseSession } from "@/lib/tracker";
 
 const profileStrings = defineStrings({
   fr: {
     title: "Profil",
-    summary: (count: number, km: string) => `${plural(count, "course", "courses")} · ${km} km au total`,
+    summary: (count: number, km: string) => `${plural(count, "course", "courses")} · ${km} ${distanceUnit()} au total`,
     progress: "Progression",
     lastWeeks: (weeks: number) => `${weeks} dernières semaines`,
     settings: "Réglages",
     runNow: "Courir maintenant",
     runNowDetail: "Ta première sortie lance tes records et tes totaux.",
     goalDetail: "Une distance à viser, du lundi au dimanche.",
-    goalCurrent: (km: string) => `Objectif : ${km} km par semaine`,
+    goalCurrent: (km: string) => `Objectif : ${km} ${distanceUnit()} par semaine`,
     thisWeek: "Cette semaine",
     runs: (count: number) => plural(count, "course", "courses"),
-    goalEdit: (km: string) => `Objectif hebdomadaire, ${km} kilomètres, modifier`,
+    goalEdit: (km: string) => `Objectif hebdomadaire, ${km} ${distanceUnit()}, modifier`,
     goalSet: "Définir un objectif hebdomadaire",
-    goalReached: (km: string, percent: number) => `Objectif de ${km} km atteint · ${percent} %`,
+    goalReached: (km: string, percent: number) => `Objectif de ${km} ${distanceUnit()} atteint · ${percent} %`,
     goalRemaining: (remaining: string, km: string) =>
-      `${remaining} km pour tenir l'objectif de ${km} km`,
+      `${remaining} ${distanceUnit()} pour tenir l'objectif de ${km} ${distanceUnit()}`,
     goalInvite: "Se fixer un objectif hebdomadaire",
     today: "auj.",
     records: "Records",
@@ -51,21 +52,21 @@ const profileStrings = defineStrings({
   },
   en: {
     title: "Profile",
-    summary: (count: number, km: string) => `${plural(count, "run", "runs")} · ${km} km in total`,
+    summary: (count: number, km: string) => `${plural(count, "run", "runs")} · ${km} ${distanceUnit()} in total`,
     progress: "Progress",
     lastWeeks: (weeks: number) => `last ${weeks} weeks`,
     settings: "Settings",
     runNow: "Run now",
     runNowDetail: "Your first run starts your records and totals.",
     goalDetail: "A distance to aim for, Monday to Sunday.",
-    goalCurrent: (km: string) => `Goal: ${km} km a week`,
+    goalCurrent: (km: string) => `Goal: ${km} ${distanceUnit()} a week`,
     thisWeek: "This week",
     runs: (count: number) => plural(count, "run", "runs"),
-    goalEdit: (km: string) => `Weekly goal, ${km} kilometres, edit`,
+    goalEdit: (km: string) => `Weekly goal, ${km} ${distanceUnit()}, edit`,
     goalSet: "Set a weekly goal",
-    goalReached: (km: string, percent: number) => `${km} km goal reached · ${percent}%`,
+    goalReached: (km: string, percent: number) => `${km} ${distanceUnit()} goal reached · ${percent}%`,
     goalRemaining: (remaining: string, km: string) =>
-      `${remaining} km to go to reach your ${km} km goal`,
+      `${remaining} ${distanceUnit()} to go to reach your ${km} ${distanceUnit()} goal`,
     goalInvite: "Set yourself a weekly goal",
     today: "now",
     records: "Personal records",
@@ -226,7 +227,7 @@ export default function ProfileScreen() {
     recordRows.push({
       icon: "trail-sign-outline",
       label: s.longest,
-      value: `${formatDistance(records.longest.distanceM)} km`,
+      value: `${formatDistance(records.longest.distanceM)} ${distanceUnit()}`,
       detail: records.longest.name ?? undefined,
     });
   }
@@ -250,7 +251,7 @@ export default function ProfileScreen() {
     recordRows.push({
       icon: "trending-up-outline",
       label: s.mostElevation,
-      value: `${formatElevation(records.mostElevation.elevationGainM)} m`,
+      value: `${formatElevation(records.mostElevation.elevationGainM)} ${elevationUnit()}`,
       detail: records.mostElevation.name ?? undefined,
     });
   }
@@ -312,7 +313,7 @@ export default function ProfileScreen() {
             <SummaryBanner
               label={s.thisWeek}
               value={formatDistance(current.distanceM)}
-              unit="km"
+              unit={distanceUnit()}
               detail={`${s.runs(current.runs)} · ${formatDuration(current.durationS)}`}
               onPress={() => setSettingGoal(true)}
               accessibilityLabel={goal ? s.goalEdit(formatDistance(settings.weeklyGoalM ?? 0)) : s.goalSet}
@@ -367,9 +368,9 @@ export default function ProfileScreen() {
             <SectionHeader title={s.allTime} />
             <View style={styles.totals}>
               <Total label={s.totalRuns} value={String(records.totalRuns)} />
-              <Total label={s.distance} value={formatDistance(records.totalDistanceM)} unit="km" />
+              <Total label={s.distance} value={formatDistance(records.totalDistanceM)} unit={distanceUnit()} />
               <Total label={s.time} value={formatDuration(records.totalDurationS)} />
-              <Total label={s.elevation} value={formatElevation(records.totalElevationM)} unit="m" />
+              <Total label={s.elevation} value={formatElevation(records.totalElevationM)} unit={elevationUnit()} />
             </View>
           </>
         )}

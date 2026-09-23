@@ -36,8 +36,12 @@ struct RunActivityAttributes: ActivityAttributes {
     var elapsed: String
     /** Distance in kilometres, already formatted, without its unit. */
     var distance: String
+    /// "km" or "mi", as the app shows it; the distance above is already in it.
+    var distanceUnit: String
     /** Pace per kilometre, already formatted, without its unit. */
     var pace: String
+    /// "/km" or "/mi".
+    var paceUnit: String
   }
 
   /** The run's name, fixed for the whole activity. */

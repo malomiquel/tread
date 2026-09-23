@@ -1,5 +1,6 @@
 import LiveActivity from "live-activity";
 import { formatDistance, formatDuration, formatPace } from "./format";
+import { distanceUnit, paceUnit } from "./units";
 
 /**
  * How rarely the lock screen is told anything new.
@@ -71,7 +72,9 @@ export function reflectRun(phase: RunPhase, title: string, measure: () => RunPro
     clockOriginMs: progress.clockOriginMs,
     elapsed: formatDuration(Math.round(progress.elapsedS)),
     distance: formatDistance(progress.distanceM),
+    distanceUnit: distanceUnit(),
     pace: formatPace(progress.paceSKm),
+    paceUnit: paceUnit(),
   };
 
   // Only what the widget actually draws counts as a change. While the run is

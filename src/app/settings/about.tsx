@@ -4,6 +4,7 @@ import { SettingRow } from "@/components/SettingRow";
 import { SettingsGroup } from "@/components/SettingsGroup";
 import { buildLine, currentBuild } from "@/lib/build";
 import { defineStrings, useStrings } from "@/lib/i18n";
+import { services } from "@/lib/services";
 import { colors, font } from "@/lib/theme";
 
 const aboutStrings = defineStrings({
@@ -13,6 +14,8 @@ const aboutStrings = defineStrings({
     privacyDetail: "Ce qui reste sur ton téléphone, et ce qui en sort",
     method: "Comment les programmes sont construits",
     methodDetail: "Le calcul des séances et des allures",
+    contact: "Nous écrire",
+    contactSubject: (version: string) => `Tread ${version}`,
     sources: "Sources des données",
     routing: "Itinéraires",
     routingDetail: "OSRM, sur les données © contributeurs OpenStreetMap (ODbL)",
@@ -26,6 +29,8 @@ const aboutStrings = defineStrings({
     privacyDetail: "What stays on your phone, and what leaves it",
     method: "How training plans are built",
     methodDetail: "How sessions and paces are worked out",
+    contact: "Contact us",
+    contactSubject: (version: string) => `Tread ${version}`,
     sources: "Data sources",
     routing: "Routing",
     routingDetail: "OSRM, on data © OpenStreetMap contributors (ODbL)",
@@ -46,6 +51,7 @@ export default function AboutScreen() {
   const router = useRouter();
   const build = currentBuild();
   const s = useStrings(aboutStrings);
+  const support = services().supportEmail;
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
@@ -63,6 +69,19 @@ export default function AboutScreen() {
           detail={s.methodDetail}
           onPress={() => router.push("/plan-method")}
         />
+        {/* Only once the build names an address: a row that opens a mail
+            to nobody would be worse than no row. The version travels in the
+            subject, since it is the first thing any answer needs. */}
+        {support ? (
+          <SettingRow
+            icon="mail-outline"
+            label={s.contact}
+            value={support}
+            onPress={() => void Linking.openURL(
+              `mailto:${support}?subject=${encodeURIComponent(s.contactSubject(`${build.version} (${build.buildNumber})`))}`,
+            )}
+          />
+        ) : null}
       </SettingsGroup>
 
       <SettingsGroup title={s.sources}>

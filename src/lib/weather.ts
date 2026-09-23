@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { decimal, defineStrings } from "./i18n.ts";
+import { weatherRequest } from "./services.ts";
+import { speedUnit, toTemperatureUnits, windToSpeedUnits } from "./units.ts";
 import type { Coords } from "./location";
 
 /**
@@ -35,7 +37,7 @@ export interface Weather {
   day: boolean;
 }
 
-const API = "https://api.open-meteo.com/v1/forecast";
+// The endpoint, and the key a paid plan brings, come from services.ts.
 
 /** The five readings a runner acts on, plus the daylight the icon needs. */
 const FIELDS = "temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,is_day";
@@ -147,7 +149,7 @@ export function readHourly(payload: unknown, ts: number): Weather | null {
 /** Conditions right now, where the phone is. */
 export async function currentWeather(lat: number, lng: number): Promise<Weather | null> {
   const payload = await ask(
-    `${API}?latitude=${grid(lat)}&longitude=${grid(lng)}&current=${FIELDS}&wind_speed_unit=kmh`,
+    weatherRequest(`latitude=${grid(lat)}&longitude=${grid(lng)}&current=${FIELDS}&wind_speed_unit=kmh`),
   );
   return payload === null ? null : readCurrent(payload);
 }
@@ -164,8 +166,10 @@ export async function currentWeather(lat: number, lng: number): Promise<Weather 
  */
 export async function weatherAt(lat: number, lng: number, ts: number): Promise<Weather | null> {
   const payload = await ask(
-    `${API}?latitude=${grid(lat)}&longitude=${grid(lng)}&hourly=${FIELDS}`
-    + "&past_days=1&forecast_days=1&timeformat=unixtime&wind_speed_unit=kmh",
+    weatherRequest(
+      `latitude=${grid(lat)}&longitude=${grid(lng)}&hourly=${FIELDS}`
+      + "&past_days=1&forecast_days=1&timeformat=unixtime&wind_speed_unit=kmh",
+    ),
   );
   return payload === null ? null : readHourly(payload, ts);
 }
@@ -267,8 +271,10 @@ export function readForecast(payload: unknown): Map<string, Forecast> {
  */
 export async function forecastDays(lat: number, lng: number): Promise<Map<string, Forecast>> {
   const payload = await ask(
-    `${API}?latitude=${grid(lat)}&longitude=${grid(lng)}&daily=${DAILY}`
-    + `&forecast_days=${FORECAST_DAYS}&timezone=auto&wind_speed_unit=kmh`,
+    weatherRequest(
+      `latitude=${grid(lat)}&longitude=${grid(lng)}&daily=${DAILY}`
+      + `&forecast_days=${FORECAST_DAYS}&timezone=auto&wind_speed_unit=kmh`,
+    ),
   );
   return payload === null ? new Map() : readForecast(payload);
 }
@@ -341,12 +347,12 @@ export function weatherLabel(code: number | null): string | null {
 const weatherWords = defineStrings({
   fr: {
     feels: (temperature: string) => `ressenti ${temperature}`,
-    wind: (speed: string) => `vent ${speed} km/h`,
+    wind: (speed: string) => `vent ${speed} ${speedUnit()}`,
     range: (low: string, high: string) => `${low} à ${high}`,
   },
   en: {
     feels: (temperature: string) => `feels ${temperature}`,
-    wind: (speed: string) => `wind ${speed} km/h`,
+    wind: (speed: string) => `wind ${speed} ${speedUnit()}`,
     range: (low: string, high: string) => `${low} to ${high}`,
   },
 });
@@ -377,12 +383,12 @@ export function weatherIcon(code: number | null, day: boolean): WeatherIcon {
 
 /** Whole degrees: a tenth of one is a precision nobody feels. */
 export function formatTemperature(celsius: number): string {
-  return `${Math.round(celsius)}°`;
+  return `${Math.round(toTemperatureUnits(celsius))}°`;
 }
 
 /** Whole kilometres an hour, for the same reason. */
 export function formatWind(kmh: number): string {
-  return String(Math.round(kmh));
+  return String(Math.round(windToSpeedUnits(kmh)));
 }
 
 /**

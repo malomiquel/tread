@@ -10,6 +10,7 @@ import {
 } from "@/lib/format";
 import { defineStrings, useStrings } from "@/lib/i18n";
 import { font } from "@/lib/theme";
+import { distanceUnit, elevationUnit, paceUnit } from "@/lib/units";
 import { formatTemperature, weatherIcon } from "@/lib/weather";
 
 /**
@@ -186,7 +187,7 @@ export const ShareCard = forwardRef<View, Props>(function ShareCard(
         <View style={styles.heroRow}>
           <View style={styles.distanceRow}>
             <Text style={styles.hero}>{formatDistance(run.distanceM)}</Text>
-            <Text style={styles.heroUnit}>km</Text>
+            <Text style={styles.heroUnit}>{distanceUnit()}</Text>
           </View>
           {/* Both lines in flow, but it is the place that has to meet "km".
               Flexbox only ever aligns a column on its first line, so the
@@ -204,9 +205,9 @@ export const ShareCard = forwardRef<View, Props>(function ShareCard(
 
         <View style={styles.stats}>
           <Stat value={formatDuration(run.durationS)} label={s.time} />
-          <Stat value={formatPace(run.avgPaceSKm)} unit="/km" label={s.pace} />
+          <Stat value={formatPace(run.avgPaceSKm)} unit={paceUnit()} label={s.pace} />
           {elevation !== null && elevation > 0 ? (
-            <Stat value={formatElevation(elevation)} unit="m" label={s.elevation} />
+            <Stat value={formatElevation(elevation)} unit={elevationUnit()} label={s.elevation} />
           ) : null}
           {steps !== null ? <Stat value={formatCount(steps)} label={s.steps} /> : null}
         </View>

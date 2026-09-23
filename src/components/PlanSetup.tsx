@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useScrollToTop } from "expo-router";
 import { listRuns, personalRecords } from "@/lib/db";
-import { formatDuration, formatPace } from "@/lib/format";
+import { formatDistance, formatDuration, formatPace } from "@/lib/format";
 import { HoldButton } from "@/components/HoldButton";
 import { defineStrings, intlLocale, plural, useStrings } from "@/lib/i18n";
 import { useTabBarSpace } from "@/lib/layout";
@@ -16,6 +16,7 @@ import {
 } from "@/lib/runner";
 import { weeklyVolumeKm } from "@/lib/stats";
 import { colors, font } from "@/lib/theme";
+import { distanceUnit, paceUnit } from "@/lib/units";
 
 /**
  * Midnight of the day this module was loaded.
@@ -83,7 +84,7 @@ const planSetupStrings = defineStrings({
     targetUnknown: "Aucune course assez longue dans ton historique pour projeter. Pars de là et ajuste.",
     shorterTime: "Temps plus court",
     longerTime: "Temps plus long",
-    perKm: (pace: string) => `${pace} au km`,
+    perKm: (pace: string) => `${pace} ${paceUnit()}`,
     easy: "Footing",
     long: "Sortie longue",
     threshold: "Seuil",
@@ -133,7 +134,7 @@ const planSetupStrings = defineStrings({
     targetUnknown: "No run in your history is long enough to project from. Start here and adjust.",
     shorterTime: "Shorter time",
     longerTime: "Longer time",
-    perKm: (pace: string) => `${pace} per km`,
+    perKm: (pace: string) => `${pace} ${paceUnit()}`,
     easy: "Easy run",
     long: "Long run",
     threshold: "Threshold",
@@ -551,7 +552,7 @@ export function PlanSetup({
           onStep={() => setDeclaredKm((current) => Math.max(5, (current ?? weeklyKm) - 5))}
         />
         <View style={styles.target}>
-          <Text style={styles.targetValue}>{weeklyKm} km</Text>
+          <Text style={styles.targetValue}>{formatDistance(weeklyKm * 1000)} {distanceUnit()}</Text>
           <Text style={styles.targetDetail}>{s.perWeekUnit}</Text>
         </View>
         <HoldButton

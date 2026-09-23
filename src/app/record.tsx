@@ -24,6 +24,7 @@ import { drawnLine, type RoutePoint } from "@/lib/route";
 import { toggleVoice, useSettings } from "@/lib/settings";
 import { goalProgress, weekTotals } from "@/lib/stats";
 import { colors, font } from "@/lib/theme";
+import { distanceUnit, elevationUnit, paceUnit } from "@/lib/units";
 import {
   activeDurationS, chooseSession, discard, finish, pause, resume, start, useTracker,
 } from "@/lib/tracker";
@@ -40,6 +41,7 @@ const recordStrings = defineStrings({
     acquiringGps: "acquisition du GPS",
     gpsReady: "GPS prêt",
     paused: "En pause",
+    autoPaused: "Pause automatique",
     running: "Course en cours",
     ready: "Prêt à courir",
     sessionBlocks: (name: string, blocks: number) => `${name} · ${blocks} blocs`,
@@ -54,7 +56,7 @@ const recordStrings = defineStrings({
     discard: "Abandonner",
     keep: "Garder",
     finishTitle: "Terminer la course ?",
-    finishMessage: (distance: string, duration: string) => `${distance} km en ${duration}.`,
+    finishMessage: (distance: string, duration: string) => `${distance} ${distanceUnit()} en ${duration}.`,
     continue: "Continuer",
     finish: "Terminer",
     leave: "Quitter l'écran de course",
@@ -63,7 +65,7 @@ const recordStrings = defineStrings({
     routeToggle: "PARCOURS",
     routeToggleLabel: "Choisir le parcours affiché sur la carte",
     voiceToggle: "VOIX",
-    voiceToggleLabel: "Annonce vocale des kilomètres",
+    voiceToggleLabel: "Annonces vocales",
     seeBlocks: (name: string) => `${name}, voir les blocs`,
     distance: "Distance",
     duration: "Durée",
@@ -85,6 +87,7 @@ const recordStrings = defineStrings({
     acquiringGps: "acquiring GPS",
     gpsReady: "GPS ready",
     paused: "Paused",
+    autoPaused: "Auto-paused",
     running: "Run in progress",
     ready: "Ready to run",
     sessionBlocks: (name: string, blocks: number) => `${name} · ${plural(blocks, "block", "blocks")}`,
@@ -99,7 +102,7 @@ const recordStrings = defineStrings({
     discard: "Discard",
     keep: "Keep",
     finishTitle: "Finish the run?",
-    finishMessage: (distance: string, duration: string) => `${distance} km in ${duration}.`,
+    finishMessage: (distance: string, duration: string) => `${distance} ${distanceUnit()} in ${duration}.`,
     continue: "Keep going",
     finish: "Finish",
     leave: "Leave the run screen",
@@ -108,7 +111,7 @@ const recordStrings = defineStrings({
     routeToggle: "ROUTE",
     routeToggleLabel: "Choose the route shown on the map",
     voiceToggle: "VOICE",
-    voiceToggleLabel: "Spoken kilometre announcements",
+    voiceToggleLabel: "Voice announcements",
     seeBlocks: (name: string) => `${name}, see the blocks`,
     distance: "Distance",
     duration: "Time",
@@ -438,7 +441,7 @@ export default function RecordScreen() {
     : s.gpsReady;
 
   const state = recording
-    ? tracker.status === "paused" ? s.paused : s.running
+    ? tracker.status === "paused" ? (tracker.autoPaused ? s.autoPaused : s.paused) : s.running
     : s.ready;
 
   /**
@@ -659,12 +662,12 @@ export default function RecordScreen() {
                   // unit off the pace.
                   <View style={styles.metricStack}>
                     <View style={styles.metricRow}>
-                      <Metric compact label={s.distance} value={formatDistance(distance)} unit="km" />
+                      <Metric compact label={s.distance} value={formatDistance(distance)} unit={distanceUnit()} />
                       <Metric compact label={s.duration} value={formatDuration(duration)} />
                     </View>
                     <View style={styles.metricRow}>
-                      <Metric compact label={s.pace} value={formatPace(pace ?? avgPace)} unit="/km" />
-                      <Metric compact label={s.elevation} value={formatElevation(elevation)} unit="m" />
+                      <Metric compact label={s.pace} value={formatPace(pace ?? avgPace)} unit={paceUnit()} />
+                      <Metric compact label={s.elevation} value={formatElevation(elevation)} unit={elevationUnit()} />
                     </View>
                   </View>
                 ) : (
@@ -676,7 +679,7 @@ export default function RecordScreen() {
                     <Metric
                       compact
                       label={s.thisWeek}
-                      value={`${formatDistance(week.distanceM)} km`}
+                      value={`${formatDistance(week.distanceM)} ${distanceUnit()}`}
                       unit={
                         goal
                           ? s.goalPercent(goal.percent)

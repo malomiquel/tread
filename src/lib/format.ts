@@ -1,10 +1,12 @@
 import { decimal, defineStrings, intlLocale } from "./i18n.ts";
+import { toDistanceUnits, toElevationUnits, toPaceUnits, toSpeedUnits } from "./units.ts";
 
 /** Display formatting, in whichever language the interface speaks. */
 
+/** A distance in the chosen unit, without the unit: "8,42". */
 export function formatDistance(metres: number): string {
-  const km = metres / 1000;
-  const text = km >= 10 ? km.toFixed(1) : km.toFixed(2);
+  const units = toDistanceUnits(metres);
+  const text = units >= 10 ? units.toFixed(1) : units.toFixed(2);
   return decimal(text);
 }
 
@@ -18,11 +20,14 @@ export function formatDuration(totalS: number): string {
 }
 
 /** 312 s/km becomes 5'12". Null becomes a dash. */
+/** A pace in the chosen unit, without the unit: 5'12". Stored per kilometre, always. */
 export function formatPace(secPerKm: number | null): string {
   if (secPerKm === null || !Number.isFinite(secPerKm) || secPerKm > 60 * 30) return "–'––\"";
-  const m = Math.floor(secPerKm / 60);
-  const s = Math.round(secPerKm % 60);
-  return `${m}'${String(s === 60 ? 0 : s).padStart(2, "0")}"`;
+  // Rounded once, as a whole, so 4'59"6 becomes 5'00" rather than 4'00".
+  const total = Math.round(toPaceUnits(secPerKm));
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}'${String(s).padStart(2, "0")}"`;
 }
 
 /**
@@ -35,7 +40,7 @@ export function formatPace(secPerKm: number | null): string {
  */
 export function formatSpeed(metresPerSecond: number): string {
   if (!Number.isFinite(metresPerSecond) || metresPerSecond <= 0) return "–";
-  return decimal((metresPerSecond * 3.6).toFixed(1));
+  return decimal(toSpeedUnits(metresPerSecond).toFixed(1));
 }
 
 /** Kilocalories, rounded: a decimal on an estimate would be a pretence. */
@@ -44,7 +49,7 @@ export function formatEnergy(kcal: number): string {
 }
 
 export function formatElevation(metres: number): string {
-  return String(Math.round(metres));
+  return String(Math.round(toElevationUnits(metres)));
 }
 
 /**

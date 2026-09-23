@@ -2,6 +2,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Tabs } from "expo-router";
 import { FloatingTabBar } from "@/components/FloatingTabBar";
 import { defineStrings, useLanguage, useStrings } from "@/lib/i18n";
+import { useUnitSystem } from "@/lib/units";
 import { colors } from "@/lib/theme";
 
 const tabStrings = defineStrings({
@@ -37,16 +38,17 @@ export const unstable_settings = { initialRouteName: "plan" };
 export default function TabsLayout() {
   const s = useStrings(tabStrings);
   const language = useLanguage();
+  const units = useUnitSystem();
   return (
     <Tabs
       /*
-       * Built afresh when the language changes. The React Compiler memoises
+       * Built afresh when the language or the units change. The React Compiler memoises
        * what each screen computes, and a name worked out by a helper — a
        * session's, a date's — is memoised on the session or the date, not on
        * the language. Rebuilding the tabs is the one way to be sure nothing
        * below them is still speaking the old one.
        */
-      key={language}
+      key={`${language}-${units}`}
       /*
        * The bar has nothing left to hide from. Running used to be a tab that
        * hid it; it is a page over the tabs now, so the bar is simply not on

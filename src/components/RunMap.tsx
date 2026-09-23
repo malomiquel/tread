@@ -16,6 +16,7 @@ import { readColour } from "@/lib/raster";
 import { buildReplay, drawnSoFar, headAt, REPLAY_MS } from "@/lib/replay";
 import type { RoutePoint } from "@/lib/route";
 import { colors, floatingShadow, font, literalColors } from "@/lib/theme";
+import { distanceUnit } from "@/lib/units";
 
 const mapStrings = defineStrings({
   fr: {
@@ -369,7 +370,7 @@ export function RunMap({
       {head && replay && (
         <View style={[styles.readout, fullscreen && styles.readoutBelowStatusBar]}>
           <Text style={styles.readoutText}>
-            {`${formatDuration(head.elapsedMs / 1000)} · ${formatDistance(head.metresRun)} km`}
+            {`${formatDuration(head.elapsedMs / 1000)} · ${formatDistance(head.metresRun)} ${distanceUnit()}`}
           </Text>
         </View>
       )}

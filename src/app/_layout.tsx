@@ -3,6 +3,7 @@ import {
   BarlowCondensed_400Regular, BarlowCondensed_500Medium, BarlowCondensed_600SemiBold,
   BarlowCondensed_700Bold, BarlowCondensed_800ExtraBold, useFonts,
 } from "@expo-google-fonts/barlow-condensed";
+import Constants from "expo-constants";
 import { Stack } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
@@ -14,6 +15,7 @@ import { defineStrings, useStrings } from "@/lib/i18n";
 import { applyLanguage } from "@/lib/language";
 import { clearStaleRun } from "@/lib/liveActivity";
 import { refreshReminders } from "@/lib/planReminders";
+import { configureServices } from "@/lib/services";
 import { loadSettings, useSettings } from "@/lib/settings";
 import { colors, literalColors } from "@/lib/theme";
 
@@ -27,6 +29,8 @@ const layoutStrings = defineStrings({
     profile: "Profil",
     notifications: "Notifications",
     language: "Langue",
+    runner: "Mon profil de coureur",
+    units: "Unités",
     data: "Données",
     about: "À propos",
     privacy: "Confidentialité",
@@ -43,6 +47,8 @@ const layoutStrings = defineStrings({
     profile: "Profile",
     notifications: "Notifications",
     language: "Language",
+    runner: "My runner profile",
+    units: "Units",
     data: "Data",
     about: "About",
     privacy: "Privacy",
@@ -51,6 +57,10 @@ const layoutStrings = defineStrings({
     receive: "Receive",
   },
 });
+
+// The weather and routing endpoints, and the support address, as this build
+// was configured. Read once, before any screen can ask for either.
+configureServices(Constants.expoConfig?.extra?.services as Record<string, unknown> | undefined);
 
 export default function RootLayout() {
   const s = useStrings(layoutStrings);
@@ -191,6 +201,14 @@ export default function RootLayout() {
           <Stack.Screen
             name="settings/language"
             options={{ title: s.language, headerBackTitle: s.settings }}
+          />
+          <Stack.Screen
+            name="settings/runner"
+            options={{ title: s.runner, headerBackTitle: s.settings }}
+          />
+          <Stack.Screen
+            name="settings/units"
+            options={{ title: s.units, headerBackTitle: s.settings }}
           />
           <Stack.Screen name="settings/data" options={{ title: s.data, headerBackTitle: s.settings }} />
           <Stack.Screen name="settings/about" options={{ title: s.about, headerBackTitle: s.settings }} />

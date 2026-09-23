@@ -23,6 +23,7 @@ import {
 import { getSettings, setRoute as setChosenRoute } from "@/lib/settings";
 import { defineStrings, useStrings } from "@/lib/i18n";
 import { colors, floatingShadow, font, literalColors } from "@/lib/theme";
+import { distanceUnit } from "@/lib/units";
 
 /** Where the map opens when the phone has no idea where it is. */
 const PARIS = { latitude: 48.8566, longitude: 2.3522, latitudeDelta: 0.05, longitudeDelta: 0.05 };
@@ -591,7 +592,7 @@ export default function RouteBuilder() {
 
         <Text style={styles.distance}>
           {formatDistance(metres)}
-          <Text style={styles.unit}> km</Text>
+          <Text style={styles.unit}> {distanceUnit()}</Text>
         </Text>
         <Text style={styles.hint}>
           {!drawable

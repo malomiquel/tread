@@ -1,3 +1,4 @@
+import { defineStrings } from "./i18n.ts";
 import type { Goal, PerWeek } from "./plan.ts";
 
 /**
@@ -98,3 +99,52 @@ export function readRunnerProfile(raw: string | undefined): RunnerProfile | null
     return null;
   }
 }
+
+/**
+ * How each answer is said, wherever it is asked: in the welcome, and again
+ * in the settings when it changes.
+ */
+export const runnerWords = defineStrings({
+  fr: {
+    goals: {
+      regular: { title: "Courir régulièrement", detail: "Un objectif de distance chaque semaine" },
+      race: { title: "Préparer une course", detail: "Un programme jusqu'au jour J" },
+      comeback: { title: "Reprendre la course", detail: "Repartir en douceur après une pause" },
+    } as Record<RunnerGoal, { title: string; detail: string }>,
+    levels: {
+      new: { title: "Je débute", detail: "Courir 20 minutes d'affilée est déjà un défi" },
+      occasional: { title: "Je cours de temps en temps", detail: "Quelques sorties par mois, jusqu'à 40 minutes" },
+      weekly: { title: "Je cours chaque semaine", detail: "Une heure ne me fait pas peur" },
+    } as Record<RunnerLevel, { title: string; detail: string }>,
+    frequencyUnit: (n: number): string => (n > 1 ? "sorties par semaine" : "sortie par semaine"),
+    frequencyShort: (n: number): string => `${n}/sem.`,
+    frequencyHints: {
+      1: "De quoi garder le fil, même les semaines chargées.",
+      2: "Assez pour progresser, assez peu pour tenir.",
+      3: "Un vrai entraînement, avec de la place pour récupérer.",
+      4: "Pour viser haut, avec un corps déjà habitué.",
+    } as Record<RunnerFrequency, string>,
+    frequencyLabel: "Sorties par semaine",
+  },
+  en: {
+    goals: {
+      regular: { title: "Run regularly", detail: "A distance goal every week" },
+      race: { title: "Train for a race", detail: "A plan all the way to race day" },
+      comeback: { title: "Get back into running", detail: "Ease back in after a break" },
+    },
+    levels: {
+      new: { title: "I'm just starting", detail: "Running 20 minutes straight is already a challenge" },
+      occasional: { title: "I run now and then", detail: "A few runs a month, up to 40 minutes" },
+      weekly: { title: "I run every week", detail: "An hour doesn't scare me" },
+    },
+    frequencyUnit: (n: number): string => (n > 1 ? "runs a week" : "run a week"),
+    frequencyShort: (n: number): string => `${n}/wk`,
+    frequencyHints: {
+      1: "Enough to keep the habit, even in busy weeks.",
+      2: "Enough to improve, few enough to stick with.",
+      3: "Real training, with room to recover.",
+      4: "To aim high, with a body already used to it.",
+    },
+    frequencyLabel: "Runs a week",
+  },
+});

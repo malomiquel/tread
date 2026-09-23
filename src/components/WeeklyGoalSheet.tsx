@@ -6,14 +6,15 @@ import { formatDistance } from "@/lib/format";
 import { defineStrings, useStrings } from "@/lib/i18n";
 import { setWeeklyGoal } from "@/lib/settings";
 import { colors, font } from "@/lib/theme";
+import { distanceUnit, unitLengthM } from "@/lib/units";
 
 const weeklyGoalStrings = defineStrings({
   fr: {
     title: "Objectif hebdomadaire",
     lede: "La distance à couvrir du lundi au dimanche. Elle n'est comparée à rien d'autre qu'à elle-même.",
-    decrease: "Diminuer l'objectif d'un kilomètre",
-    increase: "Augmenter l'objectif d'un kilomètre",
-    perWeek: "km par semaine",
+    decrease: "Diminuer l'objectif",
+    increase: "Augmenter l'objectif",
+    perWeek: (unit: string) => `${unit} par semaine`,
     cancel: "Annuler",
     keep: "Garder",
     remove: "Retirer l'objectif",
@@ -21,18 +22,20 @@ const weeklyGoalStrings = defineStrings({
   en: {
     title: "Weekly goal",
     lede: "The distance to cover from Monday to Sunday. It is measured against nothing but itself.",
-    decrease: "Lower the goal by one kilometre",
-    increase: "Raise the goal by one kilometre",
-    perWeek: "km per week",
+    decrease: "Lower the goal",
+    increase: "Raise the goal",
+    perWeek: (unit: string) => `${unit} per week`,
     cancel: "Cancel",
     keep: "Keep",
     remove: "Remove the goal",
   },
 });
 
-/** One kilometre a tap, which is the smallest change worth making to a week. */
-const STEP_M = 1000;
-const LOWEST_M = 1000;
+/**
+ * One unit a tap — a kilometre, or a mile — which is the smallest change
+ * worth making to a week. The goal is kept in metres either way.
+ */
+const step = () => unitLengthM();
 const HIGHEST_M = 300_000;
 
 interface Props {
@@ -74,7 +77,7 @@ function Sheet({ goalM, suggestedM, onClose }: Omit<Props, "visible">) {
   const [draft, setDraft] = useState(goalM ?? suggestedM);
 
   const move = (by: number) =>
-    setDraft((metres) => Math.min(HIGHEST_M, Math.max(LOWEST_M, metres + by)));
+    setDraft((metres) => Math.min(HIGHEST_M, Math.max(step(), metres + by)));
 
   async function keep(metres: number | null) {
     onClose();
@@ -90,17 +93,17 @@ function Sheet({ goalM, suggestedM, onClose }: Omit<Props, "visible">) {
 
         <View style={styles.stepper}>
           <HoldButton
-            onStep={() => move(-STEP_M)}
+            onStep={() => move(-step())}
             label="−"
             accessibilityLabel={s.decrease}
-            disabled={draft <= LOWEST_M}
+            disabled={draft <= step()}
           />
           <View style={styles.value}>
             <Text style={styles.number}>{formatDistance(draft)}</Text>
-            <Text style={styles.unit}>{s.perWeek}</Text>
+            <Text style={styles.unit}>{s.perWeek(distanceUnit())}</Text>
           </View>
           <HoldButton
-            onStep={() => move(STEP_M)}
+            onStep={() => move(step())}
             label="+"
             accessibilityLabel={s.increase}
             disabled={draft >= HIGHEST_M}

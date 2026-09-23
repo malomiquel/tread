@@ -1,4 +1,5 @@
 import { defineStrings } from "./i18n.ts";
+import { paceUnit } from "./units.ts";
 /**
  * Reminders for the sessions a programme has planned.
  *
@@ -94,13 +95,13 @@ const reminderWords = defineStrings({
   fr: {
     tomorrow: "Demain",
     today: "Aujourd'hui",
-    work: (kind: string, minutes: number, pace: string) => `${kind}, ${minutes} min, allure ${pace}/km`,
+    work: (kind: string, minutes: number, pace: string) => `${kind}, ${minutes} min, allure ${pace}${paceUnit()}`,
     when: { off: "Aucun", evening: "La veille au soir", morning: "Le matin même" } as Record<ReminderWhen, string>,
   },
   en: {
     tomorrow: "Tomorrow",
     today: "Today",
-    work: (kind: string, minutes: number, pace: string) => `${kind}, ${minutes} min, at ${pace}/km`,
+    work: (kind: string, minutes: number, pace: string) => `${kind}, ${minutes} min, at ${pace}${paceUnit()}`,
     when: { off: "Off", evening: "The evening before", morning: "That morning" },
   },
 });

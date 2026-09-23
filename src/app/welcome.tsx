@@ -8,7 +8,7 @@ import { StepSlider } from "@/components/StepSlider";
 import { healthAvailable, requestHealthAccess } from "@/lib/health";
 import { defineStrings, useStrings } from "@/lib/i18n";
 import {
-  RUNNER_FREQUENCIES, RUNNER_GOALS, RUNNER_LEVELS, startingWeeklyGoalM, suggestedFrequency,
+  RUNNER_FREQUENCIES, RUNNER_GOALS, RUNNER_LEVELS, runnerWords, startingWeeklyGoalM, suggestedFrequency,
   type RunnerFrequency, type RunnerGoal, type RunnerLevel,
 } from "@/lib/runner";
 import { getSettings, markWelcomed, setRunner, setWeeklyGoal } from "@/lib/settings";
@@ -35,28 +35,10 @@ const welcomeStrings = defineStrings({
     skip: "Passer",
     goalQuestion: "Pourquoi tu cours ?",
     goalLede: "C'est ce qui décide par où l'app commence.",
-    goals: {
-      regular: { title: "Courir régulièrement", detail: "Un objectif de distance chaque semaine" },
-      race: { title: "Préparer une course", detail: "Un programme jusqu'au jour J" },
-      comeback: { title: "Reprendre la course", detail: "Repartir en douceur après une pause" },
-    } as Record<RunnerGoal, { title: string; detail: string }>,
     levelQuestion: "Où en es-tu ?",
     levelLede: "Pour partir de tes jambes d'aujourd'hui, pas de celles que tu voudrais avoir.",
-    levels: {
-      new: { title: "Je débute", detail: "Courir 20 minutes d'affilée est déjà un défi" },
-      occasional: { title: "Je cours de temps en temps", detail: "Quelques sorties par mois, jusqu'à 40 minutes" },
-      weekly: { title: "Je cours chaque semaine", detail: "Une heure ne me fait pas peur" },
-    } as Record<RunnerLevel, { title: string; detail: string }>,
     frequencyQuestion: "Combien de sorties par semaine ?",
     frequencyLede: "Ce que tu peux tenir, pas ce que tu voudrais faire. Ça se change plus tard.",
-    frequencyUnit: (n: number): string => (n > 1 ? "sorties par semaine" : "sortie par semaine"),
-    frequencyHints: {
-      1: "De quoi garder le fil, même les semaines chargées.",
-      2: "Assez pour progresser, assez peu pour tenir.",
-      3: "Un vrai entraînement, avec de la place pour récupérer.",
-      4: "Pour viser haut, avec un corps déjà habitué.",
-    } as Record<RunnerFrequency, string>,
-    frequencyLabel: "Sorties par semaine",
     twoPermissions: "Deux autorisations",
     onePermission: "Une autorisation",
     permissionsLede:
@@ -91,28 +73,10 @@ const welcomeStrings = defineStrings({
     skip: "Skip",
     goalQuestion: "Why do you run?",
     goalLede: "This decides where the app starts you.",
-    goals: {
-      regular: { title: "Run regularly", detail: "A distance goal every week" },
-      race: { title: "Train for a race", detail: "A plan all the way to race day" },
-      comeback: { title: "Get back into running", detail: "Ease back in after a break" },
-    },
     levelQuestion: "Where are you now?",
     levelLede: "So we start from the legs you have today, not the ones you wish you had.",
-    levels: {
-      new: { title: "I'm just starting", detail: "Running 20 minutes straight is already a challenge" },
-      occasional: { title: "I run now and then", detail: "A few runs a month, up to 40 minutes" },
-      weekly: { title: "I run every week", detail: "An hour doesn't scare me" },
-    },
     frequencyQuestion: "How many runs a week?",
     frequencyLede: "What you can keep up, not what you wish you did. You can change it later.",
-    frequencyUnit: (n: number): string => (n > 1 ? "runs a week" : "run a week"),
-    frequencyHints: {
-      1: "Enough to keep the habit, even in busy weeks.",
-      2: "Enough to improve, few enough to stick with.",
-      3: "Real training, with room to recover.",
-      4: "To aim high, with a body already used to it.",
-    },
-    frequencyLabel: "Runs a week",
     twoPermissions: "Two permissions",
     onePermission: "One permission",
     permissionsLede:
@@ -268,8 +232,7 @@ function Choices<K extends "goals" | "levels", T extends string>({
   chosen: T | null;
   onChoose: (option: T) => void;
 }) {
-  const s = useStrings(welcomeStrings);
-  const words = s[kind] as Record<string, { title: string; detail: string }>;
+  const words = useStrings(runnerWords)[kind] as Record<string, { title: string; detail: string }>;
   return (
     <>
       {options.map((option) => (
@@ -287,7 +250,7 @@ function Choices<K extends "goals" | "levels", T extends string>({
 
 /** The number, what it means, and the slider that sets it. */
 function Frequency({ value, onChange }: { value: RunnerFrequency; onChange: (value: RunnerFrequency) => void }) {
-  const s = useStrings(welcomeStrings);
+  const s = useStrings(runnerWords);
   return (
     <View style={styles.frequency}>
       <View style={styles.frequencyReadout}>

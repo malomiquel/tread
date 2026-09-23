@@ -8,6 +8,7 @@ import { defineStrings, useStrings } from "@/lib/i18n";
 import { isLoop, type StoredRoute } from "@/lib/route";
 import { setRoute } from "@/lib/settings";
 import { colors, floatingShadow, font } from "@/lib/theme";
+import { distanceUnit } from "@/lib/units";
 
 const routePickerStrings = defineStrings({
   fr: {
@@ -110,7 +111,7 @@ function Sheet({ chosen, onClose }: Omit<Props, "visible">) {
                 route.id,
                 route.name,
                 [
-                  `${formatDistance(route.distanceM)} km`,
+                  `${formatDistance(route.distanceM)} ${distanceUnit()}`,
                   isLoop(route) ? s.loop : s.oneWay,
                   route.place,
                 ].filter(Boolean).join(" · "),

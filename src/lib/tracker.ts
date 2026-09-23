@@ -7,7 +7,9 @@ import { createRun, finishRun, insertPoints, markPlanSessionDone, setRunWeather 
 import { syncRunToHealth } from "./health";
 import { defineStrings } from "./i18n";
 import { autoName } from "./format";
-import { announceKilometre, announcePace, announceStep, stopSpeaking } from "./feedback";
+import { hasMovedOn, hasStopped } from "./autoPause";
+import { toPaceUnits, unitLengthM } from "./units";
+import { announceAutoPause, announceKilometre, announcePace, announceStep, stopSpeaking } from "./feedback";
 import {
   currentPace, elevationGainM, fastestKmS, isAcceptable, paceSecPerKm, splits, totalDistanceM,
   type TrackPoint,
@@ -58,6 +60,8 @@ export interface TrackerState {
   blocks: RanBlock[];
   /** True when the background task is live, false on the foreground fallback. */
   backgroundMode: boolean;
+  /** Paused by the run itself at a stop, rather than by the runner. */
+  autoPaused: boolean;
   error: string | null;
 }
 
@@ -65,7 +69,7 @@ const IDLE: TrackerState = {
   status: "idle", runId: null, points: [], segment: 0, startedAt: null,
   bankedS: 0, segmentStartedAt: null, announcedKm: 0,
   session: null, planOrder: null, stepIndex: 0, stepStartM: 0, stepStartS: 0, blocks: [],
-  accuracyM: null, backgroundMode: false, error: null,
+  accuracyM: null, backgroundMode: false, autoPaused: false, error: null,
 };
 
 /** How many points may sit in memory before they are flushed to disk. */
@@ -251,27 +255,41 @@ function checkPace(): void {
   if (drift === null) return;
 
   lastPaceWord = now;
-  announcePace(drift, voice);
+  // The drift is measured per kilometre; a runner in miles hears it per mile.
+  announcePace(Math.round(toPaceUnits(drift)), voice);
 }
 
-/** Announce a kilometre the moment it is completed, once and only once. */
+/**
+ * Announce a kilometre — or a mile, in miles — the moment it is completed,
+ * once and only once.
+ */
 function announceIfKilometre(): void {
-  const km = Math.floor(totalDistanceM(state.points) / 1000);
+  const unitM = unitLengthM();
+  const km = Math.floor(totalDistanceM(state.points) / unitM);
   if (km <= state.announcedKm) return;
-  const full = splits(state.points).filter((split) => !split.partial);
+  const full = splits(state.points, unitM).filter((split) => !split.partial);
   const latest = full[full.length - 1];
   publish({ announcedKm: km });
   announceKilometre(km, latest?.durationS ?? 0, getSettings().voice);
 }
 
 export function handleLocation(location: Location.LocationObject): void {
-  const point = toPoint(location);
+  let point = toPoint(location);
   publish({ accuracyM: point.accuracy });
 
-  // A pause is only ever asked for. Guessing that a runner has stopped means
-  // guessing wrong sometimes, and a wrong guess quietly shortens the recorded
-  // time of a run that really was still going — the one number nobody can
-  // check afterwards.
+  // A run the runner paused stays paused until they say otherwise. One that
+  // paused itself at a stop resumes itself the moment they set off again —
+  // and this fix, the one that shows it, is the first of the new segment.
+  if (state.status === "paused" && state.autoPaused && stoppedAt && hasMovedOn(stoppedAt, point)) {
+    resume();
+    announceAutoPause(false, getSettings().voice);
+    // Built before the resume, the point still carries the old segment; it
+    // belongs to the new one, or the stop would be drawn and measured as run.
+    point = { ...point, segment: state.segment };
+  }
+
+  // Otherwise a pause holds: guessing that a runner has moved on means
+  // guessing wrong sometimes, and a wrong guess records a stop as running.
   if (state.status !== "running") return;
 
   const last = state.points.length ? state.points[state.points.length - 1] : null;
@@ -443,7 +461,7 @@ export async function start(): Promise<void> {
       status: "running", runId, points: [], segment: 0, startedAt,
       bankedS: 0, segmentStartedAt: startedAt, announcedKm: 0,
       stepIndex: 0, stepStartM: 0, stepStartS: 0, blocks: [],
-      backgroundMode: false,
+      backgroundMode: false, autoPaused: false,
     });
     const { session } = state;
     if (session) announceStep(stepLabel(session.steps[0]), getSettings().voice);
@@ -454,12 +472,33 @@ export async function start(): Promise<void> {
     runTicker = setInterval(() => {
       advanceSession();
       checkPace();
+      pauseIfStopped();
     }, 1000);
     publish({ backgroundMode: await startGps() });
   } catch (cause) {
     await stopGps();
     publish({ ...IDLE, error: cause instanceof Error ? cause.message : trackerWords().cannotStart });
   }
+}
+
+/** Where the run paused itself, which is what "set off again" is measured from. */
+let stoppedAt: TrackPoint | null = null;
+
+/**
+ * Pause the run if auto-pause is on and the runner has stood still long
+ * enough. Asked every second, since standing still produces no fixes.
+ *
+ * The time already stood still is not given back: the pause starts when it
+ * is noticed. Ten seconds at a light cost ten seconds, rather than a clock
+ * that jumps backwards on screen.
+ */
+function pauseIfStopped(): void {
+  if (!getSettings().autoPause || state.status !== "running" || state.segmentStartedAt === null) return;
+  if (!hasStopped(state.points, state.segment, state.segmentStartedAt, Date.now())) return;
+  stoppedAt = state.points[state.points.length - 1] ?? null;
+  pause();
+  publish({ autoPaused: true });
+  announceAutoPause(true, getSettings().voice);
 }
 
 export function pause(): void {
@@ -469,16 +508,19 @@ export function pause(): void {
     status: "paused",
     bankedS: state.bankedS + elapsed,
     segmentStartedAt: null,
+    autoPaused: false,
   });
   void flush();
 }
 
 export function resume(): void {
   if (state.status !== "paused") return;
+  stoppedAt = null;
   publish({
     status: "running",
     segment: state.segment + 1,
     segmentStartedAt: Date.now(),
+    autoPaused: false,
   });
 }
 

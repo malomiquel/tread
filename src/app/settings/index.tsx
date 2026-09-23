@@ -10,22 +10,29 @@ import { formatDistance } from "@/lib/format";
 import { defineStrings, useStrings } from "@/lib/i18n";
 import { LANGUAGE_NAMES } from "@/lib/language";
 import { reminderName } from "@/lib/reminders";
-import { forgetWelcome, toggleVoice, useSettings } from "@/lib/settings";
+import { runnerWords } from "@/lib/runner";
+import { unitChoiceWords } from "@/lib/unitChoice";
+import { forgetWelcome, toggleAutoPause, toggleVoice, useSettings } from "@/lib/settings";
 import { suggestedWeeklyGoalM } from "@/lib/stats";
 import { colors } from "@/lib/theme";
+import { distanceUnit } from "@/lib/units";
 
 const settingsStrings = defineStrings({
   fr: {
     training: "Entraînement",
     weeklyGoal: "Objectif hebdomadaire",
     noGoal: "Aucun",
-    goalValue: (km: string) => `${km} km`,
+    goalValue: (km: string) => `${km} ${distanceUnit()}`,
     reminders: "Rappels de séance",
+    runner: "Mon profil de coureur",
+    runnerUnset: "À définir",
     running: "Pendant la course",
     voice: "Annonces vocales",
-    voiceFooter: "Chaque kilomètre, les écarts d'allure et les blocs de séance sont annoncés à voix haute.",
+    autoPause: "Pause automatique",
+    runningFooter: "Les annonces disent chaque kilomètre (ou mile), les écarts d'allure et les blocs de séance. La pause automatique arrête le chrono après dix secondes à l'arrêt, et le relance quand tu repars.",
     app: "Application",
     language: "Langue",
+    units: "Unités",
     languageAuto: "Automatique",
     data: "Données",
     importExport: "Importer et exporter",
@@ -39,13 +46,17 @@ const settingsStrings = defineStrings({
     training: "Training",
     weeklyGoal: "Weekly goal",
     noGoal: "None",
-    goalValue: (km: string) => `${km} km`,
+    goalValue: (km: string) => `${km} ${distanceUnit()}`,
     reminders: "Session reminders",
+    runner: "My runner profile",
+    runnerUnset: "Not set",
     running: "While running",
     voice: "Voice announcements",
-    voiceFooter: "Every kilometre, pace drift and workout blocks are read out loud.",
+    autoPause: "Auto-pause",
+    runningFooter: "Announcements read out every kilometre (or mile), pace drift and workout blocks. Auto-pause stops the clock after ten seconds standing still, and restarts it when you set off.",
     app: "App",
     language: "Language",
+    units: "Units",
     languageAuto: "Automatic",
     data: "Data",
     importExport: "Import and export",
@@ -109,6 +120,14 @@ export default function SettingsScreen() {
           onPress={() => setEditingGoal(true)}
         />
         <SettingRow
+          icon="person-circle-outline"
+          label={s.runner}
+          value={settings.runner === null
+            ? s.runnerUnset
+            : runnerWords().frequencyShort(settings.runner.perWeek)}
+          onPress={() => router.push("/settings/runner")}
+        />
+        <SettingRow
           icon="notifications-outline"
           label={s.reminders}
           value={reminderName(settings.reminder)}
@@ -118,7 +137,7 @@ export default function SettingsScreen() {
 
       {/* Also on the running screen, where it is changed mid-run. Here as
           well because this is where anybody looking for it looks first. */}
-      <SettingsGroup title={s.running} footer={s.voiceFooter}>
+      <SettingsGroup title={s.running} footer={s.runningFooter}>
         <SettingRow
           icon="volume-high-outline"
           label={s.voice}
@@ -131,6 +150,18 @@ export default function SettingsScreen() {
             />
           }
         />
+        <SettingRow
+          icon="pause-circle-outline"
+          label={s.autoPause}
+          right={
+            <Switch
+              value={settings.autoPause}
+              onValueChange={() => void toggleAutoPause()}
+              trackColor={{ true: colors.accent, false: colors.hairline }}
+              accessibilityLabel={s.autoPause}
+            />
+          }
+        />
       </SettingsGroup>
 
       <SettingsGroup title={s.app}>
@@ -139,6 +170,12 @@ export default function SettingsScreen() {
           label={s.language}
           value={settings.language === "auto" ? s.languageAuto : LANGUAGE_NAMES[settings.language]}
           onPress={() => router.push("/settings/language")}
+        />
+        <SettingRow
+          icon="speedometer-outline"
+          label={s.units}
+          value={unitChoiceWords().names[settings.units]}
+          onPress={() => router.push("/settings/units")}
         />
       </SettingsGroup>
 

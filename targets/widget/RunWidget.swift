@@ -124,8 +124,8 @@ private struct LockScreenView: View {
         // the pace crowding the distance's unit.
         Spacer(minLength: 16)
         HStack(alignment: .firstTextBaseline, spacing: 26) {
-          Metric(value: state.distance, unit: "km", label: Words.distance, accent: accent)
-          Metric(value: state.pace, unit: "/km", label: Words.pace, accent: accent)
+          Metric(value: state.distance, unit: state.distanceUnit, label: Words.distance, accent: accent)
+          Metric(value: state.pace, unit: state.paceUnit, label: Words.pace, accent: accent)
         }
       }
     }
@@ -141,11 +141,11 @@ struct RunLiveActivity: Widget {
     } dynamicIsland: { context in
       DynamicIsland {
         DynamicIslandExpandedRegion(.leading) {
-          Metric(value: context.state.distance, unit: "km", label: Words.distance, accent: accentDark)
+          Metric(value: context.state.distance, unit: context.state.distanceUnit, label: Words.distance, accent: accentDark)
             .padding(.leading, 4)
         }
         DynamicIslandExpandedRegion(.trailing) {
-          Metric(value: context.state.pace, unit: "/km", label: Words.pace, accent: accentDark)
+          Metric(value: context.state.pace, unit: context.state.paceUnit, label: Words.pace, accent: accentDark)
             .padding(.trailing, 4)
         }
         DynamicIslandExpandedRegion(.bottom) {
