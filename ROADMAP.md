@@ -117,6 +117,35 @@ when it is done; add a line when something new comes up.
 - [ ] Offer to update the weekly goal when the runner profile changes
 - [ ] More languages (the `{ fr, en }` tables are ready to take a third)
 
+### Feature ideas, by priority
+
+High value, moderate effort
+- [ ] **Route records**: best time on each route, the gap to it after every
+  run ("−42 s"), then a **ghost runner** on the map during a run on it
+- [ ] **Custom sessions**: an editor for your own intervals (blocks,
+  repetitions, paces); today there are five fixed sessions
+- [ ] **Shoe tracking**: distance per pair, reminder to replace around 700 km
+- [ ] **Predicted race times** in Profile (5K, 10K, half, marathon), from the
+  Riegel projection the plans already use
+- [ ] **Home-screen widgets** (iOS and Android): week progress, next session
+- [ ] **Streaks and recaps**: weeks in a row on goal; a monthly and yearly
+  recap to share, like the run card
+
+High value, large effort
+- [ ] **Strava upload** after each run (OAuth, activity upload API)
+- [ ] **Watch app**: Apple Watch first, then Wear OS
+- [ ] **Live heart rate** from a Bluetooth chest strap, with zone alerts
+
+Comfort and safety
+- [ ] **Treadmill mode**: no GPS, distance from the pedometer, corrected at
+  the end
+- [ ] **Custom voice cues**: every X minutes or X km, heart rate, time left
+  in the session
+- [ ] **Weather-aware plan**: offer to move a session when heavy rain is due
+- [ ] **Siri Shortcuts / App Intents**: "Start a run in Tread"
+- [ ] **Safety**: share live location with someone during a run; alert after
+  a long unexpected stop
+
 ### Before selling (not code)
 - [ ] Open-Meteo commercial subscription → set `TREAD_WEATHER_URL` / `TREAD_WEATHER_KEY`
 - [ ] Own routing server (OSRM or a provider) → set `TREAD_ROUTING_URL`
