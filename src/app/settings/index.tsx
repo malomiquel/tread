@@ -9,6 +9,7 @@ import { listRuns } from "@/lib/db";
 import { formatDistance } from "@/lib/format";
 import { defineStrings, useStrings } from "@/lib/i18n";
 import { LANGUAGE_NAMES } from "@/lib/language";
+import { radiusLabel } from "@/lib/privacy";
 import { reminderName } from "@/lib/reminders";
 import { runnerWords } from "@/lib/runner";
 import { unitChoiceWords } from "@/lib/unitChoice";
@@ -34,6 +35,9 @@ const settingsStrings = defineStrings({
     language: "Langue",
     units: "Unités",
     languageAuto: "Automatique",
+    sharing: "Partage",
+    hideEnds: "Masquer départ et arrivée",
+    hideNothing: "Non",
     data: "Données",
     importExport: "Importer et exporter",
     transfer: "Changer de téléphone",
@@ -58,6 +62,9 @@ const settingsStrings = defineStrings({
     language: "Language",
     units: "Units",
     languageAuto: "Automatic",
+    sharing: "Sharing",
+    hideEnds: "Hide start and finish",
+    hideNothing: "Off",
     data: "Data",
     importExport: "Import and export",
     transfer: "Switch phones",
@@ -176,6 +183,15 @@ export default function SettingsScreen() {
           label={s.units}
           value={unitChoiceWords().names[settings.units]}
           onPress={() => router.push("/settings/units")}
+        />
+      </SettingsGroup>
+
+      <SettingsGroup title={s.sharing}>
+        <SettingRow
+          icon="eye-off-outline"
+          label={s.hideEnds}
+          value={settings.privacyRadiusM === 0 ? s.hideNothing : radiusLabel(settings.privacyRadiusM)}
+          onPress={() => router.push("/settings/sharing")}
         />
       </SettingsGroup>
 

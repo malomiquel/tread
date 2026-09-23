@@ -317,3 +317,11 @@ test("a file with nothing in it is no route", () => {
   assert.deepEqual(routeFromLine([]), emptyRoute());
   assert.deepEqual(routeFromLine([at(48.45, 1.49)]), { waypoints: [at(48.45, 1.49)], legs: [] });
 });
+
+test("a run counts for its route once it covers nine tenths of it", async () => {
+  const { coversRoute } = await import("./route.ts");
+  assert.equal(coversRoute(4600, 5000), true);
+  assert.equal(coversRoute(4400, 5000), false);
+  assert.equal(coversRoute(8000, 5000), true);
+  assert.equal(coversRoute(100, 0), false);
+});

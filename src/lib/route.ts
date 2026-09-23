@@ -419,3 +419,12 @@ export async function fetchLeg(from: RoutePoint, to: RoutePoint): Promise<RouteP
     clearTimeout(timer);
   }
 }
+
+/**
+ * Whether a run went far enough to count as a run of its route.
+ *
+ * Nine tenths of the distance: enough to forgive a corner cut or a GPS that
+ * reads short, not enough to let a run abandoned halfway set a record.
+ */
+export const coversRoute = (runM: number, routeM: number): boolean =>
+  routeM > 0 && runM >= routeM * 0.9;

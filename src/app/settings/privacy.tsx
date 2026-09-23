@@ -23,7 +23,7 @@ const privacyStrings = defineStrings({
       "Si tu l'autorises, Tread y copie tes courses et y lit ton poids, ta fréquence cardiaque et ta date de naissance, pour les calories et les zones cardiaques. Ces données restent dans Santé, sur ton téléphone.",
     sharingTitle: "Quand c'est toi qui partages",
     sharing:
-      "Une image, un fichier GPX ou un transfert vers un nouveau téléphone ne partent que lorsque tu le demandes, et seulement vers l'endroit que tu choisis. Le transfert par WiFi va directement d'un téléphone à l'autre, sans passer par internet.",
+      "Une image, un fichier GPX ou un transfert vers un nouveau téléphone ne partent que lorsque tu le demandes, et seulement vers l'endroit que tu choisis. Le transfert par WiFi va directement d'un téléphone à l'autre, sans passer par internet. Sur les images et les GIF, le tracé est coupé autour du départ et de l'arrivée (réglable dans Réglages › Partage).",
     eraseTitle: "Effacer",
     erase:
       "Supprimer une course l'efface pour de bon, y compris sa copie dans Santé. Supprimer un parcours efface son tracé et son image. Supprimer l'app efface tout le reste.",
@@ -48,7 +48,7 @@ const privacyStrings = defineStrings({
       "If you allow it, Tread saves your runs there and reads your weight, heart rate and date of birth, for calories and heart rate zones. This data stays in Health, on your phone.",
     sharingTitle: "When you share",
     sharing:
-      "A picture, a GPX file or a transfer to a new phone only goes out when you ask, and only to the place you choose. The WiFi transfer goes straight from one phone to the other, without going through the internet.",
+      "A picture, a GPX file or a transfer to a new phone only goes out when you ask, and only to the place you choose. The WiFi transfer goes straight from one phone to the other, without going through the internet. On pictures and GIFs, the track is cut around the start and finish (adjustable in Settings › Sharing).",
     eraseTitle: "Deleting",
     erase:
       "Deleting a run erases it for good, including its copy in Health. Deleting a route erases its track and its picture. Deleting the app erases everything else.",

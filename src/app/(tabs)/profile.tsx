@@ -8,8 +8,9 @@ import { HeaderButton } from "@/components/HeaderButton";
 import { SectionHeader } from "@/components/SectionHeader";
 import { BannerTag, bannerText, SummaryBanner } from "@/components/SummaryBanner";
 import { WeeklyGoalSheet } from "@/components/WeeklyGoalSheet";
-import { listRuns, personalRecords, type PersonalRecords, type Run } from "@/lib/db";
-import { formatDistance, formatDuration, formatElevation, formatPace } from "@/lib/format";
+import { effortRecords, listRuns, personalRecords, type EffortRecord, type PersonalRecords, type Run } from "@/lib/db";
+import { effortName } from "@/lib/efforts";
+import { formatDate, formatDistance, formatDuration, formatElevation, formatPace } from "@/lib/format";
 import { defineStrings, plural, useStrings } from "@/lib/i18n";
 import { useTabBarSpace } from "@/lib/layout";
 import { useSettings } from "@/lib/settings";
@@ -45,6 +46,7 @@ const profileStrings = defineStrings({
     bestAvgPaceDetail: "sur 2 km minimum",
     mostElevation: "Plus fort dénivelé",
     allTime: "Depuis le début",
+    bestEfforts: "Meilleures performances",
     totalRuns: "Courses",
     distance: "Distance",
     time: "Temps",
@@ -76,6 +78,7 @@ const profileStrings = defineStrings({
     bestAvgPaceDetail: "over 2 km or more",
     mostElevation: "Most elevation gain",
     allTime: "All time",
+    bestEfforts: "Best efforts",
     totalRuns: "Runs",
     distance: "Distance",
     time: "Time",
@@ -179,6 +182,8 @@ export default function ProfileScreen() {
   useScrollToTop(page);
   const [weeks, setWeeks] = useState<Week[] | null>(null);
   const [records, setRecords] = useState<PersonalRecords | null>(null);
+  /** Fastest time over each classic distance, across every run. */
+  const [efforts, setEfforts] = useState<EffortRecord[]>([]);
   /** Their own recent average, to open the goal sheet on something familiar. */
   const [suggestedM, setSuggestedM] = useState(5000);
   const [settingGoal, setSettingGoal] = useState(false);
@@ -189,11 +194,12 @@ export default function ProfileScreen() {
   useFocusEffect(
     useCallback(() => {
       let active = true;
-      Promise.all([listRuns(), personalRecords()])
-        .then(([runs, best]) => {
+      Promise.all([listRuns(), personalRecords(), effortRecords()])
+        .then(([runs, best, fastest]) => {
           if (!active) return;
           setWeeks(byWeek(runs));
           setRecords(best);
+          setEfforts(fastest);
           setSuggestedM(suggestedWeeklyGoalM(runs));
         })
         .catch(() => undefined);
@@ -364,6 +370,22 @@ export default function ProfileScreen() {
             {recordRows.map((row, index) => (
               <RecordRow key={row.label} first={index === 0} {...row} />
             ))}
+
+            {efforts.length > 0 ? (
+              <>
+                <SectionHeader title={s.bestEfforts} />
+                {efforts.map((effort, index) => (
+                  <RecordRow
+                    key={effort.key}
+                    first={index === 0}
+                    icon="stopwatch-outline"
+                    label={effortName(effort.key)}
+                    value={formatDuration(Math.round(effort.seconds))}
+                    detail={effort.run.name ?? formatDate(effort.run.startedAt)}
+                  />
+                ))}
+              </>
+            ) : null}
 
             <SectionHeader title={s.allTime} />
             <View style={styles.totals}>

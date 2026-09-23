@@ -14,7 +14,7 @@ import { RunMap } from "@/components/RunMap";
 import { PlanAttachment } from "@/components/PlanAttachment";
 import { canShareImage, ShareRunSheet } from "@/components/ShareRunSheet";
 import { exertionName, type Exertion } from "@/lib/plan";
-import { deleteRun, readRun, renameRun, type Run, setRunExertion, setRunHeart, planSessionOfRun,
+import { deleteRun, effortRecords, readRoute, readRun, routeRecords, type RouteRecord, renameRun, type Run, setRunExertion, setRunHeart, planSessionOfRun,
 } from "@/lib/db";
 import {
   formatDate, formatDistance, formatDuration, formatElevation, formatEnergy, formatPace, formatSpeed,
@@ -28,6 +28,9 @@ import {
   sharingRefused, syncRunToHealth,
 } from "@/lib/health";
 import { formatBpm, zoneName, type Heart } from "@/lib/heart";
+import { bestEfforts, EFFORT_KEYS, effortName as distanceName } from "@/lib/efforts";
+import { hideEnds } from "@/lib/privacy";
+import { useSettings } from "@/lib/settings";
 import { decimal, defineStrings, useStrings } from "@/lib/i18n";
 import { colors, floatingShadow, font } from "@/lib/theme";
 import { distanceUnit, elevationUnit, paceUnit, speedUnit, unitLengthM } from "@/lib/units";
@@ -76,6 +79,11 @@ const runStrings = defineStrings({
     feelPrompt: "Comment c'était ? Deux séances dures d'affilée et ton programme s'allège.",
     profile: "Profil",
     session: "Séance",
+    bestEfforts: "Meilleures performances",
+    routeRecord: "nouveau record sur ce parcours",
+    routeFirst: "premier passage sur ce parcours",
+    routeBehind: (gap: string) => `+${gap} sur ton record`,
+    record: "Record",
     splits: "Fractionnés",
     gpsPoints: (n: number) => `${n} points GPS enregistrés`,
     copiedToHealth: "Copiée dans Apple Santé",
@@ -127,6 +135,11 @@ const runStrings = defineStrings({
     feelPrompt: "How did it feel? Two hard sessions in a row and your training plan eases off.",
     profile: "Elevation",
     session: "Session",
+    bestEfforts: "Best efforts",
+    routeRecord: "new best on this route",
+    routeFirst: "first time on this route",
+    routeBehind: (gap: string) => `+${gap} on your best`,
+    record: "Record",
     splits: "Splits",
     gpsPoints: (n: number) => (n === 1 ? "1 GPS point recorded" : `${n} GPS points recorded`),
     copiedToHealth: "Copied to Apple Health",
@@ -200,6 +213,11 @@ export default function RunDetailScreen() {
   const s = useStrings(runStrings);
   // undefined while loading, null when not found.
   const [data, setData] = useState<Loaded | null | undefined>(undefined);
+  const { privacyRadiusM } = useSettings();
+  /** Which run holds the record over each distance, to mark this one's. */
+  const [recordHolders, setRecordHolders] = useState<Record<string, number>>({});
+  /** The route this run covered, with that route's record, once read. */
+  const [onRoute, setOnRoute] = useState<{ name: string; record: RouteRecord } | null>(null);
   const [renaming, setRenaming] = useState(false);
   const [draftName, setDraftName] = useState("");
   const [exporting, setExporting] = useState(false);
@@ -271,8 +289,28 @@ export default function RunDetailScreen() {
     return () => { active = false; };
   }, [data, id]);
 
+  // The route this run covered, and where it stands against that route's
+  // record. Read once the run is known, since the run says which route.
+  const coveredRouteId = data?.run.routeId ?? null;
+  useEffect(() => {
+    if (coveredRouteId === null) return;
+    let active = true;
+    void Promise.all([readRoute(coveredRouteId), routeRecords()])
+      .then(([route, records]) => {
+        const record = records.get(coveredRouteId);
+        if (active && route && record) setOnRoute({ name: route.name, record });
+      })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [coveredRouteId]);
+
   useEffect(() => {
     let active = true;
+    void effortRecords()
+      .then((records) => {
+        if (active) setRecordHolders(Object.fromEntries(records.map((record) => [record.key, record.run.id])));
+      })
+      .catch(() => undefined);
     void readBodyMassKg().then((weight) => {
       if (active) setWeightKg(weight);
     });
@@ -313,6 +351,14 @@ export default function RunDetailScreen() {
       : null,
   ].filter(Boolean).join(" · ");
   const kilometres = splits(points, unitLengthM());
+  // What leaves the phone on a picture or a GIF: the track without the
+  // stretch around its start and finish, which is usually a front door.
+  const sharedPoints = hideEnds(points, privacyRadiusM);
+  // Worked out here for a run the background pass has not reached yet.
+  const efforts = run.bestEfforts ?? bestEfforts(points);
+  const runEfforts = EFFORT_KEYS
+    .filter((key) => efforts[key] !== undefined)
+    .map((key) => [key, efforts[key]] as const);
   const profile = elevationProfile(points);
   const plannedSession = sessionById(run.sessionId);
 
@@ -411,7 +457,7 @@ export default function RunDetailScreen() {
    * share sheet opens already finished.
    */
   function prepareCard() {
-    if (cardMap || points.length === 0) return;
+    if (cardMap || sharedPoints.length === 0) return;
     void cardMapSource.current
       ?.render()
       .then(setCardMap)
@@ -473,19 +519,28 @@ export default function RunDetailScreen() {
             <Ionicons name="pencil" size={15} color={colors.subtle} />
           </Pressable>
           <Text style={styles.date}>{formatDate(run.startedAt)}</Text>
+          {onRoute ? (
+            <Text style={styles.onRoute} numberOfLines={1}>
+              {onRoute.name}
+              {" · "}
+              {onRoute.record.best.id === run.id
+                ? onRoute.record.runs > 1 ? s.routeRecord : s.routeFirst
+                : s.routeBehind(formatDuration(run.durationS - onRoute.record.best.durationS))}
+            </Text>
+          ) : null}
         </View>
         {/* Absent rather than broken where the screenshot module is: a button
             that always fails is worse than one that was never offered. */}
         {canShareImage() ? (
         <Pressable
           onPress={() => setSharingImage(true)}
-          disabled={points.length === 0}
+          disabled={sharedPoints.length === 0}
           accessibilityRole="button"
           accessibilityLabel={s.shareImageLabel}
           hitSlop={10}
           style={({ pressed }) => [
             styles.share,
-            points.length === 0 && styles.shareOff,
+            sharedPoints.length === 0 && styles.shareOff,
             pressed && styles.sharePressed,
           ]}
         >
@@ -588,8 +643,8 @@ export default function RunDetailScreen() {
         style={styles.map}
       />
 
-      {points.length > 0 && (
-        <CardMapSource ref={cardMapSource} points={points} onReady={prepareCard} />
+      {sharedPoints.length > 0 && (
+        <CardMapSource ref={cardMapSource} points={sharedPoints} onReady={prepareCard} />
       )}
 
       <Modal visible={mapExpanded} animationType="slide" onRequestClose={() => setMapExpanded(false)}>
@@ -728,6 +783,23 @@ export default function RunDetailScreen() {
         </View>
       )}
 
+      {runEfforts.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{s.bestEfforts}</Text>
+          {runEfforts.map(([key, seconds]) => (
+            <View key={key} style={styles.effort}>
+              <Text style={styles.effortName}>{distanceName(key)}</Text>
+              {recordHolders[key] === run.id ? (
+                <View style={styles.recordChip}>
+                  <Text style={styles.recordChipText}>{s.record}</Text>
+                </View>
+              ) : null}
+              <Text style={styles.effortTime}>{formatDuration(Math.round(seconds))}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+
       {kilometres.length > 0 && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{s.splits}</Text>
@@ -814,7 +886,7 @@ export default function RunDetailScreen() {
         // reading that arrived after the screen opened belongs on the picture
         // too, and the card is drawn from whatever it is handed.
         run={weather === run.weather ? run : { ...run, weather }}
-        points={points}
+        points={sharedPoints}
         preparedMapUri={cardMap}
         onClose={() => setSharingImage(false)}
       />
@@ -872,6 +944,7 @@ const styles = StyleSheet.create({
   sharePressed: { backgroundColor: colors.sunken },
   name: { color: colors.text, fontSize: 27, fontFamily: font.bold, letterSpacing: -0.6 },
   date: { color: colors.subtle, fontSize: 14.5 },
+  onRoute: { color: colors.accent, fontSize: 14.5, fontFamily: font.semibold },
 
   // Set apart from the export and delete pair below it: closing a run and
   // disposing of one are not the same kind of act, and a button stacked
@@ -953,6 +1026,15 @@ const styles = StyleSheet.create({
   blockEffort: { color: colors.accent },
 
   split: { flexDirection: "row", alignItems: "center", gap: 12 },
+  effort: { flexDirection: "row", alignItems: "center", gap: 10 },
+  effortName: { flex: 1, color: colors.text, fontSize: 16, fontFamily: font.medium },
+  effortTime: {
+    color: colors.text, fontSize: 17, fontFamily: font.semibold, fontVariant: ["tabular-nums"],
+  },
+  recordChip: {
+    paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, backgroundColor: colors.accentSoft,
+  },
+  recordChipText: { color: colors.accent, fontSize: 12.5, fontFamily: font.semibold },
   splitKm: { color: colors.muted, width: 52, fontFamily: font.regular, fontSize: 14, fontVariant: ["tabular-nums"] },
   barTrack: { flex: 1, height: 6, backgroundColor: colors.sunken, overflow: "hidden" },
   bar: { height: "100%", backgroundColor: colors.accentSoft },

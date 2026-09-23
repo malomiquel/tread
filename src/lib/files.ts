@@ -2,7 +2,7 @@ import * as DocumentPicker from "expo-document-picker";
 import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import { archiveFileName, buildArchive } from "./archive";
-import { importRun, listRuns, readRun, saveRoute } from "./db";
+import { backfillEfforts, importRun, listRuns, readRun, saveRoute } from "./db";
 import { defineStrings } from "./i18n";
 import { parseGpx, parseGpxLine } from "./gpx";
 import { placeName } from "./location";
@@ -78,6 +78,9 @@ export async function importRunFiles(): Promise<string | null> {
       unreadable += 1;
     }
   }
+
+  // Their best efforts, so the records count them straight away.
+  if (added > 0) await backfillEfforts().catch(() => 0);
 
   const words = fileWords();
   return [

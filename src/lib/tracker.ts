@@ -3,11 +3,13 @@ import { Pedometer } from "expo-sensors";
 import * as TaskManager from "expo-task-manager";
 import { useSyncExternalStore } from "react";
 import { cadenceSpm } from "./cadence";
-import { createRun, finishRun, insertPoints, markPlanSessionDone, setRunWeather } from "./db";
+import { createRun, finishRun, insertPoints, markPlanSessionDone, readRoute, setRunWeather } from "./db";
+import { coversRoute } from "./route";
 import { syncRunToHealth } from "./health";
 import { defineStrings } from "./i18n";
 import { autoName } from "./format";
 import { hasMovedOn, hasStopped } from "./autoPause";
+import { bestEfforts } from "./efforts";
 import { toPaceUnits, unitLengthM } from "./units";
 import { announceAutoPause, announceKilometre, announcePace, announceStep, stopSpeaking } from "./feedback";
 import {
@@ -62,6 +64,8 @@ export interface TrackerState {
   backgroundMode: boolean;
   /** Paused by the run itself at a stop, rather than by the runner. */
   autoPaused: boolean;
+  /** The route shown on the map when the run started, if any. */
+  routeId: number | null;
   error: string | null;
 }
 
@@ -69,7 +73,7 @@ const IDLE: TrackerState = {
   status: "idle", runId: null, points: [], segment: 0, startedAt: null,
   bankedS: 0, segmentStartedAt: null, announcedKm: 0,
   session: null, planOrder: null, stepIndex: 0, stepStartM: 0, stepStartS: 0, blocks: [],
-  accuracyM: null, backgroundMode: false, autoPaused: false, error: null,
+  accuracyM: null, backgroundMode: false, autoPaused: false, routeId: null, error: null,
 };
 
 /** How many points may sit in memory before they are flushed to disk. */
@@ -462,6 +466,9 @@ export async function start(): Promise<void> {
       bankedS: 0, segmentStartedAt: startedAt, announcedKm: 0,
       stepIndex: 0, stepStartM: 0, stepStartS: 0, blocks: [],
       backgroundMode: false, autoPaused: false,
+      // Taken now rather than at the finish: the route is what was run,
+      // even if the map was cleared on the way.
+      routeId: getSettings().routeId,
     });
     const { session } = state;
     if (session) announceStep(stepLabel(session.steps[0]), getSettings().voice);
@@ -479,6 +486,13 @@ export async function start(): Promise<void> {
     await stopGps();
     publish({ ...IDLE, error: cause instanceof Error ? cause.message : trackerWords().cannotStart });
   }
+}
+
+/** The route this run counts for, if it covered enough of the one it started on. */
+async function coveredRoute(runM: number): Promise<number | null> {
+  if (state.routeId === null) return null;
+  const route = await readRoute(state.routeId).catch(() => null);
+  return route && coversRoute(runM, route.distanceM) ? route.id : null;
 }
 
 /** Where the run paused itself, which is what "set off again" is measured from. */
@@ -569,6 +583,8 @@ export async function finish(): Promise<number | null> {
     name: autoName(startedAt ?? endedAt),
     elevationGainM: elevationGainM(points),
     fastestKmS: fastestKmS(points),
+    bestEfforts: bestEfforts(points),
+    routeId: await coveredRoute(distance),
     cadenceSpm: cadence,
     sessionId: state.session?.id ?? null,
     // Including the block under way when the run was stopped: a session

@@ -10,7 +10,7 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, useColorScheme, View } from "react-native";
 import { IncomingGpx } from "@/components/IncomingGpx";
-import { initDb } from "@/lib/db";
+import { backfillEfforts, initDb } from "@/lib/db";
 import { defineStrings, useStrings } from "@/lib/i18n";
 import { applyLanguage } from "@/lib/language";
 import { clearStaleRun } from "@/lib/liveActivity";
@@ -31,6 +31,7 @@ const layoutStrings = defineStrings({
     language: "Langue",
     runner: "Mon profil de coureur",
     units: "Unités",
+    sharing: "Partage",
     data: "Données",
     about: "À propos",
     privacy: "Confidentialité",
@@ -49,6 +50,7 @@ const layoutStrings = defineStrings({
     language: "Language",
     runner: "My runner profile",
     units: "Units",
+    sharing: "Sharing",
     data: "Data",
     about: "About",
     privacy: "Privacy",
@@ -94,6 +96,9 @@ export default function RootLayout() {
       .then(loadSettings)
       .then(() => {
         setReady(true);
+        // Runs that predate best efforts, or came from a file or another
+        // phone, have theirs worked out quietly, one at a time.
+        void backfillEfforts().catch(() => undefined);
         // The settings are loaded by now, so this knows whether reminders are
         // wanted at all. Not awaited: it reaches the network for the weather,
         // and nothing about opening the app depends on its answer.
@@ -209,6 +214,10 @@ export default function RootLayout() {
           <Stack.Screen
             name="settings/units"
             options={{ title: s.units, headerBackTitle: s.settings }}
+          />
+          <Stack.Screen
+            name="settings/sharing"
+            options={{ title: s.sharing, headerBackTitle: s.settings }}
           />
           <Stack.Screen name="settings/data" options={{ title: s.data, headerBackTitle: s.settings }} />
           <Stack.Screen name="settings/about" options={{ title: s.about, headerBackTitle: s.settings }} />

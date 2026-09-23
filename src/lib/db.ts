@@ -6,6 +6,7 @@ import { elevationGainM, fastestKmS, paceSecPerKm, segments, totalDistanceM, typ
 import {
   normaliseDays, type Done, type Exertion, type Goal, type PerWeek, type PlannedSession,
 } from "./plan";
+import { bestEfforts, EFFORT_KEYS, parseEfforts, type BestEfforts } from "./efforts";
 import { parseHeart, type Heart } from "./heart";
 import { parseRoute, routeDistanceM, type Route, type StoredRoute } from "./route";
 import {
@@ -99,6 +100,10 @@ export interface Run {
    * measures nothing itself here, it only reads what the watch wrote.
    */
   heart: Heart | null;
+  /** Fastest time over each classic distance inside this run, or null until worked out. */
+  bestEfforts: BestEfforts | null;
+  /** The drawn route this run covered, or null for a run that followed none. */
+  routeId: number | null;
 }
 
 /** Shape the SQL layer returns, before mapping to camelCase. */
@@ -119,6 +124,8 @@ interface RunRow {
   exertion: number | null;
   weather: string | null;
   heart: string | null;
+  best_efforts: string | null;
+  route_id: number | null;
 }
 
 const toRun = (row: RunRow): Run => ({
@@ -142,6 +149,8 @@ const toRun = (row: RunRow): Run => ({
   // One json column, for the reason given above the blocks.
   weather: parseWeather(row.weather),
   heart: parseHeart(row.heart),
+  bestEfforts: parseEfforts(row.best_efforts),
+  routeId: row.route_id ?? null,
 });
 
 function parseBlocks(raw: string | null): RanBlock[] {
@@ -156,7 +165,7 @@ function parseBlocks(raw: string | null): RanBlock[] {
   }
 }
 
-const SCHEMA_VERSION = 16;
+const SCHEMA_VERSION = 17;
 
 /**
  * The plan's two tables, written once and used twice — by a fresh install and
@@ -277,7 +286,9 @@ export async function initDb(): Promise<void> {
         cadence_spm REAL,
         exertion INTEGER,
         weather TEXT,
-        heart TEXT
+        heart TEXT,
+        best_efforts TEXT,
+        route_id INTEGER
       );
       CREATE TABLE IF NOT EXISTS points (
         id INTEGER PRIMARY KEY,
@@ -411,6 +422,13 @@ export async function initDb(): Promise<void> {
     version = 16;
   }
 
+  if (version < 17) {
+    // Filled in the background for runs already here: see backfillEfforts.
+    await db.execAsync("ALTER TABLE runs ADD COLUMN best_efforts TEXT");
+    await db.execAsync("ALTER TABLE runs ADD COLUMN route_id INTEGER");
+    version = 17;
+  }
+
   await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
   await recoverInterruptedRuns();
 }
@@ -444,18 +462,106 @@ export interface RunTotals {
   name: string;
   elevationGainM: number;
   fastestKmS: number | null;
+  bestEfforts?: BestEfforts;
+  /** The route the run covered, when it covered enough of one to count. */
+  routeId?: number | null;
 }
 
 export async function finishRun(id: number, totals: RunTotals): Promise<void> {
   await getDb().runAsync(
-    "UPDATE runs SET ended_at = ?, distance_m = ?, duration_s = ?, avg_pace_s_km = ?, name = ?, elevation_gain_m = ?, fastest_km_s = ?, session_id = ?, session_blocks = ?, cadence_spm = ? WHERE id = ?",
+    "UPDATE runs SET ended_at = ?, distance_m = ?, duration_s = ?, avg_pace_s_km = ?, name = ?, elevation_gain_m = ?, fastest_km_s = ?, session_id = ?, session_blocks = ?, cadence_spm = ?, best_efforts = ?, route_id = ? WHERE id = ?",
     totals.endedAt, totals.distanceM, totals.durationS, totals.avgPaceSKm,
     totals.name, totals.elevationGainM, totals.fastestKmS,
     totals.sessionId ?? null,
     totals.blocks?.length ? JSON.stringify(totals.blocks) : null,
     totals.cadenceSpm ?? null,
+    totals.bestEfforts ? JSON.stringify(totals.bestEfforts) : null,
+    totals.routeId ?? null,
     id,
   );
+}
+
+/**
+ * Work out the best efforts of every run that does not have them yet: runs
+ * recorded before the app looked for them, imported from files, or brought
+ * over from another phone.
+ *
+ * One run at a time, in the background, after launch: it reads every point
+ * of every run once, which on a long history is too much to do in front of
+ * anybody. A run with no efforts to find is stored with an empty set, so it
+ * is not read again.
+ */
+export async function backfillEfforts(): Promise<number> {
+  const db = getDb();
+  const pending = await db.getAllAsync<{ id: number }>(
+    "SELECT id FROM runs WHERE ended_at IS NOT NULL AND best_efforts IS NULL",
+  );
+  for (const { id } of pending) {
+    const points = await db.getAllAsync<{
+      ts: number; lat: number; lng: number; alt: number | null;
+      accuracy_m: number | null; speed: number | null; segment: number;
+    }>("SELECT ts, lat, lng, alt, accuracy_m, speed, segment FROM points WHERE run_id = ? ORDER BY ts", id);
+    const efforts = bestEfforts(points.map((point) => ({
+      ts: point.ts, lat: point.lat, lng: point.lng, alt: point.alt,
+      accuracy: point.accuracy_m, speed: point.speed, segment: point.segment,
+    })));
+    await db.runAsync("UPDATE runs SET best_efforts = ? WHERE id = ?", JSON.stringify(efforts), id);
+  }
+  return pending.length;
+}
+
+/** How a route has been run: its fastest time, and how often. */
+export interface RouteRecord {
+  routeId: number;
+  best: Run;
+  runs: number;
+}
+
+/**
+ * The record on every route that has one.
+ *
+ * Only routes that still exist: a deleted route's runs keep its id but no
+ * longer have anything to be a record of.
+ */
+export async function routeRecords(): Promise<Map<number, RouteRecord>> {
+  const rows = await getDb().getAllAsync<RunRow>(
+    "SELECT runs.* FROM runs JOIN routes ON routes.id = runs.route_id"
+    + " WHERE runs.ended_at IS NOT NULL ORDER BY runs.duration_s ASC",
+  );
+  const records = new Map<number, RouteRecord>();
+  for (const row of rows) {
+    const run = toRun(row);
+    if (run.routeId === null) continue;
+    const held = records.get(run.routeId);
+    if (held) held.runs += 1;
+    else records.set(run.routeId, { routeId: run.routeId, best: run, runs: 1 });
+  }
+  return records;
+}
+
+/** The fastest time on record over one distance, and the run it was set in. */
+export interface EffortRecord {
+  key: string;
+  seconds: number;
+  run: Run;
+}
+
+/**
+ * The best effort over each distance, across every run.
+ *
+ * Worked out from the runs themselves rather than kept in a table of its
+ * own: deleting a run then takes its records with it, and the next best one
+ * stands, without anything having to be told.
+ */
+export async function effortRecords(): Promise<EffortRecord[]> {
+  const best = new Map<string, EffortRecord>();
+  for (const run of await listRuns()) {
+    for (const [key, seconds] of Object.entries(run.bestEfforts ?? {})) {
+      const held = best.get(key);
+      if (!held || seconds < held.seconds) best.set(key, { key, seconds, run });
+    }
+  }
+  return EFFORT_KEYS.map((key) => best.get(key)).filter((record): record is EffortRecord => Boolean(record));
 }
 
 /**
@@ -610,6 +716,9 @@ export async function restoreTransfer(transfer: Transfer): Promise<Restored> {
 
   const settings = Object.entries(transfer.settings);
   for (const [key, value] of settings) await writeSetting(key, value);
+
+  // Best efforts do not travel: they are worked out again here from the points.
+  if (added > 0) await backfillEfforts().catch(() => 0);
 
   return { added, known, routes, plan: Boolean(plan) && !hasPlan, settings: settings.length > 0 };
 }

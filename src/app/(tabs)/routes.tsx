@@ -11,9 +11,9 @@ import { HeaderButton } from "@/components/HeaderButton";
 import { RunButtonText } from "@/components/RunButtonText";
 import { SwipeToDelete } from "@/components/SwipeToDelete";
 import { RouteSnapshot, type RouteSnapshotHandle } from "@/components/RouteSnapshot";
-import { deleteRoute, listRoutes, setRoutePreview } from "@/lib/db";
+import { deleteRoute, listRoutes, routeRecords, setRoutePreview, type RouteRecord } from "@/lib/db";
 import { importRouteFiles } from "@/lib/files";
-import { formatDistance } from "@/lib/format";
+import { formatDistance, formatDuration } from "@/lib/format";
 import { defineStrings, useStrings } from "@/lib/i18n";
 import { useTabBarSpace } from "@/lib/layout";
 import { drawnLine, isLoop, thumbnail, type StoredRoute } from "@/lib/route";
@@ -44,6 +44,7 @@ const routesStrings = defineStrings({
     loop: "boucle",
     oneWay: "aller",
     onMap: " · sur ta carte",
+    recordTime: (time: string) => ` · record ${time}`,
     run: (name: string) => `Courir ${name}`,
   },
   en: {
@@ -68,6 +69,7 @@ const routesStrings = defineStrings({
     loop: "loop",
     oneWay: "one way",
     onMap: " · on your map",
+    recordTime: (time: string) => ` · best ${time}`,
     run: (name: string) => `Run ${name}`,
   },
 });
@@ -136,6 +138,7 @@ export default function RoutesScreen() {
   const tabBarSpace = useTabBarSpace();
   const chosen = useSettings().routeId;
   const [routes, setRoutes] = useState<StoredRoute[] | null>(null);
+  const [records, setRecords] = useState<Map<number, RouteRecord>>(new Map());
   const [importing, setImporting] = useState(false);
   const camera = useRef<RouteSnapshotHandle>(null);
   /** Routes already photographed in this session, so none is done twice. */
@@ -174,6 +177,8 @@ export default function RoutesScreen() {
         void photograph(found);
       })
       .catch(() => setRoutes([]));
+    // Each route's fastest run, shown under it once it has been run.
+    routeRecords().then(setRecords).catch(() => undefined);
   }, [photograph]);
 
   // Reloaded on every arrival: the last thing somebody did before coming back
@@ -291,6 +296,9 @@ export default function RoutesScreen() {
                           {formatDistance(item.distanceM)} {distanceUnit()} · {isLoop(item) ? s.loop : s.oneWay}
                           {item.place ? ` · ${item.place}` : ""}
                           {on ? s.onMap : ""}
+                          {records.has(item.id)
+                            ? s.recordTime(formatDuration(records.get(item.id)?.best.durationS ?? 0))
+                            : ""}
                         </Text>
                       </View>
 
