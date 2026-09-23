@@ -12,11 +12,14 @@ import { hasMovedOn, hasStopped } from "./autoPause";
 import { bestEfforts } from "./efforts";
 import { refreshHomeWidget } from "./homeWidget";
 import { toPaceUnits, unitLengthM } from "./units";
-import { announceAutoPause, announceKilometre, announcePace, announceStep, stopSpeaking } from "./feedback";
+import {
+  announceAutoPause, announceKilometre, announceLap, announcePace, announceStep, stopSpeaking,
+} from "./feedback";
 import {
   currentPace, elevationGainM, fastestKmS, isAcceptable, paceSecPerKm, splits, totalDistanceM,
   type TrackPoint,
 } from "./geo";
+import type { LapMark } from "./laps";
 import { reflectRun, stopRun, type RunProgress } from "./liveActivity";
 import { paceDrift } from "./pace";
 import { getSettings } from "./settings";
@@ -67,6 +70,8 @@ export interface TrackerState {
   autoPaused: boolean;
   /** The route shown on the map when the run started, if any. */
   routeId: number | null;
+  /** Where the lap button was pressed so far. */
+  laps: LapMark[];
   error: string | null;
 }
 
@@ -74,7 +79,7 @@ const IDLE: TrackerState = {
   status: "idle", runId: null, points: [], segment: 0, startedAt: null,
   bankedS: 0, segmentStartedAt: null, announcedKm: 0,
   session: null, planOrder: null, stepIndex: 0, stepStartM: 0, stepStartS: 0, blocks: [],
-  accuracyM: null, backgroundMode: false, autoPaused: false, routeId: null, error: null,
+  accuracyM: null, backgroundMode: false, autoPaused: false, routeId: null, laps: [], error: null,
 };
 
 /** How many points may sit in memory before they are flushed to disk. */
@@ -465,7 +470,7 @@ export async function start(): Promise<void> {
     publish({
       status: "running", runId, points: [], segment: 0, startedAt,
       bankedS: 0, segmentStartedAt: startedAt, announcedKm: 0,
-      stepIndex: 0, stepStartM: 0, stepStartS: 0, blocks: [],
+      stepIndex: 0, stepStartM: 0, stepStartS: 0, blocks: [], laps: [],
       backgroundMode: false, autoPaused: false,
       // Taken now rather than at the finish: the route is what was run,
       // even if the map was cleared on the way.
@@ -514,6 +519,30 @@ function pauseIfStopped(): void {
   pause();
   publish({ autoPaused: true });
   announceAutoPause(true, getSettings().voice);
+}
+
+/**
+ * Close the lap under way and start the next one.
+ *
+ * Only while running: a lap pressed during a pause would end on the same
+ * figures it started from. Two presses on top of each other — a finger that
+ * bounced — count once.
+ */
+export function lap(): void {
+  if (state.status !== "running") return;
+  const mark: LapMark = {
+    distanceM: totalDistanceM(state.points),
+    durationS: activeDurationS(state, Date.now()),
+  };
+  const previous = state.laps[state.laps.length - 1] ?? { distanceM: 0, durationS: 0 };
+  if (mark.durationS - previous.durationS < 2) return;
+  publish({ laps: [...state.laps, mark] });
+  announceLap(
+    state.laps.length,
+    mark.distanceM - previous.distanceM,
+    mark.durationS - previous.durationS,
+    getSettings().voice,
+  );
 }
 
 export function pause(): void {
@@ -586,6 +615,7 @@ export async function finish(): Promise<number | null> {
     fastestKmS: fastestKmS(points),
     bestEfforts: bestEfforts(points),
     routeId: await coveredRoute(distance),
+    laps: state.laps,
     cadenceSpm: cadence,
     sessionId: state.session?.id ?? null,
     // Including the block under way when the run was stopped: a session

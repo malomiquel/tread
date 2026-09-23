@@ -26,7 +26,7 @@ import { goalProgress, weekTotals } from "@/lib/stats";
 import { colors, font } from "@/lib/theme";
 import { distanceUnit, elevationUnit, paceUnit } from "@/lib/units";
 import {
-  activeDurationS, chooseSession, discard, finish, pause, resume, start, useTracker,
+  activeDurationS, chooseSession, discard, finish, lap, pause, resume, start, useTracker,
 } from "@/lib/tracker";
 import { useCurrentWeather, weatherIcon, weatherLine } from "@/lib/weather";
 import { sessionById, sessionName, stepLabel, stepRemaining } from "@/lib/workout";
@@ -77,6 +77,10 @@ const recordStrings = defineStrings({
     start: "Démarrer",
     pause: "Pause",
     resume: "Reprendre",
+    lap: "Tour",
+    lapLabel: (number: number) => `Terminer le tour ${number}`,
+    lapLine: (number: number, distance: string, duration: string) =>
+      `Tour ${number} · ${distance} ${distanceUnit()} · ${duration}`,
   },
   en: {
     searchingGps: "searching for GPS",
@@ -123,8 +127,15 @@ const recordStrings = defineStrings({
     start: "Start",
     pause: "Pause",
     resume: "Resume",
+    lap: "Lap",
+    lapLabel: (number: number) => `End lap ${number}`,
+    lapLine: (number: number, distance: string, duration: string) =>
+      `Lap ${number} · ${distance} ${distanceUnit()} · ${duration}`,
   },
 });
+
+/** Height of the lap button under the run's controls. */
+const LAP_HEIGHT = 36;
 
 /** How long the panel takes to change shape, and everything above it with it. */
 const GROW = { duration: 280 } as const;
@@ -467,6 +478,21 @@ export default function RecordScreen() {
     return `${tracker.stepIndex + 1}/${session.steps.length} · ${stepLabel(step)} · ${remaining}`;
   })();
 
+  /**
+   * Once a lap has been pressed, the status line follows the lap under way:
+   * on a track that is the figure being run against, not the whole run's.
+   * A session's line still wins, since it already divides the run.
+   */
+  const lastLap = tracker.laps[tracker.laps.length - 1] ?? { distanceM: 0, durationS: 0 };
+  const lapLine = recording && tracker.laps.length > 0
+    ? s.lapLine(
+      tracker.laps.length + 1,
+      formatDistance(distance - lastLap.distanceM),
+      formatDuration(duration - lastLap.durationS),
+    )
+    : null;
+  const guideLine = sessionLine ?? lapLine;
+
   // The same threshold the tracker throws fixes away at, so the warning and
   // the filter can never disagree about what counts as a poor signal.
   const weakSignal =
@@ -649,10 +675,10 @@ export default function RecordScreen() {
                   hitSlop={6}
                 >
                   <Text
-                    style={[styles.state, weakSignal && styles.stateWeak, sessionLine && styles.stateSession]}
+                    style={[styles.state, weakSignal && styles.stateWeak, guideLine && styles.stateSession]}
                     numberOfLines={1}
                   >
-                    {sessionLine ?? `${state} · ${recording ? signal : idleSignal}`}
+                    {guideLine ?? `${state} · ${recording ? signal : idleSignal}`}
                   </Text>
                 </Pressable>
 
@@ -715,7 +741,7 @@ export default function RecordScreen() {
                   place. Laid out in flow instead, the arriving buttons pushed
                   the leaving one aside on their way in — which is what made
                   the play button look like it came back from below. */}
-              <View style={styles.panelControls}>
+              <View style={[styles.panelControls, recording && styles.panelControlsRunning]}>
                 {!recording ? (
                   <Animated.View
                     key="rest"
@@ -730,19 +756,30 @@ export default function RecordScreen() {
                     key="running"
                     entering={FadeIn.duration(200)}
                     exiting={FadeOut.duration(140)}
-                    style={styles.controlLayer}
+                    style={[styles.controlLayer, styles.controlColumn]}
                   >
-                    {tracker.status === "running" ? (
-                      <RoundButton icon="pause" label={s.pause} onPress={pause} />
-                    ) : (
-                      <RoundButton icon="play" label={s.resume} onPress={resume} primary />
-                    )}
-                    <RoundButton
-                      icon="stop"
-                      label={s.finish}
-                      onPress={askFinish}
-                      danger
-                      disabled={finishing}
+                    <View style={styles.controlRow}>
+                      {tracker.status === "running" ? (
+                        <RoundButton icon="pause" label={s.pause} onPress={pause} />
+                      ) : (
+                        <RoundButton icon="play" label={s.resume} onPress={resume} primary />
+                      )}
+                      <RoundButton
+                        icon="stop"
+                        label={s.finish}
+                        onPress={askFinish}
+                        danger
+                        disabled={finishing}
+                      />
+                    </View>
+                    {/* Under the two that change the run, not beside them: a
+                        lap is pressed mid-effort, without looking, and has to
+                        be the one button that cannot be mistaken for a stop. */}
+                    <LapButton
+                      label={s.lap}
+                      accessibilityLabel={s.lapLabel(tracker.laps.length + 1)}
+                      onPress={lap}
+                      disabled={tracker.status !== "running"}
                     />
                   </Animated.View>
                 )}
@@ -777,6 +814,38 @@ export default function RecordScreen() {
       />
 
     </Animated.View>
+  );
+}
+
+/**
+ * The lap button: a word as well as a flag, since a flag alone reads as a
+ * finish line. Wide and flat, so it is found by feel under the two round
+ * buttons. The lightest tap under the finger; the voice says the lap.
+ */
+function LapButton({
+  label, accessibilityLabel, onPress, disabled,
+}: {
+  label: string;
+  accessibilityLabel: string;
+  onPress: () => void;
+  disabled: boolean;
+}) {
+  return (
+    <Pressable
+      onPress={() => {
+        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+        onPress();
+      }}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityState={{ disabled }}
+      hitSlop={4}
+      style={({ pressed }) => [styles.lap, pressed && styles.pressed, disabled && styles.roundDisabled]}
+    >
+      <Ionicons name="flag-outline" size={16} color={colors.text} />
+      <Text style={styles.lapText}>{label}</Text>
+    </Pressable>
   );
 }
 
@@ -872,6 +941,17 @@ const styles = StyleSheet.create({
   // larger single one at rest: the box never changes, so nothing around it
   // shifts when its contents do.
   panelControls: { width: CONTROL_SIZE * 2 + 8, height: 52, flexShrink: 0 },
+  // Room for the lap button under the two round ones. The panel is taller
+  // than this while running anyway, so the box growing moves nothing.
+  panelControlsRunning: { height: 46 + 8 + LAP_HEIGHT },
+  controlColumn: { flexDirection: "column", gap: 8 },
+  controlRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  lap: {
+    alignSelf: "stretch", height: LAP_HEIGHT, borderRadius: LAP_HEIGHT / 2,
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5,
+    borderWidth: 1.5, borderColor: colors.subtle,
+  },
+  lapText: { color: colors.text, fontSize: 15, fontFamily: font.semibold },
   controlLayer: {
     position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,

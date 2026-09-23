@@ -21,6 +21,7 @@ import {
   formatDate, formatDistance, formatDuration, formatElevation, formatEnergy, formatPace, formatSpeed,
 } from "@/lib/format";
 import { elevationProfile, splits, type TrackPoint } from "@/lib/geo";
+import { lapsOf, type Lap } from "@/lib/laps";
 import { effortName, sessionById, sessionName, type RanBlock } from "@/lib/workout";
 import { gpxFileName, toGpx } from "@/lib/gpx";
 import { estimateActiveEnergyKcal } from "@/lib/energy";
@@ -89,6 +90,10 @@ const runStrings = defineStrings({
     routeBehind: (gap: string) => `+${gap} sur ton record`,
     record: "Record",
     splits: "Fractionnés",
+    laps: "Tours",
+    lapName: (number: number) => `Tour ${number}`,
+    lapRest: "Jusqu'à l'arrivée",
+    fastestLap: "le plus rapide",
     gpsPoints: (n: number) => `${n} points GPS enregistrés`,
     copiedToHealth: "Copiée dans Apple Santé",
     sending: "Envoi…",
@@ -147,6 +152,10 @@ const runStrings = defineStrings({
     routeBehind: (gap: string) => `+${gap} on your best`,
     record: "Record",
     splits: "Splits",
+    laps: "Laps",
+    lapName: (number: number) => `Lap ${number}`,
+    lapRest: "To the finish",
+    fastestLap: "fastest",
     gpsPoints: (n: number) => (n === 1 ? "1 GPS point recorded" : `${n} GPS points recorded`),
     copiedToHealth: "Copied to Apple Health",
     sending: "Sending…",
@@ -180,6 +189,33 @@ function BlockRow({ block, rank }: { block: RanBlock; rank: number }) {
         </Text>
       </View>
       <Text style={[styles.blockPace, effort && styles.blockEffort]}>{formatPace(pace)}</Text>
+    </View>
+  );
+}
+
+/**
+ * One lap, laid out like a block of a session: its number, its distance and
+ * time, its pace. The fastest full lap takes the accent, which is the one
+ * thing anybody running repetitions looks for first.
+ */
+function LapRow({ lap, fastest, words }: {
+  lap: Lap;
+  fastest: boolean;
+  words: { lapName: (number: number) => string; lapRest: string; fastestLap: string };
+}) {
+  return (
+    <View style={styles.block}>
+      <Text style={[styles.blockRank, fastest && styles.blockEffort]}>{lap.partial ? "·" : lap.number}</Text>
+      <View style={styles.blockText}>
+        <Text style={[styles.blockName, fastest && styles.blockEffort]}>
+          {lap.partial ? words.lapRest : words.lapName(lap.number)}
+          {fastest ? ` · ${words.fastestLap}` : ""}
+        </Text>
+        <Text style={styles.blockDone}>
+          {formatDistance(lap.distanceM)} {distanceUnit()} · {formatDuration(Math.round(lap.durationS))}
+        </Text>
+      </View>
+      <Text style={[styles.blockPace, fastest && styles.blockEffort]}>{formatPace(lap.paceSKm)}</Text>
     </View>
   );
 }
@@ -371,6 +407,12 @@ export default function RunDetailScreen() {
       : null,
   ].filter(Boolean).join(" · ");
   const kilometres = splits(points, unitLengthM());
+  const laps = lapsOf(run.laps, run.distanceM, run.durationS);
+  // Only worth pointing out among two full laps or more.
+  const fullLaps = laps.filter((lap) => !lap.partial && lap.paceSKm !== null);
+  const fastestLap = fullLaps.length > 1
+    ? fullLaps.reduce((best, lap) => ((lap.paceSKm ?? Infinity) < (best.paceSKm ?? Infinity) ? lap : best)).number
+    : null;
   // What leaves the phone on a picture or a GIF: the track without the
   // stretch around its start and finish, which is usually a front door.
   const sharedPoints = hideEnds(points, privacyRadiusM);
@@ -802,6 +844,15 @@ export default function RunDetailScreen() {
               nothing until you know four hundred were the point. */}
           {run.blocks.map((block, index) => (
             <BlockRow key={index} block={block} rank={index + 1} />
+          ))}
+        </View>
+      )}
+
+      {laps.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{s.laps}</Text>
+          {laps.map((lap) => (
+            <LapRow key={lap.number} lap={lap} fastest={lap.number === fastestLap} words={s} />
           ))}
         </View>
       )}

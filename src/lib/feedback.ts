@@ -1,5 +1,5 @@
-import { defineStrings, speechLocale } from "./i18n";
-import { getUnitSystem } from "./units";
+import { decimal, defineStrings, speechLocale } from "./i18n";
+import { getUnitSystem, METRES_PER_MILE } from "./units";
 import * as Speech from "expo-speech";
 import { Platform, Vibration } from "react-native";
 
@@ -80,6 +80,13 @@ const spokenWords = defineStrings({
     autoResumed: "Reprise",
     drift: (seconds: number, slow: boolean) =>
       `${seconds} seconde${seconds > 1 ? "s" : ""} ${slow ? "trop lent" : "trop rapide"}`,
+    lap: (number: number, distance: string, minutes: number, seconds: number) => `Tour ${number}. ${distance}, ${
+      minutes > 0
+        ? `${minutes} minute${minutes > 1 ? "s" : ""}${seconds > 0 ? ` ${seconds}` : ""}`
+        : `${seconds} secondes`}`,
+    metres: (metres: number) => `${metres} mètres`,
+    kilometres: (km: string) => `${km} kilomètres`,
+    miles: (miles: string) => `${miles} miles`,
   },
   en: {
     kilometre: (km: number, minutes: number, seconds: number) => `${
@@ -92,6 +99,13 @@ const spokenWords = defineStrings({
     autoResumed: "Resumed",
     drift: (seconds: number, slow: boolean) =>
       `${seconds} second${seconds > 1 ? "s" : ""} ${slow ? "too slow" : "too fast"}`,
+    lap: (number: number, distance: string, minutes: number, seconds: number) => `Lap ${number}. ${distance}, ${
+      minutes > 0
+        ? `${minutes} minute${minutes > 1 ? "s" : ""}${seconds > 0 ? ` ${seconds}` : ""}`
+        : `${seconds} seconds`}`,
+    metres: (metres: number) => `${metres} metres`,
+    kilometres: (km: string) => `${km} kilometres`,
+    miles: (miles: string) => `${miles} miles`,
   },
 });
 
@@ -168,4 +182,31 @@ export function announcePace(driftS: number, spoken: boolean): void {
 /** Silence any pending speech, on finishing or discarding a run. */
 export function stopSpeaking(): void {
   void Speech.stop().catch(() => undefined);
+}
+
+/** A lap's distance as it is said: metres on a track, kilometres or miles beyond. */
+function spokenDistance(metres: number): string {
+  const words = spokenWords();
+  if (getUnitSystem() === "imperial") return words.miles(decimal((metres / METRES_PER_MILE).toFixed(2)));
+  if (metres < 1000) return words.metres(Math.round(metres / 10) * 10);
+  return words.kilometres(decimal((metres / 1000).toFixed(2)));
+}
+
+/**
+ * The lap just closed, said out loud.
+ *
+ * No buzz: the runner's own finger marked it, and the button answers that
+ * press on its own. The voice gives what the press was for — the lap's
+ * distance and time — without looking down in the middle of a repetition.
+ */
+export function announceLap(number: number, distanceM: number, durationS: number, spoken: boolean): void {
+  if (!spoken) return;
+  // Rounded once, before splitting: 59.6 s is "1 minute", not "0 minutes 60".
+  const whole = Math.round(durationS);
+  const minutes = Math.floor(whole / 60);
+  const seconds = whole % 60;
+  Speech.stop();
+  Speech.speak(spokenWords().lap(number, spokenDistance(distanceM), minutes, seconds), {
+    language: speechLocale(), rate: 1,
+  });
 }

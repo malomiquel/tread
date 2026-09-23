@@ -8,6 +8,7 @@ import {
 } from "./plan";
 import { bestEfforts, EFFORT_KEYS, parseEfforts, type BestEfforts } from "./efforts";
 import { parseHeart, type Heart } from "./heart";
+import { parseLaps, type LapMark } from "./laps";
 import { parseRoute, routeDistanceM, type Route, type StoredRoute } from "./route";
 import {
   TRANSFER_FORMAT, TRANSFER_VERSION, type Restored, type Transfer, type TransferRun,
@@ -104,6 +105,8 @@ export interface Run {
   bestEfforts: BestEfforts | null;
   /** The drawn route this run covered, or null for a run that followed none. */
   routeId: number | null;
+  /** Where the lap button was pressed, in order. Empty for a run nobody lapped. */
+  laps: LapMark[];
 }
 
 /** Shape the SQL layer returns, before mapping to camelCase. */
@@ -126,6 +129,7 @@ interface RunRow {
   heart: string | null;
   best_efforts: string | null;
   route_id: number | null;
+  laps: string | null;
 }
 
 const toRun = (row: RunRow): Run => ({
@@ -151,6 +155,7 @@ const toRun = (row: RunRow): Run => ({
   heart: parseHeart(row.heart),
   bestEfforts: parseEfforts(row.best_efforts),
   routeId: row.route_id ?? null,
+  laps: parseLaps(row.laps ?? null),
 });
 
 function parseBlocks(raw: string | null): RanBlock[] {
@@ -165,7 +170,7 @@ function parseBlocks(raw: string | null): RanBlock[] {
   }
 }
 
-const SCHEMA_VERSION = 17;
+const SCHEMA_VERSION = 18;
 
 /**
  * The plan's two tables, written once and used twice — by a fresh install and
@@ -288,7 +293,8 @@ export async function initDb(): Promise<void> {
         weather TEXT,
         heart TEXT,
         best_efforts TEXT,
-        route_id INTEGER
+        route_id INTEGER,
+        laps TEXT
       );
       CREATE TABLE IF NOT EXISTS points (
         id INTEGER PRIMARY KEY,
@@ -429,6 +435,11 @@ export async function initDb(): Promise<void> {
     version = 17;
   }
 
+  if (version < 18) {
+    await db.execAsync("ALTER TABLE runs ADD COLUMN laps TEXT");
+    version = 18;
+  }
+
   await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
   await recoverInterruptedRuns();
 }
@@ -465,11 +476,12 @@ export interface RunTotals {
   bestEfforts?: BestEfforts;
   /** The route the run covered, when it covered enough of one to count. */
   routeId?: number | null;
+  laps?: LapMark[];
 }
 
 export async function finishRun(id: number, totals: RunTotals): Promise<void> {
   await getDb().runAsync(
-    "UPDATE runs SET ended_at = ?, distance_m = ?, duration_s = ?, avg_pace_s_km = ?, name = ?, elevation_gain_m = ?, fastest_km_s = ?, session_id = ?, session_blocks = ?, cadence_spm = ?, best_efforts = ?, route_id = ? WHERE id = ?",
+    "UPDATE runs SET ended_at = ?, distance_m = ?, duration_s = ?, avg_pace_s_km = ?, name = ?, elevation_gain_m = ?, fastest_km_s = ?, session_id = ?, session_blocks = ?, cadence_spm = ?, best_efforts = ?, route_id = ?, laps = ? WHERE id = ?",
     totals.endedAt, totals.distanceM, totals.durationS, totals.avgPaceSKm,
     totals.name, totals.elevationGainM, totals.fastestKmS,
     totals.sessionId ?? null,
@@ -477,6 +489,7 @@ export async function finishRun(id: number, totals: RunTotals): Promise<void> {
     totals.cadenceSpm ?? null,
     totals.bestEfforts ? JSON.stringify(totals.bestEfforts) : null,
     totals.routeId ?? null,
+    totals.laps?.length ? JSON.stringify(totals.laps) : null,
     id,
   );
 }
@@ -597,6 +610,7 @@ export async function everythingForTransfer(): Promise<Transfer> {
       blocks: run.blocks,
       weather: run.weather,
       heart: run.heart,
+      laps: run.laps,
       points: rows.map((point) => ({
         ts: point.ts, lat: point.lat, lng: point.lng, alt: point.alt,
         accuracy: point.accuracy_m, speed: point.speed, segment: point.segment,
@@ -666,12 +680,13 @@ export async function restoreTransfer(transfer: Transfer): Promise<Restored> {
     await db.runAsync(
       "UPDATE runs SET ended_at = ?, distance_m = ?, duration_s = ?, avg_pace_s_km = ?, name = ?,"
       + " elevation_gain_m = ?, fastest_km_s = ?, cadence_spm = ?, exertion = ?, session_id = ?,"
-      + " session_blocks = ?, weather = ?, heart = ? WHERE id = ?",
+      + " session_blocks = ?, weather = ?, heart = ?, laps = ? WHERE id = ?",
       run.endedAt, run.distanceM, run.durationS, run.avgPaceSKm, run.name,
       run.elevationGainM, run.fastestKmS, run.cadenceSpm, run.exertion, run.sessionId,
       run.blocks?.length ? JSON.stringify(run.blocks) : null,
       run.weather ? JSON.stringify(run.weather) : null,
       run.heart ? JSON.stringify(run.heart) : null,
+      run.laps?.length ? JSON.stringify(run.laps) : null,
       id,
     );
     added += 1;

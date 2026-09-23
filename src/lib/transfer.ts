@@ -1,6 +1,7 @@
 import JSZip from "jszip";
 import type { TrackPoint } from "./geo";
 import type { Heart } from "./heart";
+import { parseLaps, type LapMark } from "./laps.ts";
 import type { Exertion, Goal, PerWeek, PlannedSession } from "./plan";
 import { defineStrings, intlLocale } from "./i18n.ts";
 import type { RoutePoint } from "./route";
@@ -56,6 +57,8 @@ export interface TransferRun {
   blocks: RanBlock[];
   weather: Weather | null;
   heart: Heart | null;
+  /** Absent from files written before laps existed. */
+  laps?: LapMark[];
   points: TrackPoint[];
   /*
    * No `healthUuid`. It names a workout inside the old phone's HealthKit
@@ -141,6 +144,7 @@ export function readTransfer(text: string): Transfer | null {
           blocks: Array.isArray(run.blocks)
             ? run.blocks.map((block) => ({ ...block, effort: currentEffort(block.effort) }))
             : [],
+          ...(Array.isArray(run.laps) ? { laps: parseLaps(JSON.stringify(run.laps)) } : {}),
         })),
       routes: readRoutes(file.routes),
       plan: readPlan(file.plan),
