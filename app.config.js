@@ -1,3 +1,4 @@
+/* global __dirname */
 const { execSync } = require("node:child_process");
 
 /**
@@ -12,9 +13,9 @@ const { execSync } = require("node:child_process");
  * and fall back to a dash: a missing git is a reason to show less, never a
  * reason to fail a build.
  */
-function git(commande) {
+function git(command) {
   try {
-    return execSync(commande, { cwd: __dirname, stdio: ["ignore", "pipe", "ignore"] })
+    return execSync(command, { cwd: __dirname, stdio: ["ignore", "pipe", "ignore"] })
       .toString()
       .trim();
   } catch {
