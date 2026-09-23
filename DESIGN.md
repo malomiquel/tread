@@ -307,6 +307,11 @@ on does nothing and buzzes nothing.
   `useStrings(table)`. The English side is typed against the French one.
 - Numbers go through `decimal()` (`5,21` / `5.21`), dates through
   `intlLocale()`.
+- Units are never written by hand: a figure goes through its formatter
+  (`formatDistance`, `formatPace`, `formatElevation`, `formatSpeed`,
+  `formatTemperature`), which converts from the stored metric value, and its
+  label comes from `distanceUnit()`, `paceUnit()`, `elevationUnit()` or
+  `speedUnit()`. Only track distances and race names stay metric.
 - A displayed name is computed from an identifier (`sessionName`, `kindName`,
   `zoneName`), never read from a stored string.
 

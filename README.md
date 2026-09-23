@@ -239,6 +239,20 @@ when shown rather than read from what was stored, so programmes created in
 French read in English too; stored identifiers (efforts, session ids) are
 English, and migration 16 rewrote the ones older versions saved in French.
 
+**Units are a way of showing, not of storing.** Everything on disk is
+metric — metres, seconds per kilometre, °C. Kilometres or miles (and °C or
+°F, m or ft) are applied at the last moment by the formatters in
+`src/lib/format.ts`, following the phone's region unless chosen in
+Réglages › Unités, so switching shows every past run in the new units.
+Splits and spoken markers follow the unit; track intervals ("5 × 400 m") and
+race names stay metric, as they are on any track.
+
+**Auto-pause is opt-in.** Off by default, because a wrong guess shortens a
+run's recorded time. When on, the run's own one-second clock pauses it after
+ten seconds within eight metres of the last fix (the GPS sends nothing while
+standing still), and the next fix twelve metres away — or at running speed —
+resumes it in a new segment. The logic is `src/lib/autoPause.ts`.
+
 **A reminder is rewritten, never reconciled.** A plan reshapes itself
 constantly: a missed week slides every date, a hard session lightens the next
 one, a finished run ticks one off. Working out which of yesterday's pending
@@ -261,17 +275,18 @@ replays a single GPS point.
   wrote into Apple Health is read back and shown with the run; without a
   watch there is nothing to read.
 - **Android outside Expo Go**: Google Maps needs an API key in `app.json`.
-- **Third-party services are on free terms**: the Open-Meteo API is free for
-  non-commercial use only, and routing.openstreetmap.de is a community server
-  under a fair-use policy. Charging for the app means an Open-Meteo
-  subscription and a routing server of its own (OSRM or another) first.
-- **No support address in the app yet**: À propos has the version, the
-  privacy page and the data credits, but nowhere to write to.
+- **Third-party services default to free terms**: the Open-Meteo API is free
+  for non-commercial use only, and routing.openstreetmap.de is a community
+  server under a fair-use policy. Both are configurable at build time, with
+  no code change, through `TREAD_WEATHER_URL`, `TREAD_WEATHER_KEY` and
+  `TREAD_ROUTING_URL` (see `app.config.js` and `src/lib/services.ts`).
+  Charging for the app means setting them first.
+- **Support address**: `TREAD_SUPPORT_EMAIL` adds a "Contact us" row to
+  À propos; unset, the row is hidden.
 - **The database file is still named `running.db`.** Renaming it would hide
   runs already recorded on a device, for a purely cosmetic gain nobody sees.
 
 ## Possible next steps
 
-1. Auto-pause at traffic lights.
-2. Apple Health import for runs recorded on a watch.
-3. Supabase sync and backup.
+1. Apple Health import for runs recorded on a watch.
+2. Supabase sync and backup.
