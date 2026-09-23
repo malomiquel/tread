@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { formatEnergy, formatSpeed } from "./format.ts";
 import {
   byMonth, monthSummary,
-  goalProgress, suggestedWeeklyGoalM, timeAgo, weeklyVolumeKm, weekStart, weekStreak, weekTotals,
+  goalProgress, suggestedWeeklyGoalM, timeAgo, weeklyVolumeKm, weekStart, weekStreak, weekTotals, yearToDate,
 } from "./stats.ts";
 
 const run = (startedAt: number, distanceM = 5000, durationS = 1500) =>
@@ -43,7 +43,7 @@ test("weekly totals count this week only", () => {
 });
 
 test("weekly totals on an empty history", () => {
-  assert.deepEqual(weekTotals([]), { distanceM: 0, durationS: 0, runs: 0 });
+  assert.deepEqual(weekTotals([]), { distanceM: 0, durationS: 0, climbM: 0, runs: 0 });
 });
 
 test("time ago reads naturally at every scale", () => {
@@ -193,7 +193,7 @@ test("with a goal, only the weeks that met it count", () => {
   const now = new Date(2026, 8, 23, 12).getTime();
   const on = (day: number) => new Date(2026, 8, day, 9).getTime();
   const runs = [run(on(15), 12_000), run(on(8), 8_000), run(on(9), 3_000), run(on(1), 4_000)] as never[];
-  assert.deepEqual(weekStreak(runs, 10_000, now), { current: 2, best: 2, kind: "goal" });
+  assert.deepEqual(weekStreak(runs, { kind: "distance", target: 10_000 }, now), { current: 2, best: 2, kind: "goal" });
 });
 
 test("a missed week ends the streak", () => {
@@ -201,4 +201,25 @@ test("a missed week ends the streak", () => {
   const runs = [run(new Date(2026, 8, 8, 9).getTime())] as never[];
   assert.equal(weekStreak(runs, null, now).current, 0);
   assert.equal(weekStreak(runs, null, now).best, 1);
+});
+
+test("a time goal counts the time run each week", () => {
+  const now = new Date(2026, 8, 23, 12).getTime();
+  const runs = [run(new Date(2026, 8, 15, 9).getTime(), 5000, 3 * 3600), run(new Date(2026, 8, 8, 9).getTime(), 5000, 1800)] as never[];
+  assert.deepEqual(weekStreak(runs, { kind: "time", target: 2 * 3600 }, now), { current: 1, best: 1, kind: "goal" });
+});
+
+test("this year is compared with last year up to the same day", () => {
+  const now = new Date(2026, 8, 23, 12).getTime();
+  const ytd = yearToDate([
+    run(new Date(2026, 2, 1).getTime(), 10_000),
+    run(new Date(2025, 4, 1).getTime(), 7000),
+    // After 23 September last year: not yet at this point of the year.
+    run(new Date(2025, 10, 1).getTime(), 30_000),
+    run(new Date(2024, 4, 1).getTime(), 9000),
+  ] as never[], now);
+  assert.equal(ytd.year, 2026);
+  assert.equal(ytd.thisYear.distanceM, 10_000);
+  assert.equal(ytd.lastYear.distanceM, 7000);
+  assert.equal(ytd.lastYear.runs, 1);
 });

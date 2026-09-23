@@ -2,7 +2,7 @@ import { ExtensionStorage } from "@bacons/apple-targets";
 import { Platform } from "react-native";
 import { activePlan, listRuns, planDone, recentExertions } from "./db";
 import { easeFactor, kindName, nextSession, schedule, startOfDay } from "./plan";
-import { getSettings } from "./settings";
+import { weeklyGoal } from "./settings";
 import { weekTotals } from "./stats";
 import { widgetSnapshot, type WidgetSnapshot } from "./widgetSnapshot";
 import { eased, sessionName } from "./workout";
@@ -53,7 +53,8 @@ export async function currentWidgetSnapshot(now = Date.now()): Promise<WidgetSna
     weekDistanceM: week.distanceM,
     weekRuns: week.runs,
     weekDurationS: week.durationS,
-    goalM: getSettings().weeklyGoalM,
+    weekClimbM: week.climbM,
+    goal: weeklyGoal(),
     next,
     now,
   });

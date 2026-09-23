@@ -21,7 +21,8 @@ import { currentPace, elevationGainM, MAX_ACCURACY_M, paceSecPerKm, totalDistanc
 import { CONTROL_SIZE, CONTROLS_TOP, useTabBarBottom } from "@/lib/layout";
 import { locationAccess, useInitialLocation } from "@/lib/location";
 import { drawnLine, type RoutePoint } from "@/lib/route";
-import { toggleVoice, useSettings } from "@/lib/settings";
+import { measure } from "@/lib/goals";
+import { toggleVoice, useSettings, weeklyGoal } from "@/lib/settings";
 import { goalProgress, weekTotals } from "@/lib/stats";
 import { colors, font } from "@/lib/theme";
 import { distanceUnit, elevationUnit, paceUnit } from "@/lib/units";
@@ -439,7 +440,8 @@ export default function RecordScreen() {
   // count of outings says what has happened; against a goal the same line
   // says what is left, which is the only version of it worth reading with a
   // hand on the play button.
-  const goal = goalProgress(week.distanceM, settings.weeklyGoalM);
+  const weekly = weeklyGoal(settings);
+  const goal = weekly === null ? null : goalProgress(measure(weekly.kind, week), weekly.target);
 
   const signal =
     tracker.accuracyM === null ? s.searchingGps

@@ -83,7 +83,7 @@ when it is done; add a line when something new comes up.
 ### Quality
 - [x] Pace rounding fixed (4'59"6 showed as 4'00")
 - [x] `DESIGN.md` design system, loaded by `CLAUDE.md` in every session
-- [x] 366 unit tests; typecheck, lint, expo-doctor 21/21, iOS bundle
+- [x] 372 unit tests; typecheck, lint, expo-doctor 21/21, iOS bundle
 
 ### Earlier work
 - [x] Weather before/after runs, forecasts on plan sessions, on the share card
@@ -184,7 +184,10 @@ High value, moderate effort
 - [x] **Training calendar**: History › List / Calendar; months back to the
   first run, a dot per day sized by distance, week totals, tap a day to open
   its run
-- [ ] **Goals in time or climb**, not only distance; year-on-year comparison
+- [x] **Goals in time or climb**: the weekly goal sheet offers Distance /
+  Time / Climb (each keeps its own figure); the week, the run screen, the
+  streaks, Settings and the home widget follow it. **Year on year**: Profile
+  › "In 2026" against last year at the same date
 - [ ] **Personal heatmap**: every run on one map
 
 High value, large effort

@@ -14,11 +14,14 @@ import { effortName } from "@/lib/efforts";
 import { formatDistance, formatDuration, formatElevation } from "@/lib/format";
 import { defineStrings, plural, useStrings } from "@/lib/i18n";
 import { useTabBarSpace } from "@/lib/layout";
-import { useSettings } from "@/lib/settings";
+import { useSettings, weeklyGoal } from "@/lib/settings";
 import { performanceTitles, type PerformanceSection } from "@/lib/performance";
 import { goalName } from "@/lib/plan";
 import { effortSamples, predictRaces } from "@/lib/predictions";
-import { goalProgress, suggestedWeeklyGoalM, weeklyVolumeKm, weekStart, weekStreak } from "@/lib/stats";
+import { goalAmount, measure } from "@/lib/goals";
+import {
+  goalProgress, suggestedWeeklyGoalM, weeklyVolumeKm, weekStart, weekStreak, weekTotals, yearToDate,
+} from "@/lib/stats";
 import { colors, font } from "@/lib/theme";
 import { distanceUnit, elevationUnit } from "@/lib/units";
 import { chooseSession } from "@/lib/tracker";
@@ -32,20 +35,24 @@ const profileStrings = defineStrings({
     settings: "Réglages",
     runNow: "Courir maintenant",
     runNowDetail: "Ta première sortie lance tes records et tes totaux.",
-    goalDetail: "Une distance à viser, du lundi au dimanche.",
-    goalCurrent: (km: string) => `Objectif : ${km} ${distanceUnit()} par semaine`,
+    goalDetail: "Une distance, un temps ou un dénivelé à viser, du lundi au dimanche.",
+    goalCurrent: (amount: string) => `Objectif : ${amount} par semaine`,
     thisWeek: "Cette semaine",
     runs: (count: number) => plural(count, "course", "courses"),
-    goalEdit: (km: string) => `Objectif hebdomadaire, ${km} ${distanceUnit()}, modifier`,
+    goalEdit: (amount: string) => `Objectif hebdomadaire, ${amount}, modifier`,
     goalSet: "Définir un objectif hebdomadaire",
-    goalReached: (km: string, percent: number) => `Objectif de ${km} ${distanceUnit()} atteint · ${percent} %`,
-    goalRemaining: (remaining: string, km: string) =>
-      `${remaining} ${distanceUnit()} pour tenir l'objectif de ${km} ${distanceUnit()}`,
+    goalReached: (amount: string, percent: number) => `Objectif de ${amount} atteint · ${percent} %`,
+    goalRemaining: (remaining: string, amount: string) => `${remaining} pour tenir l'objectif de ${amount}`,
     goalInvite: "Se fixer un objectif hebdomadaire",
     today: "auj.",
     performance: "Performances",
     longest: "Plus longue sortie",
     allTime: "Depuis le début",
+    thisYear: (year: number) => `En ${year}`,
+    yearAside: "à la même date l'an dernier",
+    yearDistance: "Distance",
+    yearRuns: "Courses",
+    lastYear: (value: string) => `${value} l'an dernier`,
     totalRuns: "Courses",
     distance: "Distance",
     time: "Temps",
@@ -62,20 +69,24 @@ const profileStrings = defineStrings({
     settings: "Settings",
     runNow: "Run now",
     runNowDetail: "Your first run starts your records and totals.",
-    goalDetail: "A distance to aim for, Monday to Sunday.",
-    goalCurrent: (km: string) => `Goal: ${km} ${distanceUnit()} a week`,
+    goalDetail: "A distance, a time or a climb to aim for, Monday to Sunday.",
+    goalCurrent: (amount: string) => `Goal: ${amount} a week`,
     thisWeek: "This week",
     runs: (count: number) => plural(count, "run", "runs"),
-    goalEdit: (km: string) => `Weekly goal, ${km} ${distanceUnit()}, edit`,
+    goalEdit: (amount: string) => `Weekly goal, ${amount}, edit`,
     goalSet: "Set a weekly goal",
-    goalReached: (km: string, percent: number) => `${km} ${distanceUnit()} goal reached · ${percent}%`,
-    goalRemaining: (remaining: string, km: string) =>
-      `${remaining} ${distanceUnit()} to go to reach your ${km} ${distanceUnit()} goal`,
+    goalReached: (amount: string, percent: number) => `${amount} goal reached · ${percent}%`,
+    goalRemaining: (remaining: string, amount: string) => `${remaining} to go to reach your ${amount} goal`,
     goalInvite: "Set yourself a weekly goal",
     today: "now",
     performance: "Performance",
     longest: "Longest run",
     allTime: "All time",
+    thisYear: (year: number) => `In ${year}`,
+    yearAside: "against last year to date",
+    yearDistance: "Distance",
+    yearRuns: "Runs",
+    lastYear: (value: string) => `${value} last year`,
     totalRuns: "Runs",
     distance: "Distance",
     time: "Time",
@@ -118,14 +129,26 @@ function byWeek(runs: Run[]): Week[] {
 }
 
 /** One all-time figure, in a tile of its own. */
-function Total({ label, value, unit }: { label: string; value: string; unit?: string }) {
+function Total({ label, value, unit, compare, change }: {
+  label: string;
+  value: string;
+  unit?: string;
+  /** The same figure a year ago, said in full. */
+  compare?: string;
+  /** How much it moved, in percent, signed. */
+  change?: number;
+}) {
   return (
     <View style={styles.total}>
       <Text style={styles.totalValue} numberOfLines={1}>
         {value}
         {unit ? <Text style={styles.totalUnit}> {unit}</Text> : null}
       </Text>
-      <Text style={styles.totalLabel}>{label}</Text>
+      <Text style={styles.totalLabel}>
+        {label}
+        {change !== undefined ? <Text style={styles.totalChange}>{` · ${change > 0 ? "+" : ""}${change} %`}</Text> : null}
+      </Text>
+      {compare ? <Text style={styles.totalCompare} numberOfLines={1}>{compare}</Text> : null}
     </View>
   );
 }
@@ -200,12 +223,18 @@ export default function ProfileScreen() {
 
   const weeks = byWeek(runs);
   const current = weeks[weeks.length - 1];
-  const streak = weekStreak(runs, settings.weeklyGoalM, readAt);
+  const weekly = weeklyGoal(settings);
+  const streak = weekStreak(runs, weekly, readAt);
+  const ytd = yearToDate(runs, readAt);
   // Projected with the weekly volume the plans use, so a race time here and
   // the pace a programme hands out come from the same runner.
   const predictions = predictRaces(effortSamples(runs), readAt, weeklyVolumeKm(runs, readAt));
   const peak = Math.max(...weeks.map((w) => w.distanceM), 1);
-  const goal = goalProgress(current.distanceM, settings.weeklyGoalM);
+  // The week measured the way the goal counts it: distance, time or climb.
+  const goal = weekly === null
+    ? null
+    : goalProgress(measure(weekly.kind, weekTotals(runs, readAt)), weekly.target);
+  const goalText = weekly === null ? "" : goalAmount(weekly.kind, weekly.target);
 
   // The headline of each list, and the way into the rest of it. The lists
   // themselves used to be stacked here, twenty rows under the week; the page
@@ -258,9 +287,7 @@ export default function ProfileScreen() {
               },
               {
                 icon: "flag-outline",
-                title: settings.weeklyGoalM === null
-                  ? s.goalInvite
-                  : s.goalCurrent(formatDistance(settings.weeklyGoalM)),
+                title: weekly === null ? s.goalInvite : s.goalCurrent(goalAmount(weekly.kind, weekly.target)),
                 detail: s.goalDetail,
                 onPress: () => setSettingGoal(true),
               },
@@ -278,7 +305,7 @@ export default function ProfileScreen() {
               unit={distanceUnit()}
               detail={`${s.runs(current.runs)} · ${formatDuration(current.durationS)}`}
               onPress={() => setSettingGoal(true)}
-              accessibilityLabel={goal ? s.goalEdit(formatDistance(settings.weeklyGoalM ?? 0)) : s.goalSet}
+              accessibilityLabel={goal ? s.goalEdit(goalText) : s.goalSet}
             >
               {goal ? (
                 <View style={styles.goal}>
@@ -286,12 +313,9 @@ export default function ProfileScreen() {
                     <View style={[styles.goalFill, { width: `${goal.share * 100}%` }]} />
                   </View>
                   <Text style={bannerText.soft}>
-                    {goal.reached
-                      ? s.goalReached(formatDistance(settings.weeklyGoalM ?? 0), goal.percent)
-                      : s.goalRemaining(
-                        formatDistance(goal.remainingM),
-                        formatDistance(settings.weeklyGoalM ?? 0),
-                      )}
+                    {goal.reached || weekly === null
+                      ? s.goalReached(goalText, goal.percent)
+                      : s.goalRemaining(goalAmount(weekly.kind, goal.remainingM), goalText)}
                   </Text>
                 </View>
               ) : null}
@@ -369,6 +393,32 @@ export default function ProfileScreen() {
               />
             ) : null}
 
+            {/* This year against the same point of last year: the question a
+                runner asks in the autumn, and the only fair way to ask it. */}
+            {ytd.thisYear.runs > 0 ? (
+              <>
+                <SectionHeader title={s.thisYear(ytd.year)} aside={ytd.lastYear.runs > 0 ? s.yearAside : undefined} />
+                <View style={styles.totals}>
+                  <Total
+                    label={s.yearDistance}
+                    value={formatDistance(ytd.thisYear.distanceM)}
+                    unit={distanceUnit()}
+                    compare={ytd.lastYear.runs > 0
+                      ? s.lastYear(`${formatDistance(ytd.lastYear.distanceM)} ${distanceUnit()}`)
+                      : undefined}
+                    change={ytd.lastYear.distanceM > 0
+                      ? Math.round((ytd.thisYear.distanceM / ytd.lastYear.distanceM - 1) * 100)
+                      : undefined}
+                  />
+                  <Total
+                    label={s.yearRuns}
+                    value={String(ytd.thisYear.runs)}
+                    compare={ytd.lastYear.runs > 0 ? s.lastYear(String(ytd.lastYear.runs)) : undefined}
+                  />
+                </View>
+              </>
+            ) : null}
+
             <SectionHeader title={s.allTime} />
             <View style={styles.totals}>
               <Total label={s.totalRuns} value={String(records.totalRuns)} />
@@ -383,7 +433,6 @@ export default function ProfileScreen() {
 
       <WeeklyGoalSheet
         visible={settingGoal}
-        goalM={settings.weeklyGoalM}
         suggestedM={suggestedM}
         onClose={() => setSettingGoal(false)}
       />
@@ -437,4 +486,6 @@ const styles = StyleSheet.create({
   },
   totalUnit: { fontSize: 15, fontFamily: font.semibold, letterSpacing: 0 },
   totalLabel: { color: colors.muted, fontSize: 14, fontFamily: font.medium },
+  totalChange: { color: colors.accent, fontFamily: font.semibold },
+  totalCompare: { color: colors.subtle, fontSize: 13, fontFamily: font.regular },
 });

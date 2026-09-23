@@ -1,5 +1,6 @@
 import { defineStrings } from "./i18n.ts";
 import type { Run } from "./db";
+import { measure, type WeeklyGoal } from "./goals.ts";
 
 /** Monday, midnight, of the week containing that instant. */
 export function weekStart(ts: number): number {
@@ -12,6 +13,8 @@ export function weekStart(ts: number): number {
 export interface WeekTotals {
   distanceM: number;
   durationS: number;
+  /** Metres climbed. */
+  climbM: number;
   runs: number;
 }
 
@@ -24,9 +27,10 @@ export function weekTotals(runs: Run[], reference = Date.now()): WeekTotals {
       (totals, run) => ({
         distanceM: totals.distanceM + run.distanceM,
         durationS: totals.durationS + run.durationS,
+        climbM: totals.climbM + (run.elevationGainM ?? 0),
         runs: totals.runs + 1,
       }),
-      { distanceM: 0, durationS: 0, runs: 0 },
+      { distanceM: 0, durationS: 0, climbM: 0, runs: 0 },
     );
 }
 
@@ -225,17 +229,20 @@ const DAY_MS = 86_400_000;
  * The week under way never breaks a streak: on a Tuesday it has barely
  * begun. It adds to it once it counts.
  */
-export function weekStreak(runs: readonly Run[], goalM: number | null, now = Date.now()): Streak {
-  const kind = goalM !== null && goalM > 0 ? "goal" : "active";
+export function weekStreak(runs: readonly Run[], goal: WeeklyGoal | null, now = Date.now()): Streak {
+  const kind = goal !== null ? "goal" : "active";
   const totals = new Map<number, number>();
   for (const run of runs) {
     const week = weekStart(run.startedAt);
-    totals.set(week, (totals.get(week) ?? 0) + run.distanceM);
+    const covered = goal === null
+      ? run.distanceM
+      : measure(goal.kind, { distanceM: run.distanceM, durationS: run.durationS, climbM: run.elevationGainM ?? 0 });
+    totals.set(week, (totals.get(week) ?? 0) + covered);
   }
   const counts = (week: number): boolean => {
     const covered = totals.get(week);
     if (covered === undefined) return false;
-    return kind === "goal" ? covered >= (goalM ?? 0) : true;
+    return goal !== null ? covered >= goal.target : true;
   };
   // A day before a Monday is always in the week before, whatever the clocks
   // did in between; seven days of milliseconds is not, across a time change.
@@ -257,4 +264,38 @@ export function weekStreak(runs: readonly Run[], goalM: number | null, now = Dat
     best = Math.max(best, run);
   });
   return { current, best, kind };
+}
+
+export interface YearToDate {
+  year: number;
+  thisYear: { distanceM: number; durationS: number; runs: number };
+  /** Last year from 1 January to the same day and hour. */
+  lastYear: { distanceM: number; durationS: number; runs: number };
+}
+
+/**
+ * This year so far against last year at the same point.
+ *
+ * Up to the same day, not the whole of last year: in September, a year that
+ * is not over against one that is would always be losing.
+ */
+export function yearToDate(runs: readonly Run[], now = Date.now()): YearToDate {
+  const today = new Date(now);
+  const year = today.getFullYear();
+  const thisStart = new Date(year, 0, 1).getTime();
+  const lastStart = new Date(year - 1, 0, 1).getTime();
+  const lastUntil = new Date(
+    year - 1, today.getMonth(), today.getDate(), today.getHours(), today.getMinutes(),
+  ).getTime();
+  const sum = (from: number, to: number) => runs
+    .filter((run) => run.startedAt >= from && run.startedAt <= to)
+    .reduce(
+      (totals, run) => ({
+        distanceM: totals.distanceM + run.distanceM,
+        durationS: totals.durationS + run.durationS,
+        runs: totals.runs + 1,
+      }),
+      { distanceM: 0, durationS: 0, runs: 0 },
+    );
+  return { year, thisYear: sum(thisStart, now), lastYear: sum(lastStart, lastUntil) };
 }

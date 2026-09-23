@@ -9,7 +9,7 @@ import { defineStrings, useStrings } from "@/lib/i18n";
 import { inSentence, performanceTitles, readSection } from "@/lib/performance";
 import { goalName } from "@/lib/plan";
 import { effortSamples, predictRaces } from "@/lib/predictions";
-import { useSettings } from "@/lib/settings";
+import { useSettings, weeklyGoal } from "@/lib/settings";
 import { weeklyVolumeKm, weekStreak } from "@/lib/stats";
 import { colors, font } from "@/lib/theme";
 import { distanceUnit, elevationUnit, paceUnit } from "@/lib/units";
@@ -124,7 +124,7 @@ export default function PerformanceScreen() {
         detail: records.mostElevation.name ?? undefined, runId: records.mostElevation.id,
       });
     }
-    const streak = weekStreak(data.runs, settings.weeklyGoalM, data.readAt);
+    const streak = weekStreak(data.runs, weeklyGoal(settings), data.readAt);
     if (streak.best >= 2) {
       rows.push({
         key: "streak", icon: "flame-outline", label: s.longestStreak, value: s.weeks(streak.best),

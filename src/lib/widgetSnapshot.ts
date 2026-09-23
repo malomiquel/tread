@@ -1,4 +1,5 @@
 import { formatDistance, formatDuration, formatPace } from "./format.ts";
+import { goalAmount, measure, type WeeklyGoal } from "./goals.ts";
 import { defineStrings, intlLocale, plural } from "./i18n.ts";
 import { distanceUnit, paceUnit } from "./units.ts";
 
@@ -33,7 +34,9 @@ export interface WidgetInput {
   weekDistanceM: number;
   weekRuns: number;
   weekDurationS: number;
-  goalM: number | null;
+  /** Metres climbed this week, for a goal that counts climb. */
+  weekClimbM?: number;
+  goal: WeeklyGoal | null;
   next: { at: number; name: string; kind: string; targetSKm: number } | null;
   now: number;
 }
@@ -42,8 +45,8 @@ const widgetWords = defineStrings({
   fr: {
     thisWeek: "Cette semaine",
     runs: (n: number) => plural(n, "course", "courses"),
-    goalLeft: (left: string, goal: string, unit: string) => `${left} ${unit} pour tenir ${goal} ${unit}`,
-    goalDone: (goal: string, unit: string) => `Objectif de ${goal} ${unit} atteint`,
+    goalLeft: (left: string, goal: string) => `${left} pour tenir ${goal}`,
+    goalDone: (goal: string) => `Objectif de ${goal} atteint`,
     nextTitle: "Prochaine séance",
     today: "Aujourd'hui",
     tomorrow: "Demain",
@@ -52,8 +55,8 @@ const widgetWords = defineStrings({
   en: {
     thisWeek: "This week",
     runs: (n: number) => plural(n, "run", "runs"),
-    goalLeft: (left: string, goal: string, unit: string) => `${left} ${unit} to go of ${goal} ${unit}`,
-    goalDone: (goal: string, unit: string) => `${goal} ${unit} goal reached`,
+    goalLeft: (left: string, goal: string) => `${left} to go of ${goal}`,
+    goalDone: (goal: string) => `${goal} goal reached`,
     nextTitle: "Next session",
     today: "Today",
     tomorrow: "Tomorrow",
@@ -77,7 +80,10 @@ function whenLabel(at: number, now: number): string {
 export function widgetSnapshot(input: WidgetInput): WidgetSnapshot {
   const words = widgetWords();
   const unit = distanceUnit();
-  const goal = input.goalM !== null && input.goalM > 0 ? input.goalM : null;
+  const goal = input.goal;
+  const covered = goal === null ? 0 : measure(goal.kind, {
+    distanceM: input.weekDistanceM, durationS: input.weekDurationS, climbM: input.weekClimbM ?? 0,
+  });
   const detail = input.weekRuns > 0
     ? `${words.runs(input.weekRuns)} · ${formatDuration(input.weekDurationS)}`
     : words.runs(0);
@@ -87,12 +93,12 @@ export function widgetSnapshot(input: WidgetInput): WidgetSnapshot {
     distance: formatDistance(input.weekDistanceM),
     unit,
     detail,
-    goalShare: goal === null ? null : Math.min(1, input.weekDistanceM / goal),
+    goalShare: goal === null ? null : Math.min(1, covered / goal.target),
     goalText: goal === null
       ? null
-      : input.weekDistanceM >= goal
-        ? words.goalDone(formatDistance(goal), unit)
-        : words.goalLeft(formatDistance(goal - input.weekDistanceM), formatDistance(goal), unit),
+      : covered >= goal.target
+        ? words.goalDone(goalAmount(goal.kind, goal.target))
+        : words.goalLeft(goalAmount(goal.kind, goal.target - covered), goalAmount(goal.kind, goal.target)),
     nextTitle: words.nextTitle,
     next: input.next === null
       ? null

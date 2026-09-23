@@ -6,24 +6,22 @@ import { SettingsGroup } from "@/components/SettingsGroup";
 import { WeeklyGoalSheet } from "@/components/WeeklyGoalSheet";
 import { currentBuild } from "@/lib/build";
 import { listRuns, listShoes } from "@/lib/db";
-import { formatDistance } from "@/lib/format";
 import { defineStrings, useStrings } from "@/lib/i18n";
 import { LANGUAGE_NAMES } from "@/lib/language";
 import { radiusLabel } from "@/lib/privacy";
 import { reminderName } from "@/lib/reminders";
 import { runnerWords } from "@/lib/runner";
 import { unitChoiceWords } from "@/lib/unitChoice";
-import { forgetWelcome, toggleAutoPause, toggleVoice, useSettings } from "@/lib/settings";
+import { forgetWelcome, toggleAutoPause, toggleVoice, useSettings, weeklyGoal } from "@/lib/settings";
+import { goalAmount } from "@/lib/goals";
 import { suggestedWeeklyGoalM } from "@/lib/stats";
 import { colors } from "@/lib/theme";
-import { distanceUnit } from "@/lib/units";
 
 const settingsStrings = defineStrings({
   fr: {
     training: "Entraînement",
     weeklyGoal: "Objectif hebdomadaire",
     noGoal: "Aucun",
-    goalValue: (km: string) => `${km} ${distanceUnit()}`,
     reminders: "Rappels de séance",
     shoes: "Chaussures",
     noShoe: "Aucune",
@@ -52,7 +50,6 @@ const settingsStrings = defineStrings({
     training: "Training",
     weeklyGoal: "Weekly goal",
     noGoal: "None",
-    goalValue: (km: string) => `${km} ${distanceUnit()}`,
     reminders: "Session reminders",
     shoes: "Shoes",
     noShoe: "None",
@@ -100,6 +97,7 @@ export default function SettingsScreen() {
   const router = useRouter();
   const settings = useSettings();
   const s = useStrings(settingsStrings);
+  const goal = weeklyGoal(settings);
   const [editingGoal, setEditingGoal] = useState(false);
   /** Their own recent average, so the goal sheet opens on a figure they know. */
   const [suggestedM, setSuggestedM] = useState(5000);
@@ -134,7 +132,7 @@ export default function SettingsScreen() {
         <SettingRow
           icon="flag-outline"
           label={s.weeklyGoal}
-          value={settings.weeklyGoalM === null ? s.noGoal : s.goalValue(formatDistance(settings.weeklyGoalM))}
+          value={goal === null ? s.noGoal : goalAmount(goal.kind, goal.target)}
           onPress={() => setEditingGoal(true)}
         />
         <SettingRow
@@ -243,7 +241,6 @@ export default function SettingsScreen() {
 
       <WeeklyGoalSheet
         visible={editingGoal}
-        goalM={settings.weeklyGoalM}
         suggestedM={suggestedM}
         onClose={() => setEditingGoal(false)}
       />

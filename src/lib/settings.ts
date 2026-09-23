@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { deleteSettings, readSettings, writeSetting } from "./db";
+import { goalFromSettings, readGoalKind, type GoalKind, type WeeklyGoal } from "./goals";
 import { applyLanguage, readLanguageChoice, type LanguageChoice } from "./language";
 import { DEFAULT_PRIVACY_RADIUS, readPrivacyRadius, type PrivacyRadius } from "./privacy";
 import { readRunnerProfile, type RunnerProfile } from "./runner";
@@ -27,6 +28,12 @@ export interface Settings {
    * nobody chose is a reproach nobody earned.
    */
   weeklyGoalM: number | null;
+  /** What the weekly goal counts: distance, time or climb. */
+  goalKind: GoalKind;
+  /** The weekly goal in time, in seconds, when the goal counts time. */
+  weeklyGoalS: number | null;
+  /** The weekly goal in climb, in metres, when the goal counts climb. */
+  weeklyGoalClimbM: number | null;
   /**
    * When a planned session is announced, or off.
    *
@@ -70,7 +77,8 @@ export interface Settings {
 }
 
 const DEFAULTS: Settings = {
-  voice: true, targetPaceSKm: null, weeklyGoalM: null, reminder: "off", routeId: null,
+  voice: true, targetPaceSKm: null, weeklyGoalM: null, goalKind: "distance", weeklyGoalS: null,
+  weeklyGoalClimbM: null, reminder: "off", routeId: null,
   welcomed: false, language: "auto", runner: null, raceSetupOffered: false, autoPause: false, units: "auto", privacyRadiusM: DEFAULT_PRIVACY_RADIUS,
 };
 
@@ -94,6 +102,9 @@ export async function loadSettings(): Promise<void> {
       voice: stored.voice ? stored.voice === "true" : DEFAULTS.voice,
       targetPaceSKm: readTarget(stored.targetPaceSKm),
       weeklyGoalM: readGoal(stored.weeklyGoalM),
+      goalKind: readGoalKind(stored.goalKind),
+      weeklyGoalS: readTarget(stored.weeklyGoalS),
+      weeklyGoalClimbM: readTarget(stored.weeklyGoalClimbM),
       reminder: readReminderWhen(stored.reminder),
       routeId: readId(stored.routeId),
       welcomed: stored.welcomed === "true",
@@ -184,6 +195,19 @@ export async function setTargetPace(seconds: number | null): Promise<void> {
 export async function setWeeklyGoal(metres: number | null): Promise<void> {
   await store({ ...current, weeklyGoalM: metres }, "weeklyGoalM", String(metres));
 }
+
+/**
+ * Set the weekly goal in any measure, or null to drop it. Each measure keeps
+ * its own figure, so switching back finds the old one where it was left.
+ */
+export async function setGoal(kind: GoalKind, value: number | null): Promise<void> {
+  const key = kind === "time" ? "weeklyGoalS" : kind === "climb" ? "weeklyGoalClimbM" : "weeklyGoalM";
+  await store({ ...current, [key]: value, goalKind: kind }, key, String(value));
+  await store({ ...current, goalKind: kind }, "goalKind", kind);
+}
+
+/** The weekly goal in force, or null. */
+export const weeklyGoal = (settings: Settings = current): WeeklyGoal | null => goalFromSettings(settings);
 
 /** Say when planned sessions are announced, or "off" to stop announcing them. */
 export async function setReminder(when: ReminderWhen): Promise<void> {

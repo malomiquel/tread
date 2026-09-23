@@ -2,53 +2,54 @@ import { useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { Button } from "@/components/Button";
 import { HoldButton } from "@/components/HoldButton";
-import { formatDistance } from "@/lib/format";
+import { Segmented } from "@/components/Segmented";
+import {
+  GOAL_KINDS, GOAL_MAX, GOAL_START, goalAmount, goalKindName, goalStep, type GoalKind,
+} from "@/lib/goals";
 import { defineStrings, useStrings } from "@/lib/i18n";
-import { setWeeklyGoal } from "@/lib/settings";
+import { setGoal, useSettings } from "@/lib/settings";
 import { colors, font } from "@/lib/theme";
-import { distanceUnit, unitLengthM } from "@/lib/units";
 
 const weeklyGoalStrings = defineStrings({
   fr: {
     title: "Objectif hebdomadaire",
-    lede: "La distance à couvrir du lundi au dimanche. Elle n'est comparée à rien d'autre qu'à elle-même.",
+    lede: {
+      distance: "La distance à couvrir du lundi au dimanche.",
+      time: "Le temps à courir du lundi au dimanche, quelle que soit l'allure : pour le trail, ou pour reprendre.",
+      climb: "Le dénivelé à grimper du lundi au dimanche, pour préparer la montagne.",
+    } as Record<GoalKind, string>,
     decrease: "Diminuer l'objectif",
     increase: "Augmenter l'objectif",
-    perWeek: (unit: string) => `${unit} par semaine`,
+    perWeek: "par semaine",
     cancel: "Annuler",
     keep: "Garder",
     remove: "Retirer l'objectif",
   },
   en: {
     title: "Weekly goal",
-    lede: "The distance to cover from Monday to Sunday. It is measured against nothing but itself.",
+    lede: {
+      distance: "The distance to cover from Monday to Sunday.",
+      time: "The time to run from Monday to Sunday, whatever the pace: for trails, or for getting back into it.",
+      climb: "The climb to cover from Monday to Sunday, to get ready for the mountains.",
+    },
     decrease: "Lower the goal",
     increase: "Raise the goal",
-    perWeek: (unit: string) => `${unit} per week`,
+    perWeek: "per week",
     cancel: "Cancel",
     keep: "Keep",
     remove: "Remove the goal",
   },
 });
 
-/**
- * One unit a tap — a kilometre, or a mile — which is the smallest change
- * worth making to a week. The goal is kept in metres either way.
- */
-const step = () => unitLengthM();
-const HIGHEST_M = 300_000;
-
 interface Props {
   visible: boolean;
-  /** The goal as it stands, in metres, or null when there is none. */
-  goalM: number | null;
-  /** What to offer somebody who has never set one: their own recent average. */
+  /** What to offer somebody who has never set a distance: their own recent average. */
   suggestedM: number;
   onClose: () => void;
 }
 
 /**
- * Choosing the week's distance.
+ * Choosing the week's goal: a distance, a time or a climb.
  *
  * A stepper rather than a list of round numbers, because the useful goal is
  * rarely a round number: it is usually a little more than what you already
@@ -60,28 +61,42 @@ interface Props {
  * has outgrown, or set on an optimistic evening, must be as easy to put down
  * as it was to pick up.
  */
-export function WeeklyGoalSheet({ visible, goalM, suggestedM, onClose }: Props) {
+export function WeeklyGoalSheet({ visible, suggestedM, onClose }: Props) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       {/* The body exists only while the sheet is open, which is what lets the
           draft below start from the goal rather than being pushed back to it
           every time the sheet reopens. A modal keeps its children alive when
           it closes, and a stale draft would come back with it. */}
-      {visible ? <Sheet goalM={goalM} suggestedM={suggestedM} onClose={onClose} /> : null}
+      {visible ? <Sheet suggestedM={suggestedM} onClose={onClose} /> : null}
     </Modal>
   );
 }
 
-function Sheet({ goalM, suggestedM, onClose }: Omit<Props, "visible">) {
+function Sheet({ suggestedM, onClose }: Omit<Props, "visible">) {
   const s = useStrings(weeklyGoalStrings);
-  const [draft, setDraft] = useState(goalM ?? suggestedM);
+  const settings = useSettings();
+  const stored: Record<GoalKind, number | null> = {
+    distance: settings.weeklyGoalM, time: settings.weeklyGoalS, climb: settings.weeklyGoalClimbM,
+  };
+  const [kind, setKind] = useState<GoalKind>(settings.goalKind);
+  // One draft per measure, each starting where that measure was left, so
+  // switching back and forth loses nothing.
+  const [drafts, setDrafts] = useState<Record<GoalKind, number>>(() => ({
+    distance: stored.distance ?? suggestedM,
+    time: stored.time ?? GOAL_START.time,
+    climb: stored.climb ?? GOAL_START.climb,
+  }));
+  const draft = drafts[kind];
+  const step = goalStep(kind);
+  const hasGoal = stored[settings.goalKind] !== null;
 
   const move = (by: number) =>
-    setDraft((metres) => Math.min(HIGHEST_M, Math.max(step(), metres + by)));
+    setDrafts((held) => ({ ...held, [kind]: Math.min(GOAL_MAX[kind], Math.max(step, held[kind] + by)) }));
 
-  async function keep(metres: number | null) {
+  async function keep(value: number | null) {
     onClose();
-    await setWeeklyGoal(metres).catch(() => undefined);
+    await setGoal(value === null ? settings.goalKind : kind, value).catch(() => undefined);
   }
 
   return (
@@ -89,24 +104,29 @@ function Sheet({ goalM, suggestedM, onClose }: Omit<Props, "visible">) {
       {/* Stops a tap inside the sheet from closing it. */}
       <Pressable onPress={() => undefined} style={styles.sheet}>
         <Text style={styles.title}>{s.title}</Text>
-        <Text style={styles.lede}>{s.lede}</Text>
+        <Segmented
+          options={GOAL_KINDS.map((option) => ({ value: option, label: goalKindName(option) }))}
+          value={kind}
+          onChange={setKind}
+        />
+        <Text style={styles.lede}>{s.lede[kind]}</Text>
 
         <View style={styles.stepper}>
           <HoldButton
-            onStep={() => move(-step())}
+            onStep={() => move(-step)}
             label="−"
             accessibilityLabel={s.decrease}
-            disabled={draft <= step()}
+            disabled={draft <= step}
           />
           <View style={styles.value}>
-            <Text style={styles.number}>{formatDistance(draft)}</Text>
-            <Text style={styles.unit}>{s.perWeek(distanceUnit())}</Text>
+            <Text style={styles.number} adjustsFontSizeToFit numberOfLines={1}>{goalAmount(kind, draft)}</Text>
+            <Text style={styles.unit}>{s.perWeek}</Text>
           </View>
           <HoldButton
-            onStep={() => move(step())}
+            onStep={() => move(step)}
             label="+"
             accessibilityLabel={s.increase}
-            disabled={draft >= HIGHEST_M}
+            disabled={draft >= GOAL_MAX[kind]}
           />
         </View>
 
@@ -115,7 +135,7 @@ function Sheet({ goalM, suggestedM, onClose }: Omit<Props, "visible">) {
           <Button label={s.keep} onPress={() => void keep(draft)} />
         </View>
 
-        {goalM !== null ? (
+        {hasGoal ? (
           <Pressable
             onPress={() => void keep(null)}
             accessibilityRole="button"
@@ -144,7 +164,7 @@ const styles = StyleSheet.create({
   stepper: { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 6 },
   value: { flex: 1, alignItems: "center" },
   number: {
-    color: colors.text, fontSize: 44, fontFamily: font.bold,
+    color: colors.text, fontSize: 38, fontFamily: font.bold,
     letterSpacing: -1, fontVariant: ["tabular-nums"], lineHeight: 50,
   },
   unit: { color: colors.subtle, fontSize: 13.5, fontFamily: font.regular },
