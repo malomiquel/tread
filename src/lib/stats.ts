@@ -200,3 +200,61 @@ export function monthSummary(runs: Run[], now = Date.now()): MonthSummary {
     previous: { distanceM: previous?.distanceM ?? 0, start: previousStart },
   };
 }
+
+/** Weeks in a row that counted, now and at best. */
+export interface Streak {
+  /** Up to this week; 0 when the last full week did not count. */
+  current: number;
+  /** The longest there has ever been. */
+  best: number;
+  /** What made a week count: the weekly goal met, or simply a run. */
+  kind: "goal" | "active";
+}
+
+const DAY_MS = 86_400_000;
+
+/**
+ * How many weeks in a row have counted.
+ *
+ * With a weekly goal, a week counts when the goal was met; without one, when
+ * there was a run at all — a habit is worth keeping before anyone sets a
+ * figure on it. Measured against today's goal, since the app does not keep
+ * the old ones: raising it can shorten a streak, which is what raising a
+ * goal means.
+ *
+ * The week under way never breaks a streak: on a Tuesday it has barely
+ * begun. It adds to it once it counts.
+ */
+export function weekStreak(runs: readonly Run[], goalM: number | null, now = Date.now()): Streak {
+  const kind = goalM !== null && goalM > 0 ? "goal" : "active";
+  const totals = new Map<number, number>();
+  for (const run of runs) {
+    const week = weekStart(run.startedAt);
+    totals.set(week, (totals.get(week) ?? 0) + run.distanceM);
+  }
+  const counts = (week: number): boolean => {
+    const covered = totals.get(week);
+    if (covered === undefined) return false;
+    return kind === "goal" ? covered >= (goalM ?? 0) : true;
+  };
+  // A day before a Monday is always in the week before, whatever the clocks
+  // did in between; seven days of milliseconds is not, across a time change.
+  const before = (week: number): number => weekStart(week - DAY_MS);
+
+  const thisWeek = weekStart(now);
+  let current = 0;
+  let week = counts(thisWeek) ? thisWeek : before(thisWeek);
+  while (counts(week)) {
+    current += 1;
+    week = before(week);
+  }
+
+  let best = 0;
+  const counted = [...totals.keys()].filter((start) => start <= thisWeek && counts(start)).sort((a, b) => a - b);
+  let run = 0;
+  counted.forEach((start, i) => {
+    run = i > 0 && before(start) === counted[i - 1] ? run + 1 : 1;
+    best = Math.max(best, run);
+  });
+  return { current, best, kind };
+}

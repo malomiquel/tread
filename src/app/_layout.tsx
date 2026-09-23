@@ -210,6 +210,8 @@ export default function RootLayout() {
           {/* A page of its own, with its own rooms under it. Naming each back
               button after the page it returns to is what makes a hierarchy
               readable from inside it. */}
+          {/* Titled by the page itself, from the list it was opened on. */}
+          <Stack.Screen name="performance/[section]" options={{ headerBackTitle: s.profile }} />
           <Stack.Screen name="settings/index" options={{ title: s.settings, headerBackTitle: s.profile }} />
           <Stack.Screen
             name="settings/notifications"

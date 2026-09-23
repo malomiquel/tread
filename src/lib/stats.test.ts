@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { formatEnergy, formatSpeed } from "./format.ts";
 import {
   byMonth, monthSummary,
-  goalProgress, suggestedWeeklyGoalM, timeAgo, weeklyVolumeKm, weekStart, weekTotals,
+  goalProgress, suggestedWeeklyGoalM, timeAgo, weeklyVolumeKm, weekStart, weekStreak, weekTotals,
 } from "./stats.ts";
 
 const run = (startedAt: number, distanceM = 5000, durationS = 1500) =>
@@ -177,4 +177,28 @@ test("a month with no runs yet is zero, not missing", () => {
   const summary = monthSummary([run(new Date(2025, 11, 28).getTime())], now);
   assert.equal(summary.current.runs, 0);
   assert.equal(summary.previous.distanceM, 5000);
+});
+
+test("a streak counts weeks in a row, and the week under way never breaks it", () => {
+  // Wednesday 23 September 2026; weeks start on the 21st, 14th, 7th, 31 Aug, 24 Aug.
+  const now = new Date(2026, 8, 23, 12).getTime();
+  const on = (day: number, month = 8) => new Date(2026, month, day, 9).getTime();
+  const runs = [run(on(15)), run(on(8)), run(on(1)), run(on(25, 7))] as never[];
+  assert.deepEqual(weekStreak(runs, null, now), { current: 4, best: 4, kind: "active" });
+  // Once this week has a run, it joins.
+  assert.equal(weekStreak([...runs, run(on(22))] as never[], null, now).current, 5);
+});
+
+test("with a goal, only the weeks that met it count", () => {
+  const now = new Date(2026, 8, 23, 12).getTime();
+  const on = (day: number) => new Date(2026, 8, day, 9).getTime();
+  const runs = [run(on(15), 12_000), run(on(8), 8_000), run(on(9), 3_000), run(on(1), 4_000)] as never[];
+  assert.deepEqual(weekStreak(runs, 10_000, now), { current: 2, best: 2, kind: "goal" });
+});
+
+test("a missed week ends the streak", () => {
+  const now = new Date(2026, 8, 23, 12).getTime();
+  const runs = [run(new Date(2026, 8, 8, 9).getTime())] as never[];
+  assert.equal(weekStreak(runs, null, now).current, 0);
+  assert.equal(weekStreak(runs, null, now).best, 1);
 });

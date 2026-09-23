@@ -5,16 +5,20 @@ import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { EmptyState } from "@/components/EmptyState";
 import { HeaderButton } from "@/components/HeaderButton";
+import { RecordRow } from "@/components/RecordRow";
 import { SectionHeader } from "@/components/SectionHeader";
 import { BannerTag, bannerText, SummaryBanner } from "@/components/SummaryBanner";
 import { WeeklyGoalSheet } from "@/components/WeeklyGoalSheet";
 import { effortRecords, listRuns, personalRecords, type EffortRecord, type PersonalRecords, type Run } from "@/lib/db";
 import { effortName } from "@/lib/efforts";
-import { formatDate, formatDistance, formatDuration, formatElevation, formatPace } from "@/lib/format";
+import { formatDistance, formatDuration, formatElevation } from "@/lib/format";
 import { defineStrings, plural, useStrings } from "@/lib/i18n";
 import { useTabBarSpace } from "@/lib/layout";
 import { useSettings } from "@/lib/settings";
-import { goalProgress, suggestedWeeklyGoalM, weekStart } from "@/lib/stats";
+import { performanceTitles, type PerformanceSection } from "@/lib/performance";
+import { goalName } from "@/lib/plan";
+import { effortSamples, predictRaces } from "@/lib/predictions";
+import { goalProgress, suggestedWeeklyGoalM, weeklyVolumeKm, weekStart, weekStreak } from "@/lib/stats";
 import { colors, font } from "@/lib/theme";
 import { distanceUnit, elevationUnit } from "@/lib/units";
 import { chooseSession } from "@/lib/tracker";
@@ -39,18 +43,16 @@ const profileStrings = defineStrings({
       `${remaining} ${distanceUnit()} pour tenir l'objectif de ${km} ${distanceUnit()}`,
     goalInvite: "Se fixer un objectif hebdomadaire",
     today: "auj.",
-    records: "Records",
+    performance: "Performances",
     longest: "Plus longue sortie",
-    fastestKm: "Kilomètre le plus rapide",
-    bestAvgPace: "Meilleure allure moyenne",
-    bestAvgPaceDetail: "sur 2 km minimum",
-    mostElevation: "Plus fort dénivelé",
     allTime: "Depuis le début",
-    bestEfforts: "Meilleures performances",
     totalRuns: "Courses",
     distance: "Distance",
     time: "Temps",
     elevation: "Dénivelé",
+    streakGoal: (weeks: number) => `Objectif tenu ${weeks} semaines d'affilée`,
+    streakActive: (weeks: number) => `${weeks} semaines d'affilée`,
+    predicted: (race: string) => `${race}, prédit`,
   },
   en: {
     title: "Profile",
@@ -71,18 +73,16 @@ const profileStrings = defineStrings({
       `${remaining} ${distanceUnit()} to go to reach your ${km} ${distanceUnit()} goal`,
     goalInvite: "Set yourself a weekly goal",
     today: "now",
-    records: "Personal records",
+    performance: "Performance",
     longest: "Longest run",
-    fastestKm: "Fastest kilometre",
-    bestAvgPace: "Best average pace",
-    bestAvgPaceDetail: "over 2 km or more",
-    mostElevation: "Most elevation gain",
     allTime: "All time",
-    bestEfforts: "Best efforts",
     totalRuns: "Runs",
     distance: "Distance",
     time: "Time",
     elevation: "Elevation gain",
+    streakGoal: (weeks: number) => `Goal met ${weeks} weeks in a row`,
+    streakActive: (weeks: number) => `${weeks} weeks in a row`,
+    predicted: (race: string) => `${race}, predicted`,
   },
 });
 
@@ -115,34 +115,6 @@ function byWeek(runs: Run[]): Week[] {
     week.runs += 1;
   }
   return [...weeks.values()];
-}
-
-type Icon = React.ComponentProps<typeof Ionicons>["name"];
-
-/** One record: what it is, where it was set, and the figure. */
-function RecordRow({
-  icon, label, value, detail, first,
-}: {
-  icon: Icon;
-  label: string;
-  value: string;
-  detail?: string;
-  first: boolean;
-}) {
-  return (
-    <View style={styles.record}>
-      <View style={styles.recordMark}>
-        <Ionicons name={icon} size={19} color={colors.accent} />
-      </View>
-      <View style={[styles.recordBody, !first && styles.recordRule]}>
-        <View style={styles.recordText}>
-          <Text style={styles.recordLabel} numberOfLines={1}>{label}</Text>
-          {detail ? <Text style={styles.recordDetail} numberOfLines={1}>{detail}</Text> : null}
-        </View>
-        <Text style={styles.recordValue}>{value}</Text>
-      </View>
-    </View>
-  );
 }
 
 /** One all-time figure, in a tile of its own. */
@@ -178,9 +150,12 @@ export default function ProfileScreen() {
    * having nothing to do.
    */
   const s = useStrings(profileStrings);
+  const titles = useStrings(performanceTitles);
   const page = useRef<ScrollView>(null);
   useScrollToTop(page);
-  const [weeks, setWeeks] = useState<Week[] | null>(null);
+  const [runs, setRuns] = useState<Run[] | null>(null);
+  /** When they were read: the moment every "recent" on this page counts back from. */
+  const [readAt, setReadAt] = useState(0);
   const [records, setRecords] = useState<PersonalRecords | null>(null);
   /** Fastest time over each classic distance, across every run. */
   const [efforts, setEfforts] = useState<EffortRecord[]>([]);
@@ -197,7 +172,8 @@ export default function ProfileScreen() {
       Promise.all([listRuns(), personalRecords(), effortRecords()])
         .then(([runs, best, fastest]) => {
           if (!active) return;
-          setWeeks(byWeek(runs));
+          setRuns(runs);
+          setReadAt(Date.now());
           setRecords(best);
           setEfforts(fastest);
           setSuggestedM(suggestedWeeklyGoalM(runs));
@@ -212,7 +188,7 @@ export default function ProfileScreen() {
   // The heading stays while the figures are fetched. An empty screen for the
   // length of a query is indistinguishable from a broken one, and it is the
   // whole of what people were seeing as a white page between tabs.
-  if (!weeks || !records) {
+  if (!runs || !records) {
     return (
       <SafeAreaView style={styles.screen} edges={["top"]}>
         <View style={styles.head}>
@@ -222,45 +198,25 @@ export default function ProfileScreen() {
     );
   }
 
+  const weeks = byWeek(runs);
   const current = weeks[weeks.length - 1];
+  const streak = weekStreak(runs, settings.weeklyGoalM, readAt);
+  // Projected with the weekly volume the plans use, so a race time here and
+  // the pace a programme hands out come from the same runner.
+  const predictions = predictRaces(effortSamples(runs), readAt, weeklyVolumeKm(runs, readAt));
   const peak = Math.max(...weeks.map((w) => w.distanceM), 1);
   const goal = goalProgress(current.distanceM, settings.weeklyGoalM);
 
-  // Only the records that exist: a runner with no hill yet has no climb to
-  // show, and an empty row would read as a broken one.
-  const recordRows: { icon: Icon; label: string; value: string; detail?: string }[] = [];
-  if (records.longest) {
-    recordRows.push({
-      icon: "trail-sign-outline",
-      label: s.longest,
-      value: `${formatDistance(records.longest.distanceM)} ${distanceUnit()}`,
-      detail: records.longest.name ?? undefined,
-    });
-  }
-  if (records.fastestKm?.fastestKmS != null) {
-    recordRows.push({
-      icon: "flash-outline",
-      label: s.fastestKm,
-      value: formatPace(records.fastestKm.fastestKmS),
-      detail: records.fastestKm.name ?? undefined,
-    });
-  }
-  if (records.bestAvgPace?.avgPaceSKm != null) {
-    recordRows.push({
-      icon: "speedometer-outline",
-      label: s.bestAvgPace,
-      value: formatPace(records.bestAvgPace.avgPaceSKm),
-      detail: s.bestAvgPaceDetail,
-    });
-  }
-  if (records.mostElevation?.elevationGainM != null && records.mostElevation.elevationGainM > 0) {
-    recordRows.push({
-      icon: "trending-up-outline",
-      label: s.mostElevation,
-      value: `${formatElevation(records.mostElevation.elevationGainM)} ${elevationUnit()}`,
-      detail: records.mostElevation.name ?? undefined,
-    });
-  }
+  // The headline of each list, and the way into the rest of it. The lists
+  // themselves used to be stacked here, twenty rows under the week; the page
+  // now says the one figure of each worth knowing and keeps the rest a tap
+  // away.
+  const open = (section: PerformanceSection) =>
+    router.push({ pathname: "/performance/[section]", params: { section } });
+  // The 5K and the 10K are the distances most runners know their time for,
+  // so they are the ones worth leading with; failing that, the longest there is.
+  const effort = efforts.find((held) => held.key === "5000") ?? efforts[efforts.length - 1] ?? null;
+  const prediction = predictions.find((held) => held.goal === "tenK") ?? predictions[predictions.length - 1] ?? null;
 
   return (
     <SafeAreaView style={styles.screen} edges={["top"]}>
@@ -338,12 +294,27 @@ export default function ProfileScreen() {
                       )}
                   </Text>
                 </View>
-              ) : (
-                <BannerTag>
-                  <Ionicons name="flag-outline" size={15} color={colors.accentText} />
-                  <Text style={bannerText.tag}>{s.goalInvite}</Text>
-                </BannerTag>
-              )}
+              ) : null}
+              {/* A streak is said only once there is one: a single week in a
+                  row is just a week. */}
+              {streak.current >= 2 || !goal ? (
+                <View style={styles.tags}>
+                  {streak.current >= 2 ? (
+                    <BannerTag>
+                      <Ionicons name="flame-outline" size={15} color={colors.accentText} />
+                      <Text style={bannerText.tag}>
+                        {streak.kind === "goal" ? s.streakGoal(streak.current) : s.streakActive(streak.current)}
+                      </Text>
+                    </BannerTag>
+                  ) : null}
+                  {!goal ? (
+                    <BannerTag>
+                      <Ionicons name="flag-outline" size={15} color={colors.accentText} />
+                      <Text style={bannerText.tag}>{s.goalInvite}</Text>
+                    </BannerTag>
+                  ) : null}
+                </View>
+              ) : null}
             </SummaryBanner>
 
             <SectionHeader title={s.progress} aside={s.lastWeeks(WEEKS_SHOWN)} />
@@ -366,25 +337,36 @@ export default function ProfileScreen() {
               ))}
             </View>
 
-            <SectionHeader title={s.records} />
-            {recordRows.map((row, index) => (
-              <RecordRow key={row.label} first={index === 0} {...row} />
-            ))}
-
-            {efforts.length > 0 ? (
-              <>
-                <SectionHeader title={s.bestEfforts} />
-                {efforts.map((effort, index) => (
-                  <RecordRow
-                    key={effort.key}
-                    first={index === 0}
-                    icon="stopwatch-outline"
-                    label={effortName(effort.key)}
-                    value={formatDuration(Math.round(effort.seconds))}
-                    detail={effort.run.name ?? formatDate(effort.run.startedAt)}
-                  />
-                ))}
-              </>
+            <SectionHeader title={s.performance} />
+            {records.longest ? (
+              <RecordRow
+                first
+                icon="trophy-outline"
+                label={titles.records}
+                detail={s.longest}
+                value={`${formatDistance(records.longest.distanceM)} ${distanceUnit()}`}
+                onPress={() => open("records")}
+              />
+            ) : null}
+            {effort ? (
+              <RecordRow
+                first={!records.longest}
+                icon="stopwatch-outline"
+                label={titles.efforts}
+                detail={effortName(effort.key)}
+                value={formatDuration(Math.round(effort.seconds))}
+                onPress={() => open("efforts")}
+              />
+            ) : null}
+            {prediction ? (
+              <RecordRow
+                first={!records.longest && !effort}
+                icon="flag-outline"
+                label={titles.predictions}
+                detail={s.predicted(goalName(prediction.goal))}
+                value={formatDuration(Math.round(prediction.timeS))}
+                onPress={() => open("predictions")}
+              />
             ) : null}
 
             <SectionHeader title={s.allTime} />
@@ -426,6 +408,7 @@ const styles = StyleSheet.create({
   subtitle: { color: colors.subtle, fontFamily: font.regular, fontSize: 15, marginTop: 3 },
 
   goal: { gap: 5, marginTop: 8 },
+  tags: { flexDirection: "row", flexWrap: "wrap", columnGap: 6 },
   goalBar: {
     height: 5, borderRadius: 2.5, overflow: "hidden",
     backgroundColor: "rgba(255, 255, 255, 0.22)",
@@ -442,25 +425,6 @@ const styles = StyleSheet.create({
   barCurrent: { backgroundColor: colors.accent },
   weekLabel: { color: colors.subtle, fontFamily: font.regular, fontSize: 13, fontVariant: ["tabular-nums"] },
   weekLabelCurrent: { color: colors.accent, fontFamily: font.semibold },
-
-  // Laid out like a run in the history: a mark on the left, a rule that
-  // starts after it, the figure on the right.
-  record: { flexDirection: "row", alignItems: "center", gap: 14, paddingLeft: GUTTER },
-  recordMark: {
-    width: 40, height: 40, borderRadius: 12,
-    alignItems: "center", justifyContent: "center", backgroundColor: colors.accentSoft,
-  },
-  recordBody: {
-    flex: 1, flexDirection: "row", alignItems: "center", gap: 12,
-    paddingVertical: 12, paddingRight: GUTTER,
-  },
-  recordRule: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline },
-  recordText: { flex: 1, gap: 1 },
-  recordLabel: { color: colors.text, fontSize: 16.5, fontFamily: font.semibold },
-  recordDetail: { color: colors.subtle, fontSize: 14 },
-  recordValue: {
-    color: colors.text, fontSize: 21, fontFamily: font.semibold, fontVariant: ["tabular-nums"],
-  },
 
   totals: { flexDirection: "row", flexWrap: "wrap", gap: 10, paddingHorizontal: GUTTER, paddingTop: 2 },
   total: {

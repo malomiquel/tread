@@ -83,7 +83,7 @@ when it is done; add a line when something new comes up.
 ### Quality
 - [x] Pace rounding fixed (4'59"6 showed as 4'00")
 - [x] `DESIGN.md` design system, loaded by `CLAUDE.md` in every session
-- [x] 322 unit tests; typecheck, lint, expo-doctor 21/21, iOS bundle
+- [x] 336 unit tests; typecheck, lint, expo-doctor 21/21, iOS bundle
 
 ### Earlier work
 - [x] Weather before/after runs, forecasts on plan sessions, on the share card
@@ -129,8 +129,9 @@ High value, moderate effort
 - [ ] **Custom sessions**: an editor for your own intervals (blocks,
   repetitions, paces); today there are five fixed sessions
 - [ ] **Shoe tracking**: distance per pair, reminder to replace around 700 km
-- [ ] **Predicted race times** in Profile (5K, 10K, half, marathon), from the
-  Riegel projection the plans already use
+- [x] **Predicted race times** in Profile (5K, 10K, half, marathon): the
+  fastest projection from the best efforts of the last 12 weeks, with the
+  plans' endurance curve and weekly volume; a mile only reaches 10K
 - [x] **Home-screen widget (iOS)** 📱: small (week and goal) and medium (plus
   the next session), in the app's language and units, refreshed at launch,
   after a run and when the app goes to the background; needs a native rebuild
@@ -139,8 +140,9 @@ High value, moderate effort
   it once widened; light and dark palettes; redrawn by the app and every
   30 min by a headless task; needs a native rebuild
 - [ ] **Android widget preview image** for the launcher's widget picker
-- [ ] **Streaks and recaps**: weeks in a row on goal; a monthly and yearly
-  recap to share, like the run card
+- [x] **Streaks**: weeks in a row on the weekly goal (or with a run, without
+  a goal), as a tag on Profile's banner, and the longest in the records
+- [ ] **Recaps**: a monthly and yearly recap to share, like the run card
 - [x] **Privacy zones**: shared pictures and GIFs hide the track within
   200 m / 500 m / 1 km of the start and finish (Settings › Sharing, 200 m by
   default); figures stay the whole run's
@@ -154,7 +156,9 @@ High value, moderate effort
   recorded it) against distance, lined up with the elevation profile
 - [ ] **Cadence chart**: needs steps recorded minute by minute during the run
   (only the average is kept today, and the pedometer's history is short)
-- [ ] **Lap button** during a run, for track and hill repeats
+- [x] **Lap button** during a run, for track and hill repeats: under pause
+  and stop, the lap said aloud, the lap under way on the status line, a
+  "Laps" section on the run with the fastest one marked; carried by transfer
 - [ ] **Activity types and tags**: walk, hike, trail, treadmill; race, long
   run, workout
 - [ ] **Notes and photos** on a run

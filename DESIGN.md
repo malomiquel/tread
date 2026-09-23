@@ -193,10 +193,12 @@ defaults.
 
 | Component | Use it for |
 |---|---|
+| `RecordRow` | A figure worth keeping: tile, name and detail, figure right. With `onPress` it leads somewhere and ends in a chevron (Profile's Performance block, the performance pages). |
 | `Metric` | A labelled figure: label uppercase above, value, unit. `compact` over the map, `large` for the run's distance. |
 | `RunShape` | A run's outline in a tile, from a 60-point sample, cached. |
 | `RunMap`, `TrackOverlay` | The map and the track drawn on it. |
 | `ShareCard` | The picture a run leaves as. |
+| `LineChart` | A series against distance on a run's page (altitude, pace, heart rate): line over a soft fill, the two extremes named. |
 
 ### Sheets and dialogs
 
@@ -233,6 +235,11 @@ Section heading                     aside
 - Lists are rows separated by hairlines, indented past their leading tile so
   the tiles read as one column. No floating cards in a list.
 - The page leaves `useTabBarSpace()` (+60 in lists) at the bottom.
+- **A tab is an overview, not an archive.** A list longer than a few rows
+  gets its own page: the tab shows its headline in one `RecordRow` with a
+  chevron (Profile: Records → longest run, Best efforts → 5K, Predicted
+  times → 10K), and the page shows the rest. Profile reads, top to bottom:
+  week banner, progress, performance, all time.
 
 ### An empty tab
 
@@ -261,6 +268,11 @@ The map is the screen. Everything else floats over it in glass: the way out
 top-left, the toggles (SESSION, ROUTE, VOICE) in a column on the right, the
 panel at the bottom with the figures and the controls. Toggles show state by
 colour (`accent` on, `text` off), never by fading.
+
+While running, the controls are pause and stop side by side, with the **lap
+button** under them: a flat pill (height 36), flag and word, found by feel.
+Once a lap is pressed the status line follows the lap under way, in
+`accent`, as a session's line does; a session's line wins over it.
 
 ### The welcome
 
