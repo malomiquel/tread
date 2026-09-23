@@ -64,7 +64,7 @@ const routeStrings = defineStrings({
     howPaths: "Chaque point rejoint le précédent par les chemins praticables à pied : trottoirs, sentiers, zones piétonnes. Les sens interdits sont ignorés — ils ne concernent pas un coureur.",
     howSnap: "Ton point se pose sur le chemin le plus proche, pas exactement là où ton doigt a touché. C'est pour ça qu'il glisse parfois de quelques mètres : au milieu d'un bâtiment ou d'un champ, il rejoint la voie la plus proche.",
     howDashed: "Une portion en pointillés est une ligne droite : le calcul n'a pas répondu pour elle. Tu peux l'annuler et reposer le point ailleurs.",
-    howEdit: "Un point se déplace en le faisant glisser, et se supprime en le touchant. Les portions qui le touchaient sont recalculées.",
+    howEdit: "Un point se déplace en le faisant glisser, et se supprime en le touchant. Les portions qui le touchaient sont recalculées. Toucher le point de départ referme la boucle.",
     howShare: "Le partage envoie un fichier GPX : une montre, un planificateur ou un autre téléphone sauront le lire, et cette app sait le relire.",
     routeName: "Nom du parcours",
     emptyNameHint: "Laissé vide, il prendra le nom du jour.",
@@ -105,7 +105,7 @@ const routeStrings = defineStrings({
     howPaths: "Each point joins the one before it along paths you can take on foot: pavements, trails, pedestrian areas. One-way streets are ignored — they don't apply to a runner.",
     howSnap: "Your point lands on the nearest path, not exactly where your finger touched. That's why it sometimes slides a few metres: in the middle of a building or a field, it moves to the nearest way through.",
     howDashed: "A dotted section is a straight line: the routing didn't answer for it. You can undo it and place the point somewhere else.",
-    howEdit: "Drag a point to move it, and tap it to remove it. The sections touching it are worked out again.",
+    howEdit: "Drag a point to move it, and tap it to remove it. The sections touching it are worked out again. Tap the starting point to close the loop.",
     howShare: "Sharing sends a GPX file: a watch, a route planner or another phone can read it, and this app can read it back.",
     routeName: "Route name",
     emptyNameHint: "Leave it empty and it will take the day's name.",
@@ -547,6 +547,14 @@ export default function RouteBuilder() {
               void reroute(moved, legsAround(moved, index));
             }}
             onPress={() => {
+              // The start closes the loop rather than going away. It is the
+              // point anybody taps to bring a route home, and taking it out
+              // made the second point the new start instead — the opposite
+              // of what was meant.
+              if (index === 0 && route.waypoints.length >= 2 && !isLoop(route)) {
+                void addPoint(route.waypoints[0]);
+                return;
+              }
               remember(route);
               const without = withoutWaypoint(route, index);
               setRoute(without);
