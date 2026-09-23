@@ -150,6 +150,18 @@ export async function readRunHeart(
 ): Promise<Heart | null> {
   const health = healthKit();
   if (!health) return null;
+  const beats = await readRunBeats(startedAt, endedAt);
+  return beats.length ? summarise(beats, ceiling(health.api, endedAt)) : null;
+}
+
+/**
+ * Every heart rate sample Health holds for a run's window, oldest first —
+ * what the heart rate chart is drawn from. Empty without a watch, without
+ * permission, or off iOS.
+ */
+export async function readRunBeats(startedAt: number, endedAt: number): Promise<Beat[]> {
+  const health = healthKit();
+  if (!health) return [];
 
   try {
     const samples = await health.api.queryQuantitySamples(HEART_RATE, {
@@ -161,16 +173,11 @@ export async function readRunHeart(
       // phone's are never quite the same anyway.
       filter: { date: { startDate: new Date(startedAt), endDate: new Date(endedAt) } },
     });
-
-    const beats: Beat[] = samples.map((sample) => ({
-      ts: sample.startDate.getTime(),
-      bpm: sample.quantity,
-    }));
-    return summarise(beats, ceiling(health.api, endedAt));
+    return samples.map((sample) => ({ ts: sample.startDate.getTime(), bpm: sample.quantity }));
   } catch {
     // A read is never confirmed nor denied out loud; an exception here means
     // the same as an empty answer.
-    return null;
+    return [];
   }
 }
 

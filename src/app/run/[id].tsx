@@ -12,6 +12,7 @@ import { CardMapSource, type CardMapHandle } from "@/components/CardMapSource";
 import { FeelSheet } from "@/components/FeelSheet";
 import { RunMap } from "@/components/RunMap";
 import { PlanAttachment } from "@/components/PlanAttachment";
+import { LineChart } from "@/components/LineChart";
 import { canShareImage, ShareRunSheet } from "@/components/ShareRunSheet";
 import { exertionName, type Exertion } from "@/lib/plan";
 import { deleteRun, effortRecords, readRoute, readRun, routeRecords, type RouteRecord, renameRun, type Run, setRunExertion, setRunHeart, planSessionOfRun,
@@ -24,11 +25,12 @@ import { effortName, sessionById, sessionName, type RanBlock } from "@/lib/worko
 import { gpxFileName, toGpx } from "@/lib/gpx";
 import { estimateActiveEnergyKcal } from "@/lib/energy";
 import {
-  forgetRunInHealth, healthAvailable, readBodyMassKg, readRunHeart, requestHealthAccess,
+  forgetRunInHealth, healthAvailable, readBodyMassKg, readRunBeats, readRunHeart, requestHealthAccess,
   sharingRefused, syncRunToHealth,
 } from "@/lib/health";
-import { formatBpm, zoneName, type Heart } from "@/lib/heart";
+import { formatBpm, zoneName, type Beat, type Heart } from "@/lib/heart";
 import { bestEfforts, EFFORT_KEYS, effortName as distanceName } from "@/lib/efforts";
+import { heartSeries, paceSeries } from "@/lib/charts";
 import { hideEnds } from "@/lib/privacy";
 import { useSettings } from "@/lib/settings";
 import { decimal, defineStrings, useStrings } from "@/lib/i18n";
@@ -77,9 +79,11 @@ const runStrings = defineStrings({
     done: "Terminer",
     edit: "Modifier",
     feelPrompt: "Comment c'était ? Deux séances dures d'affilée et ton programme s'allège.",
-    profile: "Profil",
+    profile: "Altitude",
     session: "Séance",
     bestEfforts: "Meilleures performances",
+    paceChart: "Allure",
+    heartChart: "Fréquence cardiaque",
     routeRecord: "nouveau record sur ce parcours",
     routeFirst: "premier passage sur ce parcours",
     routeBehind: (gap: string) => `+${gap} sur ton record`,
@@ -136,6 +140,8 @@ const runStrings = defineStrings({
     profile: "Elevation",
     session: "Session",
     bestEfforts: "Best efforts",
+    paceChart: "Pace",
+    heartChart: "Heart rate",
     routeRecord: "new best on this route",
     routeFirst: "first time on this route",
     routeBehind: (gap: string) => `+${gap} on your best`,
@@ -216,6 +222,7 @@ export default function RunDetailScreen() {
   const { privacyRadiusM } = useSettings();
   /** Which run holds the record over each distance, to mark this one's. */
   const [recordHolders, setRecordHolders] = useState<Record<string, number>>({});
+  const [beats, setBeats] = useState<Beat[]>([]);
   /** The route this run covered, with that route's record, once read. */
   const [onRoute, setOnRoute] = useState<{ name: string; record: RouteRecord } | null>(null);
   const [renaming, setRenaming] = useState(false);
@@ -289,6 +296,19 @@ export default function RunDetailScreen() {
     return () => { active = false; };
   }, [data, id]);
 
+  // Heart rate samples from Health, for the chart. Only a watch writes them,
+  // so for most runs this stays empty and the chart is simply not drawn.
+  const runStart = data?.run.startedAt ?? null;
+  const runEnd = data?.run.endedAt ?? null;
+  useEffect(() => {
+    if (runStart === null || runEnd === null) return;
+    let active = true;
+    void readRunBeats(runStart, runEnd).then((found) => {
+      if (active) setBeats(found);
+    });
+    return () => { active = false; };
+  }, [runStart, runEnd]);
+
   // The route this run covered, and where it stands against that route's
   // record. Read once the run is known, since the run says which route.
   const coveredRouteId = data?.run.routeId ?? null;
@@ -354,6 +374,8 @@ export default function RunDetailScreen() {
   // What leaves the phone on a picture or a GIF: the track without the
   // stretch around its start and finish, which is usually a front door.
   const sharedPoints = hideEnds(points, privacyRadiusM);
+  const paceLine = paceSeries(points);
+  const heartLine = heartSeries(beats, points);
   // Worked out here for a run the background pass has not reached yet.
   const efforts = run.bestEfforts ?? bestEfforts(points);
   const runEfforts = EFFORT_KEYS
@@ -743,29 +765,30 @@ export default function RunDetailScreen() {
       {profile.length > 1 && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{s.profile}</Text>
-          {/* Drawn as columns from the lowest point of the run rather than
-              from sea level: a hundred metres of climbing matters, the
-              altitude it happened at does not. */}
-          <View style={styles.profile}>
-            {profile.map((point, i) => {
-              const low = Math.min(...profile.map((p) => p.altitudeM));
-              const high = Math.max(...profile.map((p) => p.altitudeM));
-              const share = (point.altitudeM - low) / Math.max(1, high - low);
-              return (
-                <View key={i} style={styles.profileSlot}>
-                  <View style={[styles.profileBar, { height: `${8 + share * 92}%` }]} />
-                </View>
-              );
-            })}
-          </View>
-          <View style={styles.profileScale}>
-            <Text style={styles.profileMark}>
-              {formatElevation(Math.min(...profile.map((p) => p.altitudeM)))} {elevationUnit()}
-            </Text>
-            <Text style={styles.profileMark}>
-              {formatElevation(Math.max(...profile.map((p) => p.altitudeM)))} {elevationUnit()}
-            </Text>
-          </View>
+          {/* The same chart as the pace and the heart rate below it, against
+              the same distance, so a slow stretch can be read straight down
+              from the climb that caused it. The scale runs from the run's
+              own lowest point, not from sea level: a hundred metres of
+              climbing matters, the altitude it happened at does not. */}
+          <LineChart
+            points={profile.map((point) => ({ distanceM: point.distanceM, value: point.altitudeM }))}
+            format={formatElevation}
+            unit={elevationUnit()}
+          />
+        </View>
+      )}
+
+      {paceLine.length > 1 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{s.paceChart}</Text>
+          <LineChart points={paceLine} format={formatPace} invert unit={paceUnit()} />
+        </View>
+      )}
+
+      {heartLine.length > 1 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{s.heartChart}</Text>
+          <LineChart points={heartLine} format={(bpm) => String(Math.round(bpm))} unit="bpm" />
         </View>
       )}
 
@@ -967,15 +990,6 @@ const styles = StyleSheet.create({
   feelLabelOn: { color: colors.accentText },
   feelName: { color: colors.subtle, fontSize: 12.5, fontFamily: font.regular, paddingTop: 6 },
 
-  profile: {
-    flexDirection: "row", alignItems: "flex-end", gap: 1, height: 68, paddingTop: 4,
-  },
-  profileSlot: { flex: 1, height: "100%", justifyContent: "flex-end" },
-  profileBar: { width: "100%", backgroundColor: colors.accentSoft, borderRadius: 1 },
-  profileScale: { flexDirection: "row", justifyContent: "space-between", paddingTop: 4 },
-  profileMark: {
-    color: colors.subtle, fontSize: 11, fontFamily: font.regular, fontVariant: ["tabular-nums"],
-  },
 
   section: {
     paddingHorizontal: GUTTER, paddingVertical: 15, gap: 11,
