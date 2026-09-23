@@ -1,6 +1,7 @@
 import { useRouter } from "expo-router";
-import { Linking, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Linking, ScrollView, StyleSheet, Text } from "react-native";
 import { SettingRow } from "@/components/SettingRow";
+import { SettingsGroup } from "@/components/SettingsGroup";
 import { buildLine, currentBuild } from "@/lib/build";
 import { defineStrings, useStrings } from "@/lib/i18n";
 import { colors, font } from "@/lib/theme";
@@ -48,37 +49,41 @@ export default function AboutScreen() {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <View style={styles.group}>
-        <SettingRow label={s.version} value={`${build.version} (${build.buildNumber})`} />
+      <SettingsGroup>
+        <SettingRow icon="information-circle-outline" label={s.version} value={`${build.version} (${build.buildNumber})`} />
         <SettingRow
+          icon="lock-closed-outline"
           label={s.privacy}
           detail={s.privacyDetail}
           onPress={() => router.push("/settings/privacy")}
         />
         <SettingRow
+          icon="book-outline"
           label={s.method}
           detail={s.methodDetail}
           onPress={() => router.push("/plan-method")}
         />
-      </View>
+      </SettingsGroup>
 
-      <View style={styles.group}>
-        <Text style={styles.groupTitle}>{s.sources}</Text>
+      <SettingsGroup title={s.sources}>
         <SettingRow
+          icon="navigate-outline"
           label={s.routing}
           detail={s.routingDetail}
           onPress={() => void Linking.openURL("https://www.openstreetmap.org/copyright")}
         />
         <SettingRow
+          icon="partly-sunny-outline"
           label={s.weather}
           detail="Open-Meteo.com (CC BY 4.0)"
           onPress={() => void Linking.openURL("https://open-meteo.com/")}
         />
         <SettingRow
+          icon="map-outline"
           label={s.maps}
           detail={s.mapsDetail}
         />
-      </View>
+      </SettingsGroup>
 
       {/* The exact build, small, for whoever is asked "which version do you
           have?" and needs an answer that names the source it came from. */}
@@ -87,20 +92,10 @@ export default function AboutScreen() {
   );
 }
 
-const GUTTER = 20;
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { paddingBottom: 40 },
-  group: {
-    paddingHorizontal: GUTTER, paddingVertical: 6, marginTop: 18,
-    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.hairline,
-  },
-  groupTitle: {
-    color: colors.subtle, fontSize: 12.5, fontFamily: font.semibold,
-    letterSpacing: 1.3, textTransform: "uppercase", paddingTop: 8,
-  },
   build: {
     color: colors.subtle, fontSize: 12, fontFamily: font.regular,
     textAlign: "center", paddingTop: 22, fontVariant: ["tabular-nums"],

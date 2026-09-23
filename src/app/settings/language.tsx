@@ -1,5 +1,6 @@
-import { ScrollView, StyleSheet, View } from "react-native";
+import { ScrollView, StyleSheet } from "react-native";
 import { SettingRow } from "@/components/SettingRow";
+import { SettingsGroup } from "@/components/SettingsGroup";
 import { defineStrings, useStrings } from "@/lib/i18n";
 import { LANGUAGE_CHOICES, LANGUAGE_NAMES } from "@/lib/language";
 import { setLanguageChoice, useSettings } from "@/lib/settings";
@@ -30,7 +31,7 @@ export default function LanguageSettings() {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <View style={styles.group}>
+      <SettingsGroup>
         {LANGUAGE_CHOICES.map((choice) => (
           <SettingRow
             key={choice}
@@ -40,19 +41,13 @@ export default function LanguageSettings() {
             onPress={() => void setLanguageChoice(choice)}
           />
         ))}
-      </View>
+      </SettingsGroup>
     </ScrollView>
   );
 }
 
-const GUTTER = 20;
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { paddingBottom: 40 },
-  group: {
-    paddingHorizontal: GUTTER, paddingVertical: 6, marginTop: 18,
-    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.hairline,
-  },
 });

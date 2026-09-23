@@ -1,8 +1,10 @@
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
-import { ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Switch } from "react-native";
 import { SettingRow } from "@/components/SettingRow";
+import { SettingsGroup } from "@/components/SettingsGroup";
 import { WeeklyGoalSheet } from "@/components/WeeklyGoalSheet";
+import { currentBuild } from "@/lib/build";
 import { listRuns } from "@/lib/db";
 import { formatDistance } from "@/lib/format";
 import { defineStrings, useStrings } from "@/lib/i18n";
@@ -10,55 +12,50 @@ import { LANGUAGE_NAMES } from "@/lib/language";
 import { reminderName } from "@/lib/reminders";
 import { forgetWelcome, toggleVoice, useSettings } from "@/lib/settings";
 import { suggestedWeeklyGoalM } from "@/lib/stats";
-import { colors, font } from "@/lib/theme";
+import { colors } from "@/lib/theme";
 
 const settingsStrings = defineStrings({
   fr: {
-    run: "Course",
+    training: "Entraînement",
     weeklyGoal: "Objectif hebdomadaire",
-    weeklyGoalDetail: "La distance à couvrir du lundi au dimanche",
     noGoal: "Aucun",
     goalValue: (km: string) => `${km} km`,
+    reminders: "Rappels de séance",
+    running: "Pendant la course",
     voice: "Annonces vocales",
-    voiceDetail: "Chaque kilomètre, les écarts d'allure et les blocs de séance, à voix haute",
+    voiceFooter: "Chaque kilomètre, les écarts d'allure et les blocs de séance sont annoncés à voix haute.",
+    app: "Application",
     language: "Langue",
     languageAuto: "Automatique",
-    notifications: "Notifications",
-    notificationsDetail: "Un rappel avant chaque séance du programme",
     data: "Données",
     importExport: "Importer et exporter",
-    importExportDetail: "Fichiers GPX, depuis ou vers une autre app",
     transfer: "Changer de téléphone",
-    transferDetail: "Tout emporter sur un nouveau téléphone",
+    dataFooter: "Tes données restent sur ce téléphone. Exporte-les ou emporte-les ici.",
+    about: "À propos",
     developer: "Développement",
     replayWelcome: "Revoir l'accueil",
-    replayWelcomeDetail: "Efface « welcomed » et le profil de coureur, puis relance l'accueil",
-    about: "À propos",
-    aboutDetail: "Version, confidentialité, sources des données",
   },
   en: {
-    run: "Running",
+    training: "Training",
     weeklyGoal: "Weekly goal",
-    weeklyGoalDetail: "The distance to cover from Monday to Sunday",
     noGoal: "None",
     goalValue: (km: string) => `${km} km`,
+    reminders: "Session reminders",
+    running: "While running",
     voice: "Voice announcements",
-    voiceDetail: "Every kilometre, pace drift and workout blocks, read out loud",
+    voiceFooter: "Every kilometre, pace drift and workout blocks are read out loud.",
+    app: "App",
     language: "Language",
     languageAuto: "Automatic",
-    notifications: "Notifications",
-    notificationsDetail: "A reminder before every session of your plan",
     data: "Data",
     importExport: "Import and export",
-    importExportDetail: "GPX files, from or to another app",
     transfer: "Switch phones",
-    transferDetail: "Bring everything over to a new phone",
+    dataFooter: "Your data stays on this phone. Export it or take it with you from here.",
+    about: "About",
     developer: "Development",
     replayWelcome: "Replay the welcome",
-    replayWelcomeDetail: "Deletes \"welcomed\" and the runner profile, then shows the welcome again",
-    about: "About",
-    aboutDetail: "Version, privacy, data sources",
   },
+
 });
 
 /**
@@ -100,27 +97,31 @@ export default function SettingsScreen() {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       {/*
-        * Grouped by subject rather than listed, so that every setting added
-        * later has a place it obviously belongs.
-        *
+        * One block per subject, each row a mark, a name and where it stands.
         * The weekly goal is here as well as on the week it measures, in the
-        * profile: this is where somebody looking for a setting looks. Both
-        * doors open the same sheet, so there is still only one way to
-        * change it.
+        * profile: both open the same sheet.
         */}
-      <View style={styles.group}>
-        <Text style={styles.groupTitle}>{s.run}</Text>
+      <SettingsGroup title={s.training}>
         <SettingRow
+          icon="flag-outline"
           label={s.weeklyGoal}
-          detail={s.weeklyGoalDetail}
           value={settings.weeklyGoalM === null ? s.noGoal : s.goalValue(formatDistance(settings.weeklyGoalM))}
           onPress={() => setEditingGoal(true)}
         />
-        {/* Also on the running screen, where it is changed mid-run. Here as
-            well because this is where anybody looking for it looks first. */}
         <SettingRow
+          icon="notifications-outline"
+          label={s.reminders}
+          value={reminderName(settings.reminder)}
+          onPress={() => router.push("/settings/notifications")}
+        />
+      </SettingsGroup>
+
+      {/* Also on the running screen, where it is changed mid-run. Here as
+          well because this is where anybody looking for it looks first. */}
+      <SettingsGroup title={s.running} footer={s.voiceFooter}>
+        <SettingRow
+          icon="volume-high-outline"
           label={s.voice}
-          detail={s.voiceDetail}
           right={
             <Switch
               value={settings.voice}
@@ -130,52 +131,44 @@ export default function SettingsScreen() {
             />
           }
         />
+      </SettingsGroup>
+
+      <SettingsGroup title={s.app}>
         <SettingRow
+          icon="language-outline"
           label={s.language}
           value={settings.language === "auto" ? s.languageAuto : LANGUAGE_NAMES[settings.language]}
           onPress={() => router.push("/settings/language")}
         />
-        <SettingRow
-          label={s.notifications}
-          detail={s.notificationsDetail}
-          value={reminderName(settings.reminder)}
-          onPress={() => router.push("/settings/notifications")}
-        />
-      </View>
+      </SettingsGroup>
 
-      <View style={styles.group}>
-        <Text style={styles.groupTitle}>{s.data}</Text>
+      <SettingsGroup title={s.data} footer={s.dataFooter}>
         <SettingRow
+          icon="swap-vertical-outline"
           label={s.importExport}
-          detail={s.importExportDetail}
           onPress={() => router.push("/settings/data")}
         />
         <SettingRow
+          icon="phone-portrait-outline"
           label={s.transfer}
-          detail={s.transferDetail}
           onPress={() => router.push("/settings/transfer")}
         />
-      </View>
+      </SettingsGroup>
 
-      <View style={styles.group}>
-        <Text style={styles.groupTitle}>Tread</Text>
+      <SettingsGroup>
         <SettingRow
+          icon="information-circle-outline"
           label={s.about}
-          detail={s.aboutDetail}
+          value={currentBuild().version}
           onPress={() => router.push("/settings/about")}
         />
-      </View>
+      </SettingsGroup>
 
       {/* Development builds only: never compiled into what ships. */}
       {__DEV__ ? (
-        <View style={styles.group}>
-          <Text style={styles.groupTitle}>{s.developer}</Text>
-          <SettingRow
-            label={s.replayWelcome}
-            detail={s.replayWelcomeDetail}
-            onPress={() => void forgetWelcome()}
-          />
-        </View>
+        <SettingsGroup title={s.developer}>
+          <SettingRow icon="refresh-outline" label={s.replayWelcome} onPress={() => void forgetWelcome()} />
+        </SettingsGroup>
       ) : null}
 
       <WeeklyGoalSheet
@@ -188,20 +181,7 @@ export default function SettingsScreen() {
   );
 }
 
-const GUTTER = 20;
-
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { paddingBottom: 40 },
-  // Sections run edge to edge, told apart by a rule rather than by floating
-  // on their own surface, as everywhere else in the app.
-  group: {
-    paddingHorizontal: GUTTER, paddingVertical: 6, marginTop: 18,
-    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.hairline,
-  },
-  groupTitle: {
-    color: colors.subtle, fontSize: 12.5, fontFamily: font.semibold,
-    letterSpacing: 1.3, textTransform: "uppercase", paddingTop: 8,
-  },
 });

@@ -3,8 +3,9 @@ import { File, Paths } from "expo-file-system";
 import { useRouter } from "expo-router";
 import * as Sharing from "expo-sharing";
 import { useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text } from "react-native";
 import { SettingRow } from "@/components/SettingRow";
+import { SettingsGroup } from "@/components/SettingsGroup";
 import { everythingForTransfer, restoreTransfer } from "@/lib/db";
 import { handoverAvailable } from "@/lib/handover";
 import { defineStrings, useStrings } from "@/lib/i18n";
@@ -218,40 +219,42 @@ export default function TransferSettings() {
       {/* First, because it is the one where nobody leaves the app. */}
       {direct ? (
         <>
-          <View style={styles.group}>
-            <Text style={styles.groupTitle}>{s.wifiTitle}</Text>
+          <SettingsGroup title={s.wifiTitle}>
             <SettingRow
+              icon="arrow-up-circle-outline"
               label={s.wifiSend}
               detail={s.wifiSendDetail}
               onPress={() => router.push("/settings/send")}
             />
             <SettingRow
+              icon="arrow-down-circle-outline"
               label={s.wifiReceive}
               detail={s.wifiReceiveDetail}
               onPress={() => router.push("/settings/receive")}
             />
-          </View>
+          </SettingsGroup>
           <Text style={styles.note}>{s.wifiNote}</Text>
         </>
       ) : (
         <Text style={styles.note}>{s.wifiUnavailable}</Text>
       )}
 
-      <View style={styles.group}>
-        <Text style={styles.groupTitle}>{s.fileTitle}</Text>
+      <SettingsGroup title={s.fileTitle}>
         <SettingRow
+          icon="document-outline"
           label={s.sendAll}
           detail={s.sendAllDetail}
           onPress={() => void send()}
           right={sending ? <ActivityIndicator size="small" color={colors.accent} /> : undefined}
         />
         <SettingRow
+          icon="folder-open-outline"
           label={s.restoreFromFile}
           detail={s.restoreFromFileDetail}
           onPress={() => void receive()}
           right={receiving ? <ActivityIndicator size="small" color={colors.accent} /> : undefined}
         />
-      </View>
+      </SettingsGroup>
 
       <Text style={styles.note}>{s.neverErases}</Text>
       <Text style={styles.note}>{s.healthNote}</Text>
@@ -268,15 +271,6 @@ const styles = StyleSheet.create({
   lede: {
     color: colors.muted, fontFamily: font.regular, fontSize: 15.5, lineHeight: 22,
     paddingHorizontal: GUTTER, paddingTop: 16,
-  },
-  groupTitle: {
-    color: colors.subtle, fontSize: 12.5, fontFamily: font.semibold,
-    letterSpacing: 1.3, textTransform: "uppercase", paddingTop: 8,
-  },
-  group: {
-    paddingHorizontal: GUTTER, paddingVertical: 6, marginTop: 18,
-    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.hairline,
   },
   note: {
     color: colors.subtle, fontSize: 13.5, fontFamily: font.regular, lineHeight: 20,

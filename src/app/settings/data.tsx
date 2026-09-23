@@ -1,7 +1,8 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text } from "react-native";
 import { SettingRow } from "@/components/SettingRow";
+import { SettingsGroup } from "@/components/SettingsGroup";
 import { exportRunArchive, importRouteFiles, importRunFiles } from "@/lib/files";
 import { defineStrings, useStrings } from "@/lib/i18n";
 import { colors, font } from "@/lib/theme";
@@ -85,39 +86,41 @@ export default function DataSettings() {
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <Text style={styles.lede}>{s.lede}</Text>
 
-      <View style={styles.group}>
-        <Text style={styles.groupTitle}>{s.import}</Text>
+      <SettingsGroup title={s.import}>
         <SettingRow
+          icon="walk-outline"
           label={s.runs}
           detail={s.runsDetail}
           right={spinner("runs")}
           onPress={() => void run("runs", s.importDone, importRunFiles)}
         />
         <SettingRow
+          icon="map-outline"
           label={s.routes}
           detail={s.routesDetail}
           right={spinner("routes")}
           onPress={() => void run("routes", s.importDone, importRouteFiles)}
         />
-      </View>
+      </SettingsGroup>
 
-      <View style={styles.group}>
-        <Text style={styles.groupTitle}>{s.export}</Text>
+      <SettingsGroup title={s.export}>
         <SettingRow
+          icon="share-outline"
           label={s.allRuns}
           detail={s.allRunsDetail}
           right={spinner("export")}
           onPress={() => void run("export", s.exportReady, exportRunArchive)}
         />
-      </View>
+      </SettingsGroup>
 
-      <View style={styles.group}>
+      <SettingsGroup>
         <SettingRow
+          icon="phone-portrait-outline"
           label={s.transfer}
           detail={s.transferDetail}
           onPress={() => router.push("/settings/transfer")}
         />
-      </View>
+      </SettingsGroup>
     </ScrollView>
   );
 }
@@ -130,14 +133,5 @@ const styles = StyleSheet.create({
   lede: {
     color: colors.muted, fontSize: 15, fontFamily: font.regular, lineHeight: 21,
     paddingHorizontal: GUTTER, paddingTop: 16,
-  },
-  group: {
-    paddingHorizontal: GUTTER, paddingVertical: 6, marginTop: 18,
-    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.hairline,
-  },
-  groupTitle: {
-    color: colors.subtle, fontSize: 12.5, fontFamily: font.semibold,
-    letterSpacing: 1.3, textTransform: "uppercase", paddingTop: 8,
   },
 });

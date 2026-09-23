@@ -1,13 +1,14 @@
 import { useState } from "react";
-import { Alert, Linking, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { Alert, Linking, ScrollView, StyleSheet, Switch } from "react-native";
 import { SettingRow } from "@/components/SettingRow";
+import { SettingsGroup } from "@/components/SettingsGroup";
 import { refreshReminders } from "@/lib/planReminders";
 import { defineStrings, useStrings } from "@/lib/i18n";
 import {
   askReminders, reminderName, type ReminderWhen,
 } from "@/lib/reminders";
 import { setReminder, useSettings } from "@/lib/settings";
-import { colors, font } from "@/lib/theme";
+import { colors } from "@/lib/theme";
 
 const notificationStrings = defineStrings({
   fr: {
@@ -80,8 +81,9 @@ export default function NotificationSettings() {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <View style={styles.group}>
+      <SettingsGroup>
         <SettingRow
+          icon="notifications-outline"
           label={s.sessionReminder}
           detail={s.sessionReminderDetail}
           right={
@@ -94,13 +96,12 @@ export default function NotificationSettings() {
             />
           }
         />
-      </View>
+      </SettingsGroup>
 
       {/* Only once there is something to place. A choice of moment above a
           switch that is off is a question about nothing. */}
       {on ? (
-        <View style={styles.group}>
-          <Text style={styles.groupTitle}>{s.when}</Text>
+        <SettingsGroup title={s.when}>
           {(["evening", "morning"] as const).map((when) => (
             <SettingRow
               key={when}
@@ -112,7 +113,7 @@ export default function NotificationSettings() {
               onPress={() => void choose(when)}
             />
           ))}
-        </View>
+        </SettingsGroup>
       ) : null}
     </ScrollView>
   );
@@ -130,18 +131,8 @@ function blocked() {
   );
 }
 
-const GUTTER = 20;
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { paddingBottom: 40 },
-  group: {
-    paddingHorizontal: GUTTER, paddingVertical: 6, marginTop: 18,
-    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.hairline,
-  },
-  groupTitle: {
-    color: colors.subtle, fontSize: 12.5, fontFamily: font.semibold,
-    letterSpacing: 1.3, textTransform: "uppercase", paddingTop: 8,
-  },
 });

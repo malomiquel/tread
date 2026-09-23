@@ -2,7 +2,11 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { colors, font } from "@/lib/theme";
 
+type Icon = React.ComponentProps<typeof Ionicons>["name"];
+
 interface Props {
+  /** A mark on the left, so a row can be found by eye before it is read. */
+  icon?: Icon;
   label: string;
   /** The sentence under it, for anything the label cannot say on its own. */
   detail?: string;
@@ -37,10 +41,15 @@ interface Props {
  * cannot drift apart from one another.
  */
 export function SettingRow({
-  label, detail, value, right, onPress, destructive, selected,
+  icon, label, detail, value, right, onPress, destructive, selected,
 }: Props) {
   const body = (
     <>
+      {icon ? (
+        <View style={styles.icon}>
+          <Ionicons name={icon} size={17} color={colors.accent} />
+        </View>
+      ) : null}
       <View style={styles.text}>
         <Text style={[styles.label, destructive && styles.destructive]}>{label}</Text>
         {detail ? <Text style={styles.detail}>{detail}</Text> : null}
@@ -72,7 +81,11 @@ export function SettingRow({
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 11 },
+  row: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 11, minHeight: 50 },
+  icon: {
+    width: 30, height: 30, borderRadius: 8,
+    alignItems: "center", justifyContent: "center", backgroundColor: colors.accentSoft,
+  },
   rowCentred: { justifyContent: "center" },
   pressed: { opacity: 0.6 },
   text: { flex: 1, gap: 1 },
