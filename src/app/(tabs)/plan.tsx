@@ -10,10 +10,11 @@ import {
   type StoredPlan,
 } from "@/lib/db";
 import { formatDuration, formatPace } from "@/lib/format";
+import { defineStrings, plural, useStrings } from "@/lib/i18n";
 import { useTabBarSpace } from "@/lib/layout";
 import { useKnownLocation } from "@/lib/location";
 import {
-  buildPlan, daysBetween, goalById, KIND_NAMES, nextSession, PHASE_NAMES, planProgress, ranCount,
+  buildPlan, daysBetween, goalById, goalName, kindName, nextSession, phaseName, planProgress, ranCount,
   schedule,
   easeFactor, startOfDay, type Done, type Exertion, type ScheduledSession,
 } from "@/lib/plan";
@@ -24,7 +25,7 @@ import { chooseSession } from "@/lib/tracker";
 import {
   forecastBrief, forecastLine, forecastOn, useForecasts, weatherIcon, type Forecast,
 } from "@/lib/weather";
-import { eased, sessionMinutes } from "@/lib/workout";
+import { eased, sessionMinutes, sessionName } from "@/lib/workout";
 
 /** Displayed, indexed by `Date.getDay`. */
 /**
@@ -38,15 +39,89 @@ import { eased, sessionMinutes } from "@/lib/workout";
  */
 const BOOT_DAY = startOfDay(Date.now());
 
-const DAYS = ["dim.", "lun.", "mar.", "mer.", "jeu.", "ven.", "sam."];
-const MONTHS = [
-  "janv.", "févr.", "mars", "avr.", "mai", "juin",
-  "juil.", "août", "sept.", "oct.", "nov.", "déc.",
-];
+const planStrings = defineStrings({
+  fr: {
+    days: ["dim.", "lun.", "mar.", "mer.", "jeu.", "ven.", "sam."],
+    months: [
+      "janv.", "févr.", "mars", "avr.", "mai", "juin",
+      "juil.", "août", "sept.", "oct.", "nov.", "déc.",
+    ],
+    skippedLabel: (name: string) => `${name}, passée`,
+    doneLabel: (name: string, day: string) => `${name}, faite le ${day}, voir la course`,
+    skipped: "Passée",
+    today: "aujourd'hui",
+    title: "Plan",
+    noPlan: "Aucun programme en cours.",
+    runNow: "Courir maintenant",
+    runNowDetail: "Une sortie libre. Tu peux choisir une séance ou un parcours sur la carte avant de partir.",
+    prepareRace: "Préparer une course",
+    prepareRaceDetail:
+      "5 km, 10 km, semi ou marathon. Tread construit tes séances semaine par semaine jusqu'au jour J.",
+    startNote: "Avec ou sans programme, le bouton ▶ au centre de la barre lance une course à tout moment.",
+    abandonTitle: "Abandonner le programme ?",
+    abandonBody: "Les courses déjà faites restent dans ton historique. Seul le programme disparaît.",
+    cancel: "Annuler",
+    abandon: "Abandonner",
+    programme: "Programme",
+    method: "Comment ce programme est construit",
+    raceLine: (date: string, daysLeft: number, target: string) =>
+      `${date} · ${daysLeft > 0 ? `dans ${plural(daysLeft, "jour", "jours")}` : "c'est aujourd'hui"} · ${target} visé`,
+    progress: (ran: number, total: number, skipped: number) =>
+      `${plural(ran, "séance", "séances")} sur ${total}`
+      + (skipped > 0 ? ` · ${plural(skipped, "passée", "passées")}` : ""),
+    eased: (percent: number) =>
+      `Tes deux dernières séances t'ont paru dures, donc le programme en retire ${percent} %. Il reprendra son cours dès qu'une séance te semblera plus facile.`,
+    dueNow: "À faire maintenant",
+    nextOn: (day: string) => `Prochaine · ${day}`,
+    week: (week: number) => `semaine ${week}`,
+    weekTitle: (week: number, phase: string) => `Semaine ${week} · ${phase}`,
+    finished: "Le programme est terminé. Il ne reste plus qu'à courir.",
+    abandonPlan: "Abandonner le programme",
+  },
+  en: {
+    days: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+    months: [
+      "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ],
+    skippedLabel: (name: string) => `${name}, skipped`,
+    doneLabel: (name: string, day: string) => `${name}, done on ${day}, view the run`,
+    skipped: "Skipped",
+    today: "today",
+    title: "Plan",
+    noPlan: "No training plan in progress.",
+    runNow: "Run now",
+    runNowDetail: "A free run. You can pick a session or a route on the map before you set off.",
+    prepareRace: "Train for a race",
+    prepareRaceDetail:
+      "5K, 10K, half or full marathon. Tread builds your sessions week by week, all the way to race day.",
+    startNote: "With or without a plan, the ▶ button in the middle of the bar starts a run at any time.",
+    abandonTitle: "Abandon the training plan?",
+    abandonBody: "Runs you have already done stay in your history. Only the plan goes away.",
+    cancel: "Cancel",
+    abandon: "Abandon",
+    programme: "Training plan",
+    method: "How this plan is built",
+    raceLine: (date: string, daysLeft: number, target: string) =>
+      `${date} · ${daysLeft > 0 ? `in ${plural(daysLeft, "day", "days")}` : "it's today"} · aiming for ${target}`,
+    progress: (ran: number, total: number, skipped: number) =>
+      `${ran} of ${total} ${total === 1 ? "session" : "sessions"}`
+      + (skipped > 0 ? ` · ${skipped} skipped` : ""),
+    eased: (percent: number) =>
+      `Your last two sessions felt hard, so the plan is taking off ${percent}%. It will return to normal as soon as a session feels easier.`,
+    dueNow: "Due now",
+    nextOn: (day: string) => `Next · ${day}`,
+    week: (week: number) => `week ${week}`,
+    weekTitle: (week: number, phase: string) => `Week ${week} · ${phase}`,
+    finished: "The plan is complete. All that's left is to run.",
+    abandonPlan: "Abandon the training plan",
+  },
+});
 
-const dayName = (at: number): string => `${DAYS[new Date(at).getDay()]} ${new Date(at).getDate()}`;
+const dayName = (at: number): string =>
+  `${planStrings().days[new Date(at).getDay()]} ${new Date(at).getDate()}`;
 const dateName = (at: number): string =>
-  `${new Date(at).getDate()} ${MONTHS[new Date(at).getMonth()]}`;
+  `${new Date(at).getDate()} ${planStrings().months[new Date(at).getMonth()]}`;
 
 const ICONS: Record<string, React.ComponentProps<typeof Ionicons>["name"]> = {
   easy: "walk",
@@ -81,6 +156,8 @@ function SessionRow({
   forecast: Forecast | null;
   onPress: (entry: ScheduledSession) => void;
 }) {
+  const s = useStrings(planStrings);
+  const name = sessionName(entry.session);
   const done = entry.settled;
   const skipped = entry.settled && entry.runId === null;
   const isToday = entry.at === today;
@@ -92,10 +169,10 @@ function SessionRow({
       accessibilityRole="button"
       accessibilityLabel={
         skipped
-          ? `${entry.session.name}, passée`
+          ? s.skippedLabel(name)
           : done
-            ? `${entry.session.name}, faite le ${dayName(entry.at)}, voir la course`
-            : `${entry.session.name}, ${dayName(entry.at)}`
+            ? s.doneLabel(name, dayName(entry.at))
+            : `${name}, ${dayName(entry.at)}`
       }
       style={({ pressed }) => [styles.row, isToday && styles.rowToday, pressed && styles.pressed]}
     >
@@ -108,10 +185,10 @@ function SessionRow({
       </View>
       <View style={styles.rowBody}>
         <Text style={[styles.rowName, done && styles.rowDone]} numberOfLines={1}>
-          {entry.session.name}
+          {name}
         </Text>
         <Text style={styles.rowDetail}>
-          {skipped ? "Passée" : KIND_NAMES[entry.kind]} · {minutes} min · {formatPace(entry.targetSKm)}
+          {skipped ? s.skipped : kindName(entry.kind)} · {minutes} min · {formatPace(entry.targetSKm)}
         </Text>
       </View>
       {/* The day and its weather in one column, because the weather belongs
@@ -121,7 +198,7 @@ function SessionRow({
           already passed changes nothing anybody can act on. */}
       <View style={styles.rowWhen}>
         <Text style={[styles.rowDay, isToday && styles.rowDayToday]}>
-          {isToday && !done ? "aujourd'hui" : dayName(entry.at)}
+          {isToday && !done ? s.today : dayName(entry.at)}
         </Text>
         {forecast && !entry.settled ? (
           <View style={styles.rowWeather}>
@@ -146,6 +223,7 @@ export default function PlanScreen() {
    * all, which reads as the app having missed the finger rather than as
    * having nothing to do.
    */
+  const s = useStrings(planStrings);
   const page = useRef<ScrollView>(null);
   useScrollToTop(page);
   const [plan, setPlan] = useState<StoredPlan | null | undefined>(undefined);
@@ -154,6 +232,8 @@ export default function PlanScreen() {
   const [today, setToday] = useState(BOOT_DAY);
   /** The session being looked at, before deciding to run it. */
   const [viewing, setViewing] = useState<ScheduledSession | null>(null);
+  /** The programme form, opened from the page shown when there is none. */
+  const [settingUp, setSettingUp] = useState(false);
   /** How the last few sessions felt, newest first. */
   const [recent, setRecent] = useState<Exertion[]>([]);
   const tabBarSpace = useTabBarSpace();
@@ -190,17 +270,19 @@ export default function PlanScreen() {
     const sessions = buildPlan(draft);
     if (!sessions.length) return;
     await createPlan({ ...draft, sessions });
+    setSettingUp(false);
     load();
   }
 
   function abandon() {
+    const text = planStrings();
     Alert.alert(
-      "Abandonner le programme ?",
-      "Les courses déjà faites restent dans ton historique. Seul le programme disparaît.",
+      text.abandonTitle,
+      text.abandonBody,
       [
-        { text: "Annuler", style: "cancel" },
+        { text: text.cancel, style: "cancel" },
         {
-          text: "Abandonner",
+          text: text.abandon,
           style: "destructive",
           // The reminders go with it. A programme nobody is following any
           // more must not go on tapping them on the shoulder about it.
@@ -264,8 +346,61 @@ export default function PlanScreen() {
     return (
       <SafeAreaView style={styles.screen} edges={["top"]}>
         <View style={styles.head}>
-          <Text style={styles.title}>Plan</Text>
+          <Text style={styles.title}>{s.title}</Text>
         </View>
+      </SafeAreaView>
+    );
+  }
+
+  /*
+   * No programme: the two ways to begin, rather than the form.
+   *
+   * This tab is where the app opens, and the form is eight questions about a
+   * race. Shown straight away, it told somebody who only wanted to go for a
+   * run that the app would not let them until they had signed up for a
+   * marathon.
+   */
+  if (plan === null && !settingUp) {
+    return (
+      <SafeAreaView style={styles.screen} edges={["top"]}>
+        <ScrollView contentContainerStyle={{ paddingBottom: tabBarSpace }}>
+          <View style={styles.head}>
+            <Text style={styles.title}>{s.title}</Text>
+          </View>
+          <Text style={styles.lede}>{s.noPlan}</Text>
+
+          <View style={styles.starts}>
+            <Pressable
+              onPress={() => {
+                chooseSession(null);
+                router.push("/record");
+              }}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.start, styles.startPrimary, pressed && styles.pressed]}
+            >
+              <Ionicons name="play" size={22} color={colors.accentText} />
+              <View style={styles.startBody}>
+                <Text style={[styles.startName, styles.startNamePrimary]}>{s.runNow}</Text>
+                <Text style={[styles.startDetail, styles.startDetailPrimary]}>{s.runNowDetail}</Text>
+              </View>
+            </Pressable>
+
+            <Pressable
+              onPress={() => setSettingUp(true)}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.start, pressed && styles.pressed]}
+            >
+              <Ionicons name="flag-outline" size={22} color={colors.accent} />
+              <View style={styles.startBody}>
+                <Text style={styles.startName}>{s.prepareRace}</Text>
+                <Text style={styles.startDetail}>{s.prepareRaceDetail}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.subtle} />
+            </Pressable>
+          </View>
+
+          <Text style={styles.startNote}>{s.startNote}</Text>
+        </ScrollView>
       </SafeAreaView>
     );
   }
@@ -279,7 +414,7 @@ export default function PlanScreen() {
           completion the screen stayed at zero, which is the white page that
           appeared on some tab changes and not others. */}
         <View style={styles.fill}>
-          <PlanSetup onCreate={(draft) => void create(draft)} />
+          <PlanSetup onCreate={(draft) => void create(draft)} onCancel={() => setSettingUp(false)} />
         </View>
       </SafeAreaView>
     );
@@ -305,21 +440,21 @@ export default function PlanScreen() {
   // Grouped by the week a session belongs to in the programme, not by the
   // calendar week it landed in: what a runner is doing is week nine of a plan,
   // whatever the sliding has done to the dates.
-  const weeks = [...new Set(scheduled.map((s) => s.week))].sort((a, b) => a - b);
+  const weeks = [...new Set(scheduled.map((entry) => entry.week))].sort((a, b) => a - b);
 
   return (
     <SafeAreaView style={styles.screen} edges={["top"]}>
       <View style={styles.fill}>
         <ScrollView ref={page} contentContainerStyle={[styles.content, { paddingBottom: tabBarSpace }]}>
           <View style={styles.head}>
-            <Text style={styles.title}>{goal?.name ?? "Programme"}</Text>
+            <Text style={styles.title}>{goal ? goalName(goal.id) : s.programme}</Text>
             {/* The reasoning behind the plan, one tap from the plan itself.
                 Someone told what to run for three months is owed the why —
                 including which parts of it are only my judgement. */}
             <Pressable
               onPress={() => router.push("/plan-method")}
               accessibilityRole="button"
-              accessibilityLabel="Comment ce programme est construit"
+              accessibilityLabel={s.method}
               hitSlop={10}
               style={({ pressed }) => [styles.method, pressed && styles.pressed]}
             >
@@ -327,22 +462,19 @@ export default function PlanScreen() {
             </Pressable>
           </View>
           <Text style={styles.lede}>
-            {dateName(plan.raceAt)} · {daysLeft > 0 ? `dans ${daysLeft} jours` : "c'est aujourd'hui"}
-            {" · "}
-            {formatDuration(plan.targetTimeS)} visé
+            {s.raceLine(dateName(plan.raceAt), daysLeft, formatDuration(plan.targetTimeS))}
           </Text>
 
           <View style={styles.bar}>
             <View style={[styles.barFill, { width: `${Math.round(progress * 100)}%` }]} />
           </View>
           <Text style={styles.caption}>
-            {ran} séance{ran > 1 ? "s" : ""} sur {plan.sessions.length}
-            {done.size > ran ? ` · ${done.size - ran} passée${done.size - ran > 1 ? "s" : ""}` : ""}
+            {s.progress(ran, plan.sessions.length, done.size - ran)}
           </Text>
 
           {factor < 1 ? (
             <Text style={styles.eased}>
-              {`Tes deux dernières séances t'ont paru dures, donc le programme en retire ${Math.round((1 - factor) * 100)} %. Il reprendra son cours dès qu'une séance te semblera plus facile.`}
+              {s.eased(Math.round((1 - factor) * 100))}
             </Text>
           ) : null}
 
@@ -354,11 +486,11 @@ export default function PlanScreen() {
             >
               <View style={styles.nextBody}>
                 <Text style={styles.nextLabel}>
-                  {next.at <= today ? "À faire maintenant" : `Prochaine · ${dayName(next.at)}`}
+                  {next.at <= today ? s.dueNow : s.nextOn(dayName(next.at))}
                 </Text>
-                <Text style={styles.nextName}>{next.session.name}</Text>
+                <Text style={styles.nextName}>{sessionName(next.session)}</Text>
                 <Text style={styles.nextDetail}>
-                  {KIND_NAMES[next.kind]} · {formatPace(next.targetSKm)} · semaine {next.week}
+                  {kindName(next.kind)} · {formatPace(next.targetSKm)} · {s.week(next.week)}
                 </Text>
                 {nextForecast ? <ForecastLine forecast={nextForecast} /> : null}
               </View>
@@ -366,16 +498,16 @@ export default function PlanScreen() {
             </Pressable>
           ) : (
             <Text style={styles.finished}>
-              {"Le programme est terminé. Il ne reste plus qu'à courir."}
+              {s.finished}
             </Text>
           )}
 
           {weeks.map((week) => {
-            const entries = scheduled.filter((s) => s.week === week);
+            const entries = scheduled.filter((entry) => entry.week === week);
             return (
               <View key={week} style={styles.week}>
                 <Text style={styles.weekTitle}>
-                  Semaine {week} · {PHASE_NAMES[entries[0].phase]}
+                  {s.weekTitle(week, phaseName(entries[0].phase))}
                 </Text>
                 {entries.map((entry) => (
                   <SessionRow
@@ -403,7 +535,7 @@ export default function PlanScreen() {
           />
 
           <Pressable onPress={abandon} accessibilityRole="button" style={styles.abandon}>
-            <Text style={styles.abandonLabel}>Abandonner le programme</Text>
+            <Text style={styles.abandonLabel}>{s.abandonPlan}</Text>
           </Pressable>
         </ScrollView>
       </View>
@@ -425,6 +557,23 @@ const styles = StyleSheet.create({
     flex: 1, color: colors.text, fontSize: 32, fontFamily: font.bold, letterSpacing: -0.6,
   },
   method: { padding: 4 },
+
+  starts: { paddingHorizontal: GUTTER, marginTop: 22, gap: 12 },
+  start: {
+    flexDirection: "row", alignItems: "center", gap: 14,
+    borderRadius: 12, padding: 16,
+    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline,
+  },
+  startPrimary: { backgroundColor: colors.accent, borderColor: colors.accent },
+  startBody: { flex: 1, gap: 3 },
+  startName: { color: colors.text, fontSize: 21, fontFamily: font.bold, letterSpacing: -0.3 },
+  startNamePrimary: { color: colors.accentText },
+  startDetail: { color: colors.muted, fontSize: 14.5, fontFamily: font.regular, lineHeight: 20 },
+  startDetailPrimary: { color: colors.accentText, opacity: 0.85 },
+  startNote: {
+    color: colors.subtle, fontSize: 13.5, fontFamily: font.regular, lineHeight: 19,
+    paddingHorizontal: GUTTER, marginTop: 18,
+  },
   lede: {
     color: colors.muted, fontFamily: font.regular, fontSize: 15,
     paddingHorizontal: GUTTER, marginTop: 2,

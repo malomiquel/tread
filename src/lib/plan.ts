@@ -35,7 +35,8 @@
 // The extension is spelled out because this is a value import, not a type
 // one: node runs these modules directly for the tests and resolves paths the
 // way the web does, without guessing at extensions.
-import { eased, type Session, type Step } from "./workout.ts";
+import { defineStrings } from "./i18n.ts";
+import { eased, raceName, type Session, type Step } from "./workout.ts";
 
 /** A race a plan can be built for. */
 export type Goal = "fiveK" | "tenK" | "half" | "marathon";
@@ -62,6 +63,12 @@ export const GOALS: GoalSpec[] = [
 
 export const goalById = (id: string | null): GoalSpec | null =>
   GOALS.find((g) => g.id === id) ?? null;
+
+/**
+ * A goal's name in the interface's language. `GoalSpec.name` is the French
+ * one, kept as the name a race session is stored under.
+ */
+export const goalName = (id: Goal): string => raceName(id) ?? id;
 
 /**
  * The endurance exponent, and why it is not one number.
@@ -261,25 +268,24 @@ export type PerWeek = 1 | 2 | 3 | 4;
 /** Where a week sits in the arc of the plan. */
 export type Phase = "base" | "build" | "peak" | "taper";
 
+const phaseNames = defineStrings<Record<Phase, string>>({
+  fr: { base: "fondation", build: "développement", peak: "spécifique", taper: "affûtage" },
+  en: { base: "base", build: "build", peak: "peak", taper: "taper" },
+});
+
 /** Displayed. */
-export const PHASE_NAMES: Record<Phase, string> = {
-  base: "fondation",
-  build: "développement",
-  peak: "spécifique",
-  taper: "affûtage",
-};
+export const phaseName = (phase: Phase): string => phaseNames()[phase];
 
 /** What a given session is for. */
 export type Kind = "easy" | "long" | "interval" | "tempo" | "race";
 
+const kindNames = defineStrings<Record<Kind, string>>({
+  fr: { easy: "Footing", long: "Sortie longue", interval: "Fractionné", tempo: "Seuil", race: "Course" },
+  en: { easy: "Easy run", long: "Long run", interval: "Intervals", tempo: "Threshold", race: "Race" },
+});
+
 /** Displayed. */
-export const KIND_NAMES: Record<Kind, string> = {
-  easy: "Footing",
-  long: "Sortie longue",
-  interval: "Fractionné",
-  tempo: "Seuil",
-  race: "Course",
-};
+export const kindName = (kind: Kind): string => kindNames()[kind];
 
 export interface PlannedSession {
   /** Position in the programme, and the key a finished run is tied to. */
@@ -500,7 +506,7 @@ function easySession(startMin: number, paces: Paces): Unplaced {
     session: {
       id: `easy-${minutes}`,
       name: `Footing ${durationName(minutes)}`,
-      steps: [{ effort: "allure", seconds: minutes * 60 }],
+      steps: [{ effort: "steady", seconds: minutes * 60 }],
     },
   };
 }
@@ -515,7 +521,7 @@ function longSession(minutes: number, paces: Paces): Unplaced {
       // One block, as the catalogue's long run already is: splitting it into
       // a warm-up and a cool-down announces three things where there is only
       // one to do.
-      steps: [{ effort: "allure", seconds: minutes * 60 }],
+      steps: [{ effort: "steady", seconds: minutes * 60 }],
     },
   };
 }
@@ -539,13 +545,13 @@ function intervalSession(phase: Phase, load: number, paces: Paces): Unplaced {
       id: `interval-${shape.metres}-${reps}`,
       name: `${reps} × ${shape.metres} m`,
       steps: [
-        { effort: "échauffement", seconds: 900 },
+        { effort: "warmup", seconds: 900 },
         ...repeat(
           reps,
-          { effort: "rapide", metres: shape.metres },
-          { effort: "récupération", metres: shape.recovery },
+          { effort: "fast", metres: shape.metres },
+          { effort: "recovery", metres: shape.recovery },
         ),
-        { effort: "retour au calme", seconds: 600 },
+        { effort: "cooldown", seconds: 600 },
       ],
     },
   };
@@ -565,13 +571,13 @@ function tempoSession(phase: Phase, load: number, paces: Paces): Unplaced {
       id: `tempo-${blocks}-${minutes}`,
       name: `${blocks} × ${minutes} min au seuil`,
       steps: [
-        { effort: "échauffement", seconds: 900 },
+        { effort: "warmup", seconds: 900 },
         ...repeat(
           blocks,
-          { effort: "allure", seconds: minutes * 60 },
-          { effort: "récupération", seconds: 180 },
+          { effort: "steady", seconds: minutes * 60 },
+          { effort: "recovery", seconds: 180 },
         ),
-        { effort: "retour au calme", seconds: 600 },
+        { effort: "cooldown", seconds: 600 },
       ],
     },
   };
@@ -591,7 +597,7 @@ function raceSession(goal: GoalSpec, paces: Paces): Unplaced {
     session: {
       id: `race-${goal.id}`,
       name: goal.name,
-      steps: [{ effort: "allure", metres: goal.distanceM }],
+      steps: [{ effort: "steady", metres: goal.distanceM }],
     },
   };
 }
@@ -828,14 +834,13 @@ export function schedule(
  */
 export type Exertion = 1 | 2 | 3 | 4 | 5;
 
+const exertionNames = defineStrings<Record<Exertion, string>>({
+  fr: { 1: "Très facile", 2: "Facile", 3: "Correct", 4: "Dur", 5: "Très dur" },
+  en: { 1: "Very easy", 2: "Easy", 3: "Fine", 4: "Hard", 5: "Very hard" },
+});
+
 /** Displayed. */
-export const EXERTION_NAMES: Record<Exertion, string> = {
-  1: "Très facile",
-  2: "Facile",
-  3: "Correct",
-  4: "Dur",
-  5: "Très dur",
-};
+export const exertionName = (level: Exertion): string => exertionNames()[level];
 
 /**
  * How much to take off the coming sessions, given how the last ones felt.

@@ -7,6 +7,7 @@ import Animated, { Easing, useAnimatedStyle, withTiming } from "react-native-rea
 import { GlassPanel } from "@/components/GlassPanel";
 import { SessionDetail } from "@/components/SessionDetail";
 import { activePlan, planDone, recentExertions } from "@/lib/db";
+import { defineStrings, useStrings } from "@/lib/i18n";
 import { nextToRun, startOfDay } from "@/lib/plan";
 import { TAB_BAR_HEIGHT, useTabBarBottom } from "@/lib/layout";
 import { colors, font } from "@/lib/theme";
@@ -40,11 +41,17 @@ type TabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>["tabBar"]>
  * easing into motion, which is what makes it read as getting out of the way
  * rather than as a thing being played at you.
  */
+const tabBarStrings = defineStrings({
+  fr: { resumeRun: "Reprendre la course en cours", startRun: "Démarrer une course" },
+  en: { resumeRun: "Return to the run in progress", startRun: "Start a run" },
+});
+
 const SLIDE = { duration: 240, easing: Easing.out(Easing.cubic) };
 
 export function FloatingTabBar({
   state, descriptors, navigation,
 }: TabBarProps) {
+  const s = useStrings(tabBarStrings);
   const bottom = useTabBarBottom();
   const router = useRouter();
   const tracker = useTracker();
@@ -156,20 +163,26 @@ export function FloatingTabBar({
    * see from the bar is a run easy to forget you left recording, so the
    * button changes colour and shape rather than staying the same in both.
    */
+  // A filled disc in the middle of the bar, under the thumb of either hand.
+  // No name under it: the tabs either side are places, this is the one thing
+  // in the bar that acts, and its shape and colour already set it apart.
   const run = (
-    <Pressable
-      onPress={() => void go()}
-      accessibilityRole="button"
-      accessibilityLabel={recording ? "Reprendre la course en cours" : "Démarrer une course"}
-      style={({ pressed }) => [styles.run, recording && styles.runLive, pressed && styles.tabPressed]}
-    >
-      <Ionicons
-        name={recording ? "radio-button-on" : "play"}
-        size={20}
-        color={colors.accentText}
-        style={recording ? undefined : styles.play}
-      />
-    </Pressable>
+    <View style={styles.runTab}>
+      <Pressable
+        onPress={() => void go()}
+        accessibilityRole="button"
+        accessibilityLabel={recording ? s.resumeRun : s.startRun}
+        hitSlop={8}
+        style={({ pressed }) => [styles.run, recording && styles.runLive, pressed && styles.tabPressed]}
+      >
+        <Ionicons
+          name={recording ? "radio-button-on" : "play"}
+          size={22}
+          color={colors.accentText}
+          style={recording ? undefined : styles.play}
+        />
+      </Pressable>
+    </View>
   );
 
   // Split down the middle, with the button in the gap. Four sections is what
@@ -236,8 +249,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 2,
   },
   tabPressed: { opacity: 0.55 },
+  // A slot like any other, the same share of the bar as each tab, with the
+  // disc centred in it.
+  runTab: { flex: 1, height: TAB_BAR_HEIGHT, alignItems: "center", justifyContent: "center" },
   run: {
-    width: 46, height: 46, borderRadius: 23, marginHorizontal: 6,
+    width: 48, height: 48, borderRadius: 24,
     alignItems: "center", justifyContent: "center",
     backgroundColor: colors.accent,
   },

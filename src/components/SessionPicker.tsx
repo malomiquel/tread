@@ -2,12 +2,42 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-nati
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { GlassPanel } from "@/components/GlassPanel";
 import { formatPace } from "@/lib/format";
+import { defineStrings, useStrings } from "@/lib/i18n";
 import { clampTarget, TARGET_MAX_S, TARGET_MIN_S, TARGET_STEP_S } from "@/lib/pace";
 import { setTargetPace, useSettings } from "@/lib/settings";
 import { colors, floatingShadow, font } from "@/lib/theme";
 import {
-  hasSinglePace, SESSIONS, sessionById, sessionMinutes, stepLabel, type Session,
+  hasSinglePace, SESSIONS, sessionById, sessionMinutes, sessionName, stepLabel, type Session,
 } from "@/lib/workout";
+
+const sessionPickerStrings = defineStrings({
+  fr: {
+    about: (minutes: number) => `environ ${minutes} min`,
+    targetPace: "Allure cible",
+    setByBlocks: "Fixée par les blocs de la séance",
+    announced: "Annoncée dès huit secondes d'écart",
+    none: "Aucune, course libre",
+    clearPace: "Retirer l'allure cible",
+    faster: "Allure plus rapide",
+    slower: "Allure plus lente",
+    title: "Séance",
+    freeRun: "Course libre",
+    freeRunDetail: "Aucun bloc, aucune annonce",
+  },
+  en: {
+    about: (minutes: number) => `about ${minutes} min`,
+    targetPace: "Target pace",
+    setByBlocks: "Set by the session's blocks",
+    announced: "Announced once you drift eight seconds off",
+    none: "None, free run",
+    clearPace: "Clear the target pace",
+    faster: "Faster pace",
+    slower: "Slower pace",
+    title: "Session",
+    freeRun: "Free run",
+    freeRunDetail: "No blocks, no announcements",
+  },
+});
 
 interface Props {
   visible: boolean;
@@ -19,10 +49,10 @@ interface Props {
 
 /** A line describing what a session is made of, without listing every block. */
 function summary(session: Session): string {
-  const efforts = session.steps.filter((s) => s.effort === "rapide" || s.effort === "allure");
+  const efforts = session.steps.filter((s) => s.effort === "fast" || s.effort === "steady");
   const core = efforts.length ? stepLabel(efforts[0]) : stepLabel(session.steps[0]);
   const repeats = efforts.length > 1 ? `${efforts.length} × ` : "";
-  return `${repeats}${core} · environ ${sessionMinutes(session)} min`;
+  return `${repeats}${core} · ${sessionPickerStrings().about(sessionMinutes(session))}`;
 }
 
 /**
@@ -34,6 +64,7 @@ function summary(session: Session): string {
  * to a number.
  */
 function TargetPace({ session }: { session: Session | null }) {
+  const s = useStrings(sessionPickerStrings);
   const { targetPaceSKm } = useSettings();
   const set = targetPaceSKm !== null;
 
@@ -50,8 +81,8 @@ function TargetPace({ session }: { session: Session | null }) {
     return (
       <View style={styles.pace}>
         <View style={styles.rowText}>
-          <Text style={styles.name}>Allure cible</Text>
-          <Text style={styles.detail}>Fixée par les blocs de la séance</Text>
+          <Text style={styles.name}>{s.targetPace}</Text>
+          <Text style={styles.detail}>{s.setByBlocks}</Text>
         </View>
       </View>
     );
@@ -60,9 +91,9 @@ function TargetPace({ session }: { session: Session | null }) {
   return (
     <View style={styles.pace}>
       <View style={styles.rowText}>
-        <Text style={[styles.name, set && styles.nameOn]}>Allure cible</Text>
+        <Text style={[styles.name, set && styles.nameOn]}>{s.targetPace}</Text>
         <Text style={styles.detail}>
-          {set ? "Annoncée dès huit secondes d'écart" : "Aucune, course libre"}
+          {set ? s.announced : s.none}
         </Text>
       </View>
 
@@ -74,7 +105,7 @@ function TargetPace({ session }: { session: Session | null }) {
           <Pressable
             onPress={() => void setTargetPace(null)}
             accessibilityRole="button"
-            accessibilityLabel="Retirer l'allure cible"
+            accessibilityLabel={s.clearPace}
             hitSlop={8}
             style={({ pressed }) => [styles.stepButton, pressed && styles.pressed]}
           >
@@ -85,7 +116,7 @@ function TargetPace({ session }: { session: Session | null }) {
           onPress={() => step(-TARGET_STEP_S)}
           disabled={targetPaceSKm === TARGET_MIN_S}
           accessibilityRole="button"
-          accessibilityLabel="Allure plus rapide"
+          accessibilityLabel={s.faster}
           hitSlop={8}
           style={({ pressed }) => [styles.stepButton, pressed && styles.pressed]}
         >
@@ -98,7 +129,7 @@ function TargetPace({ session }: { session: Session | null }) {
           onPress={() => step(TARGET_STEP_S)}
           disabled={targetPaceSKm === TARGET_MAX_S}
           accessibilityRole="button"
-          accessibilityLabel="Allure plus lente"
+          accessibilityLabel={s.slower}
           hitSlop={8}
           style={({ pressed }) => [styles.stepButton, pressed && styles.pressed]}
         >
@@ -118,11 +149,12 @@ function TargetPace({ session }: { session: Session | null }) {
  * session is as explicit as starting to.
  */
 export function SessionPicker({ visible, chosen, onChoose, onClose }: Props) {
-  const row = (id: string | null, titre: string, detail: string) => {
+  const s = useStrings(sessionPickerStrings);
+  const row = (id: string | null, title: string, detail: string) => {
     const selected = chosen === id;
     return (
       <Pressable
-        key={id ?? "libre"}
+        key={id ?? "free"}
         onPress={() => {
           onChoose(id);
           onClose();
@@ -132,7 +164,7 @@ export function SessionPicker({ visible, chosen, onChoose, onClose }: Props) {
         style={({ pressed }) => [styles.row, pressed && styles.pressed]}
       >
         <View style={styles.rowText}>
-          <Text style={[styles.name, selected && styles.nameOn]}>{titre}</Text>
+          <Text style={[styles.name, selected && styles.nameOn]}>{title}</Text>
           <Text style={styles.detail}>{detail}</Text>
         </View>
         {selected && <Ionicons name="checkmark" size={20} color={colors.accent} />}
@@ -146,10 +178,10 @@ export function SessionPicker({ visible, chosen, onChoose, onClose }: Props) {
         {/* Stops a tap inside the sheet from closing it. */}
         <Pressable onPress={() => undefined} style={styles.sheet}>
           <GlassPanel style={styles.panel}>
-            <Text style={styles.title}>Séance</Text>
+            <Text style={styles.title}>{s.title}</Text>
             <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
-              {row(null, "Course libre", "Aucun bloc, aucune annonce")}
-              {SESSIONS.map((s) => row(s.id, s.name, summary(s)))}
+              {row(null, s.freeRun, s.freeRunDetail)}
+              {SESSIONS.map((session) => row(session.id, sessionName(session), summary(session)))}
             </ScrollView>
             <TargetPace session={sessionById(chosen)} />
           </GlassPanel>

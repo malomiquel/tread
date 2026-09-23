@@ -1,9 +1,11 @@
-/** Display formatting. Strings are French, since the interface is. */
+import { decimal, defineStrings, intlLocale } from "./i18n.ts";
+
+/** Display formatting, in whichever language the interface speaks. */
 
 export function formatDistance(metres: number): string {
   const km = metres / 1000;
   const text = km >= 10 ? km.toFixed(1) : km.toFixed(2);
-  return text.replace(".", ",");
+  return decimal(text);
 }
 
 export function formatDuration(totalS: number): string {
@@ -33,7 +35,7 @@ export function formatPace(secPerKm: number | null): string {
  */
 export function formatSpeed(metresPerSecond: number): string {
   if (!Number.isFinite(metresPerSecond) || metresPerSecond <= 0) return "–";
-  return (metresPerSecond * 3.6).toFixed(1).replace(".", ",");
+  return decimal((metresPerSecond * 3.6).toFixed(1));
 }
 
 /** Kilocalories, rounded: a decimal on an estimate would be a pretence. */
@@ -50,18 +52,30 @@ export function formatElevation(metres: number): string {
  * and it is what makes a list of runs readable: "Course matinale" sticks in the
  * mind far better than a timestamp.
  */
+const runNames = defineStrings({
+  fr: {
+    night: "Course nocturne", morning: "Course matinale", lunch: "Sortie du midi",
+    afternoon: "Course de l'après-midi", evening: "Course du soir",
+  },
+  en: {
+    night: "Night run", morning: "Morning run", lunch: "Lunch run",
+    afternoon: "Afternoon run", evening: "Evening run",
+  },
+});
+
 export function autoName(ts: number): string {
   const hour = new Date(ts).getHours();
-  if (hour < 5) return "Course nocturne";
-  if (hour < 11) return "Course matinale";
-  if (hour < 14) return "Sortie du midi";
-  if (hour < 18) return "Course de l'après-midi";
-  if (hour < 22) return "Course du soir";
-  return "Course nocturne";
+  const names = runNames();
+  if (hour < 5) return names.night;
+  if (hour < 11) return names.morning;
+  if (hour < 14) return names.lunch;
+  if (hour < 18) return names.afternoon;
+  if (hour < 22) return names.evening;
+  return names.night;
 }
 
 export function formatDate(ts: number): string {
-  return new Date(ts).toLocaleDateString("fr-FR", {
+  return new Date(ts).toLocaleDateString(intlLocale(), {
     weekday: "short",
     day: "numeric",
     month: "short",
@@ -80,5 +94,5 @@ export function formatDate(ts: number): string {
  * quantity.
  */
 export function formatCount(value: number): string {
-  return Math.round(value).toLocaleString("fr-FR").replace(/\u202f|\u00a0/g, "\u202f");
+  return Math.round(value).toLocaleString(intlLocale()).replace(/\u202f|\u00a0/g, "\u202f");
 }

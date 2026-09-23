@@ -4,10 +4,56 @@ import { useState } from "react";
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { restoreTransfer } from "@/lib/db";
 import { readHandoverUrl } from "@/lib/handover";
+import { defineStrings, useStrings } from "@/lib/i18n";
 import { refreshReminders } from "@/lib/planReminders";
 import { loadSettings } from "@/lib/settings";
 import { colors, font } from "@/lib/theme";
-import { describeTransfer, unpackTransfer, type Transfer } from "@/lib/transfer";
+import { describeTransfer, restoredSummary, unpackTransfer, type Transfer } from "@/lib/transfer";
+
+const receiveStrings = defineStrings({
+  fr: {
+    unreadableTitle: "Fichier illisible",
+    unreadableMessage: "Le transfert n'est pas arrivé entier. Réessaie.",
+    ok: "OK",
+    confirmTitle: "Tout reprendre ?",
+    confirmMessage: (contents: string) =>
+      `${contents}.\n\nRien ne sera supprimé : les courses déjà ici sont reconnues et ignorées.`,
+    cancel: "Annuler",
+    restore: "Reprendre",
+    downloadFailedTitle: "Téléchargement impossible",
+    downloadFailedMessage:
+      "Vérifie que les deux téléphones sont sur le même WiFi. Certains réseaux publics isolent les appareils entre eux : dans ce cas, passe par le partage de connexion de l'un des deux, ou par le transfert en fichier.",
+    doneTitle: "Transfert terminé",
+    incompleteTitle: "Transfert incomplet",
+    unexpected: "Erreur inattendue.",
+    cameraReason:
+      "Pour lire le code affiché sur l'autre téléphone, l'app a besoin de la caméra. Elle ne s'en sert que sur cet écran, et ne garde aucune image.",
+    allowCamera: "Autoriser la caméra",
+    receiving: "Réception…",
+    aim: "Vise le code affiché sur l'ancien téléphone.",
+  },
+  en: {
+    unreadableTitle: "File unreadable",
+    unreadableMessage: "The transfer didn't arrive in one piece. Try again.",
+    ok: "OK",
+    confirmTitle: "Bring everything over?",
+    confirmMessage: (contents: string) =>
+      `${contents}.\n\nNothing will be deleted: runs already on this phone are recognised and skipped.`,
+    cancel: "Cancel",
+    restore: "Bring over",
+    downloadFailedTitle: "Download failed",
+    downloadFailedMessage:
+      "Check that both phones are on the same WiFi. Some public networks keep devices apart: if so, use one phone's personal hotspot, or transfer with a file instead.",
+    doneTitle: "Transfer complete",
+    incompleteTitle: "Transfer incomplete",
+    unexpected: "Unexpected error.",
+    cameraReason:
+      "To read the code shown on the other phone, the app needs the camera. It only uses it on this screen, and keeps no pictures.",
+    allowCamera: "Allow camera",
+    receiving: "Receiving…",
+    aim: "Scan the code shown on the old phone.",
+  },
+});
 
 /**
  * The receiving half: a camera, and one download.
@@ -22,6 +68,7 @@ export default function ReceiveOverWifi() {
   const [busy, setBusy] = useState(false);
   /** Set once a code has been taken, so the camera stops firing at it. */
   const [taken, setTaken] = useState(false);
+  const s = useStrings(receiveStrings);
 
   async function fetchAndApply(url: string) {
     setBusy(true);
@@ -33,27 +80,27 @@ export default function ReceiveOverWifi() {
       const transfer = await unpackTransfer(await into.base64());
       into.delete();
       if (!transfer) {
-        Alert.alert("Fichier illisible", "Le transfert n'est pas arrivé entier. Réessaie.", [
-          { text: "OK", onPress: () => setTaken(false) },
+        Alert.alert(s.unreadableTitle, s.unreadableMessage, [
+          { text: s.ok, onPress: () => setTaken(false) },
         ]);
         return;
       }
 
       Alert.alert(
-        "Tout reprendre ?",
-        `${describeTransfer(transfer)}.\n\nRien ne sera supprimé : les courses déjà ici sont reconnues et ignorées.`,
+        s.confirmTitle,
+        s.confirmMessage(describeTransfer(transfer)),
         [
-          { text: "Annuler", style: "cancel", onPress: () => setTaken(false) },
-          { text: "Reprendre", onPress: () => void apply(transfer) },
+          { text: s.cancel, style: "cancel", onPress: () => setTaken(false) },
+          { text: s.restore, onPress: () => void apply(transfer) },
         ],
       );
     } catch {
       // Almost always the same cause: a network that will not let two of its
       // own devices talk. Saying so is more use than saying "échec".
       Alert.alert(
-        "Téléchargement impossible",
-        "Vérifie que les deux téléphones sont sur le même WiFi. Certains réseaux publics isolent les appareils entre eux : dans ce cas, passe par le partage de connexion de l'un des deux, ou par le transfert en fichier.",
-        [{ text: "OK", onPress: () => setTaken(false) }],
+        s.downloadFailedTitle,
+        s.downloadFailedMessage,
+        [{ text: s.ok, onPress: () => setTaken(false) }],
       );
     } finally {
       setBusy(false);
@@ -72,17 +119,11 @@ export default function ReceiveOverWifi() {
       await refreshReminders({ force: true });
 
       Alert.alert(
-        "Transfert terminé",
-        [
-          done.added > 0 ? `${done.added} course${done.added > 1 ? "s" : ""} ajoutée${done.added > 1 ? "s" : ""}` : null,
-          done.known > 0 ? `${done.known} déjà connue${done.known > 1 ? "s" : ""}` : null,
-          done.plan ? "programme repris" : null,
-          transfer.plan && !done.plan ? "programme ignoré : celui d'ici a été gardé" : null,
-          done.settings ? "réglages repris" : null,
-        ].filter(Boolean).join(" · ") || "Rien de nouveau.",
+        s.doneTitle,
+        restoredSummary(done, transfer.plan !== null),
       );
     } catch (cause) {
-      Alert.alert("Transfert incomplet", cause instanceof Error ? cause.message : "Erreur inattendue.");
+      Alert.alert(s.incompleteTitle, cause instanceof Error ? cause.message : s.unexpected);
     } finally {
       setBusy(false);
     }
@@ -99,16 +140,13 @@ export default function ReceiveOverWifi() {
   if (!permission.granted) {
     return (
       <View style={styles.screen}>
-        <Text style={styles.lede}>
-          Pour lire le code affiché sur l&apos;autre téléphone, l&apos;app a besoin de la caméra.
-          Elle ne s&apos;en sert que sur cet écran, et ne garde aucune image.
-        </Text>
+        <Text style={styles.lede}>{s.cameraReason}</Text>
         <Pressable
           onPress={() => void requestPermission()}
           accessibilityRole="button"
           style={({ pressed }) => [styles.ask, pressed && styles.pressed]}
         >
-          <Text style={styles.askLabel}>Autoriser la caméra</Text>
+          <Text style={styles.askLabel}>{s.allowCamera}</Text>
         </Pressable>
       </View>
     );
@@ -131,7 +169,7 @@ export default function ReceiveOverWifi() {
         }}
       />
       <Text style={styles.lede}>
-        {busy ? "Réception…" : "Vise le code affiché sur l'ancien téléphone."}
+        {busy ? s.receiving : s.aim}
       </Text>
       {busy ? <ActivityIndicator color={colors.accent} /> : null}
     </View>

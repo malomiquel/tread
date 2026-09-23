@@ -1,24 +1,73 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import * as DocumentPicker from "expo-document-picker";
-import { File } from "expo-file-system";
 import { useFocusEffect, useRouter, useScrollToTop } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import {
-  ActivityIndicator, Alert, FlatList, Image, Pressable, StyleSheet, Text, useColorScheme, View,
+  Alert, FlatList, Image, Pressable, StyleSheet, Text, useColorScheme, View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Polyline } from "react-native-svg";
 import { Button } from "@/components/Button";
 import { SwipeToDelete } from "@/components/SwipeToDelete";
 import { RouteSnapshot, type RouteSnapshotHandle } from "@/components/RouteSnapshot";
-import { deleteRoute, listRoutes, saveRoute, setRoutePreview } from "@/lib/db";
+import { deleteRoute, listRoutes, setRoutePreview } from "@/lib/db";
+import { importRouteFiles } from "@/lib/files";
 import { formatDistance } from "@/lib/format";
+import { defineStrings, useStrings } from "@/lib/i18n";
 import { useTabBarSpace } from "@/lib/layout";
-import { parseGpxLine } from "@/lib/gpx";
-import { placeName } from "@/lib/location";
-import { autoRouteName, drawnLine, isLoop, routeFromLine, thumbnail, type StoredRoute } from "@/lib/route";
+import { drawnLine, isLoop, thumbnail, type StoredRoute } from "@/lib/route";
 import { setRoute, useSettings } from "@/lib/settings";
 import { colors, font, literalColors } from "@/lib/theme";
+
+const routesStrings = defineStrings({
+  fr: {
+    title: "Parcours",
+    importDone: "Import terminé",
+    importFailed: "Import impossible",
+    unexpectedError: "Erreur inattendue.",
+    deleteTitle: "Supprimer ce parcours ?",
+    deleteBody: (name: string, km: string) => `${name}, ${km} km. Tes courses ne sont pas touchées.`,
+    cancel: "Annuler",
+    delete: "Supprimer",
+    hintNone: "Touche pour modifier, ▶ pour partir courir dessus",
+    hintChosen: "Celui marqué « sur ta carte » s'affiche pendant tes courses",
+    drawNew: "Dessiner un nouveau parcours",
+    newShort: "Nouveau",
+    empty:
+      "Aucun parcours pour l'instant. Dessine-en un en touchant la carte : chaque point rejoint le précédent en suivant les rues.",
+    draw: "Dessiner un parcours",
+    importing: "Import…",
+    importGpx: "Importer un fichier GPX",
+    edit: (name: string) => `${name}, modifier`,
+    loop: "boucle",
+    oneWay: "aller",
+    onMap: " · sur ta carte",
+    run: (name: string) => `Courir ${name}`,
+  },
+  en: {
+    title: "Routes",
+    importDone: "Import complete",
+    importFailed: "Import failed",
+    unexpectedError: "Unexpected error.",
+    deleteTitle: "Delete this route?",
+    deleteBody: (name: string, km: string) => `${name}, ${km} km. Your runs are not affected.`,
+    cancel: "Cancel",
+    delete: "Delete",
+    hintNone: "Tap to edit, ▶ to go run it",
+    hintChosen: "The one marked “on your map” shows during your runs",
+    drawNew: "Draw a new route",
+    newShort: "New",
+    empty:
+      "No routes yet. Draw one by tapping the map: each point joins the previous one along the streets.",
+    draw: "Draw a route",
+    importing: "Importing…",
+    importGpx: "Import a GPX file",
+    edit: (name: string) => `${name}, edit`,
+    loop: "loop",
+    oneWay: "one way",
+    onMap: " · on your map",
+    run: (name: string) => `Run ${name}`,
+  },
+});
 
 /**
  * The shape of the picture kept of each route, and so of the row it sits in.
@@ -77,6 +126,7 @@ function RouteLook({ route }: { route: StoredRoute }) {
  * reads the same setting and draws whatever it names under your track.
  */
 export default function RoutesScreen() {
+  const s = useStrings(routesStrings);
   const list = useRef<FlatList<StoredRoute>>(null);
   useScrollToTop(list);
   const router = useRouter();
@@ -130,79 +180,36 @@ export default function RoutesScreen() {
   }, [load]));
 
   /**
-   * Bring routes in from GPX files.
-   *
-   * The format every planner and every watch speaks, which is what makes a
-   * route drawn on a computer runnable here — and the same door the runs
-   * already come in through.
-   *
-   * What arrives is a line with no decisions in it, so handles are invented
-   * along it at even intervals: the geometry is kept exactly as the file has
-   * it, and the handles are only somewhere to take hold. An imported route is
-   * then editable like a drawn one, which is the whole point of importing it
-   * rather than just looking at it.
+   * Routes from GPX files — a planner on a computer, a watch, a friend.
+   * Offered on the empty list, and in Réglages › Données for later.
    */
   async function importGpx() {
     if (importing) return;
     setImporting(true);
     try {
-      const picked = await DocumentPicker.getDocumentAsync({
-        // Loose on purpose: a GPX arrives declared as XML, as plain text or
-        // as nothing at all depending on where it was written.
-        type: ["application/gpx+xml", "application/xml", "text/xml", "*/*"],
-        multiple: true,
-        copyToCacheDirectory: true,
-      });
-      if (picked.canceled) return;
-
-      let added = 0;
-      let empty = 0;
-      for (const asset of picked.assets) {
-        try {
-          const { name, line } = parseGpxLine(await new File(asset.uri).text());
-          if (line.length < 2) {
-            empty += 1;
-            continue;
-          }
-
-          const place = await placeName(line[0].lat, line[0].lng);
-          // No picture: the map that would take one is not on screen here.
-          // The list draws the bare shape instead, which is recognisable
-          // enough, and a route opened and saved once gets its picture.
-          await saveRoute(
-            name?.trim() || autoRouteName(Date.now()),
-            routeFromLine(line),
-            { place, preview: null },
-          );
-          added += 1;
-        } catch {
-          empty += 1;
-        }
-      }
-
+      const summary = await importRouteFiles();
+      if (summary === null) return;
       load();
-      Alert.alert(
-        "Import terminé",
-        [
-          added > 0 ? `${added} parcours ajouté${added > 1 ? "s" : ""}` : null,
-          empty > 0 ? `${empty} fichier${empty > 1 ? "s" : ""} sans tracé` : null,
-        ].filter(Boolean).join(" · ") || "Aucun tracé dans ces fichiers.",
-      );
+      Alert.alert(routesStrings().importDone, summary);
     } catch (cause) {
-      Alert.alert("Import impossible", cause instanceof Error ? cause.message : "Erreur inattendue.");
+      const text = routesStrings();
+      Alert.alert(text.importFailed, cause instanceof Error ? cause.message : text.unexpectedError);
     } finally {
       setImporting(false);
     }
   }
 
+  const draw = () => router.push({ pathname: "/route/[id]", params: { id: "new" } });
+
   function remove(route: StoredRoute) {
+    const text = routesStrings();
     Alert.alert(
-      "Supprimer ce parcours ?",
-      `${route.name}, ${formatDistance(route.distanceM)} km. Tes courses ne sont pas touchées.`,
+      text.deleteTitle,
+      text.deleteBody(route.name, formatDistance(route.distanceM)),
       [
-        { text: "Annuler", style: "cancel" },
+        { text: text.cancel, style: "cancel" },
         {
-          text: "Supprimer",
+          text: text.delete,
           style: "destructive",
           onPress: () => {
             // A deleted route must stop being the chosen one, or the running
@@ -221,42 +228,25 @@ export default function RoutesScreen() {
       <View style={styles.fill}>
         <View style={styles.head}>
           <View style={styles.headText}>
-            <Text style={styles.title}>Parcours</Text>
+            <Text style={styles.title}>{s.title}</Text>
             {routes && routes.length > 0 ? (
               <Text style={styles.subtitle}>
-                {chosen === null
-                  ? "Touche pour modifier, ▶ pour partir courir dessus"
-                  : "Celui qui est coché sera tracé sur ta carte"}
+                {chosen === null ? s.hintNone : s.hintChosen}
               </Text>
             ) : null}
           </View>
-          <View style={styles.ways}>
-            {/* Two ways in, because a route can be drawn here or brought from
-                anywhere else: a planner on a computer, a watch, a friend. */}
-            <Pressable
-              onPress={() => void importGpx()}
-              disabled={importing}
-              accessibilityRole="button"
-              accessibilityLabel="Importer un parcours GPX"
-              hitSlop={10}
-              style={({ pressed }) => [styles.draw, pressed && styles.pressed]}
-            >
-              {importing ? (
-                <ActivityIndicator size="small" color={colors.accent} />
-              ) : (
-                <Ionicons name="download-outline" size={20} color={colors.text} />
-              )}
-            </Pressable>
-            <Pressable
-              onPress={() => router.push({ pathname: "/route/[id]", params: { id: "new" } })}
-              accessibilityRole="button"
-              accessibilityLabel="Dessiner un parcours"
-              hitSlop={10}
-              style={({ pressed }) => [styles.draw, pressed && styles.pressed]}
-            >
-              <Ionicons name="add" size={23} color={colors.text} />
-            </Pressable>
-          </View>
+          {/* One way in, said in words. Two bare icons side by side — an
+              arrow and a plus — left people guessing which one drew. */}
+          <Pressable
+            onPress={draw}
+            accessibilityRole="button"
+            accessibilityLabel={s.drawNew}
+            hitSlop={8}
+            style={({ pressed }) => [styles.draw, pressed && styles.pressed]}
+          >
+            <Ionicons name="add" size={19} color={colors.accentText} />
+            <Text style={styles.drawLabel}>{s.newShort}</Text>
+          </Pressable>
         </View>
 
         <FlatList
@@ -267,13 +257,13 @@ export default function RoutesScreen() {
           ListEmptyComponent={
             routes === null ? null : (
               <View style={styles.emptyBlock}>
-                <Text style={styles.empty}>
-                  Aucun parcours pour l&apos;instant. Dessines-en un en touchant la carte — chaque
-                  point rejoint le précédent en suivant les rues — ou importe un fichier GPX.
-                </Text>
-                    <Button
-                  label="Dessiner un parcours"
-                  onPress={() => router.push({ pathname: "/route/[id]", params: { id: "new" } })}
+                <Text style={styles.empty}>{s.empty}</Text>
+                <Button label={s.draw} onPress={draw} />
+                <Button
+                  label={importing ? s.importing : s.importGpx}
+                  variant="secondary"
+                  onPress={() => void importGpx()}
+                  disabled={importing}
                 />
               </View>
             )
@@ -289,7 +279,7 @@ export default function RoutesScreen() {
                   <Pressable
                     onPress={() => router.push({ pathname: "/route/[id]", params: { id: String(item.id) } })}
                     accessibilityRole="button"
-                    accessibilityLabel={`${item.name}, modifier`}
+                    accessibilityLabel={s.edit(item.name)}
                     style={({ pressed }) => [styles.body, pressed && styles.pressedRow]}
                   >
                     <RouteLook route={item} />
@@ -300,9 +290,9 @@ export default function RoutesScreen() {
                           {item.name}
                         </Text>
                         <Text style={styles.detail} numberOfLines={1}>
-                          {formatDistance(item.distanceM)} km · {isLoop(item) ? "boucle" : "aller"}
+                          {formatDistance(item.distanceM)} km · {isLoop(item) ? s.loop : s.oneWay}
                           {item.place ? ` · ${item.place}` : ""}
-                          {on ? " · sur ta carte" : ""}
+                          {on ? s.onMap : ""}
                         </Text>
                       </View>
 
@@ -315,7 +305,7 @@ export default function RoutesScreen() {
                           router.push("/record");
                         }}
                         accessibilityRole="button"
-                        accessibilityLabel={`Courir ${item.name}`}
+                        accessibilityLabel={s.run(item.name)}
                         hitSlop={10}
                         style={({ pressed }) => [styles.go, pressed && styles.pressed]}
                       >
@@ -349,12 +339,12 @@ const styles = StyleSheet.create({
   headText: { flex: 1 },
   title: { color: colors.text, fontSize: 32, fontFamily: font.bold, letterSpacing: -0.6 },
   subtitle: { color: colors.subtle, fontFamily: font.regular, fontSize: 15, marginTop: 3 },
-  ways: { flexDirection: "row", gap: 8 },
   draw: {
-    width: 40, height: 40, borderRadius: 20,
-    alignItems: "center", justifyContent: "center",
-    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline,
+    flexDirection: "row", alignItems: "center", gap: 4,
+    height: 36, paddingLeft: 10, paddingRight: 14, borderRadius: 18,
+    backgroundColor: colors.accent,
   },
+  drawLabel: { color: colors.accentText, fontSize: 15.5, fontFamily: font.semibold },
   pressed: { opacity: 0.6 },
 
   emptyBlock: { marginTop: 56, paddingHorizontal: GUTTER, gap: 18 },

@@ -3,8 +3,32 @@ import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { Button } from "@/components/Button";
 import { HoldButton } from "@/components/HoldButton";
 import { formatDistance } from "@/lib/format";
+import { defineStrings, useStrings } from "@/lib/i18n";
 import { setWeeklyGoal } from "@/lib/settings";
 import { colors, font } from "@/lib/theme";
+
+const weeklyGoalStrings = defineStrings({
+  fr: {
+    title: "Objectif hebdomadaire",
+    lede: "La distance à couvrir du lundi au dimanche. Elle n'est comparée à rien d'autre qu'à elle-même.",
+    decrease: "Diminuer l'objectif d'un kilomètre",
+    increase: "Augmenter l'objectif d'un kilomètre",
+    perWeek: "km par semaine",
+    cancel: "Annuler",
+    keep: "Garder",
+    remove: "Retirer l'objectif",
+  },
+  en: {
+    title: "Weekly goal",
+    lede: "The distance to cover from Monday to Sunday. It is measured against nothing but itself.",
+    decrease: "Lower the goal by one kilometre",
+    increase: "Raise the goal by one kilometre",
+    perWeek: "km per week",
+    cancel: "Cancel",
+    keep: "Keep",
+    remove: "Remove the goal",
+  },
+});
 
 /** One kilometre a tap, which is the smallest change worth making to a week. */
 const STEP_M = 1000;
@@ -46,6 +70,7 @@ export function WeeklyGoalSheet({ visible, goalM, suggestedM, onClose }: Props) 
 }
 
 function Sheet({ goalM, suggestedM, onClose }: Omit<Props, "visible">) {
+  const s = useStrings(weeklyGoalStrings);
   const [draft, setDraft] = useState(goalM ?? suggestedM);
 
   const move = (by: number) =>
@@ -60,34 +85,31 @@ function Sheet({ goalM, suggestedM, onClose }: Omit<Props, "visible">) {
     <Pressable style={styles.backdrop} onPress={onClose}>
       {/* Stops a tap inside the sheet from closing it. */}
       <Pressable onPress={() => undefined} style={styles.sheet}>
-        <Text style={styles.title}>Objectif hebdomadaire</Text>
-        <Text style={styles.lede}>
-          La distance à couvrir du lundi au dimanche. Elle n&apos;est comparée à rien
-          d&apos;autre qu&apos;à elle-même.
-        </Text>
+        <Text style={styles.title}>{s.title}</Text>
+        <Text style={styles.lede}>{s.lede}</Text>
 
         <View style={styles.stepper}>
           <HoldButton
             onStep={() => move(-STEP_M)}
             label="−"
-            accessibilityLabel="Diminuer l'objectif d'un kilomètre"
+            accessibilityLabel={s.decrease}
             disabled={draft <= LOWEST_M}
           />
           <View style={styles.value}>
             <Text style={styles.number}>{formatDistance(draft)}</Text>
-            <Text style={styles.unit}>km par semaine</Text>
+            <Text style={styles.unit}>{s.perWeek}</Text>
           </View>
           <HoldButton
             onStep={() => move(STEP_M)}
             label="+"
-            accessibilityLabel="Augmenter l'objectif d'un kilomètre"
+            accessibilityLabel={s.increase}
             disabled={draft >= HIGHEST_M}
           />
         </View>
 
         <View style={styles.actions}>
-          <Button label="Annuler" variant="secondary" onPress={onClose} />
-          <Button label="Garder" onPress={() => void keep(draft)} />
+          <Button label={s.cancel} variant="secondary" onPress={onClose} />
+          <Button label={s.keep} onPress={() => void keep(draft)} />
         </View>
 
         {goalM !== null ? (
@@ -97,7 +119,7 @@ function Sheet({ goalM, suggestedM, onClose }: Omit<Props, "visible">) {
             hitSlop={8}
             style={({ pressed }) => [styles.drop, pressed && styles.dropPressed]}
           >
-            <Text style={styles.dropLabel}>Retirer l&apos;objectif</Text>
+            <Text style={styles.dropLabel}>{s.remove}</Text>
           </Pressable>
         ) : null}
       </Pressable>

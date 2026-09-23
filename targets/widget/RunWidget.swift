@@ -23,6 +23,22 @@ private let accentDark = Color(red: 0.435, green: 0.659, blue: 1.000)
  narrower and shorter in the eye, so the same point size reads noticeably
  smaller — the same correction the app itself needed.
  */
+/**
+ The few words the activity prints itself, in the phone's language.
+
+ The run's title arrives already written by the app. These labels do not, and
+ an extension cannot read the app's language setting, so they follow the
+ phone: French when it prefers French, English otherwise — the same rule the
+ app applies when left on automatic.
+ */
+private enum Words {
+  private static let french = Locale.preferredLanguages.first?.hasPrefix("fr") ?? false
+  static let paused = french ? "EN PAUSE" : "PAUSED"
+  static let time = french ? "TEMPS" : "TIME"
+  static let distance = "DISTANCE"
+  static let pace = french ? "ALLURE" : "PACE"
+}
+
 private enum Face {
   static func semibold(_ size: CGFloat) -> Font { .custom("BarlowCondensed-SemiBold", size: size) }
   static func bold(_ size: CGFloat) -> Font { .custom("BarlowCondensed-Bold", size: size) }
@@ -75,7 +91,7 @@ private struct LockScreenView: View {
       HStack(spacing: 6) {
         Image(systemName: state.clockOrigin == nil ? "pause.fill" : "figure.run")
           .font(.system(size: 11, weight: .bold))
-        Text(state.clockOrigin == nil ? "EN PAUSE" : title.uppercased())
+        Text(state.clockOrigin == nil ? Words.paused : title.uppercased())
           .font(Face.semibold(13))
           .tracking(1.2)
           .lineLimit(1)
@@ -96,7 +112,7 @@ private struct LockScreenView: View {
           .font(Face.bold(44))
           .monospacedDigit()
 
-          Text("TEMPS")
+          Text(Words.time)
             .font(Face.semibold(11.5))
             .tracking(1.2)
             .foregroundStyle(.tertiary)
@@ -108,8 +124,8 @@ private struct LockScreenView: View {
         // the pace crowding the distance's unit.
         Spacer(minLength: 16)
         HStack(alignment: .firstTextBaseline, spacing: 26) {
-          Metric(value: state.distance, unit: "km", label: "DISTANCE", accent: accent)
-          Metric(value: state.pace, unit: "/km", label: "ALLURE", accent: accent)
+          Metric(value: state.distance, unit: "km", label: Words.distance, accent: accent)
+          Metric(value: state.pace, unit: "/km", label: Words.pace, accent: accent)
         }
       }
     }
@@ -125,11 +141,11 @@ struct RunLiveActivity: Widget {
     } dynamicIsland: { context in
       DynamicIsland {
         DynamicIslandExpandedRegion(.leading) {
-          Metric(value: context.state.distance, unit: "km", label: "DISTANCE", accent: accentDark)
+          Metric(value: context.state.distance, unit: "km", label: Words.distance, accent: accentDark)
             .padding(.leading, 4)
         }
         DynamicIslandExpandedRegion(.trailing) {
-          Metric(value: context.state.pace, unit: "/km", label: "ALLURE", accent: accentDark)
+          Metric(value: context.state.pace, unit: "/km", label: Words.pace, accent: accentDark)
             .padding(.trailing, 4)
         }
         DynamicIslandExpandedRegion(.bottom) {

@@ -8,6 +8,7 @@ import {
 import MapView, { Marker, Polyline } from "react-native-maps";
 import Animated, { useAnimatedStyle, type SharedValue } from "react-native-reanimated";
 import { formatDistance, formatDuration } from "@/lib/format";
+import { defineStrings, useStrings } from "@/lib/i18n";
 import { bounds, regionAround, segments, type TrackPoint } from "@/lib/geo";
 import { CONTROL_SIZE, CONTROLS_TOP } from "@/lib/layout";
 import { getCurrentCoords, type Coords } from "@/lib/location";
@@ -15,6 +16,23 @@ import { readColour } from "@/lib/raster";
 import { buildReplay, drawnSoFar, headAt, REPLAY_MS } from "@/lib/replay";
 import type { RoutePoint } from "@/lib/route";
 import { colors, floatingShadow, font, literalColors } from "@/lib/theme";
+
+const mapStrings = defineStrings({
+  fr: {
+    stopReplay: "Arrêter le tracé animé",
+    replay: "Rejouer le parcours",
+    shrink: "Réduire la carte",
+    expand: "Agrandir la carte",
+    recenter: "Recentrer la carte sur ma position",
+  },
+  en: {
+    stopReplay: "Stop the animated track",
+    replay: "Replay the route",
+    shrink: "Shrink the map",
+    expand: "Expand the map",
+    recenter: "Recenter the map on my location",
+  },
+});
 
 interface Props {
   points: TrackPoint[];
@@ -101,6 +119,7 @@ export function RunMap({
   replayable = false, route = null, onToggleFullscreen, fullscreen = false, controlsBottom = 12,
   controlsAtTop = false, controlsArrive, controlsAbove, style,
 }: Props) {
+  const s = useStrings(mapStrings);
   const map = useRef<MapView>(null);
   const scheme = useColorScheme() === "dark" ? "dark" : "light";
 
@@ -299,7 +318,7 @@ export function RunMap({
           <Pressable
             onPress={() => setPlayedMs((running) => (running === null ? 0 : null))}
             accessibilityRole="button"
-            accessibilityLabel={head ? "Arrêter le tracé animé" : "Rejouer le parcours"}
+            accessibilityLabel={head ? s.stopReplay : s.replay}
             hitSlop={8}
             style={({ pressed }) => [styles.control, pressed && styles.controlPressed]}
           >
@@ -317,7 +336,7 @@ export function RunMap({
           <Pressable
             onPress={onToggleFullscreen}
             accessibilityRole="button"
-            accessibilityLabel={fullscreen ? "Réduire la carte" : "Agrandir la carte"}
+            accessibilityLabel={fullscreen ? s.shrink : s.expand}
             hitSlop={8}
             style={({ pressed }) => [styles.control, pressed && styles.controlPressed]}
           >
@@ -328,7 +347,7 @@ export function RunMap({
         <Pressable
           onPress={() => void recentre()}
           accessibilityRole="button"
-          accessibilityLabel="Recentrer la carte sur ma position"
+          accessibilityLabel={s.recenter}
           // 44 points across, plus slop: below that the target gets hard to
           // hit with a thumb, especially mid-run.
           hitSlop={8}

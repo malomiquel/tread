@@ -4,9 +4,10 @@ import { useScrollToTop } from "expo-router";
 import { listRuns, personalRecords } from "@/lib/db";
 import { formatDuration, formatPace } from "@/lib/format";
 import { HoldButton } from "@/components/HoldButton";
+import { defineStrings, intlLocale, plural, useStrings } from "@/lib/i18n";
 import { useTabBarSpace } from "@/lib/layout";
 import {
-  buildPlan, clampWeeks, daysBetween, equivalentTimeS, GOALS, pacesFrom, projectedTimeS,
+  buildPlan, clampWeeks, daysBetween, equivalentTimeS, goalName, GOALS, pacesFrom, projectedTimeS,
   longCeilingMin, longestReachedMin, SLOT_DAYS, startOfDay,
   type Goal, type GoalSpec, type PerWeek,
 } from "@/lib/plan";
@@ -34,12 +35,112 @@ const DAY_MS = 86_400_000;
  * the week a runner lives in starts on Monday, and writing the mapping out
  * once is cheaper than converting between them at every use.
  */
-const WEEKDAYS = ["L", "M", "M", "J", "V", "S", "D"];
 const WEEKDAY_NUMBERS = [1, 2, 3, 4, 5, 6, 0];
-const MONTHS = [
-  "janvier", "février", "mars", "avril", "mai", "juin",
-  "juillet", "août", "septembre", "octobre", "novembre", "décembre",
-];
+
+const planSetupStrings = defineStrings({
+  fr: {
+    weekdays: ["L", "M", "M", "J", "V", "S", "D"],
+    title: "Ton objectif",
+    cancel: "Annuler",
+    lede: "Choisis une course et une date. Le programme se construit à l'envers, depuis le jour J.",
+    distance: "Distance",
+    raceDate: "Date de la course",
+    dateHint: (min: number, max: number) =>
+      `Entre ${min} et ${max} semaines d'ici. En deçà, il n'y a pas le temps de construire quoi que ce soit.`,
+    previousMonth: "Mois précédent",
+    nextMonth: "Mois suivant",
+    perWeek: "Séances par semaine",
+    perWeekDetails: {
+      1: "la sortie longue",
+      2: "le minimum qui prépare",
+      3: "confortable",
+      4: "si tu cours déjà beaucoup",
+    } as Record<PerWeek, string>,
+    whichDays: "Quels jours",
+    daysReady: "Les séances tomberont sur ces jours, et les rattrapages entre eux.",
+    daysMissing: (needed: number, picked: number) =>
+      `Il en faut ${needed} — ${picked} ${picked > 1 ? "choisis" : "choisi"}.`,
+    longest: "Ta plus longue sortie",
+    longestUnknown: "Aujourd'hui, pas ce que tu voudrais faire. Toute la progression part de là.",
+    longestKnown: "Reprise de ta plus longue course. Ajuste si elle ne te ressemble plus.",
+    shorterRun: "Sortie plus courte",
+    longerRun: "Sortie plus longue",
+    today: "aujourd'hui",
+    reached: (duration: string) => `le programme t'amènera à ${duration}`,
+    tooShort: (goal: string) =>
+      `C'est en dessous de ce que ${goal} demande vraiment. Le programme t'y amènera aussi loin qu'il est raisonnable — plus vite serait une blessure écrite d'avance — mais vise une date plus lointaine si tu peux.`,
+    volume: "Ton volume actuel",
+    volumeMeasured: "Mesuré sur tes huit dernières semaines, semaines sans course comprises.",
+    volumeUnknown: "Deux coureurs au même chrono sur 10 km n'ont pas le même marathon : celui qui court beaucoup perd moins sur la distance. Sans données, Tread part de l'hypothèse la plus prudente.",
+    lessVolume: "Moins de volume",
+    moreVolume: "Plus de volume",
+    perWeekUnit: "par semaine",
+    targetTime: "Temps visé",
+    targetProjected: "Projeté depuis ta meilleure course. C'est lui qui fixe toutes les allures du programme.",
+    targetUnknown: "Aucune course assez longue dans ton historique pour projeter. Pars de là et ajuste.",
+    shorterTime: "Temps plus court",
+    longerTime: "Temps plus long",
+    perKm: (pace: string) => `${pace} au km`,
+    easy: "Footing",
+    long: "Sortie longue",
+    threshold: "Seuil",
+    intervals: "Fractionné",
+    create: (weeks: number, sessions: number) => `Créer ${weeks} semaines · ${sessions} séances`,
+    pickDate: "Choisis une date",
+    pickDays: (count: number) => `Choisis ${plural(count, "jour", "jours")}`,
+  },
+  en: {
+    weekdays: ["M", "T", "W", "T", "F", "S", "S"],
+    title: "Your goal",
+    cancel: "Cancel",
+    lede: "Pick a race and a date. The plan is built backwards, from race day.",
+    distance: "Distance",
+    raceDate: "Race date",
+    dateHint: (min: number, max: number) =>
+      `Between ${min} and ${max} weeks from now. Any sooner, and there is no time to build anything.`,
+    previousMonth: "Previous month",
+    nextMonth: "Next month",
+    perWeek: "Sessions per week",
+    perWeekDetails: {
+      1: "the long run",
+      2: "the minimum that prepares you",
+      3: "comfortable",
+      4: "if you already run a lot",
+    },
+    whichDays: "Which days",
+    daysReady: "Sessions will fall on these days, with catch-ups in between.",
+    daysMissing: (needed: number, picked: number) => `You need ${needed} — ${picked} chosen.`,
+    longest: "Your longest run",
+    longestUnknown: "Today, not what you would like to do. Everything builds from there.",
+    longestKnown: "Taken from your longest run. Adjust it if it no longer fits you.",
+    shorterRun: "Shorter run",
+    longerRun: "Longer run",
+    today: "today",
+    reached: (duration: string) => `the plan will take you to ${duration}`,
+    tooShort: (goal: string) =>
+      `That is below what the ${goal.toLowerCase()} really asks for. The plan will take you as far as is reasonable — any faster would be an injury waiting to happen — but aim for a later date if you can.`,
+    volume: "Your current volume",
+    volumeMeasured: "Measured over your last eight weeks, weeks without a run included.",
+    volumeUnknown: "Two runners with the same 10 km time do not run the same marathon: the one who runs more loses less over the distance. Without data, Tread starts from the most cautious assumption.",
+    lessVolume: "Less volume",
+    moreVolume: "More volume",
+    perWeekUnit: "per week",
+    targetTime: "Target time",
+    targetProjected: "Projected from your best run. It sets every pace in the plan.",
+    targetUnknown: "No run in your history is long enough to project from. Start here and adjust.",
+    shorterTime: "Shorter time",
+    longerTime: "Longer time",
+    perKm: (pace: string) => `${pace} per km`,
+    easy: "Easy run",
+    long: "Long run",
+    threshold: "Threshold",
+    intervals: "Intervals",
+    create: (weeks: number, sessions: number) =>
+      `Create ${plural(weeks, "week", "weeks")} · ${plural(sessions, "session", "sessions")}`,
+    pickDate: "Pick a date",
+    pickDays: (count: number) => `Pick ${plural(count, "day", "days")}`,
+  },
+});
 
 const round5 = (minutes: number): number => Math.max(5, Math.round(minutes / 5) * 5);
 
@@ -77,6 +178,7 @@ function MonthGrid({
   const days = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
   const lead = mondayIndex(first.getDay());
 
+  const s = useStrings(planSetupStrings);
   const cells: (number | null)[] = [
     ...Array<null>(lead).fill(null),
     ...Array.from({ length: days }, (_, i) =>
@@ -87,7 +189,7 @@ function MonthGrid({
   return (
     <View>
       <View style={styles.weekdays}>
-        {WEEKDAYS.map((letter, i) => (
+        {s.weekdays.map((letter, i) => (
           <Text key={`${letter}${i}`} style={styles.weekday}>{letter}</Text>
         ))}
       </View>
@@ -176,7 +278,14 @@ function stepFor(goal: Goal): number {
   return goal === "half" || goal === "marathon" ? 300 : 60;
 }
 
-export function PlanSetup({ onCreate }: { onCreate: (draft: PlanDraft) => void }) {
+export function PlanSetup({
+  onCreate, onCancel,
+}: {
+  onCreate: (draft: PlanDraft) => void;
+  /** The way back out, for somebody who opened the form to see what it asks. */
+  onCancel?: () => void;
+}) {
+  const s = useStrings(planSetupStrings);
   const [goalId, setGoalId] = useState<Goal>("half");
   const [raceAt, setRaceAt] = useState<number | null>(null);
   const [perWeek, setPerWeek] = useState<PerWeek>(2);
@@ -284,43 +393,55 @@ export function PlanSetup({ onCreate }: { onCreate: (draft: PlanDraft) => void }
 
   return (
     <ScrollView ref={page} contentContainerStyle={[styles.content, { paddingBottom: tabBarSpace + 20 }]}>
-      <Text style={styles.title}>Ton objectif</Text>
+      <View style={styles.titleRow}>
+        <Text style={styles.title}>{s.title}</Text>
+        {onCancel ? (
+          <Pressable
+            onPress={onCancel}
+            accessibilityRole="button"
+            hitSlop={10}
+            style={({ pressed }) => [styles.cancel, pressed && styles.pressed]}
+          >
+            <Text style={styles.cancelLabel}>{s.cancel}</Text>
+          </Pressable>
+        ) : null}
+      </View>
       <Text style={styles.lede}>
-        {"Choisis une course et une date. Le programme se construit à l'envers, depuis le jour J."}
+        {s.lede}
       </Text>
 
-      <Text style={styles.section}>Distance</Text>
+      <Text style={styles.section}>{s.distance}</Text>
       <View style={styles.row}>
         {GOALS.map((spec: GoalSpec) => (
           <Choice
             key={spec.id}
-            label={spec.name}
+            label={goalName(spec.id)}
             on={spec.id === goalId}
             onPress={() => { setGoalId(spec.id); setOverride(null); }}
           />
         ))}
       </View>
 
-      <Text style={styles.section}>Date de la course</Text>
+      <Text style={styles.section}>{s.raceDate}</Text>
       <Text style={styles.hint}>
-        {`Entre ${goal.minWeeks} et ${goal.maxWeeks} semaines d'ici. En deçà, il n'y a pas le temps de construire quoi que ce soit.`}
+        {s.dateHint(goal.minWeeks, goal.maxWeeks)}
       </Text>
       <View style={styles.monthHead}>
         <Pressable
           onPress={() => setMonth((m) => new Date(m.getFullYear(), m.getMonth() - 1, 1))}
           accessibilityRole="button"
-          accessibilityLabel="Mois précédent"
+          accessibilityLabel={s.previousMonth}
           hitSlop={10}
         >
           <Text style={styles.monthArrow}>‹</Text>
         </Pressable>
         <Text style={styles.monthName}>
-          {MONTHS[month.getMonth()]} {month.getFullYear()}
+          {month.toLocaleDateString(intlLocale(), { month: "long" })} {month.getFullYear()}
         </Text>
         <Pressable
           onPress={() => setMonth((m) => new Date(m.getFullYear(), m.getMonth() + 1, 1))}
           accessibilityRole="button"
-          accessibilityLabel="Mois suivant"
+          accessibilityLabel={s.nextMonth}
           hitSlop={10}
         >
           <Text style={styles.monthArrow}>›</Text>
@@ -334,18 +455,13 @@ export function PlanSetup({ onCreate }: { onCreate: (draft: PlanDraft) => void }
         onPick={setRaceAt}
       />
 
-      <Text style={styles.section}>Séances par semaine</Text>
+      <Text style={styles.section}>{s.perWeek}</Text>
       <View style={styles.row}>
-        {([
-          [1, "la sortie longue"],
-          [2, "le minimum qui prépare"],
-          [3, "confortable"],
-          [4, "si tu cours déjà beaucoup"],
-        ] as const).map(([count, detail]) => (
+        {([1, 2, 3, 4] as const).map((count) => (
           <Choice
             key={count}
             label={String(count)}
-            detail={detail}
+            detail={s.perWeekDetails[count]}
             on={perWeek === count}
             // Changing the rhythm re-proposes days that match it, rather than
             // leaving a count that no longer adds up for the runner to fix.
@@ -354,11 +470,11 @@ export function PlanSetup({ onCreate }: { onCreate: (draft: PlanDraft) => void }
         ))}
       </View>
 
-      <Text style={styles.section}>Quels jours</Text>
+      <Text style={styles.section}>{s.whichDays}</Text>
       <Text style={styles.hint}>
         {days.length === perWeek
-          ? "Les séances tomberont sur ces jours, et les rattrapages entre eux."
-          : `Il en faut ${perWeek} — ${days.length} ${days.length > 1 ? "choisis" : "choisi"}.`}
+          ? s.daysReady
+          : s.daysMissing(perWeek, days.length)}
       </Text>
       <View style={styles.daysRow}>
         {WEEKDAY_NUMBERS.map((number, i) => {
@@ -375,77 +491,77 @@ export function PlanSetup({ onCreate }: { onCreate: (draft: PlanDraft) => void }
               accessibilityState={{ selected: on }}
               style={[styles.dayPick, on && styles.dayPickOn]}
             >
-              <Text style={[styles.dayPickLabel, on && styles.dayPickLabelOn]}>{WEEKDAYS[i]}</Text>
+              <Text style={[styles.dayPickLabel, on && styles.dayPickLabelOn]}>{s.weekdays[i]}</Text>
             </Pressable>
           );
         })}
       </View>
 
-      <Text style={styles.section}>Ta plus longue sortie</Text>
+      <Text style={styles.section}>{s.longest}</Text>
       <Text style={styles.hint}>
         {longestMin === null
-          ? "Aujourd'hui, pas ce que tu voudrais faire. Toute la progression part de là."
-          : "Reprise de ta plus longue course. Ajuste si elle ne te ressemble plus."}
+          ? s.longestUnknown
+          : s.longestKnown}
       </Text>
       <View style={styles.stepper}>
         <HoldButton
           label="−"
-          accessibilityLabel="Sortie plus courte"
+          accessibilityLabel={s.shorterRun}
           onStep={() => setLongestMin((current) => Math.max(10, (current ?? longest) - 5))}
         />
         <View style={styles.target}>
           <Text style={styles.targetValue}>{durationName(longest)}</Text>
           <Text style={styles.targetDetail}>
             {reached === null
-              ? "aujourd'hui"
-              : `le programme t'amènera à ${durationName(reached)}`}
+              ? s.today
+              : s.reached(durationName(reached))}
           </Text>
         </View>
         <HoldButton
           label="+"
-          accessibilityLabel="Sortie plus longue"
+          accessibilityLabel={s.longerRun}
           onStep={() => setLongestMin((current) => Math.min(240, (current ?? longest) + 5))}
         />
       </View>
       {reached !== null && reached < longCeilingMin(goalId, targetTimeS / 60) * 0.7 ? (
         <Text style={styles.warn}>
-          {`C'est en dessous de ce que ${goal.name} demande vraiment. Le programme t'y amènera aussi loin qu'il est raisonnable — plus vite serait une blessure écrite d'avance — mais vise une date plus lointaine si tu peux.`}
+          {s.tooShort(goalName(goalId))}
         </Text>
       ) : null}
 
-      <Text style={styles.section}>Ton volume actuel</Text>
+      <Text style={styles.section}>{s.volume}</Text>
       <Text style={styles.hint}>
         {measuredKm !== null && declaredKm === null
-          ? "Mesuré sur tes huit dernières semaines, semaines sans course comprises."
-          : "Deux coureurs au même chrono sur 10 km n'ont pas le même marathon : celui qui court beaucoup perd moins sur la distance. Sans données, je pars au plus prudent."}
+          ? s.volumeMeasured
+          : s.volumeUnknown}
       </Text>
       <View style={styles.stepper}>
         <HoldButton
           label="−"
-          accessibilityLabel="Moins de volume"
+          accessibilityLabel={s.lessVolume}
           onStep={() => setDeclaredKm((current) => Math.max(5, (current ?? weeklyKm) - 5))}
         />
         <View style={styles.target}>
           <Text style={styles.targetValue}>{weeklyKm} km</Text>
-          <Text style={styles.targetDetail}>par semaine</Text>
+          <Text style={styles.targetDetail}>{s.perWeekUnit}</Text>
         </View>
         <HoldButton
           label="+"
-          accessibilityLabel="Plus de volume"
+          accessibilityLabel={s.moreVolume}
           onStep={() => setDeclaredKm((current) => Math.min(200, (current ?? weeklyKm) + 5))}
         />
       </View>
 
-      <Text style={styles.section}>Temps visé</Text>
+      <Text style={styles.section}>{s.targetTime}</Text>
       <Text style={styles.hint}>
         {reference
-          ? "Projeté depuis ta meilleure course. C'est lui qui fixe toutes les allures du programme."
-          : "Aucune course assez longue dans ton historique pour projeter. Pars de là et ajuste."}
+          ? s.targetProjected
+          : s.targetUnknown}
       </Text>
       <View style={styles.stepper}>
         <HoldButton
           label="−"
-          accessibilityLabel="Temps plus court"
+          accessibilityLabel={s.shorterTime}
           // Each sign moves the number it is next to, not the ambition behind
           // it. A minus that raised the figure because a faster target is more
           // ambitious would be reasoning nobody performs while looking at a
@@ -461,12 +577,12 @@ export function PlanSetup({ onCreate }: { onCreate: (draft: PlanDraft) => void }
             {formatDuration(targetTimeS)}
           </Text>
           <Text style={styles.targetDetail}>
-            {paces ? `${formatPace(projectedTimeS(goal, paces) / (goal.distanceM / 1000))} au km` : ""}
+            {paces ? s.perKm(formatPace(projectedTimeS(goal, paces) / (goal.distanceM / 1000))) : ""}
           </Text>
         </View>
         <HoldButton
           label="+"
-          accessibilityLabel="Temps plus long"
+          accessibilityLabel={s.longerTime}
           onStep={() => setOverride((current) => (current ?? suggested) + stepS)}
         />
       </View>
@@ -474,10 +590,10 @@ export function PlanSetup({ onCreate }: { onCreate: (draft: PlanDraft) => void }
       {paces ? (
         <View style={styles.paces}>
           {([
-            ["Footing", paces.easy],
-            ["Sortie longue", paces.long],
-            ["Seuil", paces.half],
-            ["Fractionné", paces.interval],
+            [s.easy, paces.easy],
+            [s.long, paces.long],
+            [s.threshold, paces.half],
+            [s.intervals, paces.interval],
           ] as const).map(([label, pace]) => (
             <View key={label} style={styles.pace}>
               <Text style={styles.paceLabel}>{label}</Text>
@@ -501,10 +617,10 @@ export function PlanSetup({ onCreate }: { onCreate: (draft: PlanDraft) => void }
       >
         <Text style={[styles.createLabel, !ready && styles.createLabelOff]}>
           {ready
-            ? `Créer ${weeks} semaines · ${sessions} séances`
+            ? s.create(weeks, sessions)
             : chosen === null
-              ? "Choisis une date"
-              : `Choisis ${perWeek} jour${perWeek > 1 ? "s" : ""}`}
+              ? s.pickDate
+              : s.pickDays(perWeek)}
         </Text>
       </Pressable>
     </ScrollView>
@@ -515,10 +631,13 @@ const GUTTER = 20;
 
 const styles = StyleSheet.create({
   content: { paddingHorizontal: GUTTER, paddingBottom: 30 },
+  titleRow: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", gap: 12 },
   title: {
     color: colors.text, fontSize: 32, fontFamily: font.bold,
     letterSpacing: -0.6, paddingTop: 10,
   },
+  cancel: { paddingVertical: 4 },
+  cancelLabel: { color: colors.accent, fontSize: 16.5, fontFamily: font.semibold },
   lede: { color: colors.muted, fontFamily: font.regular, fontSize: 15.5, lineHeight: 22, marginTop: 4 },
   section: {
     color: colors.subtle, fontSize: 13, fontFamily: font.semibold,

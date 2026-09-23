@@ -1,11 +1,11 @@
 import { activePlan, planDone, recentExertions } from "./db";
 import { lastKnownCoords } from "./location";
-import { easeFactor, schedule, startOfDay, KIND_NAMES } from "./plan";
+import { easeFactor, kindName, schedule, startOfDay } from "./plan";
 import { plannedReminders, syncReminders, type Plannable } from "./reminders";
 import { formatPace } from "./format";
 import { getSettings } from "./settings";
 import { forecastDays, forecastOn, forecastSentence, type Forecast } from "./weather";
-import { eased, sessionMinutes } from "./workout";
+import { eased, sessionMinutes, sessionName } from "./workout";
 
 /**
  * Rebuild the pending reminders from the programme as it stands.
@@ -61,8 +61,8 @@ export async function refreshReminders({ force = false } = {}): Promise<void> {
       const forecast = forecastOn(forecasts, entry.at);
       return {
         at: entry.at,
-        name: entry.session.name,
-        kind: KIND_NAMES[entry.kind],
+        name: sessionName(entry.session),
+        kind: kindName(entry.kind),
         minutes: sessionMinutes(entry.session),
         pace: formatPace(entry.targetSKm),
         weather: forecast === null ? null : forecastSentence(forecast),

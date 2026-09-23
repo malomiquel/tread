@@ -66,6 +66,29 @@ export function useInitialLocation(): InitialLocation {
 }
 
 /**
+ * Where the location permission stands, asking for it if that is still
+ * possible.
+ *
+ * "blocked" is the case the system will no longer prompt for: refused once on
+ * iOS, or refused for good on Android. Asking again then returns the refusal
+ * without showing anything, so the only way forward is the phone's own
+ * settings — and a button that silently does nothing is exactly how a runner
+ * ends up stuck on a map that will not start.
+ */
+export async function locationAccess(): Promise<"granted" | "denied" | "blocked"> {
+  try {
+    const existing = await Location.getForegroundPermissionsAsync();
+    if (existing.status === "granted") return "granted";
+    if (!existing.canAskAgain) return "blocked";
+    const asked = await Location.requestForegroundPermissionsAsync();
+    if (asked.status === "granted") return "granted";
+    return asked.canAskAgain ? "denied" : "blocked";
+  } catch {
+    return "denied";
+  }
+}
+
+/**
  * One-off fix, for the recentre button.
  *
  * Unlike the hook, permission is only requested again when it has not already

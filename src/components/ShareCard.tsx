@@ -8,6 +8,7 @@ import { fitRegion, regionAround, type MapRegion, type TrackPoint } from "@/lib/
 import {
   formatCount, formatDate, formatDistance, formatDuration, formatElevation, formatPace,
 } from "@/lib/format";
+import { defineStrings, useStrings } from "@/lib/i18n";
 import { font } from "@/lib/theme";
 import { formatTemperature, weatherIcon } from "@/lib/weather";
 
@@ -60,6 +61,11 @@ export function cardRegion(points: TrackPoint[]): MapRegion | null {
 const INK = "#ffffff";
 const INK_SOFT = "rgba(255, 255, 255, 0.66)";
 const INK_FAINT = "rgba(255, 255, 255, 0.46)";
+
+const cardStrings = defineStrings({
+  fr: { time: "TEMPS", pace: "ALLURE", elevation: "DÉNIVELÉ", steps: "PAS" },
+  en: { time: "TIME", pace: "PACE", elevation: "ELEVATION", steps: "STEPS" },
+});
 
 interface Props {
   run: Run;
@@ -119,6 +125,7 @@ export const ShareCard = forwardRef<View, Props>(function ShareCard(
   const steps = stepsFrom(run.cadenceSpm, run.durationS);
   const when = formatDate(run.startedAt);
   const weather = run.weather;
+  const s = useStrings(cardStrings);
 
   return (
     // collapsable={false} keeps this view real in the native tree; React
@@ -196,12 +203,12 @@ export const ShareCard = forwardRef<View, Props>(function ShareCard(
         </View>
 
         <View style={styles.stats}>
-          <Stat value={formatDuration(run.durationS)} label="TEMPS" />
-          <Stat value={formatPace(run.avgPaceSKm)} unit="/km" label="ALLURE" />
+          <Stat value={formatDuration(run.durationS)} label={s.time} />
+          <Stat value={formatPace(run.avgPaceSKm)} unit="/km" label={s.pace} />
           {elevation !== null && elevation > 0 ? (
-            <Stat value={formatElevation(elevation)} unit="m" label="DÉNIVELÉ" />
+            <Stat value={formatElevation(elevation)} unit="m" label={s.elevation} />
           ) : null}
-          {steps !== null ? <Stat value={formatCount(steps)} label="PAS" /> : null}
+          {steps !== null ? <Stat value={formatCount(steps)} label={s.steps} /> : null}
         </View>
       </View>
     </View>

@@ -1,0 +1,12 @@
+{
+  "ios": {
+    "NSMotionUsageDescription": "Tread reads the pedometer to work out your cadence, in steps per minute.",
+    "NSLocalNetworkUsageDescription": "Tread sends your runs straight to your new phone over your Wi-Fi, without going through the internet.",
+    "NSCameraUsageDescription": "Tread reads the code shown on your old phone to bring your runs across.",
+    "NSLocationWhenInUseUsageDescription": "Tread uses your location to draw your route and measure your distance.",
+    "NSLocationAlwaysAndWhenInUseUsageDescription": "Tread needs your location even with the screen locked, so it keeps recording while your phone is in your pocket.",
+    "NSLocationAlwaysUsageDescription": "Tread needs your location even with the screen locked, so it keeps recording while your phone is in your pocket.",
+    "NSHealthShareUsageDescription": "Tread reads your weight to estimate calories burned, and your heart rate to show it with your runs.",
+    "NSHealthUpdateUsageDescription": "Tread saves your runs, their distance and their route to Apple Health."
+  }
+}

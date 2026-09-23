@@ -5,6 +5,22 @@ import { useEffect, useRef } from "react";
 import { Alert } from "react-native";
 import { importRun } from "@/lib/db";
 import { parseGpx } from "@/lib/gpx";
+import { defineStrings } from "@/lib/i18n";
+
+const incomingStrings = defineStrings({
+  fr: {
+    nothingTitle: "Rien à importer",
+    nothingMessage: "Ce fichier ne contient aucun point exploitable, ou cette course est déjà dans l'app.",
+    failedTitle: "Import impossible",
+    unreadable: "Fichier illisible.",
+  },
+  en: {
+    nothingTitle: "Nothing to import",
+    nothingMessage: "This file has no usable points, or this run is already in the app.",
+    failedTitle: "Import failed",
+    unreadable: "Unreadable file.",
+  },
+});
 
 /**
  * The path inside an incoming URL, whatever scheme it arrived under.
@@ -86,10 +102,7 @@ export function IncomingGpx() {
         const id = await importRun(name, points);
         if (id === null) {
           router.replace("/");
-          Alert.alert(
-            "Rien à importer",
-            "Ce file ne contient aucun point exploitable, ou cette course est déjà dans l'app.",
-          );
+          Alert.alert(incomingStrings().nothingTitle, incomingStrings().nothingMessage);
           return;
         }
         // Two moves rather than one. The router has already put its
@@ -105,7 +118,10 @@ export function IncomingGpx() {
         );
       } catch (cause) {
         router.replace("/");
-        Alert.alert("Import impossible", cause instanceof Error ? cause.message : "Fichier illisible.");
+        Alert.alert(
+          incomingStrings().failedTitle,
+          cause instanceof Error ? cause.message : incomingStrings().unreadable,
+        );
       } finally {
         // Only ever our own copy. Leaving those behind would quietly fill the
         // app's storage with every trace ever opened — but deleting a file

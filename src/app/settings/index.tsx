@@ -1,10 +1,46 @@
 import { useRouter } from "expo-router";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { SettingRow } from "@/components/SettingRow";
-import { formatDistance } from "@/lib/format";
-import { REMINDER_NAMES } from "@/lib/reminders";
-import { useSettings } from "@/lib/settings";
+import { defineStrings, useStrings } from "@/lib/i18n";
+import { LANGUAGE_NAMES } from "@/lib/language";
+import { reminderName } from "@/lib/reminders";
+import { toggleVoice, useSettings } from "@/lib/settings";
 import { colors, font } from "@/lib/theme";
+
+const settingsStrings = defineStrings({
+  fr: {
+    run: "Course",
+    voice: "Annonces vocales",
+    voiceDetail: "Chaque kilomètre, les écarts d'allure et les blocs de séance, à voix haute",
+    language: "Langue",
+    languageAuto: "Automatique",
+    notifications: "Notifications",
+    notificationsDetail: "Un rappel avant chaque séance du programme",
+    data: "Données",
+    importExport: "Importer et exporter",
+    importExportDetail: "Fichiers GPX, depuis ou vers une autre app",
+    transfer: "Changer de téléphone",
+    transferDetail: "Tout emporter sur un nouveau téléphone",
+    about: "À propos",
+    aboutDetail: "Version, confidentialité, sources des données",
+  },
+  en: {
+    run: "Running",
+    voice: "Voice announcements",
+    voiceDetail: "Every kilometre, pace drift and workout blocks, read out loud",
+    language: "Language",
+    languageAuto: "Automatic",
+    notifications: "Notifications",
+    notificationsDetail: "A reminder before every session of your plan",
+    data: "Data",
+    importExport: "Import and export",
+    importExportDetail: "GPX files, from or to another app",
+    transfer: "Switch phones",
+    transferDetail: "Bring everything over to a new phone",
+    about: "About",
+    aboutDetail: "Version, privacy, data sources",
+  },
+});
 
 /**
  * The way in to everything the app lets you decide.
@@ -19,53 +55,75 @@ import { colors, font } from "@/lib/theme";
  * app is readable without opening anything.
  */
 export default function SettingsScreen() {
+  // Out of the compiler's memoisation: the values on the right of each row
+  // are worked out by helpers that read the language themselves, and a row
+  // memoised on the setting alone would keep the old language after a switch.
+  "use no memo";
   const router = useRouter();
   const settings = useSettings();
+  const s = useStrings(settingsStrings);
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       {/*
-        * Grouped by subject rather than listed.
+        * Grouped by subject rather than listed, so that every setting added
+        * later has a place it obviously belongs.
         *
-        * Four rows fit in a list; the twelfth does not, and by then nobody
-        * remembers whether the weekly goal was under "Plan" or somewhere
-        * else. Themes give every setting added later a place it obviously
-        * belongs, which is the only thing that stops a settings page turning
-        * into a drawer.
+        * The weekly goal is not here: it lives on the week it measures, in
+        * the profile, and a second door to it here was a second place to
+        * wonder which one was the real one.
         */}
       <View style={styles.group}>
-        <Text style={styles.groupTitle}>Entraînement</Text>
+        <Text style={styles.groupTitle}>{s.run}</Text>
+        {/* Also on the running screen, where it is changed mid-run. Here as
+            well because this is where anybody looking for it looks first. */}
         <SettingRow
-          label="Plan"
-          detail="Ce que tu vises, semaine après semaine"
-          value={
-            settings.weeklyGoalM === null
-              ? "Aucun objectif"
-              : `${formatDistance(settings.weeklyGoalM)} km / sem.`
+          label={s.voice}
+          detail={s.voiceDetail}
+          right={
+            <Switch
+              value={settings.voice}
+              onValueChange={() => void toggleVoice()}
+              trackColor={{ true: colors.accent, false: colors.hairline }}
+              accessibilityLabel={s.voice}
+            />
           }
-          onPress={() => router.push("/settings/plan")}
         />
         <SettingRow
-          label="Notifications"
-          detail="Quand le programme te rappelle une séance"
-          value={REMINDER_NAMES[settings.reminder]}
+          label={s.language}
+          value={settings.language === "auto" ? s.languageAuto : LANGUAGE_NAMES[settings.language]}
+          onPress={() => router.push("/settings/language")}
+        />
+        <SettingRow
+          label={s.notifications}
+          detail={s.notificationsDetail}
+          value={reminderName(settings.reminder)}
           onPress={() => router.push("/settings/notifications")}
         />
       </View>
 
       <View style={styles.group}>
-        <Text style={styles.groupTitle}>Données</Text>
+        <Text style={styles.groupTitle}>{s.data}</Text>
         <SettingRow
-          label="Transfert"
-          detail="Emporter tout sur un autre téléphone"
+          label={s.importExport}
+          detail={s.importExportDetail}
+          onPress={() => router.push("/settings/data")}
+        />
+        <SettingRow
+          label={s.transfer}
+          detail={s.transferDetail}
           onPress={() => router.push("/settings/transfer")}
         />
       </View>
 
-      <Text style={styles.note}>
-        Les réglages d&apos;une course — la voix, l&apos;allure à tenir — restent sur
-        l&apos;écran de course, là où ils se décident.
-      </Text>
+      <View style={styles.group}>
+        <Text style={styles.groupTitle}>Tread</Text>
+        <SettingRow
+          label={s.about}
+          detail={s.aboutDetail}
+          onPress={() => router.push("/settings/about")}
+        />
+      </View>
     </ScrollView>
   );
 }
@@ -85,9 +143,5 @@ const styles = StyleSheet.create({
   groupTitle: {
     color: colors.subtle, fontSize: 12.5, fontFamily: font.semibold,
     letterSpacing: 1.3, textTransform: "uppercase", paddingTop: 8,
-  },
-  note: {
-    color: colors.subtle, fontSize: 13.5, fontFamily: font.regular, lineHeight: 20,
-    paddingHorizontal: GUTTER, paddingTop: 16,
   },
 });

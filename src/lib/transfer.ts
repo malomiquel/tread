@@ -2,8 +2,10 @@ import JSZip from "jszip";
 import type { TrackPoint } from "./geo";
 import type { Heart } from "./heart";
 import type { Exertion, Goal, PerWeek, PlannedSession } from "./plan";
+import { defineStrings, intlLocale } from "./i18n.ts";
+import type { RoutePoint } from "./route";
 import type { Weather } from "./weather";
-import type { RanBlock } from "./workout";
+import { currentEffort, currentSession, currentSessionId, type RanBlock } from "./workout.ts";
 
 /**
  * Moving everything to another phone.
@@ -77,11 +79,30 @@ export interface TransferPlan {
   done: { order: number; runId: number | null; at: number }[];
 }
 
+/**
+ * A drawn route: its handles and the streets between them.
+ *
+ * No picture. The file it points at lives in this phone's documents, and the
+ * list on the other phone takes its own the first time it shows the route.
+ */
+export interface TransferRoute {
+  name: string;
+  createdAt: number;
+  waypoints: RoutePoint[];
+  legs: RoutePoint[][];
+  place: string | null;
+}
+
 export interface Transfer {
   format: typeof TRANSFER_FORMAT;
   version: number;
   exportedAt: number;
   runs: TransferRun[];
+  /**
+   * Absent from files written before routes travelled, which read as none —
+   * an addition an older reader can ignore, so the version did not move.
+   */
+  routes: TransferRoute[];
   plan: TransferPlan | null;
   /** Voice, target pace, weekly goal, reminders — as they are stored. */
   settings: Record<string, string>;
@@ -108,10 +129,20 @@ export function readTransfer(text: string): Transfer | null {
       exportedAt: typeof file.exportedAt === "number" ? file.exportedAt : 0,
       // Every run needs the two fields the import keys on; the rest can be
       // absent and simply arrives empty.
-      runs: file.runs.filter((run): run is TransferRun =>
-        !!run && typeof run === "object"
-        && typeof (run as TransferRun).startedAt === "number"
-        && Array.isArray((run as TransferRun).points)),
+      runs: file.runs
+        .filter((run): run is TransferRun =>
+          !!run && typeof run === "object"
+          && typeof (run as TransferRun).startedAt === "number"
+          && Array.isArray((run as TransferRun).points))
+        // A file from an older version spells its sessions in French.
+        .map((run) => ({
+          ...run,
+          sessionId: typeof run.sessionId === "string" ? currentSessionId(run.sessionId) : null,
+          blocks: Array.isArray(run.blocks)
+            ? run.blocks.map((block) => ({ ...block, effort: currentEffort(block.effort) }))
+            : [],
+        })),
+      routes: readRoutes(file.routes),
       plan: readPlan(file.plan),
       settings: readSettingsBag(file.settings),
     };
@@ -124,14 +155,40 @@ function readPlan(plan: unknown): TransferPlan | null {
   if (!plan || typeof plan !== "object") return null;
   const found = plan as TransferPlan;
   if (!Array.isArray(found.sessions) || typeof found.raceAt !== "number") return null;
-  return { ...found, done: Array.isArray(found.done) ? found.done : [] };
+  return {
+    ...found,
+    sessions: found.sessions.map((planned) => ({ ...planned, session: currentSession(planned.session) })),
+    done: Array.isArray(found.done) ? found.done : [],
+  };
 }
+
+function readRoutes(routes: unknown): TransferRoute[] {
+  if (!Array.isArray(routes)) return [];
+  return routes
+    .filter((route): route is TransferRoute =>
+      !!route && typeof route === "object"
+      && typeof (route as TransferRoute).name === "string"
+      && typeof (route as TransferRoute).createdAt === "number"
+      && Array.isArray((route as TransferRoute).waypoints)
+      && Array.isArray((route as TransferRoute).legs))
+    .map((route) => ({ ...route, place: typeof route.place === "string" ? route.place : null }));
+}
+
+/**
+ * Settings that only mean something on the phone that wrote them.
+ *
+ * The chosen route is a row id, and row ids are handed out afresh on the
+ * other side: carried across, it would put somebody else's route — or none
+ * at all — under the first run on the new phone.
+ */
+const LOCAL_SETTINGS = new Set(["routeId"]);
 
 function readSettingsBag(settings: unknown): Record<string, string> {
   if (!settings || typeof settings !== "object") return {};
   return Object.fromEntries(
     Object.entries(settings as Record<string, unknown>)
-      .filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+      .filter((entry): entry is [string, string] =>
+        typeof entry[1] === "string" && !LOCAL_SETTINGS.has(entry[0])),
   );
 }
 
@@ -142,15 +199,77 @@ function readSettingsBag(settings: unknown): Record<string, string> {
  * that arrives from outside it: the only way to know it is the right file is
  * to be told what it holds.
  */
+const transferWords = defineStrings({
+  fr: {
+    runs: (n: number) => `${n} course${n > 1 ? "s" : ""}`,
+    points: (count: string) => `${count} points GPS`,
+    routes: (n: number) => `${n} parcours`,
+    plan: "un programme",
+    settings: "tes réglages",
+    added: (n: number) => `${n} course${n > 1 ? "s" : ""} ajoutée${n > 1 ? "s" : ""}`,
+    known: (n: number) => `${n} déjà connue${n > 1 ? "s" : ""}`,
+    routesAdded: (n: number) => `${n} parcours ajouté${n > 1 ? "s" : ""}`,
+    planTaken: "programme repris",
+    planKept: "programme ignoré : celui d'ici a été gardé",
+    settingsTaken: "réglages repris",
+    nothing: "Rien de nouveau.",
+  },
+  en: {
+    runs: (n: number) => `${n} run${n === 1 ? "" : "s"}`,
+    points: (count: string) => `${count} GPS points`,
+    routes: (n: number) => `${n} route${n === 1 ? "" : "s"}`,
+    plan: "a training plan",
+    settings: "your settings",
+    added: (n: number) => `${n} run${n === 1 ? "" : "s"} added`,
+    known: (n: number) => `${n} already here`,
+    routesAdded: (n: number) => `${n} route${n === 1 ? "" : "s"} added`,
+    planTaken: "plan brought over",
+    planKept: "plan skipped: the one on this phone was kept",
+    settingsTaken: "settings brought over",
+    nothing: "Nothing new.",
+  },
+});
+
 export function describeTransfer(transfer: Transfer): string {
+  const words = transferWords();
   const runs = transfer.runs.length;
   const points = transfer.runs.reduce((total, run) => total + run.points.length, 0);
   return [
-    `${runs} course${runs > 1 ? "s" : ""}`,
-    `${points.toLocaleString("fr-FR").replace(/ | /g, " ")} points GPS`,
-    transfer.plan ? "un programme" : null,
-    Object.keys(transfer.settings).length > 0 ? "tes réglages" : null,
+    words.runs(runs),
+    // Grouped as the language groups thousands, with the narrow spaces some
+    // locales use flattened to ordinary ones so the line wraps predictably.
+    words.points(points.toLocaleString(intlLocale()).replace(/[\u00a0\u202f]/g, " ")),
+    transfer.routes.length > 0 ? words.routes(transfer.routes.length) : null,
+    transfer.plan ? words.plan : null,
+    Object.keys(transfer.settings).length > 0 ? words.settings : null,
   ].filter(Boolean).join(" · ");
+}
+
+/** What an import did, as the receiving phone counts it. */
+export interface Restored {
+  added: number;
+  known: number;
+  routes: number;
+  plan: boolean;
+  settings: boolean;
+}
+
+/**
+ * The sentence shown once an import is done.
+ *
+ * Said the same way by both doors a transfer comes in through — the file and
+ * the local network — so it is written once, here.
+ */
+export function restoredSummary(done: Restored, offeredPlan: boolean): string {
+  const words = transferWords();
+  return [
+    done.added > 0 ? words.added(done.added) : null,
+    done.known > 0 ? words.known(done.known) : null,
+    done.routes > 0 ? words.routesAdded(done.routes) : null,
+    done.plan ? words.planTaken : null,
+    offeredPlan && !done.plan ? words.planKept : null,
+    done.settings ? words.settingsTaken : null,
+  ].filter(Boolean).join(" · ") || words.nothing;
 }
 
 /** The file itself, dated so two transfers never look alike. */

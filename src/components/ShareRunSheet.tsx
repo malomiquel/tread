@@ -13,6 +13,7 @@ import type { Run } from "@/lib/db";
 import type { TrackPoint } from "@/lib/geo";
 import { projectPoint } from "@/lib/geo";
 import { gifFileName, paletteFor, pngToPixels, startGif } from "@/lib/gif";
+import { defineStrings, useStrings } from "@/lib/i18n";
 import { placeName } from "@/lib/location";
 import { readColour, stroke, veil, type Canvas } from "@/lib/raster";
 import { buildReplay, drawnSoFar, headAt } from "@/lib/replay";
@@ -52,6 +53,37 @@ const PREVIEW_MS = FRAMES * FRAME_MS;
 
 /** What the sheet is set to produce. */
 type Kind = "image" | "gif";
+
+const shareStrings = defineStrings({
+  fr: {
+    mapUnreadable: "La carte n'a pas pu être lue.",
+    tooShort: "Ce parcours est trop court pour être animé.",
+    imageUnavailableTitle: "Image indisponible",
+    imageUnavailableMessage:
+      "Cette version de l'app ne peut pas produire l'image. Elle demande une version installée, pas Expo Go.",
+    shareUnavailableTitle: "Partage indisponible",
+    shareUnavailableMessage: "Impossible d'ouvrir la feuille de partage sur cet appareil.",
+    imageFailed: "Image impossible",
+    unexpected: "Erreur inattendue.",
+    image: "Image",
+    gif: "GIF",
+    share: "Partager",
+  },
+  en: {
+    mapUnreadable: "The map couldn't be read.",
+    tooShort: "This run is too short to animate.",
+    imageUnavailableTitle: "Image unavailable",
+    imageUnavailableMessage:
+      "This version of the app can't make the image. It needs an installed build, not Expo Go.",
+    shareUnavailableTitle: "Sharing unavailable",
+    shareUnavailableMessage: "The share sheet can't be opened on this device.",
+    imageFailed: "Couldn't make the image",
+    unexpected: "Unexpected error.",
+    image: "Image",
+    gif: "GIF",
+    share: "Share",
+  },
+});
 
 /**
  * The dark behind the card, darker than the app's own scrim and fixed in
@@ -158,6 +190,7 @@ function Sheet({ run, points, preparedMapUri, onClose }: Omit<Props, "visible">)
   // drawn over it has to follow — a dark cobalt over a dark map is a route
   // nobody can see.
   const scheme = useColorScheme() === "dark" ? "dark" : "light";
+  const s = useStrings(shareStrings);
   const source = useRef<CardMapHandle>(null);
   const card = useRef<View>(null);
   // Seeded rather than derived: the body is mounted afresh each time the sheet
@@ -251,7 +284,7 @@ function Sheet({ run, points, preparedMapUri, onClose }: Omit<Props, "visible">)
     const file = new File(uri.startsWith("file://") ? uri : `file://${uri}`);
     const pixels = pngToPixels(await file.bytes());
     file.delete();
-    if (!pixels) throw new Error("La carte n'a pas pu être lue.");
+    if (!pixels) throw new Error(shareStrings().mapUnreadable);
     return pixels;
   }
 
@@ -273,7 +306,7 @@ function Sheet({ run, points, preparedMapUri, onClose }: Omit<Props, "visible">)
   async function makeGif(shot: ViewShot) {
     const replay = buildReplay(points, 400);
     const region = cardRegion(points);
-    if (!replay || !region) throw new Error("Ce parcours est trop court pour être animé.");
+    if (!replay || !region) throw new Error(shareStrings().tooShort);
 
     setMade(0);
     await drawn();
@@ -335,8 +368,8 @@ function Sheet({ run, points, preparedMapUri, onClose }: Omit<Props, "visible">)
     const shot = viewShot();
     if (!shot) {
       Alert.alert(
-        "Image indisponible",
-        "Cette version de l'app ne peut pas produire l'image. Elle demande une version installée, pas Expo Go.",
+        s.imageUnavailableTitle,
+        s.imageUnavailableMessage,
       );
       return;
     }
@@ -354,10 +387,10 @@ function Sheet({ run, points, preparedMapUri, onClose }: Omit<Props, "visible">)
           UTI: animated ? "com.compuserve.gif" : "public.png",
         });
       } else {
-        Alert.alert("Partage indisponible", "Impossible d'ouvrir la feuille de partage sur cet appareil.");
+        Alert.alert(s.shareUnavailableTitle, s.shareUnavailableMessage);
       }
     } catch (cause) {
-      Alert.alert("Image impossible", cause instanceof Error ? cause.message : "Erreur inattendue.");
+      Alert.alert(s.imageFailed, cause instanceof Error ? cause.message : s.unexpected);
     } finally {
       setSharing(false);
       setMade(null);
@@ -407,7 +440,7 @@ function Sheet({ run, points, preparedMapUri, onClose }: Omit<Props, "visible">)
             than a pair of buttons. */}
         <View style={styles.bar}>
           <View style={styles.kinds}>
-            {([["image", "Image"], ["gif", "GIF"]] as const).map(([which, label]) => (
+            {([["image", s.image], ["gif", s.gif]] as const).map(([which, label]) => (
               <Pressable
                 key={which}
                 onPress={() => setKind(which)}
@@ -433,7 +466,7 @@ function Sheet({ run, points, preparedMapUri, onClose }: Omit<Props, "visible">)
               onPress={() => void share()}
               disabled={sharing}
               accessibilityRole="button"
-              accessibilityLabel="Partager"
+              accessibilityLabel={s.share}
               hitSlop={8}
               style={({ pressed }) => [styles.send, pressed && styles.pressed, sharing && styles.sending]}
             >

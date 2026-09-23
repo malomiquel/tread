@@ -1,3 +1,4 @@
+import { defineStrings } from "./i18n.ts";
 /**
  * Heart rate, as a run leaves it behind in Apple Health.
  *
@@ -32,17 +33,17 @@ export interface Heart {
   maxHeartRate: number | null;
 }
 
-/**
- * The five zones, in French because they are read on screen, and named for
- * what they are for rather than by number alone.
- */
-export const ZONE_NAMES = [
-  "Récupération",
-  "Endurance",
-  "Tempo",
-  "Seuil",
-  "Maximal",
-] as const;
+/** How many zones a heart rate is cut into. */
+export const ZONE_COUNT = 5;
+
+/** The five zones, named for what they are for rather than by number alone. */
+const zoneNames = defineStrings({
+  fr: ["Récupération", "Endurance", "Tempo", "Seuil", "Maximal"],
+  en: ["Recovery", "Endurance", "Tempo", "Threshold", "Maximum"],
+});
+
+/** A zone's name, from 0 for the easiest. */
+export const zoneName = (zone: number): string => zoneNames()[zone] ?? `Z${zone + 1}`;
 
 /**
  * Where each zone ends, as a share of the maximum heart rate.
@@ -111,7 +112,7 @@ export function summarise(beats: Beat[], maxHeartRate: number | null): Heart | n
     .sort((a, b) => a.ts - b.ts);
   if (usable.length === 0) return null;
 
-  const zonesS = maxHeartRate === null ? [] : ZONE_NAMES.map(() => 0);
+  const zonesS = maxHeartRate === null ? [] : Array.from({ length: ZONE_COUNT }, () => 0);
   let weighted = 0;
   let total = 0;
   let peak = 0;

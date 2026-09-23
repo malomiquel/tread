@@ -1,21 +1,56 @@
-import Ionicons from "@expo/vector-icons/Ionicons";
-import * as DocumentPicker from "expo-document-picker";
-import { File, Paths } from "expo-file-system";
 import { useFocusEffect, useRouter, useScrollToTop } from "expo-router";
-import * as Sharing from "expo-sharing";
 import { useCallback, useState, useRef } from "react";
-import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "@/components/Button";
 import { SwipeToDelete } from "@/components/SwipeToDelete";
-import { archiveFileName, buildArchive } from "@/lib/archive";
-import { deleteRun, importRun, listRuns, planSessionOfRun, readRun, type Run } from "@/lib/db";
-import { createDemoRun } from "@/lib/demo";
+import { deleteRun, listRuns, planSessionOfRun, type Run } from "@/lib/db";
+import { importRunFiles } from "@/lib/files";
 import { formatDate, formatDistance, formatDuration, formatPace } from "@/lib/format";
-import { parseGpx } from "@/lib/gpx";
 import { forgetRunInHealth } from "@/lib/health";
+import { defineStrings, plural, useStrings } from "@/lib/i18n";
 import { useTabBarSpace } from "@/lib/layout";
 import { colors, font } from "@/lib/theme";
+
+const historyStrings = defineStrings({
+  fr: {
+    title: "Historique",
+    summary: (count: number, km: string) => `${plural(count, "course", "courses")} · ${km} km au total`,
+    importDone: "Import terminé",
+    importFailed: "Import impossible",
+    unexpectedError: "Erreur inattendue.",
+    deleteTitle: "Supprimer cette course ?",
+    defaultRunName: "Course",
+    deleteBody: "Ses points GPS seront effacés et l'action est définitive.",
+    deleteLinked: " La séance correspondante redeviendra à faire dans ton programme.",
+    cancel: "Annuler",
+    delete: "Supprimer",
+    empty:
+      "Aucune course pour l'instant. Touche le bouton ▶ au centre de la barre pour enregistrer ta première sortie.",
+    importing: "Import…",
+    importFromApp: "Importer depuis une autre app",
+    importHint: "Strava, Garmin, une montre : exporte tes courses en fichiers GPX, puis ouvre-les ici.",
+    thisRun: "cette course",
+  },
+  en: {
+    title: "History",
+    summary: (count: number, km: string) => `${plural(count, "run", "runs")} · ${km} km in total`,
+    importDone: "Import complete",
+    importFailed: "Import failed",
+    unexpectedError: "Unexpected error.",
+    deleteTitle: "Delete this run?",
+    defaultRunName: "Run",
+    deleteBody: "Its GPS points will be erased, and this cannot be undone.",
+    deleteLinked: " The matching session will be back on your training plan.",
+    cancel: "Cancel",
+    delete: "Delete",
+    empty: "No runs yet. Tap the ▶ button in the middle of the bar to record your first run.",
+    importing: "Importing…",
+    importFromApp: "Import from another app",
+    importHint: "Strava, Garmin, a watch: export your runs as GPX files, then open them here.",
+    thisRun: "this run",
+  },
+});
 
 export default function HistoryScreen() {
   /**
@@ -26,14 +61,13 @@ export default function HistoryScreen() {
    * all, which reads as the app having missed the finger rather than as
    * having nothing to do.
    */
+  const s = useStrings(historyStrings);
   const list = useRef<FlatList<Run>>(null);
   useScrollToTop(list);
 
   const [runs, setRuns] = useState<Run[] | null>(null);
-  const [seeding, setSeeding] = useState(false);
   const router = useRouter();
   const tabBarSpace = useTabBarSpace();
-  const [archiving, setArchiving] = useState(false);
   const [importing, setImporting] = useState(false);
 
   const reload = useCallback(() => listRuns().then(setRuns).catch(() => setRuns([])), []);
@@ -55,19 +89,6 @@ export default function HistoryScreen() {
     }, []),
   );
 
-  // Only offered while the history is empty: it exists to show what a run
-  // looks like before you have run one, not to clutter a real history.
-  async function addDemo() {
-    if (seeding) return;
-    setSeeding(true);
-    try {
-      await createDemoRun();
-      await reload();
-    } finally {
-      setSeeding(false);
-    }
-  }
-
   /**
    * The row leaves the list at once, then the database catches up. Waiting for
    * the write would leave the row sitting there after the tap, which reads as
@@ -87,86 +108,23 @@ export default function HistoryScreen() {
   }
 
   /**
-   * Brings runs in from GPX files: an old app, another watch, or an archive
-   * this app wrote itself.
-   *
-   * Until now the door only opened outwards — runs could leave but never come
-   * back, so an export was a copy you could look at and not a backup you
-   * could restore. Several files at once, because an archive is rarely one
-   * run, and already-known runs are counted and skipped rather than refused
-   * with an error.
+   * Runs from another app, offered where it matters most: on an empty
+   * history, to somebody who did not start running the day they installed
+   * this one. Also in Réglages › Données, for later.
    */
   async function importGpx() {
     if (importing) return;
     setImporting(true);
     try {
-      const picked = await DocumentPicker.getDocumentAsync({
-        // Loose on purpose: a GPX arrives declared as XML, as plain text or as
-        // nothing at all depending on where it was written.
-        type: ["application/gpx+xml", "application/xml", "text/xml", "*/*"],
-        multiple: true,
-        copyToCacheDirectory: true,
-      });
-      if (picked.canceled) return;
-
-      let added = 0;
-      let known = 0;
-      let unreadable = 0;
-      for (const file of picked.assets) {
-        try {
-          const { name, points } = parseGpx(await new File(file.uri).text());
-          const id = await importRun(name, points);
-          if (id === null) known += 1;
-          else added += 1;
-        } catch {
-          unreadable += 1;
-        }
-      }
-
+      const summary = await importRunFiles();
+      if (summary === null) return;
       await reload();
-      const summary = [
-        added > 0 ? `${added} course${added > 1 ? "s" : ""} ajoutée${added > 1 ? "s" : ""}` : null,
-        known > 0 ? `${known} déjà connue${known > 1 ? "s" : ""}` : null,
-        unreadable > 0 ? `${unreadable} illisible${unreadable > 1 ? "s" : ""}` : null,
-      ].filter(Boolean).join(" · ");
-      Alert.alert("Import terminé", summary || "Aucune course dans ces fichiers.");
+      Alert.alert(historyStrings().importDone, summary);
     } catch (cause) {
-      Alert.alert("Import impossible", cause instanceof Error ? cause.message : "Erreur inattendue.");
+      const text = historyStrings();
+      Alert.alert(text.importFailed, cause instanceof Error ? cause.message : text.unexpectedError);
     } finally {
       setImporting(false);
-    }
-  }
-
-  /**
-   * Writes every run to one zip of GPX files and hands it to the share sheet.
-   *
-   * This is the only backup the app has: the runs live in a single database on
-   * this phone, and deleting the app takes them with it. Exporting them
-   * somewhere else is what makes that survivable.
-   */
-  async function exportAll() {
-    if (archiving || !runs?.length) return;
-    setArchiving(true);
-    try {
-      const loaded = [];
-      for (const run of runs) {
-        const stored = await readRun(run.id);
-        if (stored) loaded.push({ run: stored.run, points: stored.points });
-      }
-
-      const file = new File(Paths.cache, archiveFileName());
-      file.create({ overwrite: true });
-      file.write(await buildArchive(loaded), { encoding: "base64" });
-
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(file.uri, { mimeType: "application/zip", UTI: "public.zip-archive" });
-      } else {
-        Alert.alert("Partage indisponible", "Impossible d'ouvrir la feuille de partage sur cet appareil.");
-      }
-    } catch (cause) {
-      Alert.alert("Export impossible", cause instanceof Error ? cause.message : "Erreur inattendue.");
-    } finally {
-      setArchiving(false);
     }
   }
 
@@ -183,14 +141,15 @@ export default function HistoryScreen() {
     // Asked before the alert rather than after it, so the warning is complete
     // the first time anybody reads it.
     const linked = await planSessionOfRun(run.id).catch(() => null);
+    const text = historyStrings();
     Alert.alert(
-      "Supprimer cette course ?",
-      `${run.name ?? "Course"}, ${formatDistance(run.distanceM)} km. `
-      + "Ses points GPS seront effacés et l'action est définitive."
-      + (linked ? " La séance correspondante redeviendra à faire dans ton programme." : ""),
+      text.deleteTitle,
+      `${run.name ?? text.defaultRunName}, ${formatDistance(run.distanceM)} km. `
+      + text.deleteBody
+      + (linked ? text.deleteLinked : ""),
       [
-        { text: "Annuler", style: "cancel" },
-        { text: "Supprimer", style: "destructive", onPress: () => void remove(run) },
+        { text: text.cancel, style: "cancel" },
+        { text: text.delete, style: "destructive", onPress: () => void remove(run) },
       ],
     );
   }
@@ -208,46 +167,13 @@ export default function HistoryScreen() {
       <View style={styles.fill}>
       <View style={styles.header}>
         <View style={styles.headerText}>
-          <Text style={styles.title}>Historique</Text>
+          <Text style={styles.title}>{s.title}</Text>
           {runs && runs.length > 0 && (
             <Text style={styles.subtitle}>
-              {runs.length} course{runs.length > 1 ? "s" : ""} · {formatDistance(totalM)} km au total
+              {s.summary(runs.length, formatDistance(totalM))}
             </Text>
           )}
         </View>
-        <Pressable
-          onPress={() => void importGpx()}
-          disabled={importing}
-          accessibilityRole="button"
-          accessibilityLabel="Importer des courses depuis des fichiers GPX"
-          hitSlop={10}
-          style={({ pressed }) => [styles.export, pressed && styles.pressed]}
-        >
-          {importing ? (
-            <ActivityIndicator size="small" color={colors.accent} />
-          ) : (
-            // A plus sign beside a list of runs reads as "add a run", which
-            // is the one thing this button does not do. An arrow coming in
-            // says where the runs come from: a file.
-            <Ionicons name="download-outline" size={21} color={colors.text} />
-          )}
-        </Pressable>
-        {runs && runs.length > 0 && (
-          <Pressable
-            onPress={() => void exportAll()}
-            disabled={archiving}
-            accessibilityRole="button"
-            accessibilityLabel="Exporter toutes les courses"
-            hitSlop={10}
-            style={({ pressed }) => [styles.export, pressed && styles.pressed]}
-          >
-            {archiving ? (
-              <ActivityIndicator size="small" color={colors.accent} />
-            ) : (
-              <Ionicons name="share-outline" size={20} color={colors.text} />
-            )}
-          </Pressable>
-        )}
       </View>
 
       <FlatList
@@ -260,23 +186,19 @@ export default function HistoryScreen() {
         ListEmptyComponent={
           runs === null ? null : (
             <View style={styles.emptyBlock}>
-              <Text style={styles.empty}>
-                Aucune course pour l&apos;instant. La première t&apos;attend dans l&apos;onglet Courir.
-              </Text>
+              <Text style={styles.empty}>{s.empty}</Text>
               <Button
-                label={seeding ? "Création…" : "Ajouter une course de démonstration"}
+                label={importing ? s.importing : s.importFromApp}
                 variant="secondary"
-                onPress={() => void addDemo()}
-                disabled={seeding}
+                onPress={() => void importGpx()}
+                disabled={importing}
               />
-              <Text style={styles.emptyHint}>
-                Une sortie fictive de 5 km, pour voir le rendu. Supprimable depuis son détail.
-              </Text>
+              <Text style={styles.emptyHint}>{s.importHint}</Text>
             </View>
           )
         }
         renderItem={({ item }) => (
-          <SwipeToDelete label={item.name ?? "cette course"} onDelete={() => void askDelete(item)}>
+          <SwipeToDelete label={item.name ?? s.thisRun} onDelete={() => void askDelete(item)}>
           <Pressable
             onPress={() => router.push({ pathname: "/run/[id]", params: { id: String(item.id) } })}
             accessibilityRole="button"
@@ -316,11 +238,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: GUTTER, paddingTop: 10, paddingBottom: 14,
   },
   headerText: { flex: 1 },
-  export: {
-    width: 40, height: 40, borderRadius: 20,
-    alignItems: "center", justifyContent: "center",
-    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline,
-  },
   title: { color: colors.text, fontSize: 32, fontFamily: font.bold, letterSpacing: -0.6 },
   subtitle: { color: colors.subtle, fontFamily: font.regular, fontSize: 15, marginTop: 3 },
 

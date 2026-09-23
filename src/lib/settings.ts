@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { readSettings, writeSetting } from "./db";
+import { applyLanguage, readLanguageChoice, type LanguageChoice } from "./language";
 import { readReminderWhen, type ReminderWhen } from "./reminders";
 
 export interface Settings {
@@ -39,10 +40,21 @@ export interface Settings {
    * it should still be chosen tomorrow morning.
    */
   routeId: number | null;
+  /**
+   * The welcome has been seen, and the app may open straight onto itself.
+   *
+   * Remembered rather than inferred from there being runs: somebody who
+   * imported a history or received one from an old phone still has never
+   * been told what the app does or why it wants their position.
+   */
+  welcomed: boolean;
+  /** The phone's language, or one of the two the app speaks. */
+  language: LanguageChoice;
 }
 
 const DEFAULTS: Settings = {
   voice: true, targetPaceSKm: null, weeklyGoalM: null, reminder: "off", routeId: null,
+  welcomed: false, language: "auto",
 };
 
 /**
@@ -67,11 +79,14 @@ export async function loadSettings(): Promise<void> {
       weeklyGoalM: readGoal(stored.weeklyGoalM),
       reminder: readReminderWhen(stored.reminder),
       routeId: readId(stored.routeId),
+      welcomed: stored.welcomed === "true",
+      language: readLanguageChoice(stored.language),
     });
   } catch {
     // Unreadable settings are not worth failing a launch over.
     publish(DEFAULTS);
   }
+  applyLanguage(current.language);
 }
 
 export const getSettings = (): Settings => current;
@@ -139,6 +154,17 @@ export async function setReminder(when: ReminderWhen): Promise<void> {
 /** Follow a drawn route, or null to run free. */
 export async function setRoute(id: number | null): Promise<void> {
   await store({ ...current, routeId: id }, "routeId", String(id));
+}
+
+/** The welcome is behind us: the app opens on its tabs from now on. */
+export async function markWelcomed(): Promise<void> {
+  await store({ ...current, welcomed: true }, "welcomed", "true");
+}
+
+/** Speak the phone's language, or one chosen here. Takes effect at once. */
+export async function setLanguageChoice(choice: LanguageChoice): Promise<void> {
+  applyLanguage(choice);
+  await store({ ...current, language: choice }, "language", choice);
 }
 
 /** The cache moves first, so the interface reacts before the disk answers. */

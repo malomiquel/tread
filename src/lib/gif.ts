@@ -1,6 +1,7 @@
 import * as gifencModule from "gifenc";
 import UPNG from "upng-js";
 import type { GifencModule } from "gifenc";
+import { getLanguage } from "./i18n.ts";
 
 /**
  * gifenc, whichever shape this toolchain hands it over in.
@@ -26,7 +27,9 @@ export function pickGifenc(module: unknown): GifencModule {
       return found as GifencModule;
     }
   }
-  throw new Error("L'encodeur GIF n'a pas pu être chargé.");
+  throw new Error(getLanguage() === "fr"
+    ? "L'encodeur GIF n'a pas pu être chargé."
+    : "The GIF encoder couldn't be loaded.");
 }
 
 const gifenc = (): GifencModule => pickGifenc(gifencModule);

@@ -1,12 +1,40 @@
 import { useState } from "react";
-import { Alert, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { Alert, Linking, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { SettingRow } from "@/components/SettingRow";
 import { refreshReminders } from "@/lib/planReminders";
+import { defineStrings, useStrings } from "@/lib/i18n";
 import {
-  askReminders, REMINDER_NAMES, testReminder, TEST_DELAY_S, type ReminderWhen,
+  askReminders, reminderName, type ReminderWhen,
 } from "@/lib/reminders";
 import { setReminder, useSettings } from "@/lib/settings";
 import { colors, font } from "@/lib/theme";
+
+const notificationStrings = defineStrings({
+  fr: {
+    sessionReminder: "Rappel de séance",
+    sessionReminderDetail: "Une notification avant chaque séance du programme, avec la météo du jour.",
+    when: "Quand",
+    eveningDetail: "La veille à 19 h, quand il est encore temps de déplacer la séance",
+    morningDetail: "À 6 h 30, avant la journée qu'elle concerne",
+    blockedTitle: "Rappels bloqués",
+    blockedMessage:
+      "Tread n'a pas le droit de t'envoyer de notification. Tu peux le lui donner dans les réglages du téléphone.",
+    cancel: "Annuler",
+    openSettings: "Ouvrir les réglages",
+  },
+  en: {
+    sessionReminder: "Session reminder",
+    sessionReminderDetail: "A notification before every session of your plan, with the day's weather.",
+    when: "When",
+    eveningDetail: "The day before at 7 pm, while there's still time to move the session",
+    morningDetail: "At 6:30 am, before the day it's planned for",
+    blockedTitle: "Reminders blocked",
+    blockedMessage:
+      "Tread isn't allowed to send you notifications. You can allow it in your phone's settings.",
+    cancel: "Cancel",
+    openSettings: "Open Settings",
+  },
+});
 
 /** Where a reminder lands when it is switched on without a moment being chosen. */
 const DEFAULT_WHEN: ReminderWhen = "evening";
@@ -21,6 +49,7 @@ const DEFAULT_WHEN: ReminderWhen = "evening";
  */
 export default function NotificationSettings() {
   const settings = useSettings();
+  const s = useStrings(notificationStrings);
   const [busy, setBusy] = useState(false);
   const on = settings.reminder !== "off";
 
@@ -49,38 +78,19 @@ export default function NotificationSettings() {
     }
   }
 
-  /** Temporary, and meant to be deleted. See testReminder(). */
-  async function tryOne() {
-    if (!(await askReminders())) {
-      blocked();
-      return;
-    }
-    if (await testReminder()) {
-      Alert.alert(
-        "Rappel envoyé",
-        `Il arrive dans ${TEST_DELAY_S} secondes. Tu peux verrouiller l'écran en attendant.`,
-      );
-    } else {
-      Alert.alert(
-        "Rappel impossible",
-        "Cette version de l'app ne sait pas envoyer de notification. Elle demande une version installée, pas Expo Go.",
-      );
-    }
-  }
-
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <View style={styles.group}>
         <SettingRow
-          label="Rappel de séance"
-          detail="Une notification avant chaque séance du programme, avec la météo du jour."
+          label={s.sessionReminder}
+          detail={s.sessionReminderDetail}
           right={
             <Switch
               value={on}
               onValueChange={(next) => void choose(next ? DEFAULT_WHEN : "off")}
               disabled={busy}
               trackColor={{ true: colors.accent, false: colors.hairline }}
-              accessibilityLabel="Rappel de séance"
+              accessibilityLabel={s.sessionReminder}
             />
           }
         />
@@ -90,38 +100,33 @@ export default function NotificationSettings() {
           switch that is off is a question about nothing. */}
       {on ? (
         <View style={styles.group}>
-          <Text style={styles.groupTitle}>Quand</Text>
+          <Text style={styles.groupTitle}>{s.when}</Text>
           {(["evening", "morning"] as const).map((when) => (
             <SettingRow
               key={when}
-              label={REMINDER_NAMES[when]}
+              label={reminderName(when)}
               detail={when === "evening"
-                ? "La veille à 19 h, quand il est encore temps de déplacer la séance"
-                : "À 6 h 30, avant la journée qu'elle concerne"}
+                ? s.eveningDetail
+                : s.morningDetail}
               selected={settings.reminder === when}
               onPress={() => void choose(when)}
             />
           ))}
         </View>
       ) : null}
-
-      {/* Temporary: a reminder whose only proof arrives at seven tomorrow
-          evening is one nobody can check. To be deleted once it has. */}
-      <View style={styles.group}>
-        <SettingRow
-          label="Tester le rappel"
-          detail="Envoie une notification d'exemple tout de suite"
-          onPress={() => void tryOne()}
-        />
-      </View>
     </ScrollView>
   );
 }
 
 function blocked() {
+  const s = notificationStrings();
   Alert.alert(
-    "Rappels bloqués",
-    "Tread n'a pas le droit de t'envoyer de notification. Tu peux le lui donner dans Réglages › Notifications › Tread.",
+    s.blockedTitle,
+    s.blockedMessage,
+    [
+      { text: s.cancel, style: "cancel" },
+      { text: s.openSettings, onPress: () => void Linking.openSettings() },
+    ],
   );
 }
 

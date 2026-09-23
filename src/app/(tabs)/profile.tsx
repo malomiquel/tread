@@ -6,11 +6,66 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { WeeklyGoalSheet } from "@/components/WeeklyGoalSheet";
 import { listRuns, personalRecords, type PersonalRecords, type Run } from "@/lib/db";
 import { formatDistance, formatDuration, formatElevation, formatPace } from "@/lib/format";
-import { buildLine } from "@/lib/build";
+import { defineStrings, plural, useStrings } from "@/lib/i18n";
 import { useTabBarSpace } from "@/lib/layout";
 import { useSettings } from "@/lib/settings";
 import { goalProgress, suggestedWeeklyGoalM, weekStart } from "@/lib/stats";
 import { colors, font } from "@/lib/theme";
+
+const profileStrings = defineStrings({
+  fr: {
+    title: "Profil",
+    settings: "Réglages",
+    empty: "Rien à afficher pour le moment. Tes statistiques se construiront course après course.",
+    thisWeek: "Cette semaine",
+    runs: (count: number) => plural(count, "course", "courses"),
+    goalEdit: (km: string) => `Objectif hebdomadaire, ${km} kilomètres, modifier`,
+    goalSet: "Définir un objectif hebdomadaire",
+    goalReached: (km: string, percent: number) => `Objectif de ${km} km atteint · ${percent} %`,
+    goalRemaining: (remaining: string, km: string) =>
+      `${remaining} km pour tenir l'objectif de ${km} km`,
+    goalInvite: "Se fixer un objectif hebdomadaire",
+    today: "auj.",
+    chartCaption: (weeks: number) => `Distance par semaine, ${weeks} dernières`,
+    records: "Records",
+    longest: "Plus longue sortie",
+    fastestKm: "Kilomètre le plus rapide",
+    bestAvgPace: "Meilleure allure moyenne",
+    bestAvgPaceDetail: "sur 2 km minimum",
+    mostElevation: "Plus fort dénivelé",
+    allTime: "Depuis le début",
+    totalRuns: "Courses",
+    distance: "Distance",
+    time: "Temps",
+    elevation: "Dénivelé",
+  },
+  en: {
+    title: "Profile",
+    settings: "Settings",
+    empty: "Nothing to show yet. Your stats will build up run after run.",
+    thisWeek: "This week",
+    runs: (count: number) => plural(count, "run", "runs"),
+    goalEdit: (km: string) => `Weekly goal, ${km} kilometres, edit`,
+    goalSet: "Set a weekly goal",
+    goalReached: (km: string, percent: number) => `${km} km goal reached · ${percent}%`,
+    goalRemaining: (remaining: string, km: string) =>
+      `${remaining} km to go to reach your ${km} km goal`,
+    goalInvite: "Set yourself a weekly goal",
+    today: "now",
+    chartCaption: (weeks: number) => `Distance per week, last ${weeks}`,
+    records: "Personal records",
+    longest: "Longest run",
+    fastestKm: "Fastest kilometre",
+    bestAvgPace: "Best average pace",
+    bestAvgPaceDetail: "over 2 km or more",
+    mostElevation: "Most elevation gain",
+    allTime: "All time",
+    totalRuns: "Runs",
+    distance: "Distance",
+    time: "Time",
+    elevation: "Elevation gain",
+  },
+});
 
 const WEEKS_SHOWN = 6;
 const DAY_MS = 86_400_000;
@@ -74,6 +129,7 @@ export default function ProfileScreen() {
    * all, which reads as the app having missed the finger rather than as
    * having nothing to do.
    */
+  const s = useStrings(profileStrings);
   const page = useRef<ScrollView>(null);
   useScrollToTop(page);
   const [weeks, setWeeks] = useState<Week[] | null>(null);
@@ -109,7 +165,7 @@ export default function ProfileScreen() {
     return (
       <SafeAreaView style={styles.screen} edges={["top"]}>
         <View style={styles.head}>
-          <Text style={styles.title}>Profil</Text>
+          <Text style={styles.title}>{s.title}</Text>
         </View>
       </SafeAreaView>
     );
@@ -131,13 +187,13 @@ export default function ProfileScreen() {
       <View style={styles.fill}>
       <ScrollView ref={page} contentContainerStyle={[styles.content, { paddingBottom: tabBarSpace }]}>
         <View style={styles.head}>
-          <Text style={styles.title}>Profil</Text>
+          <Text style={styles.title}>{s.title}</Text>
           {/* Settings are a page, not a section, and a cog is where anybody
               looks for the rest. */}
           <Pressable
             onPress={() => router.push("/settings")}
             accessibilityRole="button"
-            accessibilityLabel="Réglages"
+            accessibilityLabel={s.settings}
             hitSlop={10}
             style={({ pressed }) => [styles.cog, pressed && styles.linkPressed]}
           >
@@ -146,19 +202,17 @@ export default function ProfileScreen() {
         </View>
 
         {records.totalRuns === 0 ? (
-          <Text style={styles.empty}>
-            Rien à afficher pour le moment. Tes statistiques se construiront course après course.
-          </Text>
+          <Text style={styles.empty}>{s.empty}</Text>
         ) : (
           <>
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>Cette semaine</Text>
+              <Text style={styles.cardTitle}>{s.thisWeek}</Text>
               <View style={styles.heroRow}>
                 <Text style={styles.hero}>{formatDistance(current.distanceM)}</Text>
                 <Text style={styles.heroUnit}>km</Text>
               </View>
               <Text style={styles.heroSub}>
-                {current.runs} course{current.runs > 1 ? "s" : ""} · {formatDuration(current.durationS)}
+                {s.runs(current.runs)} · {formatDuration(current.durationS)}
               </Text>
 
               {/* The week's figure on its own says how far; against a goal it
@@ -171,8 +225,8 @@ export default function ProfileScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={
                   goal
-                    ? `Objectif hebdomadaire, ${formatDistance(settings.weeklyGoalM ?? 0)} kilomètres, modifier`
-                    : "Définir un objectif hebdomadaire"
+                    ? s.goalEdit(formatDistance(settings.weeklyGoalM ?? 0))
+                    : s.goalSet
                 }
                 style={({ pressed }) => [styles.goal, pressed && styles.goalPressed]}
               >
@@ -185,14 +239,17 @@ export default function ProfileScreen() {
                     </View>
                     <Text style={styles.goalText}>
                       {goal.reached
-                        ? `Objectif de ${formatDistance(settings.weeklyGoalM ?? 0)} km atteint · ${goal.percent} %`
-                        : `${formatDistance(goal.remainingM)} km pour tenir l'objectif de ${formatDistance(settings.weeklyGoalM ?? 0)} km`}
+                        ? s.goalReached(formatDistance(settings.weeklyGoalM ?? 0), goal.percent)
+                        : s.goalRemaining(
+                          formatDistance(goal.remainingM),
+                          formatDistance(settings.weeklyGoalM ?? 0),
+                        )}
                     </Text>
                   </>
                 ) : (
                   <View style={styles.goalInvite}>
                     <Ionicons name="flag-outline" size={15} color={colors.accent} />
-                    <Text style={styles.goalInviteText}>Se fixer un objectif hebdomadaire</Text>
+                    <Text style={styles.goalInviteText}>{s.goalInvite}</Text>
                   </View>
                 )}
               </Pressable>
@@ -210,40 +267,40 @@ export default function ProfileScreen() {
                       />
                     </View>
                     <Text style={styles.weekLabel}>
-                      {i === weeks.length - 1 ? "auj." : `-${weeks.length - 1 - i}`}
+                      {i === weeks.length - 1 ? s.today : `-${weeks.length - 1 - i}`}
                     </Text>
                   </View>
                 ))}
               </View>
-              <Text style={styles.caption}>Distance par semaine, {WEEKS_SHOWN} dernières</Text>
+              <Text style={styles.caption}>{s.chartCaption(WEEKS_SHOWN)}</Text>
             </View>
 
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>Records</Text>
+              <Text style={styles.cardTitle}>{s.records}</Text>
               {records.longest && (
                 <RecordRow
-                  label="Plus longue sortie"
+                  label={s.longest}
                   value={`${formatDistance(records.longest.distanceM)} km`}
                   detail={records.longest.name ?? undefined}
                 />
               )}
               {records.fastestKm?.fastestKmS != null && (
                 <RecordRow
-                  label="Kilomètre le plus rapide"
+                  label={s.fastestKm}
                   value={formatPace(records.fastestKm.fastestKmS)}
                   detail={records.fastestKm.name ?? undefined}
                 />
               )}
               {records.bestAvgPace?.avgPaceSKm != null && (
                 <RecordRow
-                  label="Meilleure allure moyenne"
+                  label={s.bestAvgPace}
                   value={formatPace(records.bestAvgPace.avgPaceSKm)}
-                  detail="sur 2 km minimum"
+                  detail={s.bestAvgPaceDetail}
                 />
               )}
               {records.mostElevation?.elevationGainM != null && records.mostElevation.elevationGainM > 0 && (
                 <RecordRow
-                  label="Plus fort dénivelé"
+                  label={s.mostElevation}
                   value={`${formatElevation(records.mostElevation.elevationGainM)} m`}
                   detail={records.mostElevation.name ?? undefined}
                 />
@@ -251,35 +308,14 @@ export default function ProfileScreen() {
             </View>
 
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>Depuis le début</Text>
-              <RecordRow label="Courses" value={String(records.totalRuns)} />
-              <RecordRow label="Distance" value={`${formatDistance(records.totalDistanceM)} km`} />
-              <RecordRow label="Temps" value={formatDuration(records.totalDurationS)} />
-              <RecordRow label="Dénivelé" value={`${formatElevation(records.totalElevationM)} m`} />
+              <Text style={styles.cardTitle}>{s.allTime}</Text>
+              <RecordRow label={s.totalRuns} value={String(records.totalRuns)} />
+              <RecordRow label={s.distance} value={`${formatDistance(records.totalDistanceM)} km`} />
+              <RecordRow label={s.time} value={formatDuration(records.totalDurationS)} />
+              <RecordRow label={s.elevation} value={`${formatElevation(records.totalElevationM)} m`} />
             </View>
           </>
         )}
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>À propos</Text>
-          <Pressable
-            onPress={() => router.push("/plan-method")}
-            accessibilityRole="button"
-            style={({ pressed }) => [styles.link, pressed && styles.linkPressed]}
-          >
-            <View style={styles.linkText}>
-              <Text style={styles.recordLabel}>Comment les programmes sont construits</Text>
-              <Text style={styles.recordDetail}>Le calcul, et ce qui relève de mon jugement</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.subtle} />
-          </Pressable>
-        </View>
-
-        {/* Which build this app was made from. An app on a phone otherwise
-            says nothing about the version of the source that produced it, so
-            "am I still up to date?" has no answer from the device. Compare
-            this with git log and it does. */}
-        <Text style={styles.build}>{buildLine()}</Text>
       </ScrollView>
       </View>
 
@@ -299,9 +335,11 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   fill: { flex: 1 },
   content: {},
+  // The same room under the heading as the history and the routes leave:
+  // without it the cog's ring sat right on the first card's rule.
   head: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: GUTTER, paddingTop: 10,
+    paddingHorizontal: GUTTER, paddingTop: 10, paddingBottom: 14,
   },
   title: { color: colors.text, fontSize: 32, fontFamily: font.bold, letterSpacing: -0.6 },
   cog: {
@@ -354,17 +392,7 @@ const styles = StyleSheet.create({
   goalInvite: { flexDirection: "row", alignItems: "center", gap: 6 },
   goalInviteText: { color: colors.accent, fontFamily: font.semibold, fontSize: 14.5 },
 
-  build: {
-    color: colors.subtle, fontFamily: font.regular, fontSize: 12,
-    textAlign: "center", paddingTop: 22, paddingBottom: 6, paddingHorizontal: GUTTER,
-  },
-
-  link: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    gap: 12, paddingVertical: 9,
-  },
   linkPressed: { opacity: 0.6 },
-  linkText: { flex: 1, gap: 1 },
 
   record: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",

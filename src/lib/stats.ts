@@ -1,3 +1,4 @@
+import { defineStrings } from "./i18n.ts";
 import type { Run } from "./db";
 
 /** Monday, midnight, of the week containing that instant. */
@@ -29,18 +30,40 @@ export function weekTotals(runs: Run[], reference = Date.now()): WeekTotals {
     );
 }
 
-/** How long ago, in plain French, for a run's start time. */
+const agoWords = defineStrings({
+  fr: {
+    now: "à l'instant",
+    minutes: (n: number) => `il y a ${n} min`,
+    hours: (n: number) => `il y a ${n} h`,
+    yesterday: "hier",
+    days: (n: number) => `il y a ${n} jours`,
+    week: "il y a une semaine",
+    weeks: (n: number) => `il y a ${n} semaines`,
+  },
+  en: {
+    now: "just now",
+    minutes: (n: number) => `${n} min ago`,
+    hours: (n: number) => `${n} h ago`,
+    yesterday: "yesterday",
+    days: (n: number) => `${n} days ago`,
+    week: "a week ago",
+    weeks: (n: number) => `${n} weeks ago`,
+  },
+});
+
+/** How long ago, in plain words, for a run's start time. */
 export function timeAgo(ts: number, now = Date.now()): string {
+  const words = agoWords();
   const minutes = Math.round((now - ts) / 60_000);
-  if (minutes < 2) return "à l'instant";
-  if (minutes < 60) return `il y a ${minutes} min`;
+  if (minutes < 2) return words.now;
+  if (minutes < 60) return words.minutes(minutes);
   const hours = Math.round(minutes / 60);
-  if (hours < 24) return `il y a ${hours} h`;
+  if (hours < 24) return words.hours(hours);
   const days = Math.round(hours / 24);
-  if (days === 1) return "hier";
-  if (days < 7) return `il y a ${days} jours`;
+  if (days === 1) return words.yesterday;
+  if (days < 7) return words.days(days);
   const weeks = Math.round(days / 7);
-  return weeks === 1 ? "il y a une semaine" : `il y a ${weeks} semaines`;
+  return weeks === 1 ? words.week : words.weeks(weeks);
 }
 
 

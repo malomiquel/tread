@@ -12,7 +12,7 @@ import MapView, { Marker, Polyline } from "react-native-maps";
 import { distanceM, fitRegion } from "@/lib/geo";
 import { routeGpxFileName, routeToGpx } from "@/lib/gpx";
 import { keepPicture, PREVIEW } from "@/lib/picture";
-import { readRoute, saveRoute, updateRoute } from "@/lib/db";
+import { deleteRoute, readRoute, saveRoute, updateRoute } from "@/lib/db";
 import { formatDistance } from "@/lib/format";
 import { placeName, useInitialLocation } from "@/lib/location";
 import {
@@ -20,11 +20,98 @@ import {
   regionAroundRoute, routeDistanceM, snapped, withoutWaypoint, withWaypoint,
   type Route, type RoutePoint,
 } from "@/lib/route";
+import { getSettings, setRoute as setChosenRoute } from "@/lib/settings";
+import { defineStrings, useStrings } from "@/lib/i18n";
 import { colors, floatingShadow, font, literalColors } from "@/lib/theme";
 
 /** Where the map opens when the phone has no idea where it is. */
 const PARIS = { latitude: 48.8566, longitude: 2.3522, latitudeDelta: 0.05, longitudeDelta: 0.05 };
 const WALKING_ZOOM = 0.008;
+
+const routeStrings = defineStrings({
+  fr: {
+    leaveTitle: "Quitter sans enregistrer ?",
+    leaveBody: "Le tracé restera comme il était avant.",
+    stay: "Rester",
+    leave: "Quitter",
+    deleteTitle: "Supprimer ce parcours ?",
+    deleteBody: "Tes courses ne sont pas touchées.",
+    cancel: "Annuler",
+    delete: "Supprimer",
+    deleteFailed: "Suppression impossible",
+    databaseSilent: "La base de données n'a pas répondu.",
+    shareUnavailable: "Partage indisponible",
+    shareUnavailableBody: "Impossible d'ouvrir la feuille de partage sur cet appareil.",
+    shareFailed: "Partage impossible",
+    unexpectedError: "Erreur inattendue.",
+    notSaved: "Parcours non enregistré",
+    newRoute: "Nouveau parcours",
+    edit: "Modifier",
+    deleteLabel: "Supprimer ce parcours",
+    renameLabel: (name: string) => `${name}, renommer`,
+    nameLabel: "Nommer ce parcours",
+    untitled: "Sans nom",
+    tapToStart: "Touche la carte pour poser le départ.",
+    routing: "Calcul du chemin…",
+    straightLegs: (n: number) => `${n} portion${n > 1 ? "s" : ""} en ligne droite`,
+    loopClosed: "Boucle refermée.",
+    tapToContinue: "Touche pour continuer le tracé.",
+    undoLabel: "Annuler la dernière modification",
+    shareLabel: "Partager le parcours",
+    howTitle: "Comment le tracé est calculé",
+    clearLabel: "Effacer le tracé",
+    howPaths: "Chaque point rejoint le précédent par les chemins praticables à pied : trottoirs, sentiers, zones piétonnes. Les sens interdits sont ignorés — ils ne concernent pas un coureur.",
+    howSnap: "Ton point se pose sur le chemin le plus proche, pas exactement là où ton doigt a touché. C'est pour ça qu'il glisse parfois de quelques mètres : au milieu d'un bâtiment ou d'un champ, il rejoint la voie la plus proche.",
+    howDashed: "Une portion en pointillés est une ligne droite : le calcul n'a pas répondu pour elle. Tu peux l'annuler et reposer le point ailleurs.",
+    howEdit: "Un point se déplace en le faisant glisser, et se supprime en le touchant. Les portions qui le touchaient sont recalculées.",
+    howShare: "Le partage envoie un fichier GPX : une montre, un planificateur ou un autre téléphone sauront le lire, et cette app sait le relire.",
+    routeName: "Nom du parcours",
+    emptyNameHint: "Laissé vide, il prendra le nom du jour.",
+    saveLabel: "Enregistrer le parcours",
+    save: "Enregistrer",
+  },
+  en: {
+    leaveTitle: "Leave without saving?",
+    leaveBody: "The route will stay as it was before.",
+    stay: "Stay",
+    leave: "Leave",
+    deleteTitle: "Delete this route?",
+    deleteBody: "Your runs won't be affected.",
+    cancel: "Cancel",
+    delete: "Delete",
+    deleteFailed: "Couldn't delete",
+    databaseSilent: "The database didn't respond.",
+    shareUnavailable: "Sharing unavailable",
+    shareUnavailableBody: "The share sheet can't be opened on this device.",
+    shareFailed: "Couldn't share",
+    unexpectedError: "Something went wrong.",
+    notSaved: "Route not saved",
+    newRoute: "New route",
+    edit: "Edit",
+    deleteLabel: "Delete this route",
+    renameLabel: (name: string) => `${name}, rename`,
+    nameLabel: "Name this route",
+    untitled: "Untitled",
+    tapToStart: "Tap the map to set the start.",
+    routing: "Finding the way…",
+    straightLegs: (n: number) => (n === 1 ? "1 straight-line section" : `${n} straight-line sections`),
+    loopClosed: "Loop closed.",
+    tapToContinue: "Tap to keep drawing.",
+    undoLabel: "Undo the last change",
+    shareLabel: "Share the route",
+    howTitle: "How the route is worked out",
+    clearLabel: "Clear the route",
+    howPaths: "Each point joins the one before it along paths you can take on foot: pavements, trails, pedestrian areas. One-way streets are ignored — they don't apply to a runner.",
+    howSnap: "Your point lands on the nearest path, not exactly where your finger touched. That's why it sometimes slides a few metres: in the middle of a building or a field, it moves to the nearest way through.",
+    howDashed: "A dotted section is a straight line: the routing didn't answer for it. You can undo it and place the point somewhere else.",
+    howEdit: "Drag a point to move it, and tap it to remove it. The sections touching it are worked out again.",
+    howShare: "Sharing sends a GPX file: a watch, a route planner or another phone can read it, and this app can read it back.",
+    routeName: "Route name",
+    emptyNameHint: "Leave it empty and it will take the day's name.",
+    saveLabel: "Save the route",
+    save: "Save",
+  },
+});
 
 /**
  * Drawing a route with a finger.
@@ -42,6 +129,7 @@ const WALKING_ZOOM = 0.008;
 export default function RouteBuilder() {
   const map = useRef<MapView>(null);
   const router = useRouter();
+  const s = useStrings(routeStrings);
   const scheme = useColorScheme() === "dark" ? "dark" : "light";
   const { id } = useLocalSearchParams<{ id: string }>();
   /** The route being changed, or null when one is being drawn from nothing. */
@@ -133,12 +221,12 @@ export default function RouteBuilder() {
    */
   usePreventRemove(dirty && !written, ({ data }) => {
     Alert.alert(
-      "Quitter sans enregistrer ?",
-      "Le tracé restera comme il était avant.",
+      s.leaveTitle,
+      s.leaveBody,
       [
-        { text: "Rester", style: "cancel" },
+        { text: s.stay, style: "cancel" },
         {
-          text: "Quitter",
+          text: s.leave,
           style: "destructive",
           onPress: () => navigation.dispatch(data.action),
         },
@@ -168,6 +256,38 @@ export default function RouteBuilder() {
    * moved three corners means the route they are looking at, and asking them
    * to save first would be the app protecting its own bookkeeping.
    */
+  /**
+   * Throw the route away, from the route itself.
+   *
+   * The list offers the same thing behind a swipe, which nobody finds unless
+   * they already know it is there. Here it is a button, where somebody
+   * looking at a route they no longer want goes looking for it.
+   */
+  function askDelete() {
+    if (editing === null) return;
+    Alert.alert(
+      s.deleteTitle,
+      s.deleteBody,
+      [
+        { text: s.cancel, style: "cancel" },
+        {
+          text: s.delete,
+          style: "destructive",
+          onPress: () => {
+            // A deleted route must stop being the chosen one, or the running
+            // screen would keep a setting pointing at nothing.
+            if (getSettings().routeId === editing) void setChosenRoute(null);
+            void deleteRoute(editing)
+              // Leaving goes through the same door as saving, so the unsaved
+              // changes question is not asked about a route that is gone.
+              .then(() => setWritten(true))
+              .catch(() => Alert.alert(s.deleteFailed, s.databaseSilent));
+          },
+        },
+      ],
+    );
+  }
+
   async function share() {
     if (sharing || route.waypoints.length < 2) return;
     setSharing(true);
@@ -183,10 +303,10 @@ export default function RouteBuilder() {
           UTI: "com.topografix.gpx",
         });
       } else {
-        Alert.alert("Partage indisponible", "Impossible d'ouvrir la feuille de partage sur cet appareil.");
+        Alert.alert(s.shareUnavailable, s.shareUnavailableBody);
       }
     } catch (cause) {
-      Alert.alert("Partage impossible", cause instanceof Error ? cause.message : "Erreur inattendue.");
+      Alert.alert(s.shareFailed, cause instanceof Error ? cause.message : s.unexpectedError);
     } finally {
       setSharing(false);
     }
@@ -327,7 +447,7 @@ export default function RouteBuilder() {
       .then(() => setWritten(true))
       .catch(() => {
         setSaving(false);
-        Alert.alert("Parcours non enregistré", "La base de données n'a pas répondu.");
+        Alert.alert(s.notSaved, s.databaseSilent);
       });
   }
 
@@ -340,7 +460,22 @@ export default function RouteBuilder() {
 
   return (
     <View style={styles.screen}>
-      <Stack.Screen options={{ title: editing === null ? "Nouveau parcours" : "Modifier" }} />
+      <Stack.Screen
+        options={{
+          title: editing === null ? s.newRoute : s.edit,
+          headerRight: editing === null ? undefined : () => (
+            <Pressable
+              onPress={askDelete}
+              accessibilityRole="button"
+              accessibilityLabel={s.deleteLabel}
+              hitSlop={10}
+              style={({ pressed }) => [pressed && styles.pressed]}
+            >
+              <Text style={styles.deleteLabel}>{s.delete}</Text>
+            </Pressable>
+          ),
+        }}
+      />
       <MapView
         ref={map}
         style={StyleSheet.absoluteFill}
@@ -444,12 +579,12 @@ export default function RouteBuilder() {
             setNaming(true);
           }}
           accessibilityRole="button"
-          accessibilityLabel={name ? `${name}, renommer` : "Nommer ce parcours"}
+          accessibilityLabel={name ? s.renameLabel(name) : s.nameLabel}
           hitSlop={6}
           style={({ pressed }) => [styles.nameRow, pressed && styles.pressed]}
         >
           <Text style={[styles.name, !name && styles.nameEmpty]} numberOfLines={1}>
-            {name ?? "Sans nom"}
+            {name ?? s.untitled}
           </Text>
           <Ionicons name="pencil" size={13} color={colors.subtle} />
         </Pressable>
@@ -460,14 +595,14 @@ export default function RouteBuilder() {
         </Text>
         <Text style={styles.hint}>
           {!drawable
-            ? "Touche la carte pour poser le départ."
+            ? s.tapToStart
             : asking
-              ? "Calcul du chemin…"
+              ? s.routing
               : guessed.length > 0
-                ? `${guessed.length} portion${guessed.length > 1 ? "s" : ""} en ligne droite`
+                ? s.straightLegs(guessed.length)
                 : isLoop(route)
-                  ? "Boucle refermée."
-                  : "Touche pour continuer le tracé."}
+                  ? s.loopClosed
+                  : s.tapToContinue}
         </Text>
       </View>
 
@@ -487,7 +622,7 @@ export default function RouteBuilder() {
           }}
           disabled={past.length === 0}
           accessibilityRole="button"
-          accessibilityLabel="Annuler la dernière modification"
+          accessibilityLabel={s.undoLabel}
           style={({ pressed }) => [
             styles.tool, pressed && styles.pressed, past.length === 0 && styles.toolOff,
           ]}
@@ -498,7 +633,7 @@ export default function RouteBuilder() {
           onPress={() => void share()}
           disabled={route.waypoints.length < 2 || sharing}
           accessibilityRole="button"
-          accessibilityLabel="Partager le parcours"
+          accessibilityLabel={s.shareLabel}
           style={({ pressed }) => [
             styles.tool,
             pressed && styles.pressed,
@@ -518,7 +653,7 @@ export default function RouteBuilder() {
         <Pressable
           onPress={() => setExplaining(true)}
           accessibilityRole="button"
-          accessibilityLabel="Comment le tracé est calculé"
+          accessibilityLabel={s.howTitle}
           style={({ pressed }) => [styles.tool, pressed && styles.pressed]}
         >
           <Ionicons name="information" size={19} color={colors.text} />
@@ -531,10 +666,12 @@ export default function RouteBuilder() {
           }}
           disabled={!drawable}
           accessibilityRole="button"
-          accessibilityLabel="Effacer le tracé"
+          accessibilityLabel={s.clearLabel}
           style={({ pressed }) => [styles.tool, pressed && styles.pressed, !drawable && styles.toolOff]}
         >
-          <Ionicons name="trash" size={18} color={colors.danger} />
+          {/* Not a bin: the bin is for deleting the route, in the header.
+              This only wipes the drawing, which the undo can bring back. */}
+          <Ionicons name="close-circle-outline" size={20} color={colors.danger} />
         </Pressable>
       </View>
 
@@ -546,29 +683,12 @@ export default function RouteBuilder() {
       >
         <Pressable style={styles.sheetBackdrop} onPress={() => setExplaining(false)}>
           <Pressable onPress={() => undefined} style={styles.sheetBody}>
-            <Text style={styles.sheetTitle}>Comment le tracé est calculé</Text>
-            <Text style={styles.help}>
-              Chaque point rejoint le précédent par les chemins praticables à pied : trottoirs,
-              sentiers, zones piétonnes. Les sens interdits sont ignorés — ils ne concernent pas
-              un coureur.
-            </Text>
-            <Text style={styles.help}>
-              Ton point se pose sur le chemin le plus proche, pas exactement là où ton doigt a
-              touché. C&apos;est pour ça qu&apos;il glisse parfois de quelques mètres : au milieu
-              d&apos;un bâtiment ou d&apos;un champ, il rejoint la voie la plus proche.
-            </Text>
-            <Text style={styles.help}>
-              Une portion en pointillés est une ligne droite : le calcul n&apos;a pas répondu pour
-              elle. Tu peux l&apos;annuler et reposer le point ailleurs.
-            </Text>
-            <Text style={styles.help}>
-              Un point se déplace en le faisant glisser, et se supprime en le touchant. Les
-              portions qui le touchaient sont recalculées.
-            </Text>
-            <Text style={styles.help}>
-              Le partage envoie un fichier GPX : une montre, un planificateur ou un autre
-              téléphone sauront le lire, et cette app sait le relire.
-            </Text>
+            <Text style={styles.sheetTitle}>{s.howTitle}</Text>
+            <Text style={styles.help}>{s.howPaths}</Text>
+            <Text style={styles.help}>{s.howSnap}</Text>
+            <Text style={styles.help}>{s.howDashed}</Text>
+            <Text style={styles.help}>{s.howEdit}</Text>
+            <Text style={styles.help}>{s.howShare}</Text>
           </Pressable>
         </Pressable>
       </Modal>
@@ -576,7 +696,7 @@ export default function RouteBuilder() {
       <Modal visible={naming} transparent animationType="fade" onRequestClose={() => setNaming(false)}>
         <Pressable style={styles.sheetBackdrop} onPress={() => setNaming(false)}>
           <Pressable onPress={() => undefined} style={styles.sheetBody}>
-            <Text style={styles.sheetTitle}>Nom du parcours</Text>
+            <Text style={styles.sheetTitle}>{s.routeName}</Text>
             <TextInput
               value={draft}
               onChangeText={setDraft}
@@ -584,7 +704,7 @@ export default function RouteBuilder() {
               // Showing the day's name here would mean reading the clock
               // while drawing, and a screen's output cannot depend on when it
               // happened to be drawn.
-              placeholder="Sans nom"
+              placeholder={s.untitled}
               placeholderTextColor={colors.subtle}
               autoFocus
               returnKeyType="done"
@@ -595,9 +715,7 @@ export default function RouteBuilder() {
               }}
               style={styles.namingField}
             />
-            <Text style={styles.namingHint}>
-              Laissé vide, il prendra le nom du jour.
-            </Text>
+            <Text style={styles.namingHint}>{s.emptyNameHint}</Text>
           </Pressable>
         </Pressable>
       </Modal>
@@ -606,7 +724,7 @@ export default function RouteBuilder() {
         onPress={keep}
         disabled={route.waypoints.length < 2 || saving}
         accessibilityRole="button"
-        accessibilityLabel="Enregistrer le parcours"
+        accessibilityLabel={s.saveLabel}
         style={({ pressed }) => [
           styles.keep,
           pressed && styles.pressed,
@@ -616,7 +734,7 @@ export default function RouteBuilder() {
         {saving ? (
           <ActivityIndicator size="small" color={colors.accentText} />
         ) : (
-          <Text style={styles.keepLabel}>Enregistrer</Text>
+          <Text style={styles.keepLabel}>{s.save}</Text>
         )}
       </Pressable>
     </View>
@@ -625,6 +743,7 @@ export default function RouteBuilder() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
+  deleteLabel: { color: colors.danger, fontSize: 16.5, fontFamily: font.semibold },
 
   // The one figure that matters while drawing, where the eye already is.
   readout: {

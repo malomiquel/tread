@@ -3,7 +3,13 @@ import { StyleSheet, View, useColorScheme} from "react-native";
 import MapView, { Polyline } from "react-native-maps";
 import { cardRegion, CARD_HEIGHT, CARD_WIDTH } from "@/components/ShareCard";
 import { segments, type TrackPoint } from "@/lib/geo";
+import { defineStrings } from "@/lib/i18n";
 import { literalColors } from "@/lib/theme";
+
+const mapSourceStrings = defineStrings({
+  fr: { notReady: "La carte n'est pas prête." },
+  en: { notReady: "The map isn't ready." },
+});
 
 /**
  * How thick the track is drawn in the share picture.
@@ -77,7 +83,7 @@ export const CardMapSource = forwardRef<CardMapHandle, Props>(function CardMapSo
         region: region ?? undefined,
         format: "png",
         result: "file",
-      }) ?? Promise.reject(new Error("La carte n'est pas prête.")),
+      }) ?? Promise.reject(new Error(mapSourceStrings().notReady)),
   }), [region]);
 
   return (

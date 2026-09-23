@@ -216,7 +216,28 @@ certificate to offer; that is the `expo-build-properties` line in `app.json`.
 Both ways share the same rules: the reader refuses a file from a newer version
 rather than guessing at it, the screen says what the file holds before anything
 is written, and the import is idempotent — a run is recognised by the moment it
-started, so the same transfer taken twice adds nothing.
+started, so the same transfer taken twice adds nothing. Routes travel too,
+recognised by their name and the moment they were drawn; the route chosen for
+the next run does not, since its id names a row on the old phone.
+
+**The first launch explains before it asks.** Two pages — what the app does,
+then what it needs and why — shown once, behind a `Stack.Protected` guard so
+there is nothing underneath to swipe back to. The Health sheet used to appear
+the moment the app opened, with no word of explanation; it is asked for there
+now, beside the reason. The app then opens on the plan tab, which offers the
+two ways to begin when there is no programme rather than the programme form.
+
+**Two languages, no library.** French and English, following the phone
+(French when it prefers French, English otherwise) unless a language is
+chosen in Réglages › Langue. Each screen keeps its strings beside its code as
+`defineStrings({ fr, en })` (`src/lib/i18n.ts`); the English side is typed
+against the French one, so a sentence missing in either language fails the
+build. Numbers, dates, the spoken kilometres and the notifications follow the
+same language; the iOS permission texts are in `locales/`, and the Live
+Activity follows the phone. Session names are worked out from the session
+when shown rather than read from what was stored, so programmes created in
+French read in English too; stored identifiers (efforts, session ids) are
+English, and migration 16 rewrote the ones older versions saved in French.
 
 **A reminder is rewritten, never reconciled.** A plan reshapes itself
 constantly: a missed week slides every date, a hard session lightens the next
@@ -240,6 +261,12 @@ replays a single GPS point.
   wrote into Apple Health is read back and shown with the run; without a
   watch there is nothing to read.
 - **Android outside Expo Go**: Google Maps needs an API key in `app.json`.
+- **Third-party services are on free terms**: the Open-Meteo API is free for
+  non-commercial use only, and routing.openstreetmap.de is a community server
+  under a fair-use policy. Charging for the app means an Open-Meteo
+  subscription and a routing server of its own (OSRM or another) first.
+- **No support address in the app yet**: À propos has the version, the
+  privacy page and the data credits, but nowhere to write to.
 - **The database file is still named `running.db`.** Renaming it would hide
   runs already recorded on a device, for a purely cosmetic gain nobody sees.
 

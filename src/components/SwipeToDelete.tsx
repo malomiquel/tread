@@ -5,7 +5,13 @@ import ReanimatedSwipeable, {
   type SwipeableMethods,
 } from "react-native-gesture-handler/ReanimatedSwipeable";
 import Animated, { useAnimatedStyle, type SharedValue } from "react-native-reanimated";
+import { defineStrings, useStrings } from "@/lib/i18n";
 import { colors, font } from "@/lib/theme";
+
+const swipeStrings = defineStrings({
+  fr: { delete: "Supprimer", deleteItem: (label: string) => `Supprimer ${label}` },
+  en: { delete: "Delete", deleteItem: (label: string) => `Delete ${label}` },
+});
 
 const ACTION_WIDTH = 92;
 
@@ -61,6 +67,7 @@ function Action({
   label: string;
   onPress: () => void;
 }) {
+  const s = useStrings(swipeStrings);
   // The action tracks the finger exactly rather than sliding in behind the
   // row, so the button feels dragged out rather than uncovered.
   const style = useAnimatedStyle(() => ({
@@ -72,11 +79,11 @@ function Action({
       <Pressable
         onPress={onPress}
         accessibilityRole="button"
-        accessibilityLabel={`Supprimer ${label}`}
+        accessibilityLabel={s.deleteItem(label)}
         style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
       >
         <Ionicons name="trash-outline" size={19} color={colors.accentText} />
-        <Text style={styles.actionLabel}>Supprimer</Text>
+        <Text style={styles.actionLabel}>{s.delete}</Text>
       </Pressable>
     </Animated.View>
   );

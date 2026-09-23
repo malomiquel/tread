@@ -1,3 +1,4 @@
+import { defineStrings } from "./i18n.ts";
 /**
  * Reminders for the sessions a programme has planned.
  *
@@ -89,9 +90,25 @@ export function reminderAt(sessionAt: number, when: ReminderWhen): number | null
  * collapsed and the rest on a long press, so the session survives the glance
  * and the weather rewards the look.
  */
+const reminderWords = defineStrings({
+  fr: {
+    tomorrow: "Demain",
+    today: "Aujourd'hui",
+    work: (kind: string, minutes: number, pace: string) => `${kind}, ${minutes} min, allure ${pace}/km`,
+    when: { off: "Aucun", evening: "La veille au soir", morning: "Le matin même" } as Record<ReminderWhen, string>,
+  },
+  en: {
+    tomorrow: "Tomorrow",
+    today: "Today",
+    work: (kind: string, minutes: number, pace: string) => `${kind}, ${minutes} min, at ${pace}/km`,
+    when: { off: "Off", evening: "The evening before", morning: "That morning" },
+  },
+});
+
 export function reminderText(session: Plannable, when: ReminderWhen): { title: string; body: string } {
-  const lead = when === "evening" ? "Demain" : "Aujourd'hui";
-  const work = `${session.kind}, ${session.minutes} min, allure ${session.pace}/km`;
+  const words = reminderWords();
+  const lead = when === "evening" ? words.tomorrow : words.today;
+  const work = words.work(session.kind, session.minutes, session.pace);
   return {
     title: `${lead} · ${session.name}`,
     body: session.weather ? `${work}\n${session.weather}` : work,
@@ -131,12 +148,8 @@ export function readReminderWhen(raw: string | undefined): ReminderWhen {
   return raw === "evening" || raw === "morning" ? raw : "off";
 }
 
-/** How the choice reads on screen. French, because it is read there. */
-export const REMINDER_NAMES: Record<ReminderWhen, string> = {
-  off: "Aucun",
-  evening: "La veille au soir",
-  morning: "Le matin même",
-};
+/** How the choice reads on screen. */
+export const reminderName = (when: ReminderWhen): string => reminderWords().when[when];
 
 /**
  * Notifications sit behind a lazy require, for the same reason HealthKit
@@ -221,52 +234,5 @@ export async function syncReminders(reminders: Reminder[]): Promise<void> {
     }
   } catch {
     /* no reminders this time; the next visit to the plan will try again */
-  }
-}
-
-/**
- * How long the test notification takes to arrive. Long enough to put the
- * phone down, short enough not to wonder whether it worked.
- */
-export const TEST_DELAY_S = 5;
-
-/**
- * Fire one reminder now, to prove the whole chain works.
- *
- * Temporary, and meant to be deleted: it exists because a feature whose only
- * proof arrives at seven o'clock tomorrow evening is a feature nobody can
- * check. It writes the same shape of notification a real session would, so
- * what turns up on the lock screen is what will turn up for real.
- *
- * Deliberately not part of the scheduled list: it is scheduled on its own and
- * never cancels the reminders that matter.
- */
-export async function testReminder(): Promise<boolean> {
-  const api = notifications();
-  if (!api) return false;
-  try {
-    await api.scheduleNotificationAsync({
-      identifier: "test-reminder",
-      content: reminderText(
-        {
-          at: Date.now(),
-          name: "6 × 400 m",
-          kind: "Intervalles",
-          minutes: 42,
-          pace: "4'30\"",
-          weather: "Couvert, 8° à 12°, vent 12 km/h",
-          settled: false,
-        },
-        "evening",
-      ),
-      trigger: {
-        type: api.SchedulableTriggerInputTypes.TIME_INTERVAL,
-        seconds: TEST_DELAY_S,
-        repeats: false,
-      },
-    });
-    return true;
-  } catch {
-    return false;
   }
 }

@@ -1,6 +1,8 @@
+import { decimal, defineStrings } from "./i18n.ts";
+
 /** Structured sessions: what to run, and for how long, announced as you go. */
 
-export type Effort = "échauffement" | "rapide" | "récupération" | "allure" | "retour au calme";
+export type Effort = "warmup" | "fast" | "recovery" | "steady" | "cooldown";
 
 /**
  * One block of a session, measured either in distance or in time — never both.
@@ -62,13 +64,38 @@ export function stepRemaining(step: Step, coveredM: number, elapsedS: number): R
 }
 
 /** How a step is named aloud and on screen. */
+/**
+ * What each kind of block is called on screen.
+ *
+ * The efforts are identifiers, stored with every session and every run;
+ * these are the words shown for them.
+ */
+const effortNames = defineStrings<Record<Effort, string>>({
+  fr: {
+    warmup: "échauffement",
+    fast: "rapide",
+    recovery: "récupération",
+    steady: "allure",
+    cooldown: "retour au calme",
+  },
+  en: {
+    warmup: "warm-up",
+    fast: "fast",
+    recovery: "recovery",
+    steady: "steady",
+    cooldown: "cool-down",
+  },
+});
+
+export const effortName = (effort: Effort): string => effortNames()[effort];
+
 export function stepLabel(step: Step): string {
   const measure = step.metres !== undefined
     ? step.metres >= 1000
-      ? `${(step.metres / 1000).toString().replace(".", ",")} km`
+      ? `${decimal((step.metres / 1000).toString())} km`
       : `${step.metres} m`
     : `${Math.round((step.seconds ?? 0) / 60)} min`;
-  return `${measure} ${step.effort}`;
+  return `${measure} ${effortName(step.effort)}`;
 }
 
 /**
@@ -86,8 +113,8 @@ export function sessionMinutes(session: Session): number {
   return Math.round(seconds / 60);
 }
 
-const repeat = (fois: number, ...bloc: Step[]): Step[] =>
-  Array.from({ length: fois }, () => bloc).flat();
+const repeat = (times: number, ...block: Step[]): Step[] =>
+  Array.from({ length: times }, () => block).flat();
 
 /**
  * The catalogue, kept deliberately short.
@@ -102,45 +129,45 @@ export const SESSIONS: Session[] = [
     id: "400",
     name: "5 × 400 m",
     steps: [
-      { effort: "échauffement", seconds: 600 },
-      ...repeat(5, { effort: "rapide", metres: 400 }, { effort: "récupération", metres: 200 }),
-      { effort: "retour au calme", seconds: 300 },
+      { effort: "warmup", seconds: 600 },
+      ...repeat(5, { effort: "fast", metres: 400 }, { effort: "recovery", metres: 200 }),
+      { effort: "cooldown", seconds: 300 },
     ],
   },
   {
-    id: "seuil",
+    id: "threshold",
     name: "3 × 8 min au seuil",
     steps: [
-      { effort: "échauffement", seconds: 900 },
-      ...repeat(3, { effort: "allure", seconds: 480 }, { effort: "récupération", seconds: 180 }),
-      { effort: "retour au calme", seconds: 600 },
+      { effort: "warmup", seconds: 900 },
+      ...repeat(3, { effort: "steady", seconds: 480 }, { effort: "recovery", seconds: 180 }),
+      { effort: "cooldown", seconds: 600 },
     ],
   },
   {
-    id: "pyramide",
+    id: "pyramid",
     name: "Pyramide 1-2-3-2-1",
     steps: [
-      { effort: "échauffement", seconds: 600 },
-      { effort: "rapide", seconds: 60 }, { effort: "récupération", seconds: 60 },
-      { effort: "rapide", seconds: 120 }, { effort: "récupération", seconds: 120 },
-      { effort: "rapide", seconds: 180 }, { effort: "récupération", seconds: 180 },
-      { effort: "rapide", seconds: 120 }, { effort: "récupération", seconds: 120 },
-      { effort: "rapide", seconds: 60 },
-      { effort: "retour au calme", seconds: 600 },
+      { effort: "warmup", seconds: 600 },
+      { effort: "fast", seconds: 60 }, { effort: "recovery", seconds: 60 },
+      { effort: "fast", seconds: 120 }, { effort: "recovery", seconds: 120 },
+      { effort: "fast", seconds: 180 }, { effort: "recovery", seconds: 180 },
+      { effort: "fast", seconds: 120 }, { effort: "recovery", seconds: 120 },
+      { effort: "fast", seconds: 60 },
+      { effort: "cooldown", seconds: 600 },
     ],
   },
   {
-    id: "footing",
+    id: "easy",
     name: "Footing 30 min",
-    steps: [{ effort: "allure", seconds: 1800 }],
+    steps: [{ effort: "steady", seconds: 1800 }],
   },
   {
-    id: "longue",
+    id: "long",
     name: "Sortie longue 1 h",
     // One block, like the easy run. Cutting a long run into a warm-up and a
     // cool-down announces three things where there is only one to do: go out
     // and run for an hour.
-    steps: [{ effort: "allure", seconds: 3600 }],
+    steps: [{ effort: "steady", seconds: 3600 }],
   },
 ];
 
@@ -204,7 +231,7 @@ export function groupLabel(group: StepGroup): string {
 
 /** True for a block you hold a pace through, as opposed to one you survive. */
 export function isPaced(step: Step): boolean {
-  return step.effort === "rapide" || step.effort === "allure";
+  return step.effort === "fast" || step.effort === "steady";
 }
 
 /**
@@ -255,7 +282,7 @@ export function eased(session: Session, factor: number): Session {
       continue;
     }
     steps.push(...group.steps.map((step) => {
-      const spare = step.effort === "échauffement" || step.effort === "retour au calme";
+      const spare = step.effort === "warmup" || step.effort === "cooldown";
       if (spare || step.seconds === undefined) return step;
       return { ...step, seconds: Math.max(300, Math.round((step.seconds * factor) / 300) * 300) };
     }));
@@ -272,6 +299,102 @@ function easedName(name: string, steps: Step[], repetitions: number | null): str
   const minutes = Math.round((steps[0]?.seconds ?? 0) / 60);
   const rebuilt = name.replace(/\d+\s*(min|h)(\s*\d+)?$/, durationName(minutes));
   return rebuilt === name && minutes > 0 ? `${name} (${durationName(minutes)})` : rebuilt;
+}
+
+const sessionWords = defineStrings({
+  fr: {
+    easy: (duration: string) => `Footing ${duration}`,
+    long: (duration: string) => `Sortie longue ${duration}`,
+    threshold: (blocks: number, minutes: number) => `${blocks} × ${minutes} min au seuil`,
+    pyramid: "Pyramide 1-2-3-2-1",
+    races: { fiveK: "5 km", tenK: "10 km", half: "Semi-marathon", marathon: "Marathon" },
+  },
+  en: {
+    easy: (duration: string) => `Easy run ${duration}`,
+    long: (duration: string) => `Long run ${duration}`,
+    threshold: (blocks: number, minutes: number) => `${blocks} × ${minutes} min at threshold`,
+    pyramid: "Pyramid 1-2-3-2-1",
+    races: { fiveK: "5 km", tenK: "10 km", half: "Half marathon", marathon: "Marathon" },
+  },
+});
+
+/** The name of a race distance, by the goal id the programme stores. */
+export function raceName(goal: string): string | null {
+  const races: Record<string, string> = sessionWords().races;
+  return races[goal] ?? null;
+}
+
+/**
+ * What a session is called, in the interface's language.
+ *
+ * Worked out from what the session is rather than read from its `name`: that
+ * field was written in French when the session was made, and is kept in every
+ * programme and every run already on disk. The id says which kind it is and
+ * the blocks say how much of it, which is everything the name ever said — so
+ * it is also right for a session the programme has lightened. Anything this
+ * does not recognise keeps the name it came with.
+ */
+export function sessionName(session: Session): string {
+  const words = sessionWords();
+  const kind = session.id.replace(/-eased$/, "");
+  const fast = session.steps.filter((step) => step.effort === "fast");
+  const paced = session.steps.filter((step) => step.effort === "steady");
+  const minutesOf = (step: Step | undefined) => Math.round((step?.seconds ?? 0) / 60);
+
+  if (kind === "easy" || kind.startsWith("easy-")) return words.easy(durationName(minutesOf(paced[0])));
+  if (kind === "long" || kind.startsWith("long-")) return words.long(durationName(minutesOf(paced[0])));
+  if (kind === "pyramid") return words.pyramid;
+  if ((kind === "400" || kind.startsWith("interval-")) && fast[0]?.metres !== undefined) {
+    return `${fast.length} × ${fast[0].metres} m`;
+  }
+  if ((kind === "threshold" || kind.startsWith("tempo-")) && paced.length > 0) {
+    return words.threshold(paced.length, minutesOf(paced[0]));
+  }
+  if (kind.startsWith("race-")) return raceName(kind.slice("race-".length)) ?? session.name;
+  return session.name;
+}
+
+/**
+ * The values sessions were stored with before the code spoke English.
+ *
+ * Programmes, runs and transfer files written by an older version carry
+ * efforts and library ids in French. The database is rewritten once, by a
+ * migration; a transfer file from an old phone is converted as it is read.
+ */
+const LEGACY_EFFORTS: Record<string, Effort> = {
+  "échauffement": "warmup",
+  "rapide": "fast",
+  "récupération": "recovery",
+  "allure": "steady",
+  "retour au calme": "cooldown",
+};
+
+const LEGACY_SESSION_IDS: Record<string, string> = {
+  seuil: "threshold",
+  pyramide: "pyramid",
+  footing: "easy",
+  longue: "long",
+};
+
+/** An effort as currently spelled, whichever version wrote it. */
+export const currentEffort = (effort: string): Effort =>
+  LEGACY_EFFORTS[effort] ?? (effort as Effort);
+
+/** A session id as currently spelled, lightened variants included. */
+export function currentSessionId(id: string): string {
+  const eased = id.endsWith("-eased");
+  const base = eased ? id.slice(0, -"-eased".length) : id;
+  const renamed = LEGACY_SESSION_IDS[base] ?? base;
+  return eased ? `${renamed}-eased` : renamed;
+}
+
+/** A stored session, brought up to the current spelling. */
+export function currentSession(session: Session): Session {
+  return {
+    ...session,
+    id: currentSessionId(session.id),
+    steps: session.steps.map((step) => ({ ...step, effort: currentEffort(step.effort) })),
+  };
 }
 
 export const sessionById = (id: string | null): Session | null =>

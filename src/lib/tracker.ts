@@ -5,6 +5,7 @@ import { useSyncExternalStore } from "react";
 import { cadenceSpm } from "./cadence";
 import { createRun, finishRun, insertPoints, markPlanSessionDone, setRunWeather } from "./db";
 import { syncRunToHealth } from "./health";
+import { defineStrings } from "./i18n";
 import { autoName } from "./format";
 import { announceKilometre, announcePace, announceStep, stopSpeaking } from "./feedback";
 import {
@@ -357,11 +358,26 @@ function flush(): Promise<void> {
   return writeQueue;
 }
 
+const trackerWords = defineStrings({
+  fr: {
+    noLocation: "Sans autorisation de localisation, impossible de tracer la course.",
+    serviceTitle: "Course en cours",
+    serviceBody: "Le suivi GPS continue, même écran verrouillé.",
+    cannotStart: "Impossible de démarrer la course.",
+  },
+  en: {
+    noLocation: "Without location access, the run can't be tracked.",
+    serviceTitle: "Run in progress",
+    serviceBody: "GPS tracking continues, even with the screen locked.",
+    cannotStart: "The run couldn't be started.",
+  },
+});
+
 /** Returns true when the background task took over, false on the foreground fallback. */
 async function startGps(): Promise<boolean> {
   const foreground = await Location.requestForegroundPermissionsAsync();
   if (foreground.status !== "granted") {
-    throw new Error("Sans autorisation de localisation, impossible de tracer la course.");
+    throw new Error(trackerWords().noLocation);
   }
 
   // Background where possible, which is what makes a locked screen work. This
@@ -385,8 +401,8 @@ async function startGps(): Promise<boolean> {
           showsBackgroundLocationIndicator: true,
           pausesUpdatesAutomatically: false,
           foregroundService: {
-            notificationTitle: "Course en cours",
-            notificationBody: "Le suivi GPS continue, même écran verrouillé.",
+            notificationTitle: trackerWords().serviceTitle,
+            notificationBody: trackerWords().serviceBody,
             notificationColor: "#00348f",
           },
         });
@@ -442,7 +458,7 @@ export async function start(): Promise<void> {
     publish({ backgroundMode: await startGps() });
   } catch (cause) {
     await stopGps();
-    publish({ ...IDLE, error: cause instanceof Error ? cause.message : "Impossible de démarrer la course." });
+    publish({ ...IDLE, error: cause instanceof Error ? cause.message : trackerWords().cannotStart });
   }
 }
 

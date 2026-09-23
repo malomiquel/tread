@@ -4,20 +4,22 @@ import { useKeepAwake } from "expo-keep-awake";
 import { useFocusEffect, useIsFocused, useRouter } from "expo-router";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useCallback, useEffect, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Alert, Linking, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import Animated, {
   FadeIn, FadeOut, runOnJS, useAnimatedStyle, useDerivedValue, useSharedValue, withTiming,
 } from "react-native-reanimated";
 import { GlassPanel } from "@/components/GlassPanel";
 import { Metric } from "@/components/Metric";
+import { RoutePicker } from "@/components/RoutePicker";
 import { RunMap } from "@/components/RunMap";
 import { SessionDetail } from "@/components/SessionDetail";
 import { SessionPicker } from "@/components/SessionPicker";
 import { listRuns, readRoute, type Run } from "@/lib/db";
 import { formatDistance, formatDuration, formatElevation, formatPace } from "@/lib/format";
+import { defineStrings, plural, useStrings } from "@/lib/i18n";
 import { currentPace, elevationGainM, MAX_ACCURACY_M, paceSecPerKm, totalDistanceM } from "@/lib/geo";
 import { CONTROL_SIZE, CONTROLS_TOP, useTabBarBottom } from "@/lib/layout";
-import { useInitialLocation } from "@/lib/location";
+import { locationAccess, useInitialLocation } from "@/lib/location";
 import { drawnLine, type RoutePoint } from "@/lib/route";
 import { toggleVoice, useSettings } from "@/lib/settings";
 import { goalProgress, weekTotals } from "@/lib/stats";
@@ -26,7 +28,100 @@ import {
   activeDurationS, chooseSession, discard, finish, pause, resume, start, useTracker,
 } from "@/lib/tracker";
 import { useCurrentWeather, weatherIcon, weatherLine } from "@/lib/weather";
-import { sessionById, stepLabel, stepRemaining } from "@/lib/workout";
+import { sessionById, sessionName, stepLabel, stepRemaining } from "@/lib/workout";
+
+const recordStrings = defineStrings({
+  fr: {
+    searchingGps: "recherche du GPS",
+    gpsPrecise: (metres: number) => `GPS précis, ±${metres} m`,
+    gpsFair: (metres: number) => `GPS moyen, ±${metres} m`,
+    gpsWeak: "GPS faible, points ignorés",
+    locationDenied: "localisation refusée",
+    acquiringGps: "acquisition du GPS",
+    gpsReady: "GPS prêt",
+    paused: "En pause",
+    running: "Course en cours",
+    ready: "Prêt à courir",
+    sessionBlocks: (name: string, blocks: number) => `${name} · ${blocks} blocs`,
+    sessionDone: (name: string) => `${name} · terminée`,
+    locationOffTitle: "Localisation désactivée",
+    locationOffMessage: "Tread a besoin de ta position pour mesurer ta course. Autorise-la dans les réglages du téléphone, puis reviens ici.",
+    cancel: "Annuler",
+    openSettings: "Ouvrir les réglages",
+    ok: "OK",
+    shortTitle: "Course très courte",
+    shortMessage: "Moins de 100 m enregistrés. La garder quand même ?",
+    discard: "Abandonner",
+    keep: "Garder",
+    finishTitle: "Terminer la course ?",
+    finishMessage: (distance: string, duration: string) => `${distance} km en ${duration}.`,
+    continue: "Continuer",
+    finish: "Terminer",
+    leave: "Quitter l'écran de course",
+    sessionToggle: "SÉANCE",
+    sessionToggleLabel: "Choisir une séance d'entraînement",
+    routeToggle: "PARCOURS",
+    routeToggleLabel: "Choisir le parcours affiché sur la carte",
+    voiceToggle: "VOIX",
+    voiceToggleLabel: "Annonce vocale des kilomètres",
+    seeBlocks: (name: string) => `${name}, voir les blocs`,
+    distance: "Distance",
+    duration: "Durée",
+    pace: "Allure",
+    elevation: "Dénivelé",
+    thisWeek: "Cette semaine",
+    goalPercent: (percent: number) => `· objectif ${percent} %`,
+    weekRuns: (count: number) => `· ${plural(count, "sortie", "sorties")}`,
+    start: "Démarrer",
+    pause: "Pause",
+    resume: "Reprendre",
+  },
+  en: {
+    searchingGps: "searching for GPS",
+    gpsPrecise: (metres: number) => `GPS precise, ±${metres} m`,
+    gpsFair: (metres: number) => `GPS fair, ±${metres} m`,
+    gpsWeak: "GPS weak, points ignored",
+    locationDenied: "location denied",
+    acquiringGps: "acquiring GPS",
+    gpsReady: "GPS ready",
+    paused: "Paused",
+    running: "Run in progress",
+    ready: "Ready to run",
+    sessionBlocks: (name: string, blocks: number) => `${name} · ${plural(blocks, "block", "blocks")}`,
+    sessionDone: (name: string) => `${name} · done`,
+    locationOffTitle: "Location turned off",
+    locationOffMessage: "Tread needs your location to measure your run. Allow it in your phone's settings, then come back here.",
+    cancel: "Cancel",
+    openSettings: "Open settings",
+    ok: "OK",
+    shortTitle: "Very short run",
+    shortMessage: "Less than 100 m recorded. Keep it anyway?",
+    discard: "Discard",
+    keep: "Keep",
+    finishTitle: "Finish the run?",
+    finishMessage: (distance: string, duration: string) => `${distance} km in ${duration}.`,
+    continue: "Keep going",
+    finish: "Finish",
+    leave: "Leave the run screen",
+    sessionToggle: "SESSION",
+    sessionToggleLabel: "Choose a training session",
+    routeToggle: "ROUTE",
+    routeToggleLabel: "Choose the route shown on the map",
+    voiceToggle: "VOICE",
+    voiceToggleLabel: "Spoken kilometre announcements",
+    seeBlocks: (name: string) => `${name}, see the blocks`,
+    distance: "Distance",
+    duration: "Time",
+    pace: "Pace",
+    elevation: "Elevation",
+    thisWeek: "This week",
+    goalPercent: (percent: number) => `· goal ${percent} %`,
+    weekRuns: (count: number) => `· ${plural(count, "run", "runs")}`,
+    start: "Start",
+    pause: "Pause",
+    resume: "Resume",
+  },
+});
 
 /** How long the panel takes to change shape, and everything above it with it. */
 const GROW = { duration: 280 } as const;
@@ -128,6 +223,7 @@ export default function RecordScreen() {
   // answers, and null for good when it cannot: the line is then simply absent
   // and the panel keeps the height it has always had.
   const weather = useCurrentWeather(coords);
+  const s = useStrings(recordStrings);
   const settings = useSettings();
   // The tab bar is hidden here, so the panel takes the room it used to leave
   // for it and sits where the bar would have been.
@@ -137,6 +233,7 @@ export default function RecordScreen() {
   /** The block list, opened from the session line. */
   const [showingSteps, setShowingSteps] = useState(false);
   const [choosing, setChoosing] = useState(false);
+  const [choosingRoute, setChoosingRoute] = useState(false);
   /**
    * The chosen route, drawn out, kept with the id it was read from.
    *
@@ -148,9 +245,8 @@ export default function RecordScreen() {
   const [loaded, setLoaded] = useState<{ id: number; line: RoutePoint[] } | null>(null);
   /**
    * Its id rather than the route itself, because the settings are consulted
-   * on every GPS fix and a route is a few hundred points. It is chosen in the
-   * Parcours tab and only drawn here: a route outlives the run it was drawn
-   * for, so managing them from inside a run was always the wrong way round.
+   * on every GPS fix and a route is a few hundred points. Routes are drawn
+   * and edited in the Parcours tab; here one is only picked, or put down.
    */
   const chosenRoute = settings.routeId;
   const routeLine = chosenRoute !== null && loaded?.id === chosenRoute ? loaded.line : null;
@@ -331,19 +427,19 @@ export default function RecordScreen() {
   const goal = goalProgress(week.distanceM, settings.weeklyGoalM);
 
   const signal =
-    tracker.accuracyM === null ? "recherche du GPS"
-    : tracker.accuracyM <= 10 ? `GPS précis, ±${Math.round(tracker.accuracyM)} m`
-    : tracker.accuracyM <= 30 ? `GPS moyen, ±${Math.round(tracker.accuracyM)} m`
-    : `GPS faible, points ignorés`;
+    tracker.accuracyM === null ? s.searchingGps
+    : tracker.accuracyM <= 10 ? s.gpsPrecise(Math.round(tracker.accuracyM))
+    : tracker.accuracyM <= 30 ? s.gpsFair(Math.round(tracker.accuracyM))
+    : s.gpsWeak;
 
   const idleSignal =
-    granted === false ? "localisation refusée"
-    : coords === null ? "acquisition du GPS"
-    : "GPS prêt";
+    granted === false ? s.locationDenied
+    : coords === null ? s.acquiringGps
+    : s.gpsReady;
 
   const state = recording
-    ? tracker.status === "paused" ? "En pause" : "Course en cours"
-    : "Prêt à courir";
+    ? tracker.status === "paused" ? s.paused : s.running
+    : s.ready;
 
   /**
    * While a session is under way the status line is given over to it: which
@@ -355,8 +451,8 @@ export default function RecordScreen() {
   const step = session?.steps[tracker.stepIndex] ?? null;
   const sessionLine = (() => {
     if (!session) return null;
-    if (!recording) return `${session.name} · ${session.steps.length} blocs`;
-    if (!step) return `${session.name} · terminée`;
+    if (!recording) return s.sessionBlocks(sessionName(session), session.steps.length);
+    if (!step) return s.sessionDone(sessionName(session));
     const left = stepRemaining(
       step,
       distance - tracker.stepStartM,
@@ -381,20 +477,46 @@ export default function RecordScreen() {
    * A hundred metres is almost always a pocket, and offering to save it as
    * the obvious choice is how a history fills with noise.
    */
+  /**
+   * Start, once the phone has agreed to say where it is.
+   *
+   * Asked here rather than left to the tracker, because the tracker can only
+   * fail: it has no way to send anybody to the settings, and a refusal
+   * reported as a line of red text in the panel left people pressing play on
+   * a map that would never move.
+   */
+  async function begin() {
+    const access = await locationAccess();
+    if (access === "granted") {
+      void start();
+      return;
+    }
+    Alert.alert(
+      s.locationOffTitle,
+      s.locationOffMessage,
+      access === "blocked"
+        ? [
+          { text: s.cancel, style: "cancel" },
+          { text: s.openSettings, onPress: () => void Linking.openSettings() },
+        ]
+        : [{ text: s.ok }],
+    );
+  }
+
   function askFinish() {
     if (tooShort) {
-      Alert.alert("Course très courte", "Moins de 100 m enregistrés. La garder quand même ?", [
-        { text: "Abandonner", style: "destructive", onPress: () => void discard() },
-        { text: "Garder", onPress: () => void close() },
+      Alert.alert(s.shortTitle, s.shortMessage, [
+        { text: s.discard, style: "destructive", onPress: () => void discard() },
+        { text: s.keep, onPress: () => void close() },
       ]);
       return;
     }
     Alert.alert(
-      "Terminer la course ?",
-      `${formatDistance(distance)} km en ${formatDuration(duration)}.`,
+      s.finishTitle,
+      s.finishMessage(formatDistance(distance), formatDuration(duration)),
       [
-        { text: "Continuer", style: "cancel" },
-        { text: "Terminer", onPress: () => void close() },
+        { text: s.continue, style: "cancel" },
+        { text: s.finish, onPress: () => void close() },
       ],
     );
   }
@@ -446,7 +568,7 @@ export default function RecordScreen() {
           <Pressable
             onPress={leave}
             accessibilityRole="button"
-            accessibilityLabel="Quitter l'écran de course"
+            accessibilityLabel={s.leave}
             hitSlop={8}
             style={({ pressed }) => [styles.leaveButton, pressed && styles.pressed]}
           >
@@ -471,8 +593,20 @@ export default function RecordScreen() {
               on={session !== null || settings.targetPaceSKm !== null}
               onPress={() => setChoosing(true)}
               icon="list"
-              name="SÉANCE"
-              label="Choisir une séance d'entraînement"
+              name={s.sessionToggle}
+              label={s.sessionToggleLabel}
+            />
+          </GlassPanel>
+          {/* The route is shown for what it is — a choice that holds from one
+              run to the next — so it has to be visible and undoable here,
+              where the run starts, and not only in the tab it was picked in. */}
+          <GlassPanel style={styles.togglePill}>
+            <Toggle
+              on={chosenRoute !== null}
+              onPress={() => setChoosingRoute(true)}
+              icon="map"
+              name={s.routeToggle}
+              label={s.routeToggleLabel}
             />
           </GlassPanel>
           <GlassPanel style={styles.togglePill}>
@@ -480,8 +614,8 @@ export default function RecordScreen() {
               on={settings.voice}
               onPress={() => void toggleVoice()}
               icon={settings.voice ? "volume-high" : "volume-mute"}
-              name="VOIX"
-              label="Annonce vocale des kilomètres"
+              name={s.voiceToggle}
+              label={s.voiceToggleLabel}
             />
           </GlassPanel>
         </Animated.View>
@@ -508,7 +642,7 @@ export default function RecordScreen() {
                   onPress={() => session && setShowingSteps(true)}
                   disabled={session === null}
                   accessibilityRole={session ? "button" : "text"}
-                  accessibilityLabel={session ? `${session.name}, voir les blocs` : undefined}
+                  accessibilityLabel={session ? s.seeBlocks(sessionName(session)) : undefined}
                   hitSlop={6}
                 >
                   <Text
@@ -525,12 +659,12 @@ export default function RecordScreen() {
                   // unit off the pace.
                   <View style={styles.metricStack}>
                     <View style={styles.metricRow}>
-                      <Metric compact label="Distance" value={formatDistance(distance)} unit="km" />
-                      <Metric compact label="Durée" value={formatDuration(duration)} />
+                      <Metric compact label={s.distance} value={formatDistance(distance)} unit="km" />
+                      <Metric compact label={s.duration} value={formatDuration(duration)} />
                     </View>
                     <View style={styles.metricRow}>
-                      <Metric compact label="Allure" value={formatPace(pace ?? avgPace)} unit="/km" />
-                      <Metric compact label="Dénivelé" value={formatElevation(elevation)} unit="m" />
+                      <Metric compact label={s.pace} value={formatPace(pace ?? avgPace)} unit="/km" />
+                      <Metric compact label={s.elevation} value={formatElevation(elevation)} unit="m" />
                     </View>
                   </View>
                 ) : (
@@ -541,13 +675,13 @@ export default function RecordScreen() {
                   <>
                     <Metric
                       compact
-                      label="Cette semaine"
+                      label={s.thisWeek}
                       value={`${formatDistance(week.distanceM)} km`}
                       unit={
                         goal
-                          ? `· objectif ${goal.percent} %`
+                          ? s.goalPercent(goal.percent)
                           : week.runs > 0
-                            ? `· ${week.runs} sortie${week.runs > 1 ? "s" : ""}`
+                            ? s.weekRuns(week.runs)
                             : undefined
                       }
                     />
@@ -586,7 +720,7 @@ export default function RecordScreen() {
                     exiting={FadeOut.duration(140)}
                     style={styles.controlLayer}
                   >
-                    <RoundButton icon="play" label="Démarrer" onPress={() => void start()} primary size={52} />
+                    <RoundButton icon="play" label={s.start} onPress={() => void begin()} primary size={52} />
                   </Animated.View>
                 ) : (
                   <Animated.View
@@ -596,13 +730,13 @@ export default function RecordScreen() {
                     style={styles.controlLayer}
                   >
                     {tracker.status === "running" ? (
-                      <RoundButton icon="pause" label="Pause" onPress={pause} />
+                      <RoundButton icon="pause" label={s.pause} onPress={pause} />
                     ) : (
-                      <RoundButton icon="play" label="Reprendre" onPress={resume} primary />
+                      <RoundButton icon="play" label={s.resume} onPress={resume} primary />
                     )}
                     <RoundButton
                       icon="stop"
-                      label="Terminer"
+                      label={s.finish}
                       onPress={askFinish}
                       danger
                       disabled={finishing}
@@ -622,6 +756,12 @@ export default function RecordScreen() {
         // is, not how far into it you are.
         currentIndex={recording ? tracker.stepIndex : null}
         onClose={() => setShowingSteps(false)}
+      />
+
+      <RoutePicker
+        visible={choosingRoute}
+        chosen={chosenRoute}
+        onClose={() => setChoosingRoute(false)}
       />
 
       <SessionPicker

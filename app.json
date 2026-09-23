@@ -45,6 +45,7 @@
           }
         ],
         "LSSupportsOpeningDocumentsInPlace": true,
+        "CFBundleAllowMixedLocalizations": true,
         "NSMotionUsageDescription": "Tread lit le podomètre pour calculer ta cadence, en pas par minute.",
         "NSLocalNetworkUsageDescription": "Tread envoie tes courses directement à ton nouveau téléphone, sur ton WiFi, sans passer par internet.",
         "NSCameraUsageDescription": "Tread lit le code affiché par ton ancien téléphone pour reprendre tes courses.",
@@ -108,11 +109,16 @@
           }
         }
       ],
-      "./plugins/withoutPushEntitlement"
+      "./plugins/withoutPushEntitlement",
+      "expo-localization"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "locales": {
+      "fr": "./locales/fr.json",
+      "en": "./locales/en.json"
     }
   }
 }

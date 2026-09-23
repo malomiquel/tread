@@ -6,28 +6,28 @@ import {
 } from "./workout.ts";
 
 test("a distance block ends on distance, whatever the clock says", () => {
-  const block = { effort: "rapide" as const, metres: 400 };
+  const block = { effort: "fast" as const, metres: 400 };
   assert.equal(stepIsDone(block, 399, 9999), false, "not covered yet");
   assert.equal(stepIsDone(block, 400, 0), true, "covered, however fast");
   assert.deepEqual(stepRemaining(block, 150, 40), { metres: 250, seconds: null });
 });
 
 test("a time block ends on time, whatever the distance says", () => {
-  const block = { effort: "récupération" as const, seconds: 90 };
+  const block = { effort: "recovery" as const, seconds: 90 };
   assert.equal(stepIsDone(block, 9999, 89), false, "not elapsed yet");
   assert.equal(stepIsDone(block, 0, 90), true, "elapsed, even standing still");
   assert.deepEqual(stepRemaining(block, 0, 30), { metres: null, seconds: 60 });
 });
 
 test("what remains never goes negative", () => {
-  assert.deepEqual(stepRemaining({ effort: "rapide", metres: 400 }, 700, 0).metres, 0);
-  assert.deepEqual(stepRemaining({ effort: "récupération", seconds: 90 }, 0, 200).seconds, 0);
+  assert.deepEqual(stepRemaining({ effort: "fast", metres: 400 }, 700, 0).metres, 0);
+  assert.deepEqual(stepRemaining({ effort: "recovery", seconds: 90 }, 0, 200).seconds, 0);
 });
 
 test("steps say what they are", () => {
-  assert.equal(stepLabel({ effort: "rapide", metres: 400 }), "400 m rapide");
-  assert.equal(stepLabel({ effort: "allure", metres: 1500 }), "1,5 km allure");
-  assert.equal(stepLabel({ effort: "récupération", seconds: 180 }), "3 min récupération");
+  assert.equal(stepLabel({ effort: "fast", metres: 400 }), "400 m rapide");
+  assert.equal(stepLabel({ effort: "steady", metres: 1500 }), "1,5 km allure");
+  assert.equal(stepLabel({ effort: "recovery", seconds: 180 }), "3 min récupération");
 });
 
 test("every session in the catalogue holds together", () => {
@@ -37,8 +37,8 @@ test("every session in the catalogue holds together", () => {
     seen.add(s.id);
     assert.ok(s.steps.length > 0, `${s.name} is empty`);
     for (const step of s.steps) {
-      const mesures = [step.metres, step.seconds].filter((v) => v !== undefined).length;
-      assert.equal(mesures, 1, `${s.name}: a block must carry exactly one measure`);
+      const measures = [step.metres, step.seconds].filter((v) => v !== undefined).length;
+      assert.equal(measures, 1, `${s.name}: a block must carry exactly one measure`);
     }
     // Without an upper bound, a mistyped session would send someone out for
     // three hours.
@@ -49,21 +49,21 @@ test("every session in the catalogue holds together", () => {
 
 test("a session is found by its identifier, and only then", () => {
   assert.equal(sessionById("400")?.name, "5 × 400 m");
-  assert.equal(sessionById("inexistante"), null);
+  assert.equal(sessionById("missing"), null);
   assert.equal(sessionById(null), null);
 });
 
 test("only the blocks you hold a pace through decide whether a target fits", () => {
   const by = (id: string) => SESSIONS.find((s) => s.id === id)!;
 
-  assert.equal(hasSinglePace(by("footing")), true, "a plain run holds one pace");
+  assert.equal(hasSinglePace(by("easy")), true, "a plain run holds one pace");
   // A long run warms up and cools down around a single sustained block: those
   // do not compete for a target, and counting them would rule it out.
-  assert.equal(hasSinglePace(by("longue")), true, "a long run holds one pace");
+  assert.equal(hasSinglePace(by("long")), true, "a long run holds one pace");
 
   assert.equal(hasSinglePace(by("400")), false, "five repetitions ask for several");
-  assert.equal(hasSinglePace(by("seuil")), false, "three threshold blocks do too");
-  assert.equal(hasSinglePace(by("pyramide")), false);
+  assert.equal(hasSinglePace(by("threshold")), false, "three threshold blocks do too");
+  assert.equal(hasSinglePace(by("pyramid")), false);
 });
 
 
@@ -87,13 +87,13 @@ test("folding never loses or invents a block", () => {
 });
 
 test("a session with nothing to repeat is left alone", () => {
-  const footing = sessionById("footing")!;
+  const footing = sessionById("easy")!;
   const groups = groupSteps(footing.steps);
   assert.equal(groups.length, 1);
   assert.equal(groups[0].times, 1);
   assert.equal(groupLabel(groups[0]), stepLabel(footing.steps[0]));
 
-  const pyramid = groupSteps(sessionById("pyramide")!.steps);
+  const pyramid = groupSteps(sessionById("pyramid")!.steps);
   // Every block differs, so nothing folds and nothing is lost.
   assert.equal(pyramid.reduce((sum, g) => sum + g.times * g.steps.length, 0), 11);
 });
@@ -127,7 +127,7 @@ test("the name never outlives the blocks it describes", () => {
 });
 
 test("a session with nothing to repeat is shortened instead", () => {
-  const long = sessionById("longue")!;
+  const long = sessionById("long")!;
   const lighter = eased(long, 0.7);
   const before = long.steps[0].seconds!;
   const after = lighter.steps[0].seconds!;
@@ -137,10 +137,10 @@ test("a session with nothing to repeat is shortened instead", () => {
 });
 
 test("the warm-up and the cool-down are never cut", () => {
-  const session = sessionById("seuil")!;
+  const session = sessionById("threshold")!;
   const lighter = eased(session, 0.7);
   const spare = (s: typeof session) =>
-    s.steps.filter((step) => step.effort === "échauffement" || step.effort === "retour au calme");
+    s.steps.filter((step) => step.effort === "warmup" || step.effort === "cooldown");
   assert.deepEqual(spare(lighter), spare(session));
 });
 

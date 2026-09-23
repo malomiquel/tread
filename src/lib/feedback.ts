@@ -1,3 +1,4 @@
+import { defineStrings, speechLocale } from "./i18n";
 import * as Speech from "expo-speech";
 import { Platform, Vibration } from "react-native";
 
@@ -65,6 +66,28 @@ function buzz(times: number, gapMs = 0): void {
  * you cannot read a screen mid-stride. A vibration tells you a kilometre has
  * gone by, and the voice gives you its time without you lifting the phone.
  */
+/** What the voice says, written to be heard rather than read. */
+const spokenWords = defineStrings({
+  fr: {
+    kilometre: (km: number, minutes: number, seconds: number) => `Kilomètre ${km}. ${
+      minutes > 0
+        ? `${minutes} minute${minutes > 1 ? "s" : ""} ${seconds > 0 ? `${seconds}` : ""}`
+        : `${seconds} secondes`}`,
+    sessionDone: "Séance terminée",
+    drift: (seconds: number, slow: boolean) =>
+      `${seconds} seconde${seconds > 1 ? "s" : ""} ${slow ? "trop lent" : "trop rapide"}`,
+  },
+  en: {
+    kilometre: (km: number, minutes: number, seconds: number) => `Kilometre ${km}. ${
+      minutes > 0
+        ? `${minutes} minute${minutes > 1 ? "s" : ""}${seconds > 0 ? ` ${seconds}` : ""}`
+        : `${seconds} seconds`}`,
+    sessionDone: "Session complete",
+    drift: (seconds: number, slow: boolean) =>
+      `${seconds} second${seconds > 1 ? "s" : ""} ${slow ? "too slow" : "too fast"}`,
+  },
+});
+
 export function announceKilometre(km: number, splitS: number, spoken: boolean): void {
   // The buzz fires whatever happens: it is the part that works with headphones
   // out, music playing, or the phone deep in a pocket.
@@ -76,12 +99,7 @@ export function announceKilometre(km: number, splitS: number, spoken: boolean): 
 
   const minutes = Math.floor(splitS / 60);
   const seconds = Math.round(splitS % 60);
-  const time =
-    minutes > 0
-      ? `${minutes} minute${minutes > 1 ? "s" : ""} ${seconds > 0 ? `${seconds}` : ""}`
-      : `${seconds} secondes`;
-
-  Speech.speak(`Kilomètre ${km}. ${time}`, { language: "fr-FR", rate: 1 });
+  Speech.speak(spokenWords().kilometre(km, minutes, seconds), { language: speechLocale(), rate: 1 });
 }
 
 
@@ -101,7 +119,7 @@ export function announceStep(label: string | null, spoken: boolean): void {
   if (label) buzz(2, GAP_MS);
   else buzz(3, GAP_MS);
   if (!spoken) return;
-  Speech.speak(label ?? "Séance terminée", { language: "fr-FR", rate: 1 });
+  Speech.speak(label ?? spokenWords().sessionDone, { language: speechLocale(), rate: 1 });
 }
 
 /**
@@ -125,11 +143,7 @@ export function announcePace(driftS: number, spoken: boolean): void {
   // word; this one is the voice or it is nothing.
   if (!spoken) return;
   const seconds = Math.abs(driftS);
-  const sens = driftS > 0 ? "trop lent" : "trop rapide";
-  Speech.speak(`${seconds} seconde${seconds > 1 ? "s" : ""} ${sens}`, {
-    language: "fr-FR",
-    rate: 1,
-  });
+  Speech.speak(spokenWords().drift(seconds, driftS > 0), { language: speechLocale(), rate: 1 });
 }
 
 /** Silence any pending speech, on finishing or discarding a run. */

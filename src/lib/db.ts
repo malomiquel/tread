@@ -8,9 +8,11 @@ import {
 } from "./plan";
 import { parseHeart, type Heart } from "./heart";
 import { parseRoute, routeDistanceM, type Route, type StoredRoute } from "./route";
-import { TRANSFER_FORMAT, TRANSFER_VERSION, type Transfer, type TransferRun } from "./transfer";
+import {
+  TRANSFER_FORMAT, TRANSFER_VERSION, type Restored, type Transfer, type TransferRun,
+} from "./transfer";
 import { parseWeather, type Weather } from "./weather";
-import type { RanBlock } from "./workout";
+import { currentEffort, currentSession, currentSessionId, type RanBlock } from "./workout";
 
 /**
  * A single connection, opened on first real use rather than at module load.
@@ -154,7 +156,7 @@ function parseBlocks(raw: string | null): RanBlock[] {
   }
 }
 
-const SCHEMA_VERSION = 15;
+const SCHEMA_VERSION = 16;
 
 /**
  * The plan's two tables, written once and used twice — by a fresh install and
@@ -207,6 +209,47 @@ const PLAN_TABLES = `
     PRIMARY KEY (plan_id, session_order)
   );
 `;
+
+/**
+ * Rewrite the French identifiers stored before the code was in English.
+ *
+ * Efforts ("rapide", "récupération"…) and library session ids ("seuil",
+ * "pyramide"…) live inside json in two places: every programme's sessions,
+ * and every run's blocks and session id. They are rewritten here, once, so
+ * that nothing past this point ever has to know the old spelling. Rows that
+ * do not parse are left as they are: the readers already treat them as empty.
+ */
+async function englishIdentifiers(db: SQLiteDatabase): Promise<void> {
+  const plans = await db.getAllAsync<{ id: number; sessions: string }>("SELECT id, sessions FROM plans");
+  for (const plan of plans) {
+    try {
+      const sessions = (JSON.parse(plan.sessions) as PlannedSession[])
+        .map((planned) => ({ ...planned, session: currentSession(planned.session) }));
+      await db.runAsync("UPDATE plans SET sessions = ? WHERE id = ?", JSON.stringify(sessions), plan.id);
+    } catch {
+      /* unreadable before, unreadable after */
+    }
+  }
+
+  const runs = await db.getAllAsync<{ id: number; session_id: string | null; session_blocks: string | null }>(
+    "SELECT id, session_id, session_blocks FROM runs WHERE session_id IS NOT NULL OR session_blocks IS NOT NULL",
+  );
+  for (const run of runs) {
+    let blocks = run.session_blocks;
+    try {
+      if (blocks) {
+        blocks = JSON.stringify((JSON.parse(blocks) as RanBlock[])
+          .map((block) => ({ ...block, effort: currentEffort(block.effort) })));
+      }
+    } catch {
+      /* left as it was */
+    }
+    await db.runAsync(
+      "UPDATE runs SET session_id = ?, session_blocks = ? WHERE id = ?",
+      run.session_id === null ? null : currentSessionId(run.session_id), blocks, run.id,
+    );
+  }
+}
 
 export async function initDb(): Promise<void> {
   const db = getDb();
@@ -363,6 +406,11 @@ export async function initDb(): Promise<void> {
     version = 15;
   }
 
+  if (version < 16) {
+    await englishIdentifiers(db);
+    version = 16;
+  }
+
   await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
   await recoverInterruptedRuns();
 }
@@ -458,6 +506,13 @@ export async function everythingForTransfer(): Promise<Transfer> {
     version: TRANSFER_VERSION,
     exportedAt: Date.now(),
     runs: carried,
+    routes: (await listRoutes()).map((route) => ({
+      name: route.name,
+      createdAt: route.createdAt,
+      waypoints: route.waypoints,
+      legs: route.legs,
+      place: route.place,
+    })),
     plan: plan === null ? null : {
       goal: plan.goal,
       raceAt: plan.raceAt,
@@ -471,14 +526,6 @@ export async function everythingForTransfer(): Promise<Transfer> {
     },
     settings: await readSettings(),
   };
-}
-
-/** What an import actually did, so the screen can say it plainly. */
-export interface Restored {
-  added: number;
-  known: number;
-  plan: boolean;
-  settings: boolean;
 }
 
 /**
@@ -524,6 +571,25 @@ export async function restoreTransfer(transfer: Transfer): Promise<Restored> {
     added += 1;
   }
 
+  // A route is recognised by its name and the moment it was drawn, so the
+  // same file read twice adds it once. Its creation date is kept: the list is
+  // ordered by it, and a route drawn last spring is not new.
+  let routes = 0;
+  for (const route of transfer.routes) {
+    const existing = await db.getFirstAsync<{ id: number }>(
+      "SELECT id FROM routes WHERE created_at = ? AND name = ?", route.createdAt, route.name,
+    );
+    if (existing) continue;
+    const shape = { waypoints: route.waypoints, legs: route.legs };
+    await db.runAsync(
+      "INSERT INTO routes (name, created_at, distance_m, waypoints, legs, place, preview)"
+      + " VALUES (?, ?, ?, ?, ?, ?, NULL)",
+      route.name, route.createdAt, routeDistanceM(shape),
+      JSON.stringify(route.waypoints), JSON.stringify(route.legs), route.place,
+    );
+    routes += 1;
+  }
+
   const plan = transfer.plan;
   const hasPlan = (await activePlan()) !== null;
   if (plan && !hasPlan) {
@@ -545,7 +611,7 @@ export async function restoreTransfer(transfer: Transfer): Promise<Restored> {
   const settings = Object.entries(transfer.settings);
   for (const [key, value] of settings) await writeSetting(key, value);
 
-  return { added, known, plan: Boolean(plan) && !hasPlan, settings: settings.length > 0 };
+  return { added, known, routes, plan: Boolean(plan) && !hasPlan, settings: settings.length > 0 };
 }
 
 /**

@@ -9,29 +9,136 @@ import {
 import { Button } from "@/components/Button";
 import { Metric } from "@/components/Metric";
 import { CardMapSource, type CardMapHandle } from "@/components/CardMapSource";
+import { FeelSheet } from "@/components/FeelSheet";
 import { RunMap } from "@/components/RunMap";
 import { PlanAttachment } from "@/components/PlanAttachment";
 import { canShareImage, ShareRunSheet } from "@/components/ShareRunSheet";
-import { EXERTION_NAMES, type Exertion } from "@/lib/plan";
+import { exertionName, type Exertion } from "@/lib/plan";
 import { deleteRun, readRun, renameRun, type Run, setRunExertion, setRunHeart, planSessionOfRun,
 } from "@/lib/db";
 import {
   formatDate, formatDistance, formatDuration, formatElevation, formatEnergy, formatPace, formatSpeed,
 } from "@/lib/format";
 import { elevationProfile, splits, type TrackPoint } from "@/lib/geo";
-import { sessionById, type RanBlock } from "@/lib/workout";
+import { effortName, sessionById, sessionName, type RanBlock } from "@/lib/workout";
 import { gpxFileName, toGpx } from "@/lib/gpx";
 import { estimateActiveEnergyKcal } from "@/lib/energy";
 import {
   forgetRunInHealth, healthAvailable, readBodyMassKg, readRunHeart, requestHealthAccess,
   sharingRefused, syncRunToHealth,
 } from "@/lib/health";
-import { formatBpm, ZONE_NAMES, type Heart } from "@/lib/heart";
+import { formatBpm, zoneName, type Heart } from "@/lib/heart";
+import { decimal, defineStrings, useStrings } from "@/lib/i18n";
 import { colors, floatingShadow, font } from "@/lib/theme";
 import { pendingWeather } from "@/lib/tracker";
 import { formatTemperature, formatWind, weatherIcon, weatherLabel, type Weather } from "@/lib/weather";
 
 type Loaded = { run: Run; points: TrackPoint[] };
+
+const runStrings = defineStrings({
+  fr: {
+    notFound: "Course introuvable.",
+    shareUnavailable: "Partage indisponible",
+    shareUnavailableBody: "Impossible d'ouvrir la feuille de partage sur cet appareil.",
+    exportFailed: "Export impossible",
+    unexpectedError: "Erreur inattendue.",
+    healthNothing: "Santé n'a rien reçu",
+    healthRefused: "Tread n'a pas le droit d'écrire tes courses. Tu peux le lui donner dans Réglages › Santé › Accès aux données › Tread.",
+    healthFailed: "L'envoi a échoué. Réessaie dans un instant.",
+    deleteTitle: "Supprimer cette course ?",
+    deleteBody: "Ses points GPS seront effacés et l'action est définitive.",
+    deletePlanNote: " La séance correspondante redeviendra à faire dans ton programme.",
+    cancel: "Annuler",
+    delete: "Supprimer",
+    renameLabel: "Renommer la course",
+    untitled: "Sans nom",
+    shareImageLabel: "Partager la course en image",
+    distance: "Distance",
+    duration: "Durée",
+    avgPace: "Allure moyenne",
+    elevationGain: "Dénivelé positif",
+    bestKm: "Meilleur km",
+    avgSpeed: "Vitesse moyenne",
+    estimatedCalories: "Calories estimées",
+    cadence: "Cadence",
+    stepsPerMin: "pas/min",
+    weather: "Météo",
+    feelsLike: (temperature: string) => `ressenti ${temperature}`,
+    wind: "Vent",
+    avgHeartRate: "FC moyenne",
+    maxHeartRate: "FC max",
+    heartZones: "Zones cardiaques",
+    zoneNote: (bpm: number) => `Calculées sur une fréquence maximale de ${bpm} bpm, estimée à partir de ton âge. C'est une règle générale, pas une mesure : la tienne peut s'en écarter d'une dizaine de battements.`,
+    feel: "Ressenti",
+    done: "Terminer",
+    edit: "Modifier",
+    feelPrompt: "Comment c'était ? Deux séances dures d'affilée et ton programme s'allège.",
+    profile: "Profil",
+    session: "Séance",
+    splits: "Fractionnés",
+    gpsPoints: (n: number) => `${n} points GPS enregistrés`,
+    copiedToHealth: "Copiée dans Apple Santé",
+    sending: "Envoi…",
+    addToHealth: "Ajouter à Apple Santé",
+    validate: "Valider",
+    exporting: "Export…",
+    exportGpx: "Exporter en GPX",
+    runName: "Nom de la course",
+    namePlaceholder: "Course matinale",
+    save: "Enregistrer",
+  },
+  en: {
+    notFound: "Run not found.",
+    shareUnavailable: "Sharing unavailable",
+    shareUnavailableBody: "The share sheet can't be opened on this device.",
+    exportFailed: "Couldn't export",
+    unexpectedError: "Something went wrong.",
+    healthNothing: "Health received nothing",
+    healthRefused: "Tread isn't allowed to write your runs. You can allow it in Settings › Health › Data Access & Devices › Tread.",
+    healthFailed: "Sending failed. Try again in a moment.",
+    deleteTitle: "Delete this run?",
+    deleteBody: "Its GPS points will be erased, and this can't be undone.",
+    deletePlanNote: " The matching session will be back on your training plan.",
+    cancel: "Cancel",
+    delete: "Delete",
+    renameLabel: "Rename the run",
+    untitled: "Untitled",
+    shareImageLabel: "Share the run as a picture",
+    distance: "Distance",
+    duration: "Duration",
+    avgPace: "Average pace",
+    elevationGain: "Elevation gain",
+    bestKm: "Best km",
+    avgSpeed: "Average speed",
+    estimatedCalories: "Estimated calories",
+    cadence: "Cadence",
+    stepsPerMin: "spm",
+    weather: "Weather",
+    feelsLike: (temperature: string) => `feels like ${temperature}`,
+    wind: "Wind",
+    avgHeartRate: "Avg heart rate",
+    maxHeartRate: "Max heart rate",
+    heartZones: "Heart rate zones",
+    zoneNote: (bpm: number) => `Based on a maximum heart rate of ${bpm} bpm, estimated from your age. It's a rule of thumb, not a measurement: yours may be off by ten beats or so.`,
+    feel: "How it felt",
+    done: "Done",
+    edit: "Edit",
+    feelPrompt: "How did it feel? Two hard sessions in a row and your training plan eases off.",
+    profile: "Elevation",
+    session: "Session",
+    splits: "Splits",
+    gpsPoints: (n: number) => (n === 1 ? "1 GPS point recorded" : `${n} GPS points recorded`),
+    copiedToHealth: "Copied to Apple Health",
+    sending: "Sending…",
+    addToHealth: "Add to Apple Health",
+    validate: "Done",
+    exporting: "Exporting…",
+    exportGpx: "Export as GPX",
+    runName: "Run name",
+    namePlaceholder: "Morning run",
+    save: "Save",
+  },
+});
 
 /** One block of a session, as asked for and as run. */
 function BlockRow({ block, rank }: { block: RanBlock; rank: number }) {
@@ -39,14 +146,14 @@ function BlockRow({ block, rank }: { block: RanBlock; rank: number }) {
     ? `${block.targetMetres} m`
     : `${Math.round((block.targetSeconds ?? 0) / 60)} min`;
   const pace = block.distanceM > 0 ? (block.durationS / block.distanceM) * 1000 : null;
-  const effort = block.effort === "rapide" || block.effort === "allure";
+  const effort = block.effort === "fast" || block.effort === "steady";
 
   return (
     <View style={styles.block}>
       <Text style={[styles.blockRank, effort && styles.blockEffort]}>{rank}</Text>
       <View style={styles.blockText}>
         <Text style={[styles.blockName, effort && styles.blockEffort]}>
-          {asked} {block.effort}
+          {asked} {effortName(block.effort)}
         </Text>
         <Text style={styles.blockDone}>
           {formatDistance(block.distanceM)} km · {formatDuration(Math.round(block.durationS))}
@@ -74,7 +181,7 @@ function Zones({ heart }: { heart: Heart }) {
         seconds > 0 ? (
           <View key={zone} style={styles.zoneRow}>
             <Text style={styles.zoneName} numberOfLines={1}>
-              {`Z${zone + 1} ${ZONE_NAMES[zone]}`}
+              {`Z${zone + 1} ${zoneName(zone)}`}
             </Text>
             <View style={styles.zoneTrack}>
               <View style={[styles.zoneFill, { width: `${(seconds / longest) * 100}%` }]} />
@@ -89,6 +196,7 @@ function Zones({ heart }: { heart: Heart }) {
 export default function RunDetailScreen() {
   const { id, from } = useLocalSearchParams<{ id: string; from?: string }>();
   const router = useRouter();
+  const s = useStrings(runStrings);
   // undefined while loading, null when not found.
   const [data, setData] = useState<Loaded | null | undefined>(undefined);
   const [renaming, setRenaming] = useState(false);
@@ -100,6 +208,8 @@ export default function RunDetailScreen() {
   const [sharingImage, setSharingImage] = useState(false);
   /** Whether the exertion has been unlocked again on this visit. */
   const [editingFeel, setEditingFeel] = useState(false);
+  /** The end-of-run question was put off with "Plus tard". */
+  const [feelLater, setFeelLater] = useState(false);
   /** Set when this run is what ticked a session off a programme. */
   const [planLinked, setPlanLinked] = useState(false);
   const [cardMap, setCardMap] = useState<string | null>(null);
@@ -188,7 +298,7 @@ export default function RunDetailScreen() {
   if (data === null) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.muted}>Course introuvable.</Text>
+        <Text style={styles.muted}>{s.notFound}</Text>
       </View>
     );
   }
@@ -198,11 +308,12 @@ export default function RunDetailScreen() {
   const sky = weather === null ? null : [
     weatherLabel(weather.code),
     weather.precipitationMm >= 0.1
-      ? `${weather.precipitationMm.toFixed(1).replace(".", ",")} mm`
+      ? `${decimal(weather.precipitationMm.toFixed(1))} mm`
       : null,
   ].filter(Boolean).join(" · ");
   const kilometres = splits(points);
   const profile = elevationProfile(points);
+  const plannedSession = sessionById(run.sessionId);
 
   /**
    * Close a run that was just finished, and land where it came from.
@@ -248,10 +359,10 @@ export default function RunDetailScreen() {
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(file.uri, { mimeType: "application/gpx+xml", UTI: "com.topografix.gpx" });
       } else {
-        Alert.alert("Partage indisponible", "Impossible d'ouvrir la feuille de partage sur cet appareil.");
+        Alert.alert(s.shareUnavailable, s.shareUnavailableBody);
       }
     } catch (cause) {
-      Alert.alert("Export impossible", cause instanceof Error ? cause.message : "Erreur inattendue.");
+      Alert.alert(s.exportFailed, cause instanceof Error ? cause.message : s.unexpectedError);
     } finally {
       setExporting(false);
     }
@@ -273,10 +384,8 @@ export default function RunDetailScreen() {
         // to go change a setting that is already right is its own small
         // betrayal.
         Alert.alert(
-          "Santé n'a rien reçu",
-          sharingRefused()
-            ? "Tread n'a pas le droit d'écrire tes courses. Tu peux le lui donner dans Réglages › Santé › Accès aux données › Tread."
-            : "L'envoi a échoué. Réessaie dans un instant.",
+          s.healthNothing,
+          sharingRefused() ? s.healthRefused : s.healthFailed,
         );
         return;
       }
@@ -324,12 +433,11 @@ export default function RunDetailScreen() {
    */
   function askDelete() {
     Alert.alert(
-      "Supprimer cette course ?",
-      "Ses points GPS seront effacés et l'action est définitive."
-      + (planLinked ? " La séance correspondante redeviendra à faire dans ton programme." : ""),
+      s.deleteTitle,
+      s.deleteBody + (planLinked ? s.deletePlanNote : ""),
       [
-        { text: "Annuler", style: "cancel" },
-        { text: "Supprimer", style: "destructive", onPress: removeRun },
+        { text: s.cancel, style: "cancel" },
+        { text: s.delete, style: "destructive", onPress: removeRun },
       ],
     );
   }
@@ -352,11 +460,11 @@ export default function RunDetailScreen() {
               setRenaming(true);
             }}
             accessibilityRole="button"
-            accessibilityLabel="Renommer la course"
+            accessibilityLabel={s.renameLabel}
             hitSlop={8}
             style={styles.nameRow}
           >
-            <Text style={styles.name} numberOfLines={1}>{run.name ?? "Sans nom"}</Text>
+            <Text style={styles.name} numberOfLines={1}>{run.name ?? s.untitled}</Text>
             <Ionicons name="pencil" size={15} color={colors.subtle} />
           </Pressable>
           <Text style={styles.date}>{formatDate(run.startedAt)}</Text>
@@ -368,7 +476,7 @@ export default function RunDetailScreen() {
           onPress={() => setSharingImage(true)}
           disabled={points.length === 0}
           accessibilityRole="button"
-          accessibilityLabel="Partager la course en image"
+          accessibilityLabel={s.shareImageLabel}
           hitSlop={10}
           style={({ pressed }) => [
             styles.share,
@@ -382,32 +490,32 @@ export default function RunDetailScreen() {
       </View>
 
       <View style={styles.section}>
-        <Metric label="Distance" value={formatDistance(run.distanceM)} unit="km" large />
+        <Metric label={s.distance} value={formatDistance(run.distanceM)} unit="km" large />
         <View style={styles.row}>
-          <Metric label="Durée" value={formatDuration(run.durationS)} />
-          <Metric label="Allure moyenne" value={formatPace(run.avgPaceSKm)} unit="/km" />
+          <Metric label={s.duration} value={formatDuration(run.durationS)} />
+          <Metric label={s.avgPace} value={formatPace(run.avgPaceSKm)} unit="/km" />
         </View>
         {run.elevationGainM !== null && (
           <View style={styles.row}>
-            <Metric label="Dénivelé positif" value={formatElevation(run.elevationGainM)} unit="m" />
+            <Metric label={s.elevationGain} value={formatElevation(run.elevationGainM)} unit="m" />
             {run.fastestKmS !== null ? (
-              <Metric label="Meilleur km" value={formatPace(run.fastestKmS)} unit="/km" />
+              <Metric label={s.bestKm} value={formatPace(run.fastestKmS)} unit="/km" />
             ) : null}
           </View>
         )}
         <View style={styles.row}>
           <Metric
-            label="Vitesse moyenne"
+            label={s.avgSpeed}
             value={formatSpeed(run.durationS > 0 ? run.distanceM / run.durationS : 0)}
             unit="km/h"
           />
           {energyKcal !== null ? (
-            <Metric label="Calories estimées" value={formatEnergy(energyKcal)} unit="kcal" />
+            <Metric label={s.estimatedCalories} value={formatEnergy(energyKcal)} unit="kcal" />
           ) : null}
         </View>
         {run.cadenceSpm !== null && (
           <View style={styles.row}>
-            <Metric label="Cadence" value={String(run.cadenceSpm)} unit="pas/min" />
+            <Metric label={s.cadence} value={String(run.cadenceSpm)} unit={s.stepsPerMin} />
           </View>
         )}
         {/* Among the measurements rather than off in a section of its own:
@@ -420,15 +528,15 @@ export default function RunDetailScreen() {
           <>
             <View style={styles.row}>
               <Metric
-                label="Météo"
+                label={s.weather}
                 value={formatTemperature(weather.temperatureC)}
                 unit={
                   Math.round(weather.feelsLikeC) !== Math.round(weather.temperatureC)
-                    ? `ressenti ${formatTemperature(weather.feelsLikeC)}`
+                    ? s.feelsLike(formatTemperature(weather.feelsLikeC))
                     : undefined
                 }
               />
-              <Metric label="Vent" value={formatWind(weather.windKmh)} unit="km/h" />
+              <Metric label={s.wind} value={formatWind(weather.windKmh)} unit="km/h" />
             </View>
             {/* The sky in words, and the rain only when there was some.
                 Absent altogether when the model gave no code: an icon beside
@@ -447,8 +555,8 @@ export default function RunDetailScreen() {
         )}
         {run.heart && (
           <View style={styles.row}>
-            <Metric label="FC moyenne" value={formatBpm(run.heart.avgBpm)} unit="bpm" />
-            <Metric label="FC max" value={formatBpm(run.heart.maxBpm)} unit="bpm" />
+            <Metric label={s.avgHeartRate} value={formatBpm(run.heart.avgBpm)} unit="bpm" />
+            <Metric label={s.maxHeartRate} value={formatBpm(run.heart.maxBpm)} unit="bpm" />
           </View>
         )}
       </View>
@@ -457,12 +565,12 @@ export default function RunDetailScreen() {
           shape of an effort, and the shape is the point. A steady endurance
           run and a session of intervals can share an average to the beat and
           look nothing alike here. */}
-      {run.heart && run.heart.maxHeartRate !== null && run.heart.zonesS.some((s) => s > 0) ? (
+      {run.heart && run.heart.maxHeartRate !== null && run.heart.zonesS.some((seconds) => seconds > 0) ? (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Zones cardiaques</Text>
+          <Text style={styles.sectionTitle}>{s.heartZones}</Text>
           <Zones heart={run.heart} />
           <Text style={styles.zoneNote}>
-            {`Calculées sur une fréquence maximale de ${run.heart.maxHeartRate} bpm, estimée à partir de ton âge. C'est une règle générale, pas une mesure : la tienne peut s'en écarter d'une dizaine de battements.`}
+            {s.zoneNote(run.heart.maxHeartRate)}
           </Text>
         </View>
       ) : null}
@@ -498,7 +606,7 @@ export default function RunDetailScreen() {
           run, whoever asked for it. */}
       <View style={styles.section}>
         <View style={styles.feelHead}>
-          <Text style={styles.sectionTitle}>Ressenti</Text>
+          <Text style={styles.sectionTitle}>{s.feel}</Text>
           {/* Settled once the run has been closed, and reopened on request.
               An answer given at the end of a run is the honest one; the same
               answer revisited a fortnight later, next to the splits and the
@@ -517,7 +625,7 @@ export default function RunDetailScreen() {
                   the back button, which reads as the app having got stuck.
                   Each tap is already saved, so this settles rather than
                   commits. */}
-              <Text style={styles.feelEdit}>{editingFeel ? "Terminer" : "Modifier"}</Text>
+              <Text style={styles.feelEdit}>{editingFeel ? s.done : s.edit}</Text>
             </Pressable>
           ) : null}
         </View>
@@ -537,7 +645,7 @@ export default function RunDetailScreen() {
                 }}
                 accessibilityRole="button"
                 accessibilityState={{ selected: on }}
-                accessibilityLabel={EXERTION_NAMES[level]}
+                accessibilityLabel={exertionName(level)}
                 style={({ pressed }) => [
                   styles.feel,
                   on && styles.feelOn,
@@ -552,8 +660,8 @@ export default function RunDetailScreen() {
         </View>
         <Text style={styles.feelName}>
           {run.exertion === null
-            ? "Comment c'était ? Deux séances dures d'affilée et ton programme s'allège."
-            : EXERTION_NAMES[run.exertion]}
+            ? s.feelPrompt
+            : exertionName(run.exertion)}
         </Text>
       </View>
 
@@ -574,7 +682,7 @@ export default function RunDetailScreen() {
 
       {profile.length > 1 && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Profil</Text>
+          <Text style={styles.sectionTitle}>{s.profile}</Text>
           {/* Drawn as columns from the lowest point of the run rather than
               from sea level: a hundred metres of climbing matters, the
               altitude it happened at does not. */}
@@ -604,7 +712,7 @@ export default function RunDetailScreen() {
       {run.blocks.length > 0 && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>
-            {sessionById(run.sessionId)?.name ?? "Séance"}
+            {plannedSession ? sessionName(plannedSession) : s.session}
           </Text>
           {/* Each block beside what it asked for. A repetition is only worth
               reading next to its target: four hundred metres in 1:32 means
@@ -617,7 +725,7 @@ export default function RunDetailScreen() {
 
       {kilometres.length > 0 && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Fractionnés</Text>
+          <Text style={styles.sectionTitle}>{s.splits}</Text>
           {kilometres.map((split) => {
             const pace = split.durationS / (split.distanceM / 1000);
             const isBest = !split.partial && fastest !== null && split.durationS === fastest && fullCount > 1;
@@ -643,11 +751,11 @@ export default function RunDetailScreen() {
       )}
 
       <View style={styles.footnotes}>
-        <Text style={styles.muted}>{points.length} points GPS enregistrés</Text>
+        <Text style={styles.muted}>{s.gpsPoints(points.length)}</Text>
         {hasHealth && run.healthUuid && (
           <View style={styles.synced}>
             <Ionicons name="heart" size={12} color={colors.accent} />
-            <Text style={styles.syncedText}>Copiée dans Apple Santé</Text>
+            <Text style={styles.syncedText}>{s.copiedToHealth}</Text>
           </View>
         )}
       </View>
@@ -655,7 +763,7 @@ export default function RunDetailScreen() {
       {hasHealth && !run.healthUuid && (
         <View style={styles.wideAction}>
           <Button
-            label={syncing ? "Envoi…" : "Ajouter à Apple Santé"}
+            label={syncing ? s.sending : s.addToHealth}
             variant="secondary"
             onPress={() => void sendToHealth()}
             disabled={syncing}
@@ -668,24 +776,32 @@ export default function RunDetailScreen() {
           claiming to validate what is already recorded would be noise. */}
       {from ? (
         <View style={styles.validate}>
-          <Button label="Valider" onPress={validate} disabled={run.exertion === null} />
-          {run.exertion === null ? (
-            <Text style={styles.validateHint}>
-              {"Dis d'abord comment c'était : c'est la seule chose que ton programme ne peut pas deviner."}
-            </Text>
-          ) : null}
+          {/* Never greyed out: the feeling is asked for in its own sheet the
+              moment the run ends, and somebody who put it off has chosen to. */}
+          <Button label={s.validate} onPress={validate} />
         </View>
       ) : null}
 
       <View style={styles.actions}>
         <Button
-          label={exporting ? "Export…" : "Exporter en GPX"}
+          label={exporting ? s.exporting : s.exportGpx}
           variant="secondary"
           onPress={() => void exportGpx()}
           disabled={exporting || points.length === 0}
         />
-        <Button label="Supprimer" variant="danger" onPress={askDelete} />
+        <Button label={s.delete} variant="danger" onPress={askDelete} />
       </View>
+
+      <FeelSheet
+        // Only for a run just finished and not yet rated. Derived rather than
+        // stored, so answering closes it by itself.
+        visible={from !== undefined && !feelLater && run.exertion === null}
+        onChoose={(level) => {
+          setData({ run: { ...run, exertion: level }, points });
+          void setRunExertion(run.id, level).catch(() => undefined);
+        }}
+        onLater={() => setFeelLater(true)}
+      />
 
       <ShareRunSheet
         visible={sharingImage}
@@ -703,11 +819,11 @@ export default function RunDetailScreen() {
         <Pressable style={styles.backdrop} onPress={() => setRenaming(false)}>
           {/* Stops a tap inside the card from closing it. */}
           <Pressable style={styles.dialog} onPress={() => undefined}>
-            <Text style={styles.dialogTitle}>Nom de la course</Text>
+            <Text style={styles.dialogTitle}>{s.runName}</Text>
             <TextInput
               value={draftName}
               onChangeText={setDraftName}
-              placeholder="Course matinale"
+              placeholder={s.namePlaceholder}
               placeholderTextColor={colors.subtle}
               autoFocus
               returnKeyType="done"
@@ -715,8 +831,8 @@ export default function RunDetailScreen() {
               style={styles.input}
             />
             <View style={styles.dialogActions}>
-              <Button label="Annuler" variant="secondary" onPress={() => setRenaming(false)} />
-              <Button label="Enregistrer" onPress={() => void saveName()} />
+              <Button label={s.cancel} variant="secondary" onPress={() => setRenaming(false)} />
+              <Button label={s.save} onPress={() => void saveName()} />
             </View>
           </Pressable>
         </Pressable>
@@ -759,10 +875,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: GUTTER, paddingTop: 20, paddingBottom: 22, gap: 7,
     marginBottom: 16,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.hairline,
-  },
-  validateHint: {
-    color: colors.subtle, fontFamily: font.regular, fontSize: 13,
-    lineHeight: 18, textAlign: "center",
   },
   feelHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   feelEdit: { color: colors.accent, fontSize: 13, fontFamily: font.semibold },

@@ -7,8 +7,9 @@ import {
   activePlan, detachRunFromPlan, markPlanSessionDone, planDone, type StoredPlan,
 } from "@/lib/db";
 import { schedule, startOfDay, type Done, type ScheduledSession } from "@/lib/plan";
+import { defineStrings, intlLocale, useStrings } from "@/lib/i18n";
 import { colors, floatingShadow, font } from "@/lib/theme";
-import { sessionMinutes } from "@/lib/workout";
+import { sessionMinutes, sessionName } from "@/lib/workout";
 
 /**
  * Midnight of the day this module was loaded.
@@ -20,8 +21,35 @@ import { sessionMinutes } from "@/lib/workout";
  */
 const BOOT_DAY = startOfDay(Date.now());
 
-const DAYS = ["dim.", "lun.", "mar.", "mer.", "jeu.", "ven.", "sam."];
-const dayName = (at: number): string => `${DAYS[new Date(at).getDay()]} ${new Date(at).getDate()}`;
+const attachmentStrings = defineStrings({
+  fr: {
+    title: "Programme",
+    week: (n: number) => `Semaine ${n}`,
+    weekLower: (n: number) => `semaine ${n}`,
+    detachLabel: "Détacher cette course de la séance",
+    detach: "Détacher",
+    nonePending: "Aucune séance en attente.",
+    attach: "Rattacher à une séance",
+    attachTo: "Rattacher à",
+    muchLonger: "bien plus longue que la séance",
+    muchShorter: "bien plus courte que la séance",
+  },
+  en: {
+    title: "Training plan",
+    week: (n: number) => `Week ${n}`,
+    weekLower: (n: number) => `week ${n}`,
+    detachLabel: "Detach this run from the session",
+    detach: "Detach",
+    nonePending: "No sessions waiting.",
+    attach: "Link to a session",
+    attachTo: "Link to",
+    muchLonger: "much longer than the session",
+    muchShorter: "much shorter than the session",
+  },
+});
+
+const dayName = (at: number): string =>
+  new Date(at).toLocaleDateString(intlLocale(), { weekday: "short", day: "numeric" });
 
 /**
  * How far a run is from what a session asked for.
@@ -37,8 +65,8 @@ function mismatch(session: ScheduledSession, durationS: number): string | null {
   const expected = sessionMinutes(session.session) * 60;
   if (expected <= 0 || durationS <= 0) return null;
   const ratio = durationS / expected;
-  if (ratio > 1.5) return "bien plus longue que la séance";
-  if (ratio < 0.6) return "bien plus courte que la séance";
+  if (ratio > 1.5) return attachmentStrings().muchLonger;
+  if (ratio < 0.6) return attachmentStrings().muchShorter;
   return null;
 }
 
@@ -61,6 +89,7 @@ export function PlanAttachment({ runId, durationS, onChange }: Props) {
   const [plan, setPlan] = useState<StoredPlan | null>(null);
   const [done, setDone] = useState<Map<number, Done>>(new Map());
   const [picking, setPicking] = useState(false);
+  const s = useStrings(attachmentStrings);
 
   const load = useCallback(() => {
     let live = true;
@@ -100,26 +129,26 @@ export function PlanAttachment({ runId, durationS, onChange }: Props) {
 
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Programme</Text>
+      <Text style={styles.sectionTitle}>{s.title}</Text>
 
       {linked ? (
         <View style={styles.linked}>
           <View style={styles.linkedText}>
-            <Text style={styles.name}>{linked.session.name}</Text>
-            <Text style={styles.detail}>Semaine {linked.week}</Text>
+            <Text style={styles.name}>{sessionName(linked.session)}</Text>
+            <Text style={styles.detail}>{s.week(linked.week)}</Text>
           </View>
           <Pressable
             onPress={detach}
             accessibilityRole="button"
-            accessibilityLabel="Détacher cette course de la séance"
+            accessibilityLabel={s.detachLabel}
             hitSlop={10}
             style={({ pressed }) => [pressed && styles.pressed]}
           >
-            <Text style={styles.detach}>Détacher</Text>
+            <Text style={styles.detach}>{s.detach}</Text>
           </Pressable>
         </View>
       ) : pending.length === 0 ? (
-        <Text style={styles.detail}>Aucune séance en attente.</Text>
+        <Text style={styles.detail}>{s.nonePending}</Text>
       ) : (
         <Pressable
           onPress={() => setPicking(true)}
@@ -127,7 +156,7 @@ export function PlanAttachment({ runId, durationS, onChange }: Props) {
           style={({ pressed }) => [styles.attach, pressed && styles.pressed]}
         >
           <Ionicons name="link-outline" size={17} color={colors.accent} />
-          <Text style={styles.attachLabel}>Rattacher à une séance</Text>
+          <Text style={styles.attachLabel}>{s.attach}</Text>
         </Pressable>
       )}
 
@@ -141,7 +170,7 @@ export function PlanAttachment({ runId, durationS, onChange }: Props) {
           {/* Stops a tap inside the sheet from closing it. */}
           <Pressable onPress={() => undefined} style={styles.sheet}>
             <GlassPanel style={styles.panel}>
-              <Text style={styles.kicker}>Rattacher à</Text>
+              <Text style={styles.kicker}>{s.attachTo}</Text>
               <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
                 {pending.map((entry) => {
                   const off = mismatch(entry, durationS);
@@ -153,9 +182,9 @@ export function PlanAttachment({ runId, durationS, onChange }: Props) {
                       style={({ pressed }) => [styles.row, pressed && styles.pressed]}
                     >
                       <View style={styles.rowText}>
-                        <Text style={styles.name}>{entry.session.name}</Text>
+                        <Text style={styles.name}>{sessionName(entry.session)}</Text>
                         <Text style={[styles.detail, off !== null && styles.warn]}>
-                          {dayName(entry.at)} · semaine {entry.week}
+                          {dayName(entry.at)} · {s.weekLower(entry.week)}
                           {off !== null ? ` · ${off}` : ""}
                         </Text>
                       </View>

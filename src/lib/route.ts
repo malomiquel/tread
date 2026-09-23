@@ -1,6 +1,7 @@
 // Extension spelled out, as in archive.ts: this module is loaded by a plain
 // node test, and node resolves a relative import literally.
 import { distanceM } from "./geo.ts";
+import { getLanguage, intlLocale } from "./i18n.ts";
 
 /**
  * Drawing a route before running it.
@@ -388,7 +389,8 @@ export function parseRoute(waypoints: string | null, legs: string | null): Route
 
 /** What a route is called when nobody has named it. */
 export function autoRouteName(at: number): string {
-  return `Parcours du ${new Date(at).toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}`;
+  const day = new Date(at).toLocaleDateString(intlLocale(), { day: "numeric", month: "long" });
+  return getLanguage() === "fr" ? `Parcours du ${day}` : `Route of ${day}`;
 }
 
 /** Nothing here is worth making anyone wait for. */

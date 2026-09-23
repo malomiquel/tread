@@ -1,0 +1,12 @@
+{
+  "ios": {
+    "NSMotionUsageDescription": "Tread lit le podomètre pour calculer ta cadence, en pas par minute.",
+    "NSLocalNetworkUsageDescription": "Tread envoie tes courses directement à ton nouveau téléphone, sur ton WiFi, sans passer par internet.",
+    "NSCameraUsageDescription": "Tread lit le code affiché par ton ancien téléphone pour reprendre tes courses.",
+    "NSLocationWhenInUseUsageDescription": "Tread utilise ta position pour tracer ton parcours et mesurer ta distance.",
+    "NSLocationAlwaysAndWhenInUseUsageDescription": "Tread a besoin de ta position même écran verrouillé, pour continuer à enregistrer pendant que le téléphone est dans ta poche.",
+    "NSLocationAlwaysUsageDescription": "Tread a besoin de ta position même écran verrouillé, pour continuer à enregistrer pendant que le téléphone est dans ta poche.",
+    "NSHealthShareUsageDescription": "Tread lit ton poids pour estimer les calories brûlées, et ta fréquence cardiaque pour la montrer avec tes courses.",
+    "NSHealthUpdateUsageDescription": "Tread enregistre tes courses, leur distance et leur tracé dans Santé."
+  }
+}

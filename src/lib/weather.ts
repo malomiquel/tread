@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { decimal, defineStrings } from "./i18n.ts";
 import type { Coords } from "./location";
 
 /**
@@ -284,29 +285,74 @@ export function forecastOn(days: ReadonlyMap<string, Forecast>, at: number): For
  * freezing drizzle — but nobody dresses differently for the middle one, so
  * the intensities that change a decision are kept and the rest are folded in.
  */
-export function weatherLabel(code: number | null): string | null {
-  if (code === null) return null;
-  if (code === 0) return "Ciel dégagé";
-  if (code === 1) return "Plutôt dégagé";
-  if (code === 2) return "Partiellement nuageux";
-  if (code === 3) return "Couvert";
-  if (code === 45 || code === 48) return "Brouillard";
-  if (code >= 51 && code <= 55) return "Bruine";
-  if (code === 56 || code === 57) return "Bruine verglaçante";
-  if (code === 61) return "Pluie faible";
-  if (code === 63) return "Pluie";
-  if (code === 65) return "Pluie forte";
-  if (code === 66 || code === 67) return "Pluie verglaçante";
-  if (code === 71) return "Neige faible";
-  if (code === 73) return "Neige";
-  if (code === 75 || code === 77) return "Neige forte";
-  if (code === 80) return "Averses";
-  if (code === 81 || code === 82) return "Fortes averses";
-  if (code === 85 || code === 86) return "Averses de neige";
-  if (code === 95) return "Orage";
-  if (code === 96 || code === 99) return "Orage et grêle";
+type Sky =
+  | "clear" | "mostlyClear" | "partlyCloudy" | "overcast" | "fog" | "drizzle" | "freezingDrizzle"
+  | "lightRain" | "rain" | "heavyRain" | "freezingRain" | "lightSnow" | "snow" | "heavySnow"
+  | "showers" | "heavyShowers" | "snowShowers" | "thunderstorm" | "hailstorm";
+
+const skyNames = defineStrings<Record<Sky, string>>({
+  fr: {
+    clear: "Ciel dégagé", mostlyClear: "Plutôt dégagé", partlyCloudy: "Partiellement nuageux",
+    overcast: "Couvert", fog: "Brouillard", drizzle: "Bruine", freezingDrizzle: "Bruine verglaçante",
+    lightRain: "Pluie faible", rain: "Pluie", heavyRain: "Pluie forte", freezingRain: "Pluie verglaçante",
+    lightSnow: "Neige faible", snow: "Neige", heavySnow: "Neige forte", showers: "Averses",
+    heavyShowers: "Fortes averses", snowShowers: "Averses de neige", thunderstorm: "Orage",
+    hailstorm: "Orage et grêle",
+  },
+  en: {
+    clear: "Clear sky", mostlyClear: "Mostly clear", partlyCloudy: "Partly cloudy",
+    overcast: "Overcast", fog: "Fog", drizzle: "Drizzle", freezingDrizzle: "Freezing drizzle",
+    lightRain: "Light rain", rain: "Rain", heavyRain: "Heavy rain", freezingRain: "Freezing rain",
+    lightSnow: "Light snow", snow: "Snow", heavySnow: "Heavy snow", showers: "Showers",
+    heavyShowers: "Heavy showers", snowShowers: "Snow showers", thunderstorm: "Thunderstorm",
+    hailstorm: "Thunderstorm with hail",
+  },
+});
+
+function sky(code: number): Sky | null {
+  if (code === 0) return "clear";
+  if (code === 1) return "mostlyClear";
+  if (code === 2) return "partlyCloudy";
+  if (code === 3) return "overcast";
+  if (code === 45 || code === 48) return "fog";
+  if (code >= 51 && code <= 55) return "drizzle";
+  if (code === 56 || code === 57) return "freezingDrizzle";
+  if (code === 61) return "lightRain";
+  if (code === 63) return "rain";
+  if (code === 65) return "heavyRain";
+  if (code === 66 || code === 67) return "freezingRain";
+  if (code === 71) return "lightSnow";
+  if (code === 73) return "snow";
+  if (code === 75 || code === 77) return "heavySnow";
+  if (code === 80) return "showers";
+  if (code === 81 || code === 82) return "heavyShowers";
+  if (code === 85 || code === 86) return "snowShowers";
+  if (code === 95) return "thunderstorm";
+  if (code === 96 || code === 99) return "hailstorm";
   return null;
 }
+
+export function weatherLabel(code: number | null): string | null {
+  if (code === null) return null;
+  const found = sky(code);
+  return found === null ? null : skyNames()[found];
+}
+
+const weatherWords = defineStrings({
+  fr: {
+    feels: (temperature: string) => `ressenti ${temperature}`,
+    wind: (speed: string) => `vent ${speed} km/h`,
+    range: (low: string, high: string) => `${low} à ${high}`,
+  },
+  en: {
+    feels: (temperature: string) => `feels ${temperature}`,
+    wind: (speed: string) => `wind ${speed} km/h`,
+    range: (low: string, high: string) => `${low} to ${high}`,
+  },
+});
+
+/** Rain, in millimetres, or nothing when there is too little to mention. */
+const rainfall = (mm: number): string | null => (mm >= 0.1 ? `${decimal(mm.toFixed(1))} mm` : null);
 
 /**
  * The names are Ionicons', spelled out as a union so that a typo is caught
@@ -348,16 +394,14 @@ export function formatWind(kmh: number): string {
  * form rather than as a forecast.
  */
 export function weatherLine(weather: Weather): string {
+  const words = weatherWords();
   const felt = Math.round(weather.feelsLikeC) !== Math.round(weather.temperatureC)
-    ? `ressenti ${formatTemperature(weather.feelsLikeC)}`
-    : null;
-  const rain = weather.precipitationMm >= 0.1
-    ? `${weather.precipitationMm.toFixed(1).replace(".", ",")} mm`
+    ? words.feels(formatTemperature(weather.feelsLikeC))
     : null;
   return [
     [formatTemperature(weather.temperatureC), felt].filter(Boolean).join(" "),
-    `vent ${formatWind(weather.windKmh)} km/h`,
-    rain,
+    words.wind(formatWind(weather.windKmh)),
+    rainfall(weather.precipitationMm),
   ].filter(Boolean).join(" · ");
 }
 
@@ -369,14 +413,12 @@ export function weatherLine(weather: Weather): string {
  * that day, and "6°" alone would read as a reading rather than a range.
  */
 export function forecastLine(forecast: Forecast): string {
-  const rain = forecast.precipitationMm >= 0.1
-    ? `${forecast.precipitationMm.toFixed(1).replace(".", ",")} mm`
-    : null;
+  const words = weatherWords();
   return [
     weatherLabel(forecast.code),
-    `${formatTemperature(forecast.lowC)} à ${formatTemperature(forecast.highC)}`,
-    `vent ${formatWind(forecast.windKmh)} km/h`,
-    rain,
+    words.range(formatTemperature(forecast.lowC), formatTemperature(forecast.highC)),
+    words.wind(formatWind(forecast.windKmh)),
+    rainfall(forecast.precipitationMm),
   ].filter(Boolean).join(" · ");
 }
 
@@ -389,10 +431,11 @@ export function forecastLine(forecast: Forecast): string {
  * figure nobody converts into a decision at six in the morning.
  */
 export function forecastSentence(forecast: Forecast): string {
+  const words = weatherWords();
   return [
     weatherLabel(forecast.code),
-    `${formatTemperature(forecast.lowC)} à ${formatTemperature(forecast.highC)}`,
-    `vent ${formatWind(forecast.windKmh)} km/h`,
+    words.range(formatTemperature(forecast.lowC), formatTemperature(forecast.highC)),
+    words.wind(formatWind(forecast.windKmh)),
   ].filter(Boolean).join(", ");
 }
 

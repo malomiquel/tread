@@ -10,13 +10,50 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, useColorScheme, View } from "react-native";
 import { IncomingGpx } from "@/components/IncomingGpx";
 import { initDb } from "@/lib/db";
-import { requestHealthAccess } from "@/lib/health";
+import { defineStrings, useStrings } from "@/lib/i18n";
+import { applyLanguage } from "@/lib/language";
 import { clearStaleRun } from "@/lib/liveActivity";
 import { refreshReminders } from "@/lib/planReminders";
-import { loadSettings } from "@/lib/settings";
+import { loadSettings, useSettings } from "@/lib/settings";
 import { colors, literalColors } from "@/lib/theme";
 
+const layoutStrings = defineStrings({
+  fr: {
+    databaseUnavailable: "Base de données inaccessible.",
+    back: "Retour",
+    run: "Course",
+    method: "Méthode",
+    settings: "Réglages",
+    profile: "Profil",
+    notifications: "Notifications",
+    language: "Langue",
+    data: "Données",
+    about: "À propos",
+    privacy: "Confidentialité",
+    transfer: "Changer de téléphone",
+    send: "Envoyer",
+    receive: "Recevoir",
+  },
+  en: {
+    databaseUnavailable: "The database can't be opened.",
+    back: "Back",
+    run: "Run",
+    method: "Method",
+    settings: "Settings",
+    profile: "Profile",
+    notifications: "Notifications",
+    language: "Language",
+    data: "Data",
+    about: "About",
+    privacy: "Privacy",
+    transfer: "Switch phones",
+    send: "Send",
+    receive: "Receive",
+  },
+});
+
 export default function RootLayout() {
+  const s = useStrings(layoutStrings);
   const scheme = useColorScheme() === "dark" ? "dark" : "light";
   const [ready, setReady] = useState(false);
   // Nothing is drawn before the faces are in: text rendered in the system
@@ -29,18 +66,20 @@ export default function RootLayout() {
     BarlowCondensed_800ExtraBold,
   });
   const [error, setError] = useState<string | null>(null);
+  const { welcomed } = useSettings();
 
   useEffect(() => {
     // An activity outlives the process that started it, so a run cut short by
     // a crash or a swipe-away can leave a clock counting on the lock screen
     // for a run that is long over. Launching is the moment to clear it.
     clearStaleRun();
-    // Asked once, at the start, rather than hidden behind a switch somewhere.
-    // iOS shows its sheet the first time and silently remembers the answer
-    // afterwards, so this is a no-op on every later launch. It is not awaited:
-    // whatever the answer, it changes nothing about opening the app, and a
-    // refusal simply means runs stay in Tread alone.
-    void requestHealthAccess();
+    // The phone's language until the settings say otherwise, so that the
+    // loading and error screens already speak it; loadSettings then applies
+    // the stored choice.
+    applyLanguage("auto");
+    // Health is no longer asked for here. Raised by the launch itself, its
+    // sheet was the first thing a new user saw, with nothing to say what it
+    // was for; the welcome asks instead, with the reason beside the button.
     initDb()
       .then(loadSettings)
       .then(() => {
@@ -51,7 +90,7 @@ export default function RootLayout() {
         void refreshReminders();
       })
       .catch((cause: unknown) => {
-        setError(cause instanceof Error ? cause.message : "Base de données inaccessible.");
+        setError(cause instanceof Error ? cause.message : layoutStrings().databaseUnavailable);
       });
   }, []);
 
@@ -92,62 +131,80 @@ export default function RootLayout() {
           contentStyle: { backgroundColor: colors.background },
         }}
       >
-        {/* Un titre est nécessaire même sans en-tête : le bouton retour de
-            l'écran suivant s'en sert, et retombe sinon sur le nom technique
-            de la route, « (tabs) ». */}
-        <Stack.Screen name="(tabs)" options={{ headerShown: false, title: "Tread" }} />
-        {/*
-          * Courir est une page posée sur les onglets, pas un onglet.
-          *
-          * Elle l'était déjà en tout sauf en nom : elle masquait la barre et
-          * portait sa propre sortie. En faire vraiment une page empilée rend
-          * le geste de retour natif — la page suit le doigt et découvre
-          * celle d'en dessous — qu'aucun onglet ne peut offrir, faute de
-          * quoi que ce soit derrière lui à dévoiler.
-          */}
-        {/*
-          * Presented over the tabs rather than pushed in front of them.
-          *
-          * A transparent background alone was not enough: react-native-screens
-          * detaches the screen underneath a pushed one and only puts it back
-          * when the stack itself starts moving, so dragging uncovered nothing
-          * and the tab arrived only once the gesture had finished.
-          *
-          * A transparent modal keeps that screen attached the whole time,
-          * which is the one thing the drag needs. The animation is named
-          * explicitly because this presentation would otherwise arrive from
-          * the bottom, and this screen has always come from the side.
-          */}
-        <Stack.Screen
-          name="record"
-          options={{
-            headerShown: false,
-            presentation: "transparentModal",
-            animation: "slide_from_right",
-            gestureDirection: "horizontal",
-            contentStyle: { backgroundColor: "transparent" },
-          }}
-        />
-        <Stack.Screen name="run/[id]" options={{ title: "Course", headerBackTitle: "Retour" }} />
-        <Stack.Screen name="plan-method" options={{ title: "Méthode", headerBackTitle: "Retour" }} />
-        {/* One screen for both: drawing a route and changing one are the same
-            act, and the title is set by the screen from what it was given. */}
-        <Stack.Screen name="route/[id]" options={{ headerBackTitle: "Retour" }} />
-        {/* A page of its own, with its own rooms under it. Naming each back
-            button after the page it returns to is what makes a hierarchy
-            readable from inside it. */}
-        <Stack.Screen name="settings/index" options={{ title: "Réglages", headerBackTitle: "Profil" }} />
-        <Stack.Screen
-          name="settings/notifications"
-          options={{ title: "Notifications", headerBackTitle: "Réglages" }}
-        />
-        <Stack.Screen name="settings/plan" options={{ title: "Plan", headerBackTitle: "Réglages" }} />
-        <Stack.Screen
-          name="settings/transfer"
-          options={{ title: "Transfert", headerBackTitle: "Réglages" }}
-        />
-        <Stack.Screen name="settings/send" options={{ title: "Envoyer", headerBackTitle: "Transfert" }} />
-        <Stack.Screen name="settings/receive" options={{ title: "Recevoir", headerBackTitle: "Transfert" }} />
+        {/* A title is needed even without a header: the next screen's back
+            button uses it, and would otherwise fall back on the route's
+            technical name, "(tabs)". */}
+        {/* The welcome, until it has been seen — and then never again.
+            Guarded rather than pushed: the rest of the app simply does not
+            exist until the welcome is done, so there is nothing behind it to
+            swipe back to, and finishing it lands on the tabs by itself. */}
+        <Stack.Protected guard={!welcomed}>
+          <Stack.Screen name="welcome" options={{ headerShown: false, gestureEnabled: false }} />
+        </Stack.Protected>
+        <Stack.Protected guard={welcomed}>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false, title: "Tread" }} />
+          {/*
+            * Running is a page laid over the tabs, not a tab.
+            *
+            * It already was in all but name: it hid the bar and carried its
+            * own way out. Making it a real stacked page gives it the native
+            * back gesture — the page follows the finger and uncovers the one
+            * beneath — which no tab can offer, having nothing behind it to
+            * reveal.
+            */}
+          {/*
+            * Presented over the tabs rather than pushed in front of them.
+            *
+            * A transparent background alone was not enough: react-native-screens
+            * detaches the screen underneath a pushed one and only puts it back
+            * when the stack itself starts moving, so dragging uncovered nothing
+            * and the tab arrived only once the gesture had finished.
+            *
+            * A transparent modal keeps that screen attached the whole time,
+            * which is the one thing the drag needs. The animation is named
+            * explicitly because this presentation would otherwise arrive from
+            * the bottom, and this screen has always come from the side.
+            */}
+          <Stack.Screen
+            name="record"
+            options={{
+              headerShown: false,
+              presentation: "transparentModal",
+              animation: "slide_from_right",
+              gestureDirection: "horizontal",
+              contentStyle: { backgroundColor: "transparent" },
+            }}
+          />
+          <Stack.Screen name="run/[id]" options={{ title: s.run, headerBackTitle: s.back }} />
+          <Stack.Screen name="plan-method" options={{ title: s.method, headerBackTitle: s.back }} />
+          {/* One screen for both: drawing a route and changing one are the same
+              act, and the title is set by the screen from what it was given. */}
+          <Stack.Screen name="route/[id]" options={{ headerBackTitle: s.back }} />
+          {/* A page of its own, with its own rooms under it. Naming each back
+              button after the page it returns to is what makes a hierarchy
+              readable from inside it. */}
+          <Stack.Screen name="settings/index" options={{ title: s.settings, headerBackTitle: s.profile }} />
+          <Stack.Screen
+            name="settings/notifications"
+            options={{ title: s.notifications, headerBackTitle: s.settings }}
+          />
+          <Stack.Screen
+            name="settings/language"
+            options={{ title: s.language, headerBackTitle: s.settings }}
+          />
+          <Stack.Screen name="settings/data" options={{ title: s.data, headerBackTitle: s.settings }} />
+          <Stack.Screen name="settings/about" options={{ title: s.about, headerBackTitle: s.settings }} />
+          <Stack.Screen
+            name="settings/privacy"
+            options={{ title: s.privacy, headerBackTitle: s.about }}
+          />
+          <Stack.Screen
+            name="settings/transfer"
+            options={{ title: s.transfer, headerBackTitle: s.back }}
+          />
+          <Stack.Screen name="settings/send" options={{ title: s.send, headerBackTitle: s.back }} />
+          <Stack.Screen name="settings/receive" options={{ title: s.receive, headerBackTitle: s.back }} />
+        </Stack.Protected>
       </Stack>
     </GestureHandlerRootView>
   );

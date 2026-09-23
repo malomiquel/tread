@@ -2,8 +2,32 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { GlassPanel } from "@/components/GlassPanel";
 import { formatPace } from "@/lib/format";
+import { defineStrings, plural, useStrings } from "@/lib/i18n";
 import { colors, floatingShadow, font } from "@/lib/theme";
-import { groupLabel, groupSteps, sessionMinutes, type Session } from "@/lib/workout";
+import { groupLabel, groupSteps, sessionMinutes, sessionName, type Session } from "@/lib/workout";
+
+const sessionDetailStrings = defineStrings({
+  fr: {
+    kicker: "Séance",
+    summary: (blocks: number, minutes: number) =>
+      `${plural(blocks, "bloc", "blocs")} · environ ${minutes} min`,
+    noteRunning: "Un bloc mesuré en distance finit quand la distance est faite, pas au bout d'un temps.",
+    noteBefore: "Durée estimée : les blocs en distance dépendent de ton allure réelle.",
+    start: "Démarrer cette séance",
+    skip: "Passer cette séance",
+    free: "Courir sans séance",
+  },
+  en: {
+    kicker: "Session",
+    summary: (blocks: number, minutes: number) =>
+      `${plural(blocks, "block", "blocks")} · about ${minutes} min`,
+    noteRunning: "A distance block ends when the distance is covered, not when a time runs out.",
+    noteBefore: "Estimated time: distance blocks depend on your actual pace.",
+    start: "Start this session",
+    skip: "Skip this session",
+    free: "Run without a session",
+  },
+});
 
 interface Props {
   visible: boolean;
@@ -46,6 +70,7 @@ function spans(session: Session): { label: string; from: number; to: number }[] 
 export function SessionDetail({
   visible, session, currentIndex = null, targetSKm = null, onStart, onFree, onSkip, onClose,
 }: Props) {
+  const s = useStrings(sessionDetailStrings);
   if (!session) return null;
   const groups = spans(session);
   const running = currentIndex !== null;
@@ -57,11 +82,10 @@ export function SessionDetail({
         {/* Stops a tap inside the sheet from closing it. */}
         <Pressable onPress={() => undefined} style={styles.sheet}>
           <GlassPanel style={styles.panel}>
-            <Text style={styles.kicker}>Séance</Text>
-            <Text style={styles.name}>{session.name}</Text>
+            <Text style={styles.kicker}>{s.kicker}</Text>
+            <Text style={styles.name}>{sessionName(session)}</Text>
             <Text style={styles.detail}>
-              {session.steps.length} bloc{session.steps.length > 1 ? "s" : ""} · environ{" "}
-              {sessionMinutes(session)} min
+              {s.summary(session.steps.length, sessionMinutes(session))}
               {targetSKm !== null ? ` · ${formatPace(targetSKm)}` : ""}
             </Text>
 
@@ -99,9 +123,7 @@ export function SessionDetail({
                 takes as long as it takes. It exists to tell a twenty minute
                 session from an hour long one, not to be relied upon. */}
             <Text style={styles.note}>
-              {running
-                ? "Un bloc mesuré en distance finit quand la distance est faite, pas au bout d'un temps."
-                : "Durée estimée : les blocs en distance dépendent de ton allure réelle."}
+              {running ? s.noteRunning : s.noteBefore}
             </Text>
 
             {onStart ? (
@@ -111,7 +133,7 @@ export function SessionDetail({
                 style={({ pressed }) => [styles.start, pressed && styles.pressed]}
               >
                 <Ionicons name="play" size={17} color={colors.accentText} />
-                <Text style={styles.startLabel}>Démarrer cette séance</Text>
+                <Text style={styles.startLabel}>{s.start}</Text>
               </Pressable>
             ) : null}
 
@@ -124,7 +146,7 @@ export function SessionDetail({
                 accessibilityRole="button"
                 style={({ pressed }) => [styles.free, pressed && styles.pressed]}
               >
-                <Text style={styles.skipLabel}>Passer cette séance</Text>
+                <Text style={styles.skipLabel}>{s.skip}</Text>
               </Pressable>
             ) : null}
 
@@ -134,7 +156,7 @@ export function SessionDetail({
                 accessibilityRole="button"
                 style={({ pressed }) => [styles.free, pressed && styles.pressed]}
               >
-                <Text style={styles.freeLabel}>Courir sans séance</Text>
+                <Text style={styles.freeLabel}>{s.free}</Text>
               </Pressable>
             ) : null}
           </GlassPanel>
