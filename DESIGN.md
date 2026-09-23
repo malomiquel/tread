@@ -200,6 +200,7 @@ defaults.
 | `RunShape` | A run's outline in a tile, from a 60-point sample, cached. |
 | `RunMap`, `TrackOverlay` | The map and the track drawn on it. |
 | `ShareCard` | The picture a run leaves as. |
+| `RecapCard` | A month or a year as a picture, the run card's size, on the light accent whatever the appearance. |
 | `LineChart` | A series against distance on a run's page (altitude, pace, heart rate): line over a soft fill, the two extremes named. |
 
 ### Sheets and dialogs

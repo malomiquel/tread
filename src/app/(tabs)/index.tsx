@@ -44,6 +44,7 @@ const historyStrings = defineStrings({
     importFromApp: "Importer depuis une autre app",
     importShort: "Importer",
     list: "Liste",
+    monthRecap: "Récap du mois, à partager",
     calendar: "Calendrier",
     add: "Ajouter",
     addTitle: "Ajouter une course",
@@ -77,6 +78,7 @@ const historyStrings = defineStrings({
     importFromApp: "Import from another app",
     importShort: "Import",
     list: "List",
+    monthRecap: "This month's recap, to share",
     calendar: "Calendar",
     add: "Add",
     addTitle: "Add a run",
@@ -341,6 +343,7 @@ function monthName(start: number, now: number): string {
  */
 function MonthBanner({ runs, now }: { runs: Run[]; now: number }) {
   const s = useStrings(historyStrings);
+  const router = useRouter();
   const { current, previous } = monthSummary(runs, now);
   const ahead = current.distanceM >= previous.distanceM;
   return (
@@ -351,6 +354,9 @@ function MonthBanner({ runs, now }: { runs: Run[]; now: number }) {
       detail={current.runs > 0
         ? s.monthRuns(current.runs, formatDuration(current.durationS))
         : s.nothingYet}
+      // The month on a picture to share, from the figure that sums it up.
+      onPress={() => router.push({ pathname: "/recap", params: { kind: "month" } })}
+      accessibilityLabel={s.monthRecap}
     >
       {previous.distanceM > 0 ? (
         <BannerTag>

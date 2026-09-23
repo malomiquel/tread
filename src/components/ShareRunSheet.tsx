@@ -2,8 +2,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { File, Paths } from "expo-file-system";
 import { useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, Alert, Modal, Platform, Pressable, StyleSheet, Text, TurboModuleRegistry,
-  useColorScheme, View,
+  ActivityIndicator, Alert, Modal, Pressable, StyleSheet, Text, useColorScheme, View,
 } from "react-native";
 import * as Sharing from "expo-sharing";
 import { CardMapSource, type CardMapHandle } from "@/components/CardMapSource";
@@ -18,6 +17,7 @@ import { placeName } from "@/lib/location";
 import { readColour, stroke, veil, type Canvas } from "@/lib/raster";
 import { buildReplay, drawnSoFar, headAt } from "@/lib/replay";
 import { colors, floatingShadow, font, literalColors } from "@/lib/theme";
+import { viewShot, type ViewShot } from "@/lib/viewShot";
 
 /**
  * How many frames the animation is made of, and how long each is held.
@@ -110,36 +110,6 @@ const drawn = () =>
   new Promise<void>((resolve) => {
     requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
   });
-
-type ViewShot = typeof import("react-native-view-shot");
-
-let loaded: ViewShot | null | undefined;
-
-/**
- * The screenshot library, or null where its native half is missing.
- *
- * Probed rather than imported, and the distinction matters more here than
- * anywhere else in the app: this library resolves its native module with
- * `getEnforcing`, which throws at import time. A plain import therefore takes
- * down the whole run screen wherever the native side is absent — Expo Go, for
- * one — rather than merely disabling the button it belongs to.
- *
- * The same shape as the HealthKit guard, for the same reason: ask the
- * registry first, because asking the registry cannot throw.
- */
-function viewShot(): ViewShot | null {
-  if (loaded !== undefined) return loaded;
-  if (Platform.OS === "web") return (loaded = null);
-  try {
-    loaded = TurboModuleRegistry.get("RNViewShot")
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      ? (require("react-native-view-shot") as ViewShot)
-      : null;
-  } catch {
-    loaded = null;
-  }
-  return loaded;
-}
 
 /** Whether a run can be turned into a picture on this device at all. */
 export const canShareImage = (): boolean => viewShot() !== null;

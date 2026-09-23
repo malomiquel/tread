@@ -49,6 +49,8 @@ const profileStrings = defineStrings({
     longest: "Plus longue sortie",
     allTime: "Depuis le début",
     heatmap: "Carte de toutes tes courses",
+    recap: (year: number) => `Récap ${year} à partager`,
+    recapDetail: "Ton année en une image",
     heatmapDetail: "Les rues que tu cours le plus ressortent",
     thisYear: (year: number) => `En ${year}`,
     yearAside: "à la même date l'an dernier",
@@ -85,6 +87,8 @@ const profileStrings = defineStrings({
     longest: "Longest run",
     allTime: "All time",
     heatmap: "Map of all your runs",
+    recap: (year: number) => `${year} recap to share`,
+    recapDetail: "Your year in one picture",
     heatmapDetail: "The streets you run most stand out",
     thisYear: (year: number) => `In ${year}`,
     yearAside: "against last year to date",
@@ -418,6 +422,16 @@ export default function ProfileScreen() {
                     label={s.yearRuns}
                     value={String(ytd.thisYear.runs)}
                     compare={ytd.lastYear.runs > 0 ? s.lastYear(String(ytd.lastYear.runs)) : undefined}
+                  />
+                </View>
+                <View style={styles.heatmap}>
+                  <RecordRow
+                    first
+                    icon="share-outline"
+                    label={s.recap(ytd.year)}
+                    detail={s.recapDetail}
+                    value=""
+                    onPress={() => router.push({ pathname: "/recap", params: { kind: "year" } })}
                   />
                 </View>
               </>

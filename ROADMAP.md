@@ -83,7 +83,7 @@ when it is done; add a line when something new comes up.
 ### Quality
 - [x] Pace rounding fixed (4'59"6 showed as 4'00")
 - [x] `DESIGN.md` design system, loaded by `CLAUDE.md` in every session
-- [x] 374 unit tests; typecheck, lint, expo-doctor 21/21, iOS bundle
+- [x] 378 unit tests; typecheck, lint, expo-doctor 21/21, iOS bundle
 
 ### Earlier work
 - [x] Weather before/after runs, forecasts on plan sessions, on the share card
@@ -149,7 +149,10 @@ High value, moderate effort
 - [ ] **Android widget preview image** for the launcher's widget picker
 - [x] **Streaks**: weeks in a row on the weekly goal (or with a run, without
   a goal), as a tag on Profile's banner, and the longest in the records
-- [ ] **Recaps**: a monthly and yearly recap to share, like the run card
+- [x] **Recaps**: a month or a year on one picture the size of the run card
+  (distance, runs and days, a bar per week or month, time, climb, longest,
+  change on the period before); from History's month banner and Profile's
+  year; steps back through past periods
 - [x] **Privacy zones**: shared pictures and GIFs hide the track within
   200 m / 500 m / 1 km of the start and finish (Settings › Sharing, 200 m by
   default); figures stay the whole run's
