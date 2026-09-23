@@ -495,3 +495,17 @@ test("a session is named in English when the interface is", async () => {
     setLanguage("fr");
   }
 });
+
+test("a run's session is recognised whichever way it was named", async () => {
+  const { sessionKind } = await import("./plan.ts");
+  assert.equal(sessionKind("threshold"), "tempo");
+  assert.equal(sessionKind("tempo-3-8-eased"), "tempo");
+  assert.equal(sessionKind("400"), "interval");
+  assert.equal(sessionKind("interval-800-5"), "interval");
+  assert.equal(sessionKind("pyramid"), "interval");
+  assert.equal(sessionKind("easy-30"), "easy");
+  assert.equal(sessionKind("long"), "long");
+  assert.equal(sessionKind("race-half"), "race");
+  assert.equal(sessionKind(null), null);
+  assert.equal(sessionKind("something-else"), null);
+});

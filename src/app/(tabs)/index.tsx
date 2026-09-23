@@ -1,17 +1,22 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useFocusEffect, useRouter, useScrollToTop } from "expo-router";
 import { useCallback, useState, useRef } from "react";
-import { Alert, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, SectionList, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Button } from "@/components/Button";
-import { RunButtonText } from "@/components/RunButtonText";
+import { EmptyState } from "@/components/EmptyState";
+import { RunShape } from "@/components/RunShape";
 import { SwipeToDelete } from "@/components/SwipeToDelete";
 import { deleteRun, listRuns, planSessionOfRun, type Run } from "@/lib/db";
 import { importRunFiles } from "@/lib/files";
 import { formatDate, formatDistance, formatDuration, formatPace } from "@/lib/format";
 import { forgetRunInHealth } from "@/lib/health";
-import { defineStrings, plural, useStrings } from "@/lib/i18n";
+import { defineStrings, intlLocale, plural, useStrings } from "@/lib/i18n";
 import { useTabBarSpace } from "@/lib/layout";
+import { kindName, sessionKind } from "@/lib/plan";
+import { byMonth, monthSummary, type MonthGroup } from "@/lib/stats";
 import { colors, font } from "@/lib/theme";
+import { chooseSession } from "@/lib/tracker";
+import { formatTemperature, weatherIcon } from "@/lib/weather";
 
 const historyStrings = defineStrings({
   fr: {
@@ -26,12 +31,17 @@ const historyStrings = defineStrings({
     deleteLinked: " La séance correspondante redeviendra à faire dans ton programme.",
     cancel: "Annuler",
     delete: "Supprimer",
-    empty:
-      "Aucune course pour l'instant. Touche le bouton ▶ au centre de la barre pour enregistrer ta première sortie.",
+    runNow: "Courir maintenant",
+    runNowDetail: "Une sortie libre, avec une séance ou un parcours si tu veux.",
     importing: "Import…",
     importFromApp: "Importer depuis une autre app",
-    importHint: "Strava, Garmin, une montre : exporte tes courses en fichiers GPX, puis ouvre-les ici.",
+    importHint: "Depuis Strava, Garmin ou une montre, en fichiers GPX.",
     thisRun: "cette course",
+    thisMonth: "Ce mois-ci",
+    monthRuns: (count: number, time: string) => `${plural(count, "course", "courses")} · ${time}`,
+    nothingYet: "Pas encore de course ce mois-ci",
+    lastMonth: (month: string, km: string) => `${month} : ${km} km`,
+    monthTotal: (km: string, count: number) => `${km} km · ${count}`,
   },
   en: {
     title: "History",
@@ -45,11 +55,17 @@ const historyStrings = defineStrings({
     deleteLinked: " The matching session will be back on your training plan.",
     cancel: "Cancel",
     delete: "Delete",
-    empty: "No runs yet. Tap the ▶ button in the middle of the bar to record your first run.",
+    runNow: "Run now",
+    runNowDetail: "A free run, with a session or a route if you like.",
     importing: "Importing…",
     importFromApp: "Import from another app",
-    importHint: "Strava, Garmin, a watch: export your runs as GPX files, then open them here.",
+    importHint: "From Strava, Garmin or a watch, as GPX files.",
     thisRun: "this run",
+    thisMonth: "This month",
+    monthRuns: (count: number, time: string) => `${plural(count, "run", "runs")} · ${time}`,
+    nothingYet: "No runs this month yet",
+    lastMonth: (month: string, km: string) => `${month}: ${km} km`,
+    monthTotal: (km: string, count: number) => `${km} km · ${count}`,
   },
 });
 
@@ -63,10 +79,12 @@ export default function HistoryScreen() {
    * having nothing to do.
    */
   const s = useStrings(historyStrings);
-  const list = useRef<FlatList<Run>>(null);
+  const list = useRef<SectionList<Run, MonthGroup>>(null);
   useScrollToTop(list);
 
   const [runs, setRuns] = useState<Run[] | null>(null);
+  /** When the list was read: the month banner is about that moment. */
+  const [readAt, setReadAt] = useState(() => Date.now());
   const router = useRouter();
   const tabBarSpace = useTabBarSpace();
   const [importing, setImporting] = useState(false);
@@ -79,7 +97,9 @@ export default function HistoryScreen() {
       let active = true;
       listRuns()
         .then((rows) => {
-          if (active) setRuns(rows);
+          if (!active) return;
+          setRuns(rows);
+          setReadAt(Date.now());
         })
         .catch(() => {
           if (active) setRuns([]);
@@ -130,6 +150,7 @@ export default function HistoryScreen() {
   }
 
   const totalM = (runs ?? []).reduce((total, run) => total + run.distanceM, 0);
+  const sections = byMonth(runs ?? []).map((group) => ({ ...group, data: group.runs }));
 
   /**
    * Arm the deletion, and find out what else it would take with it.
@@ -177,54 +198,166 @@ export default function HistoryScreen() {
         </View>
       </View>
 
-      <FlatList
+      <SectionList
         ref={list}
-        data={runs ?? []}
+        sections={sections}
         keyExtractor={(run) => String(run.id)}
+        stickySectionHeadersEnabled
         // Room for the bar and for the button floating above it, so the last
         // run in the list is never sitting underneath either of them.
         contentContainerStyle={{ paddingBottom: tabBarSpace + 60 }}
+        ListHeaderComponent={
+          runs && runs.length > 0 ? <MonthBanner runs={runs} now={readAt} /> : null
+        }
         ListEmptyComponent={
           runs === null ? null : (
-            <View style={styles.emptyBlock}>
-              <RunButtonText style={styles.empty}>{s.empty}</RunButtonText>
-              <Button
-                label={importing ? s.importing : s.importFromApp}
-                variant="secondary"
-                onPress={() => void importGpx()}
-                disabled={importing}
-              />
-              <Text style={styles.emptyHint}>{s.importHint}</Text>
-            </View>
+            <EmptyState
+              actions={[
+                {
+                  icon: "play",
+                  title: s.runNow,
+                  detail: s.runNowDetail,
+                  primary: true,
+                  onPress: () => {
+                    chooseSession(null);
+                    router.push("/record");
+                  },
+                },
+                {
+                  icon: "download-outline",
+                  title: importing ? s.importing : s.importFromApp,
+                  detail: s.importHint,
+                  busy: importing,
+                  onPress: () => void importGpx(),
+                },
+              ]}
+            />
           )
         }
-        renderItem={({ item }) => (
-          <SwipeToDelete label={item.name ?? s.thisRun} onDelete={() => void askDelete(item)}>
-          <Pressable
-            onPress={() => router.push({ pathname: "/run/[id]", params: { id: String(item.id) } })}
-            accessibilityRole="button"
-            style={({ pressed }) => [styles.row, pressed && styles.pressed]}
-          >
-            <View style={styles.rowLeft}>
-              <Text style={styles.name}>{item.name ?? formatDate(item.startedAt)}</Text>
-              {item.name ? <Text style={styles.when}>{formatDate(item.startedAt)}</Text> : null}
-              <Text style={styles.detail}>
-                {formatDuration(item.durationS)} · {formatPace(item.avgPaceSKm)} /km
-              </Text>
-            </View>
-            <Text style={styles.distance}>
-              {formatDistance(item.distanceM)}
-              <Text style={styles.km}> km</Text>
+        renderSectionHeader={({ section }) => (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>{monthName(section.start, readAt)}</Text>
+            <Text style={styles.sectionTotal}>
+              {s.monthTotal(formatDistance(section.distanceM), section.runs.length)}
             </Text>
-          </Pressable>
+          </View>
+        )}
+        renderItem={({ item, index }) => (
+          <SwipeToDelete label={item.name ?? s.thisRun} onDelete={() => void askDelete(item)}>
+            <RunRow
+              run={item}
+              first={index === 0}
+              onPress={() => router.push({ pathname: "/run/[id]", params: { id: String(item.id) } })}
+            />
           </SwipeToDelete>
         )}
       />
-
       </View>
-
-
     </SafeAreaView>
+  );
+}
+
+/** "Septembre", or "Septembre 2025" once it is not this year's. */
+function monthName(start: number, now: number): string {
+  const date = new Date(start);
+  const sameYear = date.getFullYear() === new Date(now).getFullYear();
+  const name = date.toLocaleDateString(intlLocale(), sameYear ? { month: "long" } : { month: "long", year: "numeric" });
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
+/**
+ * The month so far, in the app's colour, above everything else.
+ *
+ * The one place the history speaks before it lists: how far this month has
+ * gone, and how that stands against the last one — which is the question a
+ * runner opening their history is usually asking.
+ */
+function MonthBanner({ runs, now }: { runs: Run[]; now: number }) {
+  const s = useStrings(historyStrings);
+  const { current, previous } = monthSummary(runs, now);
+  const ahead = current.distanceM >= previous.distanceM;
+  return (
+    <View style={styles.banner}>
+      <Text style={styles.bannerLabel}>{s.thisMonth}</Text>
+      {current.runs > 0 ? (
+        <>
+          <Text style={styles.bannerValue}>
+            {formatDistance(current.distanceM)}
+            <Text style={styles.bannerUnit}> km</Text>
+          </Text>
+          <Text style={styles.bannerDetail}>{s.monthRuns(current.runs, formatDuration(current.durationS))}</Text>
+        </>
+      ) : (
+        <Text style={styles.bannerEmpty}>{s.nothingYet}</Text>
+      )}
+      {previous.distanceM > 0 ? (
+        <View style={styles.bannerCompare}>
+          <Ionicons
+            name={ahead ? "trending-up" : "trending-down"}
+            size={16}
+            color={colors.accentText}
+          />
+          <Text style={styles.bannerCompareText}>
+            {s.lastMonth(monthName(previous.start, now), formatDistance(previous.distanceM))}
+          </Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/**
+ * One run: its shape, what it was, and how far.
+ *
+ * The shape on the left is what the eye finds first — people know their
+ * loops by their outline. The weather and the session it followed sit under
+ * the name as small marks of colour, there only when there is something to
+ * say.
+ */
+function RunRow({ run, first, onPress }: { run: Run; first: boolean; onPress: () => void }) {
+  const kind = sessionKind(run.sessionId);
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+    >
+      <RunShape runId={run.id} />
+      <View style={[styles.rowBody, !first && styles.rowRule]}>
+        <View style={styles.rowText}>
+          <Text style={styles.name} numberOfLines={1}>{run.name ?? formatDate(run.startedAt)}</Text>
+          <Text style={styles.when} numberOfLines={1}>{formatDate(run.startedAt)}</Text>
+          {run.weather || kind ? (
+            <View style={styles.marks}>
+              {run.weather ? (
+                <View style={styles.mark}>
+                  <Ionicons
+                    name={weatherIcon(run.weather.code, run.weather.day)}
+                    size={13}
+                    color={colors.muted}
+                  />
+                  <Text style={styles.markText}>{formatTemperature(run.weather.temperatureC)}</Text>
+                </View>
+              ) : null}
+              {kind ? (
+                <View style={[styles.chip, kind === "race" && styles.chipRace]}>
+                  <Text style={[styles.chipText, kind === "race" && styles.chipRaceText]}>
+                    {kindName(kind)}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+        </View>
+        <View style={styles.figures}>
+          <Text style={styles.distance}>
+            {formatDistance(run.distanceM)}
+            <Text style={styles.km}> km</Text>
+          </Text>
+          <Text style={styles.pace}>{formatPace(run.avgPaceSKm)} /km</Text>
+        </View>
+      </View>
+    </Pressable>
   );
 }
 
@@ -242,28 +375,73 @@ const styles = StyleSheet.create({
   title: { color: colors.text, fontSize: 32, fontFamily: font.bold, letterSpacing: -0.6 },
   subtitle: { color: colors.subtle, fontFamily: font.regular, fontSize: 15, marginTop: 3 },
 
-  emptyBlock: { marginTop: 56, paddingHorizontal: GUTTER, gap: 18, alignItems: "stretch" },
-  empty: { color: colors.muted, fontFamily: font.regular, fontSize: 17.5, textAlign: "center", lineHeight: 27.5 },
-  emptyHint: { color: colors.subtle, fontFamily: font.regular, fontSize: 14.5, textAlign: "center", lineHeight: 22 },
 
-  // A plain list separated by rules, the way a timetable or a statement is
-  // set. Boxing each run in its own floating card added nothing but noise.
+  banner: {
+    marginHorizontal: GUTTER, marginBottom: 6, padding: 18, gap: 2,
+    borderRadius: 18, backgroundColor: colors.accent,
+  },
+  bannerLabel: {
+    color: colors.accentText, opacity: 0.75, fontSize: 12.5,
+    fontFamily: font.semibold, letterSpacing: 1.2, textTransform: "uppercase",
+  },
+  bannerValue: {
+    color: colors.accentText, fontSize: 46, fontFamily: font.bold,
+    letterSpacing: -1.2, fontVariant: ["tabular-nums"], lineHeight: 52,
+  },
+  bannerUnit: { fontSize: 20, fontFamily: font.semibold, letterSpacing: 0 },
+  bannerDetail: { color: colors.accentText, opacity: 0.85, fontSize: 15, fontFamily: font.medium },
+  bannerEmpty: { color: colors.accentText, fontSize: 20, fontFamily: font.semibold, marginVertical: 6 },
+  bannerCompare: {
+    flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10,
+    alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12,
+    backgroundColor: "rgba(255, 255, 255, 0.16)",
+  },
+  bannerCompareText: { color: colors.accentText, fontSize: 13.5, fontFamily: font.semibold },
+
+  // The month stays pinned while its runs scroll under it, on the page's own
+  // colour so the rows slide beneath rather than through it.
+  section: {
+    flexDirection: "row", alignItems: "baseline", justifyContent: "space-between",
+    paddingHorizontal: GUTTER, paddingTop: 20, paddingBottom: 8,
+    backgroundColor: colors.background,
+  },
+  sectionTitle: { color: colors.text, fontSize: 21, fontFamily: font.bold, letterSpacing: -0.3 },
+  sectionTotal: {
+    color: colors.accent, fontSize: 15, fontFamily: font.semibold, fontVariant: ["tabular-nums"],
+  },
+
   row: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 16,
-    paddingHorizontal: GUTTER, paddingVertical: 15,
+    flexDirection: "row", alignItems: "center", gap: 14,
+    paddingLeft: GUTTER,
     // Opaque on purpose: the delete action sits behind the row, and a
     // transparent background would let its red show through.
     backgroundColor: colors.background,
-    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline,
   },
   pressed: { backgroundColor: colors.sunken },
-  rowLeft: { flex: 1, gap: 3 },
-  name: { color: colors.text, fontSize: 20.5, fontFamily: font.semibold, letterSpacing: -0.2 },
-  when: { color: colors.subtle, fontSize: 14.5 },
-  detail: { color: colors.muted, fontFamily: font.regular, fontSize: 16, fontVariant: ["tabular-nums"] },
+  // The rule starts after the shape, so the shapes read as one column.
+  rowBody: {
+    flex: 1, flexDirection: "row", alignItems: "center", gap: 12,
+    paddingVertical: 12, paddingRight: GUTTER,
+  },
+  rowRule: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline },
+  rowText: { flex: 1, gap: 2 },
+  name: { color: colors.text, fontSize: 18.5, fontFamily: font.semibold, letterSpacing: -0.2 },
+  when: { color: colors.subtle, fontSize: 14 },
+  marks: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 3 },
+  mark: { flexDirection: "row", alignItems: "center", gap: 3 },
+  markText: { color: colors.muted, fontSize: 13.5, fontFamily: font.medium },
+  chip: {
+    paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8,
+    backgroundColor: colors.accentSoft,
+  },
+  chipText: { color: colors.accent, fontSize: 12.5, fontFamily: font.semibold },
+  chipRace: { backgroundColor: colors.warning },
+  chipRaceText: { color: colors.accentText },
+  figures: { alignItems: "flex-end", gap: 1 },
   distance: {
-    color: colors.text, fontSize: 29, fontFamily: font.semibold,
+    color: colors.text, fontSize: 27, fontFamily: font.semibold,
     letterSpacing: -0.8, fontVariant: ["tabular-nums"],
   },
-  km: { color: colors.subtle, fontSize: 14.5, fontFamily: font.semibold, letterSpacing: 0 },
+  km: { color: colors.subtle, fontSize: 14, fontFamily: font.semibold, letterSpacing: 0 },
+  pace: { color: colors.muted, fontSize: 14, fontFamily: font.medium, fontVariant: ["tabular-nums"] },
 });

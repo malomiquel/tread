@@ -808,6 +808,27 @@ export async function listRuns(): Promise<Run[]> {
   return rows.map(toRun);
 }
 
+/**
+ * The shape of a run, light enough to draw in a list row.
+ *
+ * Evenly sampled down to about sixty points by SQLite itself, so a list of a
+ * hundred runs reads a few thousand rows rather than every fix of every run.
+ * A shape is recognisable long before it is accurate.
+ */
+export async function runShape(id: number, points = 60): Promise<{ lat: number; lng: number }[]> {
+  return getDb().getAllAsync<{ lat: number; lng: number }>(
+    `SELECT lat, lng FROM (
+       SELECT lat, lng, ts,
+              ROW_NUMBER() OVER (ORDER BY ts) AS position,
+              COUNT(*) OVER () AS total
+       FROM points WHERE run_id = ?
+     )
+     WHERE (position - 1) % MAX(1, total / ?) = 0 OR position = total
+     ORDER BY ts`,
+    id, points,
+  );
+}
+
 export async function readRun(id: number): Promise<{ run: Run; points: TrackPoint[] } | null> {
   const db = getDb();
   const row = await db.getFirstAsync<RunRow>("SELECT * FROM runs WHERE id = ?", id);

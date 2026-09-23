@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { formatEnergy, formatSpeed } from "./format.ts";
 import {
+  byMonth, monthSummary,
   goalProgress, suggestedWeeklyGoalM, timeAgo, weeklyVolumeKm, weekStart, weekTotals,
 } from "./stats.ts";
 
@@ -143,4 +144,37 @@ test("the goal suggested is their own average, to the nearest five", () => {
 
 test("somebody who has never run is offered five kilometres, not zero", () => {
   assert.equal(suggestedWeeklyGoalM([], Date.now()), 5000);
+});
+
+test("runs are gathered by month, newest first, with their totals", () => {
+  const sep = run(new Date(2026, 8, 20, 8).getTime(), 8000, 2400);
+  const sepEarly = run(new Date(2026, 8, 2, 8).getTime(), 5000, 1500);
+  const aug = run(new Date(2026, 7, 30, 8).getTime(), 10_000, 3000);
+  const groups = byMonth([sep, sepEarly, aug]);
+  assert.deepEqual(groups.map((g) => g.key), ["2026-09", "2026-08"]);
+  assert.equal(groups[0].runs.length, 2);
+  assert.equal(groups[0].distanceM, 13_000);
+  assert.equal(groups[0].durationS, 3900);
+  assert.equal(groups[0].start, new Date(2026, 8, 1).getTime());
+  assert.deepEqual(byMonth([]), []);
+});
+
+test("the month banner counts this month and names the last one", () => {
+  const now = new Date(2026, 8, 23, 12).getTime();
+  const summary = monthSummary([
+    run(new Date(2026, 8, 20, 8).getTime(), 8000, 2400),
+    run(new Date(2026, 7, 30, 8).getTime(), 10_000, 3000),
+    run(new Date(2026, 6, 1, 8).getTime(), 21_000, 7000),
+  ], now);
+  assert.equal(summary.current.distanceM, 8000);
+  assert.equal(summary.current.runs, 1);
+  assert.equal(summary.previous.distanceM, 10_000);
+  assert.equal(summary.previous.start, new Date(2026, 7, 1).getTime());
+});
+
+test("a month with no runs yet is zero, not missing", () => {
+  const now = new Date(2026, 0, 3).getTime();
+  const summary = monthSummary([run(new Date(2025, 11, 28).getTime())], now);
+  assert.equal(summary.current.runs, 0);
+  assert.equal(summary.previous.distanceM, 5000);
 });

@@ -130,3 +130,73 @@ export function suggestedWeeklyGoalM(runs: Run[], nowMs = Date.now()): number {
   const average = weeklyVolumeKm(runs, nowMs) ?? 0;
   return Math.max(5, Math.round(average / 5) * 5) * 1000;
 }
+
+/** The runs of one calendar month, with what they add up to. */
+export interface MonthGroup {
+  /** "2026-09": sortable, and stable as a list key. */
+  key: string;
+  /** Midnight on the first of the month, local time. */
+  start: number;
+  runs: Run[];
+  distanceM: number;
+  durationS: number;
+}
+
+const monthKey = (ts: number): string => {
+  const date = new Date(ts);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+};
+
+/**
+ * Runs gathered by the month they were run in, newest month first and the
+ * runs inside each in the order they came.
+ *
+ * A history is read in months — "how did September go" — and a plain list
+ * of a hundred rows gives no place to stop and take stock.
+ */
+export function byMonth(runs: Run[]): MonthGroup[] {
+  const groups = new Map<string, MonthGroup>();
+  for (const run of runs) {
+    const key = monthKey(run.startedAt);
+    let group = groups.get(key);
+    if (!group) {
+      const date = new Date(run.startedAt);
+      group = {
+        key,
+        start: new Date(date.getFullYear(), date.getMonth(), 1).getTime(),
+        runs: [],
+        distanceM: 0,
+        durationS: 0,
+      };
+      groups.set(key, group);
+    }
+    group.runs.push(run);
+    group.distanceM += run.distanceM;
+    group.durationS += run.durationS;
+  }
+  return [...groups.values()].sort((a, b) => b.start - a.start);
+}
+
+/** This month and the one before, for the banner over the history. */
+export interface MonthSummary {
+  current: { distanceM: number; durationS: number; runs: number; start: number };
+  previous: { distanceM: number; start: number };
+}
+
+export function monthSummary(runs: Run[], now = Date.now()): MonthSummary {
+  const today = new Date(now);
+  const start = new Date(today.getFullYear(), today.getMonth(), 1).getTime();
+  const previousStart = new Date(today.getFullYear(), today.getMonth() - 1, 1).getTime();
+  const groups = new Map(byMonth(runs).map((group) => [group.key, group]));
+  const current = groups.get(monthKey(start));
+  const previous = groups.get(monthKey(previousStart));
+  return {
+    current: {
+      distanceM: current?.distanceM ?? 0,
+      durationS: current?.durationS ?? 0,
+      runs: current?.runs.length ?? 0,
+      start,
+    },
+    previous: { distanceM: previous?.distanceM ?? 0, start: previousStart },
+  };
+}

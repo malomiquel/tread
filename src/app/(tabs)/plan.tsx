@@ -4,13 +4,13 @@ import { useCallback, useState, useRef } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { PlanSetup, type PlanDraft } from "@/components/PlanSetup";
-import { RunButtonText } from "@/components/RunButtonText";
+import { EmptyState } from "@/components/EmptyState";
 import { SessionDetail } from "@/components/SessionDetail";
 import {
   activePlan, createPlan, deletePlan, markPlanSessionDone, planDone, recentExertions,
   type StoredPlan,
 } from "@/lib/db";
-import { formatDistance, formatDuration, formatPace } from "@/lib/format";
+import { formatDuration, formatPace } from "@/lib/format";
 import { defineStrings, plural, useStrings } from "@/lib/i18n";
 import { useTabBarSpace } from "@/lib/layout";
 import { useKnownLocation } from "@/lib/location";
@@ -53,14 +53,11 @@ const planStrings = defineStrings({
     skipped: "Passée",
     today: "aujourd'hui",
     title: "Plan",
-    noPlan: "Aucun programme en cours.",
-    noPlanWithGoal: (km: string, perWeek: number) =>
-      `Aucun programme en cours : tu cours à ton rythme, avec un objectif de ${km} km par semaine en ${perWeek} sorties.`,
     runNow: "Courir maintenant",
-    runNowDetail: "Une sortie libre. Tu peux choisir une séance ou un parcours sur la carte avant de partir.",
+    runNowDetail: "Une sortie libre, avec une séance ou un parcours si tu veux.",
     prepareRace: "Préparer une course",
     prepareRaceDetail:
-      "5 km, 10 km, semi ou marathon. Tread construit tes séances semaine par semaine jusqu'au jour J.",
+      "Du 5 km au marathon, des séances jusqu'au jour J.",
     startNote: "Avec ou sans programme, le bouton ▶ au centre de la barre lance une course à tout moment.",
     abandonTitle: "Abandonner le programme ?",
     abandonBody: "Les courses déjà faites restent dans ton historique. Seul le programme disparaît.",
@@ -93,14 +90,11 @@ const planStrings = defineStrings({
     skipped: "Skipped",
     today: "today",
     title: "Plan",
-    noPlan: "No training plan in progress.",
-    noPlanWithGoal: (km: string, perWeek: number) =>
-      `No training plan in progress: you run at your own pace, aiming for ${km} km a week over ${perWeek} runs.`,
     runNow: "Run now",
-    runNowDetail: "A free run. You can pick a session or a route on the map before you set off.",
+    runNowDetail: "A free run, with a session or a route if you like.",
     prepareRace: "Train for a race",
     prepareRaceDetail:
-      "5K, 10K, half or full marathon. Tread builds your sessions week by week, all the way to race day.",
+      "From 5K to marathon, sessions all the way to race day.",
     startNote: "With or without a plan, the ▶ button in the middle of the bar starts a run at any time.",
     abandonTitle: "Abandon the training plan?",
     abandonBody: "Runs you have already done stay in your history. Only the plan goes away.",
@@ -383,46 +377,30 @@ export default function PlanScreen() {
     return (
       <SafeAreaView style={styles.screen} edges={["top"]}>
         <ScrollView contentContainerStyle={{ paddingBottom: tabBarSpace }}>
-          <View style={styles.head}>
+          <View style={[styles.head, styles.headEmpty]}>
             <Text style={styles.title}>{s.title}</Text>
           </View>
-          <Text style={styles.lede}>
-            {settings.weeklyGoalM !== null && settings.runner !== null
-              ? s.noPlanWithGoal(formatDistance(settings.weeklyGoalM), settings.runner.perWeek)
-              : s.noPlan}
-          </Text>
-
-          <View style={styles.starts}>
-            <Pressable
-              onPress={() => {
-                chooseSession(null);
-                router.push("/record");
-              }}
-              accessibilityRole="button"
-              style={({ pressed }) => [styles.start, styles.startPrimary, pressed && styles.pressed]}
-            >
-              <Ionicons name="play" size={22} color={colors.accentText} />
-              <View style={styles.startBody}>
-                <Text style={[styles.startName, styles.startNamePrimary]}>{s.runNow}</Text>
-                <Text style={[styles.startDetail, styles.startDetailPrimary]}>{s.runNowDetail}</Text>
-              </View>
-            </Pressable>
-
-            <Pressable
-              onPress={() => setSettingUp(true)}
-              accessibilityRole="button"
-              style={({ pressed }) => [styles.start, pressed && styles.pressed]}
-            >
-              <Ionicons name="flag-outline" size={22} color={colors.accent} />
-              <View style={styles.startBody}>
-                <Text style={styles.startName}>{s.prepareRace}</Text>
-                <Text style={styles.startDetail}>{s.prepareRaceDetail}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.subtle} />
-            </Pressable>
-          </View>
-
-          <RunButtonText style={styles.startNote}>{s.startNote}</RunButtonText>
+          <EmptyState
+            actions={[
+              {
+                icon: "play",
+                title: s.runNow,
+                detail: s.runNowDetail,
+                primary: true,
+                onPress: () => {
+                  chooseSession(null);
+                  router.push("/record");
+                },
+              },
+              {
+                icon: "flag-outline",
+                title: s.prepareRace,
+                detail: s.prepareRaceDetail,
+                onPress: () => setSettingUp(true),
+              },
+            ]}
+            note={s.startNote}
+          />
         </ScrollView>
       </SafeAreaView>
     );
@@ -585,22 +563,9 @@ const styles = StyleSheet.create({
   },
   method: { padding: 4 },
 
-  starts: { paddingHorizontal: GUTTER, marginTop: 22, gap: 12 },
-  start: {
-    flexDirection: "row", alignItems: "center", gap: 14,
-    borderRadius: 12, padding: 16,
-    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline,
-  },
-  startPrimary: { backgroundColor: colors.accent, borderColor: colors.accent },
-  startBody: { flex: 1, gap: 3 },
-  startName: { color: colors.text, fontSize: 21, fontFamily: font.bold, letterSpacing: -0.3 },
-  startNamePrimary: { color: colors.accentText },
-  startDetail: { color: colors.muted, fontSize: 14.5, fontFamily: font.regular, lineHeight: 20 },
-  startDetailPrimary: { color: colors.accentText, opacity: 0.85 },
-  startNote: {
-    color: colors.subtle, fontSize: 13.5, fontFamily: font.regular, lineHeight: 19,
-    paddingHorizontal: GUTTER, marginTop: 18,
-  },
+  // The same room under the heading as every other tab leaves above its
+  // content, so an empty plan lines up with an empty history.
+  headEmpty: { paddingBottom: 14 },
   lede: {
     color: colors.muted, fontFamily: font.regular, fontSize: 15,
     paddingHorizontal: GUTTER, marginTop: 2,

@@ -287,6 +287,24 @@ const kindNames = defineStrings<Record<Kind, string>>({
 /** Displayed. */
 export const kindName = (kind: Kind): string => kindNames()[kind];
 
+/**
+ * What kind of session a run followed, from the id it was stored with.
+ *
+ * Library sessions and generated ones name themselves differently — "threshold"
+ * against "tempo-3-8" — but they are the same kinds of work, and a history
+ * badge should call them the same thing.
+ */
+export function sessionKind(id: string | null): Kind | null {
+  if (!id) return null;
+  const base = id.replace(/-eased$/, "");
+  if (base === "easy" || base.startsWith("easy-")) return "easy";
+  if (base === "long" || base.startsWith("long-")) return "long";
+  if (base === "400" || base === "pyramid" || base.startsWith("interval-")) return "interval";
+  if (base === "threshold" || base.startsWith("tempo-")) return "tempo";
+  if (base.startsWith("race-")) return "race";
+  return null;
+}
+
 export interface PlannedSession {
   /** Position in the programme, and the key a finished run is tied to. */
   order: number;

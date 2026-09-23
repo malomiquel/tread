@@ -3,6 +3,7 @@ import { useFocusEffect, useRouter, useScrollToTop } from "expo-router";
 import { useCallback, useState, useRef } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { EmptyState } from "@/components/EmptyState";
 import { WeeklyGoalSheet } from "@/components/WeeklyGoalSheet";
 import { listRuns, personalRecords, type PersonalRecords, type Run } from "@/lib/db";
 import { formatDistance, formatDuration, formatElevation, formatPace } from "@/lib/format";
@@ -11,12 +12,16 @@ import { useTabBarSpace } from "@/lib/layout";
 import { useSettings } from "@/lib/settings";
 import { goalProgress, suggestedWeeklyGoalM, weekStart } from "@/lib/stats";
 import { colors, font } from "@/lib/theme";
+import { chooseSession } from "@/lib/tracker";
 
 const profileStrings = defineStrings({
   fr: {
     title: "Profil",
     settings: "Réglages",
-    empty: "Rien à afficher pour le moment. Tes statistiques se construiront course après course.",
+    runNow: "Courir maintenant",
+    runNowDetail: "Ta première sortie lance tes records et tes totaux.",
+    goalDetail: "Une distance à viser, du lundi au dimanche.",
+    goalCurrent: (km: string) => `Objectif : ${km} km par semaine`,
     thisWeek: "Cette semaine",
     runs: (count: number) => plural(count, "course", "courses"),
     goalEdit: (km: string) => `Objectif hebdomadaire, ${km} kilomètres, modifier`,
@@ -42,7 +47,10 @@ const profileStrings = defineStrings({
   en: {
     title: "Profile",
     settings: "Settings",
-    empty: "Nothing to show yet. Your stats will build up run after run.",
+    runNow: "Run now",
+    runNowDetail: "Your first run starts your records and totals.",
+    goalDetail: "A distance to aim for, Monday to Sunday.",
+    goalCurrent: (km: string) => `Goal: ${km} km a week`,
     thisWeek: "This week",
     runs: (count: number) => plural(count, "run", "runs"),
     goalEdit: (km: string) => `Weekly goal, ${km} kilometres, edit`,
@@ -202,7 +210,28 @@ export default function ProfileScreen() {
         </View>
 
         {records.totalRuns === 0 ? (
-          <Text style={styles.empty}>{s.empty}</Text>
+          <EmptyState
+            actions={[
+              {
+                icon: "play",
+                title: s.runNow,
+                detail: s.runNowDetail,
+                primary: true,
+                onPress: () => {
+                  chooseSession(null);
+                  router.push("/record");
+                },
+              },
+              {
+                icon: "flag-outline",
+                title: settings.weeklyGoalM === null
+                  ? s.goalInvite
+                  : s.goalCurrent(formatDistance(settings.weeklyGoalM)),
+                detail: s.goalDetail,
+                onPress: () => setSettingGoal(true),
+              },
+            ]}
+          />
         ) : (
           <>
             <View style={styles.card}>
@@ -352,10 +381,6 @@ const styles = StyleSheet.create({
     color: colors.muted, fontFamily: font.regular, fontSize: 15,
     paddingHorizontal: GUTTER, marginTop: 2, paddingBottom: 12,
     fontVariant: ["tabular-nums"],
-  },
-  empty: {
-    color: colors.muted, fontFamily: font.regular, fontSize: 16.5, textAlign: "center",
-    marginTop: 56, lineHeight: 27.5, paddingHorizontal: GUTTER,
   },
 
   // Sections run edge to edge, told apart by a rule rather than by floating on

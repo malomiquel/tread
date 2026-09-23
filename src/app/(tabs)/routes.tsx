@@ -6,7 +6,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Polyline } from "react-native-svg";
-import { Button } from "@/components/Button";
+import { EmptyState } from "@/components/EmptyState";
 import { RunButtonText } from "@/components/RunButtonText";
 import { SwipeToDelete } from "@/components/SwipeToDelete";
 import { RouteSnapshot, type RouteSnapshotHandle } from "@/components/RouteSnapshot";
@@ -33,9 +33,9 @@ const routesStrings = defineStrings({
     hintChosen: "Celui marqué « sur ta carte » s'affiche pendant tes courses",
     drawNew: "Dessiner un nouveau parcours",
     newShort: "Nouveau",
-    empty:
-      "Aucun parcours pour l'instant. Dessine-en un en touchant la carte : chaque point rejoint le précédent en suivant les rues.",
     draw: "Dessiner un parcours",
+    drawDetail: "Touche la carte, le tracé suit les rues.",
+    importGpxDetail: "Depuis un planificateur, une montre ou un ami.",
     importing: "Import…",
     importGpx: "Importer un fichier GPX",
     edit: (name: string) => `${name}, modifier`,
@@ -57,9 +57,9 @@ const routesStrings = defineStrings({
     hintChosen: "The one marked “on your map” shows during your runs",
     drawNew: "Draw a new route",
     newShort: "New",
-    empty:
-      "No routes yet. Draw one by tapping the map: each point joins the previous one along the streets.",
     draw: "Draw a route",
+    drawDetail: "Tap the map and the line follows the streets.",
+    importGpxDetail: "From a route planner, a watch or a friend.",
     importing: "Importing…",
     importGpx: "Import a GPX file",
     edit: (name: string) => `${name}, edit`,
@@ -238,6 +238,7 @@ export default function RoutesScreen() {
           </View>
           {/* One way in, said in words. Two bare icons side by side — an
               arrow and a plus — left people guessing which one drew. */}
+          {routes && routes.length === 0 ? null : (
           <Pressable
             onPress={draw}
             accessibilityRole="button"
@@ -248,6 +249,7 @@ export default function RoutesScreen() {
             <Ionicons name="add" size={19} color={colors.accentText} />
             <Text style={styles.drawLabel}>{s.newShort}</Text>
           </Pressable>
+          )}
         </View>
 
         <FlatList
@@ -257,16 +259,18 @@ export default function RoutesScreen() {
           contentContainerStyle={{ paddingBottom: tabBarSpace + 60 }}
           ListEmptyComponent={
             routes === null ? null : (
-              <View style={styles.emptyBlock}>
-                <Text style={styles.empty}>{s.empty}</Text>
-                <Button label={s.draw} onPress={draw} />
-                <Button
-                  label={importing ? s.importing : s.importGpx}
-                  variant="secondary"
-                  onPress={() => void importGpx()}
-                  disabled={importing}
-                />
-              </View>
+              <EmptyState
+                actions={[
+                  { icon: "add", title: s.draw, detail: s.drawDetail, primary: true, onPress: draw },
+                  {
+                    icon: "download-outline",
+                    title: importing ? s.importing : s.importGpx,
+                    detail: s.importGpxDetail,
+                    busy: importing,
+                    onPress: () => void importGpx(),
+                  },
+                ]}
+              />
             )
           }
           renderItem={({ item }) => {
@@ -347,12 +351,6 @@ const styles = StyleSheet.create({
   },
   drawLabel: { color: colors.accentText, fontSize: 15.5, fontFamily: font.semibold },
   pressed: { opacity: 0.6 },
-
-  emptyBlock: { marginTop: 56, paddingHorizontal: GUTTER, gap: 18 },
-  empty: {
-    color: colors.muted, fontFamily: font.regular, fontSize: 17.5,
-    textAlign: "center", lineHeight: 27.5,
-  },
 
   // The same plain list the history uses, separated by rules rather than by
   // cards: two lists of the same kind of thing should not be set differently.
