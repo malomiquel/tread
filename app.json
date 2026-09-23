@@ -117,6 +117,13 @@
       "./plugins/withoutPushEntitlement",
       "expo-localization",
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "Tread ajoute à tes courses les photos que tu choisis.",
+          "microphonePermission": false
+        }
+      ],
+      [
         "react-native-android-widget",
         {
           "fonts": [

@@ -11,6 +11,7 @@ import { parseGroups, type CustomSession, type DraftGroup } from "./customSessio
 import { bestEfforts, EFFORT_KEYS, parseEfforts, type BestEfforts } from "./efforts";
 import { parseHeart, type Heart } from "./heart";
 import { parseLaps, type LapMark } from "./laps";
+import { forgetPhotos, parsePhotos } from "./photos";
 import type { EditedRun } from "./runEdit";
 import type { Shoe } from "./shoes";
 import { parseRoute, routeDistanceM, type Route, type StoredRoute } from "./route";
@@ -118,6 +119,10 @@ export interface Run {
   activity: ActivityType;
   /** What it was for: a race, a long run… */
   tags: RunTag[];
+  /** What the runner wrote about it, or null. */
+  note: string | null;
+  /** Photo file names, in the app's photos folder. */
+  photos: string[];
 }
 
 /** Shape the SQL layer returns, before mapping to camelCase. */
@@ -144,6 +149,8 @@ interface RunRow {
   shoe_id: number | null;
   activity: string | null;
   tags: string | null;
+  note: string | null;
+  photos: string | null;
 }
 
 const toRun = (row: RunRow): Run => ({
@@ -173,6 +180,8 @@ const toRun = (row: RunRow): Run => ({
   shoeId: row.shoe_id ?? null,
   activity: readActivity(row.activity ?? null),
   tags: parseTags(row.tags ?? null),
+  note: row.note ?? null,
+  photos: parsePhotos(row.photos ?? null),
 });
 
 function parseBlocks(raw: string | null): RanBlock[] {
@@ -187,7 +196,7 @@ function parseBlocks(raw: string | null): RanBlock[] {
   }
 }
 
-const SCHEMA_VERSION = 21;
+const SCHEMA_VERSION = 22;
 
 /**
  * The plan's two tables, written once and used twice — by a fresh install and
@@ -335,7 +344,9 @@ export async function initDb(): Promise<void> {
         laps TEXT,
         shoe_id INTEGER,
         activity TEXT,
-        tags TEXT
+        tags TEXT,
+        note TEXT,
+        photos TEXT
       );
       CREATE TABLE IF NOT EXISTS points (
         id INTEGER PRIMARY KEY,
@@ -498,6 +509,12 @@ export async function initDb(): Promise<void> {
     await db.execAsync("ALTER TABLE runs ADD COLUMN activity TEXT");
     await db.execAsync("ALTER TABLE runs ADD COLUMN tags TEXT");
     version = 21;
+  }
+
+  if (version < 22) {
+    await db.execAsync("ALTER TABLE runs ADD COLUMN note TEXT");
+    await db.execAsync("ALTER TABLE runs ADD COLUMN photos TEXT");
+    version = 22;
   }
 
   await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
@@ -677,6 +694,7 @@ export async function everythingForTransfer(): Promise<Transfer> {
       shoeId: run.shoeId,
       activity: run.activity,
       tags: run.tags,
+      note: run.note,
       points: rows.map((point) => ({
         ts: point.ts, lat: point.lat, lng: point.lng, alt: point.alt,
         accuracy: point.accuracy_m, speed: point.speed, segment: point.segment,
@@ -772,7 +790,7 @@ export async function restoreTransfer(transfer: Transfer): Promise<Restored> {
     await db.runAsync(
       "UPDATE runs SET ended_at = ?, distance_m = ?, duration_s = ?, avg_pace_s_km = ?, name = ?,"
       + " elevation_gain_m = ?, fastest_km_s = ?, cadence_spm = ?, exertion = ?, session_id = ?,"
-      + " session_blocks = ?, weather = ?, heart = ?, laps = ?, shoe_id = ?, activity = ?, tags = ? WHERE id = ?",
+      + " session_blocks = ?, weather = ?, heart = ?, laps = ?, shoe_id = ?, activity = ?, tags = ?, note = ? WHERE id = ?",
       run.endedAt, run.distanceM, run.durationS, run.avgPaceSKm, run.name,
       run.elevationGainM, run.fastestKmS, run.cadenceSpm, run.exertion, run.sessionId,
       run.blocks?.length ? JSON.stringify(run.blocks) : null,
@@ -782,6 +800,7 @@ export async function restoreTransfer(transfer: Transfer): Promise<Restored> {
       run.shoeId == null ? null : shoeIds.get(run.shoeId) ?? null,
       run.activity && run.activity !== "run" ? readActivity(run.activity) : null,
       run.tags?.length ? JSON.stringify(parseTags(JSON.stringify(run.tags))) : null,
+      typeof run.note === "string" && run.note.trim() ? run.note : null,
       id,
     );
     added += 1;
@@ -963,6 +982,14 @@ export async function deleteShoe(id: number): Promise<void> {
 /** Say what kind of outing a run was. A plain run is stored as nothing. */
 export async function setRunActivity(runId: number, activity: ActivityType): Promise<void> {
   await getDb().runAsync("UPDATE runs SET activity = ? WHERE id = ?", activity === "run" ? null : activity, runId);
+}
+
+export async function setRunNote(runId: number, note: string): Promise<void> {
+  await getDb().runAsync("UPDATE runs SET note = ? WHERE id = ?", note.trim() || null, runId);
+}
+
+export async function setRunPhotos(runId: number, photos: string[]): Promise<void> {
+  await getDb().runAsync("UPDATE runs SET photos = ? WHERE id = ?", photos.length ? JSON.stringify(photos) : null, runId);
 }
 
 export async function setRunTags(runId: number, tags: RunTag[]): Promise<void> {
@@ -1256,6 +1283,7 @@ export async function readRun(id: number): Promise<{ run: Run; points: TrackPoin
 
 export async function deleteRun(id: number): Promise<void> {
   const db = getDb();
+  const photos = await db.getFirstAsync<{ photos: string | null }>("SELECT photos FROM runs WHERE id = ?", id);
   await db.runAsync("DELETE FROM points WHERE run_id = ?", id);
   // The programme has to let go of it too. `plan_done` points at a run
   // without a foreign key to enforce it, so a deleted run used to leave the
@@ -1263,6 +1291,8 @@ export async function deleteRun(id: number): Promise<void> {
   // from the outside, since the tick is what hides the session from them.
   await db.runAsync("DELETE FROM plan_done WHERE run_id = ?", id);
   await db.runAsync("DELETE FROM runs WHERE id = ?", id);
+  // After the row, so a file that will not go never keeps a run alive.
+  forgetPhotos(parsePhotos(photos?.photos ?? null));
 }
 
 /**

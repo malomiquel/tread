@@ -174,7 +174,10 @@ High value, moderate effort
   run, chosen on its "Details" and when entering a run by hand); tags race,
   long run, workout, easy run, recovery as chips; type and race shown in
   History; migration 21; carried by transfer
-- [ ] **Notes and photos** on a run
+- [x] **Notes and photos** on a run 📱: a note under "Details", up to six
+  photos copied into the app (the library keeps its own), shown full screen,
+  removed with the run; migration 22; the note travels by transfer, the photos
+  do not; expo-image-picker needs a native rebuild
 - [ ] **Grade-adjusted pace** (the flat equivalent, for trail)
 - [ ] **Training calendar**: the log week by week, beside the list
 - [ ] **Goals in time or climb**, not only distance; year-on-year comparison

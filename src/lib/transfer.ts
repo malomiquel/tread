@@ -65,6 +65,8 @@ export interface TransferRun {
   /** Absent from older files: a run, untagged. */
   activity?: string;
   tags?: string[];
+  /** What the runner wrote. The photos stay behind: a transfer is a file to send. */
+  note?: string | null;
   points: TrackPoint[];
   /*
    * No `healthUuid`. It names a workout inside the old phone's HealthKit

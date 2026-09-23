@@ -7,6 +7,7 @@
     "NSLocationAlwaysAndWhenInUseUsageDescription": "Tread needs your location even with the screen locked, so it keeps recording while your phone is in your pocket.",
     "NSLocationAlwaysUsageDescription": "Tread needs your location even with the screen locked, so it keeps recording while your phone is in your pocket.",
     "NSHealthShareUsageDescription": "Tread reads your weight to estimate calories burned, and your heart rate to show it with your runs.",
-    "NSHealthUpdateUsageDescription": "Tread saves your runs, their distance and their route to Apple Health."
+    "NSHealthUpdateUsageDescription": "Tread saves your runs, their distance and their route to Apple Health.",
+    "NSPhotoLibraryUsageDescription": "Tread adds the photos you pick to your runs."
   }
 }

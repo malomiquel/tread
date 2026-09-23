@@ -7,6 +7,7 @@
     "NSLocationAlwaysAndWhenInUseUsageDescription": "Tread a besoin de ta position même écran verrouillé, pour continuer à enregistrer pendant que le téléphone est dans ta poche.",
     "NSLocationAlwaysUsageDescription": "Tread a besoin de ta position même écran verrouillé, pour continuer à enregistrer pendant que le téléphone est dans ta poche.",
     "NSHealthShareUsageDescription": "Tread lit ton poids pour estimer les calories brûlées, et ta fréquence cardiaque pour la montrer avec tes courses.",
-    "NSHealthUpdateUsageDescription": "Tread enregistre tes courses, leur distance et leur tracé dans Santé."
+    "NSHealthUpdateUsageDescription": "Tread enregistre tes courses, leur distance et leur tracé dans Santé.",
+    "NSPhotoLibraryUsageDescription": "Tread ajoute à tes courses les photos que tu choisis."
   }
 }
