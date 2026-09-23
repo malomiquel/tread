@@ -4,7 +4,10 @@ import { useCallback, useState, useRef } from "react";
 import { Alert, Pressable, SectionList, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { EmptyState } from "@/components/EmptyState";
+import { HeaderButton } from "@/components/HeaderButton";
 import { RunShape } from "@/components/RunShape";
+import { SectionHeader } from "@/components/SectionHeader";
+import { BannerTag, bannerText, SummaryBanner } from "@/components/SummaryBanner";
 import { SwipeToDelete } from "@/components/SwipeToDelete";
 import { deleteRun, listRuns, planSessionOfRun, type Run } from "@/lib/db";
 import { importRunFiles } from "@/lib/files";
@@ -35,6 +38,7 @@ const historyStrings = defineStrings({
     runNowDetail: "Une sortie libre, avec une séance ou un parcours si tu veux.",
     importing: "Import…",
     importFromApp: "Importer depuis une autre app",
+    importShort: "Importer",
     importHint: "Depuis Strava, Garmin ou une montre, en fichiers GPX.",
     thisRun: "cette course",
     thisMonth: "Ce mois-ci",
@@ -59,6 +63,7 @@ const historyStrings = defineStrings({
     runNowDetail: "A free run, with a session or a route if you like.",
     importing: "Importing…",
     importFromApp: "Import from another app",
+    importShort: "Import",
     importHint: "From Strava, Garmin or a watch, as GPX files.",
     thisRun: "this run",
     thisMonth: "This month",
@@ -196,6 +201,19 @@ export default function HistoryScreen() {
             </Text>
           )}
         </View>
+        {/* Runs from another app, once there already are some here. Said in
+            words, like the routes' "New": an arrow on its own read as
+            "download" to everybody but whoever drew it. On an empty history
+            the import card below does this job instead. */}
+        {runs && runs.length > 0 ? (
+          <HeaderButton
+            icon="download-outline"
+            label={s.importShort}
+            accessibilityLabel={s.importFromApp}
+            busy={importing}
+            onPress={() => void importGpx()}
+          />
+        ) : null}
       </View>
 
       <SectionList
@@ -235,12 +253,10 @@ export default function HistoryScreen() {
           )
         }
         renderSectionHeader={({ section }) => (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{monthName(section.start, readAt)}</Text>
-            <Text style={styles.sectionTotal}>
-              {s.monthTotal(formatDistance(section.distanceM), section.runs.length)}
-            </Text>
-          </View>
+          <SectionHeader
+            title={monthName(section.start, readAt)}
+            aside={s.monthTotal(formatDistance(section.distanceM), section.runs.length)}
+          />
         )}
         renderItem={({ item, index }) => (
           <SwipeToDelete label={item.name ?? s.thisRun} onDelete={() => void askDelete(item)}>
@@ -277,32 +293,27 @@ function MonthBanner({ runs, now }: { runs: Run[]; now: number }) {
   const { current, previous } = monthSummary(runs, now);
   const ahead = current.distanceM >= previous.distanceM;
   return (
-    <View style={styles.banner}>
-      <Text style={styles.bannerLabel}>{s.thisMonth}</Text>
-      {current.runs > 0 ? (
-        <>
-          <Text style={styles.bannerValue}>
-            {formatDistance(current.distanceM)}
-            <Text style={styles.bannerUnit}> km</Text>
-          </Text>
-          <Text style={styles.bannerDetail}>{s.monthRuns(current.runs, formatDuration(current.durationS))}</Text>
-        </>
-      ) : (
-        <Text style={styles.bannerEmpty}>{s.nothingYet}</Text>
-      )}
+    <SummaryBanner
+      label={s.thisMonth}
+      value={current.runs > 0 ? formatDistance(current.distanceM) : "0"}
+      unit="km"
+      detail={current.runs > 0
+        ? s.monthRuns(current.runs, formatDuration(current.durationS))
+        : s.nothingYet}
+    >
       {previous.distanceM > 0 ? (
-        <View style={styles.bannerCompare}>
+        <BannerTag>
           <Ionicons
             name={ahead ? "trending-up" : "trending-down"}
             size={16}
             color={colors.accentText}
           />
-          <Text style={styles.bannerCompareText}>
+          <Text style={bannerText.tag}>
             {s.lastMonth(monthName(previous.start, now), formatDistance(previous.distanceM))}
           </Text>
-        </View>
+        </BannerTag>
       ) : null}
-    </View>
+    </SummaryBanner>
   );
 }
 
@@ -375,40 +386,6 @@ const styles = StyleSheet.create({
   title: { color: colors.text, fontSize: 32, fontFamily: font.bold, letterSpacing: -0.6 },
   subtitle: { color: colors.subtle, fontFamily: font.regular, fontSize: 15, marginTop: 3 },
 
-
-  banner: {
-    marginHorizontal: GUTTER, marginBottom: 6, padding: 18, gap: 2,
-    borderRadius: 18, backgroundColor: colors.accent,
-  },
-  bannerLabel: {
-    color: colors.accentText, opacity: 0.75, fontSize: 12.5,
-    fontFamily: font.semibold, letterSpacing: 1.2, textTransform: "uppercase",
-  },
-  bannerValue: {
-    color: colors.accentText, fontSize: 46, fontFamily: font.bold,
-    letterSpacing: -1.2, fontVariant: ["tabular-nums"], lineHeight: 52,
-  },
-  bannerUnit: { fontSize: 20, fontFamily: font.semibold, letterSpacing: 0 },
-  bannerDetail: { color: colors.accentText, opacity: 0.85, fontSize: 15, fontFamily: font.medium },
-  bannerEmpty: { color: colors.accentText, fontSize: 20, fontFamily: font.semibold, marginVertical: 6 },
-  bannerCompare: {
-    flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10,
-    alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12,
-    backgroundColor: "rgba(255, 255, 255, 0.16)",
-  },
-  bannerCompareText: { color: colors.accentText, fontSize: 13.5, fontFamily: font.semibold },
-
-  // The month stays pinned while its runs scroll under it, on the page's own
-  // colour so the rows slide beneath rather than through it.
-  section: {
-    flexDirection: "row", alignItems: "baseline", justifyContent: "space-between",
-    paddingHorizontal: GUTTER, paddingTop: 20, paddingBottom: 8,
-    backgroundColor: colors.background,
-  },
-  sectionTitle: { color: colors.text, fontSize: 21, fontFamily: font.bold, letterSpacing: -0.3 },
-  sectionTotal: {
-    color: colors.accent, fontSize: 15, fontFamily: font.semibold, fontVariant: ["tabular-nums"],
-  },
 
   row: {
     flexDirection: "row", alignItems: "center", gap: 14,

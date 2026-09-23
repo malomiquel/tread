@@ -1,9 +1,12 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useFocusEffect, useRouter, useScrollToTop } from "expo-router";
 import { useCallback, useState, useRef } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { EmptyState } from "@/components/EmptyState";
+import { HeaderButton } from "@/components/HeaderButton";
+import { SectionHeader } from "@/components/SectionHeader";
+import { BannerTag, bannerText, SummaryBanner } from "@/components/SummaryBanner";
 import { WeeklyGoalSheet } from "@/components/WeeklyGoalSheet";
 import { listRuns, personalRecords, type PersonalRecords, type Run } from "@/lib/db";
 import { formatDistance, formatDuration, formatElevation, formatPace } from "@/lib/format";
@@ -17,6 +20,9 @@ import { chooseSession } from "@/lib/tracker";
 const profileStrings = defineStrings({
   fr: {
     title: "Profil",
+    summary: (count: number, km: string) => `${plural(count, "course", "courses")} · ${km} km au total`,
+    progress: "Progression",
+    lastWeeks: (weeks: number) => `${weeks} dernières semaines`,
     settings: "Réglages",
     runNow: "Courir maintenant",
     runNowDetail: "Ta première sortie lance tes records et tes totaux.",
@@ -31,7 +37,6 @@ const profileStrings = defineStrings({
       `${remaining} km pour tenir l'objectif de ${km} km`,
     goalInvite: "Se fixer un objectif hebdomadaire",
     today: "auj.",
-    chartCaption: (weeks: number) => `Distance par semaine, ${weeks} dernières`,
     records: "Records",
     longest: "Plus longue sortie",
     fastestKm: "Kilomètre le plus rapide",
@@ -46,6 +51,9 @@ const profileStrings = defineStrings({
   },
   en: {
     title: "Profile",
+    summary: (count: number, km: string) => `${plural(count, "run", "runs")} · ${km} km in total`,
+    progress: "Progress",
+    lastWeeks: (weeks: number) => `last ${weeks} weeks`,
     settings: "Settings",
     runNow: "Run now",
     runNowDetail: "Your first run starts your records and totals.",
@@ -60,7 +68,6 @@ const profileStrings = defineStrings({
       `${remaining} km to go to reach your ${km} km goal`,
     goalInvite: "Set yourself a weekly goal",
     today: "now",
-    chartCaption: (weeks: number) => `Distance per week, last ${weeks}`,
     records: "Personal records",
     longest: "Longest run",
     fastestKm: "Fastest kilometre",
@@ -106,14 +113,43 @@ function byWeek(runs: Run[]): Week[] {
   return [...weeks.values()];
 }
 
-function RecordRow({ label, value, detail }: { label: string; value: string; detail?: string }) {
+type Icon = React.ComponentProps<typeof Ionicons>["name"];
+
+/** One record: what it is, where it was set, and the figure. */
+function RecordRow({
+  icon, label, value, detail, first,
+}: {
+  icon: Icon;
+  label: string;
+  value: string;
+  detail?: string;
+  first: boolean;
+}) {
   return (
     <View style={styles.record}>
-      <View style={styles.recordLeft}>
-        <Text style={styles.recordLabel}>{label}</Text>
-        {detail ? <Text style={styles.recordDetail}>{detail}</Text> : null}
+      <View style={styles.recordMark}>
+        <Ionicons name={icon} size={19} color={colors.accent} />
       </View>
-      <Text style={styles.recordValue}>{value}</Text>
+      <View style={[styles.recordBody, !first && styles.recordRule]}>
+        <View style={styles.recordText}>
+          <Text style={styles.recordLabel} numberOfLines={1}>{label}</Text>
+          {detail ? <Text style={styles.recordDetail} numberOfLines={1}>{detail}</Text> : null}
+        </View>
+        <Text style={styles.recordValue}>{value}</Text>
+      </View>
+    </View>
+  );
+}
+
+/** One all-time figure, in a tile of its own. */
+function Total({ label, value, unit }: { label: string; value: string; unit?: string }) {
+  return (
+    <View style={styles.total}>
+      <Text style={styles.totalValue} numberOfLines={1}>
+        {value}
+        {unit ? <Text style={styles.totalUnit}> {unit}</Text> : null}
+      </Text>
+      <Text style={styles.totalLabel}>{label}</Text>
     </View>
   );
 }
@@ -183,6 +219,42 @@ export default function ProfileScreen() {
   const peak = Math.max(...weeks.map((w) => w.distanceM), 1);
   const goal = goalProgress(current.distanceM, settings.weeklyGoalM);
 
+  // Only the records that exist: a runner with no hill yet has no climb to
+  // show, and an empty row would read as a broken one.
+  const recordRows: { icon: Icon; label: string; value: string; detail?: string }[] = [];
+  if (records.longest) {
+    recordRows.push({
+      icon: "trail-sign-outline",
+      label: s.longest,
+      value: `${formatDistance(records.longest.distanceM)} km`,
+      detail: records.longest.name ?? undefined,
+    });
+  }
+  if (records.fastestKm?.fastestKmS != null) {
+    recordRows.push({
+      icon: "flash-outline",
+      label: s.fastestKm,
+      value: formatPace(records.fastestKm.fastestKmS),
+      detail: records.fastestKm.name ?? undefined,
+    });
+  }
+  if (records.bestAvgPace?.avgPaceSKm != null) {
+    recordRows.push({
+      icon: "speedometer-outline",
+      label: s.bestAvgPace,
+      value: formatPace(records.bestAvgPace.avgPaceSKm),
+      detail: s.bestAvgPaceDetail,
+    });
+  }
+  if (records.mostElevation?.elevationGainM != null && records.mostElevation.elevationGainM > 0) {
+    recordRows.push({
+      icon: "trending-up-outline",
+      label: s.mostElevation,
+      value: `${formatElevation(records.mostElevation.elevationGainM)} m`,
+      detail: records.mostElevation.name ?? undefined,
+    });
+  }
+
   return (
     <SafeAreaView style={styles.screen} edges={["top"]}>
       {/* Same arrival as the history: the page settles in rather than
@@ -195,18 +267,17 @@ export default function ProfileScreen() {
       <View style={styles.fill}>
       <ScrollView ref={page} contentContainerStyle={[styles.content, { paddingBottom: tabBarSpace }]}>
         <View style={styles.head}>
-          <Text style={styles.title}>{s.title}</Text>
-          {/* Settings are a page, not a section, and a cog is where anybody
-              looks for the rest. */}
-          <Pressable
-            onPress={() => router.push("/settings")}
-            accessibilityRole="button"
-            accessibilityLabel={s.settings}
-            hitSlop={10}
-            style={({ pressed }) => [styles.cog, pressed && styles.linkPressed]}
-          >
-            <Ionicons name="settings-outline" size={22} color={colors.text} />
-          </Pressable>
+          <View style={styles.headText}>
+            <Text style={styles.title}>{s.title}</Text>
+            {records.totalRuns > 0 ? (
+              <Text style={styles.subtitle}>
+                {s.summary(records.totalRuns, formatDistance(records.totalDistanceM))}
+              </Text>
+            ) : null}
+          </View>
+          {/* Settings are a page, not a section. Named, like every other
+              action in a tab's corner, rather than a cog on its own. */}
+          <HeaderButton icon="settings-outline" label={s.settings} onPress={() => router.push("/settings")} />
         </View>
 
         {records.totalRuns === 0 ? (
@@ -234,114 +305,71 @@ export default function ProfileScreen() {
           />
         ) : (
           <>
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>{s.thisWeek}</Text>
-              <View style={styles.heroRow}>
-                <Text style={styles.hero}>{formatDistance(current.distanceM)}</Text>
-                <Text style={styles.heroUnit}>km</Text>
-              </View>
-              <Text style={styles.heroSub}>
-                {s.runs(current.runs)} · {formatDuration(current.durationS)}
-              </Text>
-
-              {/* The week's figure on its own says how far; against a goal it
-                  says whether that is enough, which is the only question
-                  anybody was really asking of it. Tappable whether or not one
-                  is set, because the way in has to exist before the goal
-                  does. */}
-              <Pressable
-                onPress={() => setSettingGoal(true)}
-                accessibilityRole="button"
-                accessibilityLabel={
-                  goal
-                    ? s.goalEdit(formatDistance(settings.weeklyGoalM ?? 0))
-                    : s.goalSet
-                }
-                style={({ pressed }) => [styles.goal, pressed && styles.goalPressed]}
-              >
-                {goal ? (
-                  <>
-                    <View style={styles.goalBar}>
-                      <View
-                        style={[styles.goalFill, { width: `${goal.share * 100}%` }]}
-                      />
-                    </View>
-                    <Text style={styles.goalText}>
-                      {goal.reached
-                        ? s.goalReached(formatDistance(settings.weeklyGoalM ?? 0), goal.percent)
-                        : s.goalRemaining(
-                          formatDistance(goal.remainingM),
-                          formatDistance(settings.weeklyGoalM ?? 0),
-                        )}
-                    </Text>
-                  </>
-                ) : (
-                  <View style={styles.goalInvite}>
-                    <Ionicons name="flag-outline" size={15} color={colors.accent} />
-                    <Text style={styles.goalInviteText}>{s.goalInvite}</Text>
+            {/* The week, on the same blue the history gives its month. The
+                whole banner opens the weekly goal: the goal is what turns
+                the figure into an answer, and the way in has to exist before
+                the goal does. */}
+            <SummaryBanner
+              label={s.thisWeek}
+              value={formatDistance(current.distanceM)}
+              unit="km"
+              detail={`${s.runs(current.runs)} · ${formatDuration(current.durationS)}`}
+              onPress={() => setSettingGoal(true)}
+              accessibilityLabel={goal ? s.goalEdit(formatDistance(settings.weeklyGoalM ?? 0)) : s.goalSet}
+            >
+              {goal ? (
+                <View style={styles.goal}>
+                  <View style={styles.goalBar}>
+                    <View style={[styles.goalFill, { width: `${goal.share * 100}%` }]} />
                   </View>
-                )}
-              </Pressable>
+                  <Text style={bannerText.soft}>
+                    {goal.reached
+                      ? s.goalReached(formatDistance(settings.weeklyGoalM ?? 0), goal.percent)
+                      : s.goalRemaining(
+                        formatDistance(goal.remainingM),
+                        formatDistance(settings.weeklyGoalM ?? 0),
+                      )}
+                  </Text>
+                </View>
+              ) : (
+                <BannerTag>
+                  <Ionicons name="flag-outline" size={15} color={colors.accentText} />
+                  <Text style={bannerText.tag}>{s.goalInvite}</Text>
+                </BannerTag>
+              )}
+            </SummaryBanner>
 
-              <View style={styles.chart}>
-                {weeks.map((week, i) => (
-                  <View key={week.start} style={styles.column}>
-                    <View style={styles.barArea}>
-                      <View
-                        style={[
-                          styles.bar,
-                          { height: `${Math.max(2, (week.distanceM / peak) * 100)}%` },
-                          i === weeks.length - 1 && styles.barCurrent,
-                        ]}
-                      />
-                    </View>
-                    <Text style={styles.weekLabel}>
-                      {i === weeks.length - 1 ? s.today : `-${weeks.length - 1 - i}`}
-                    </Text>
+            <SectionHeader title={s.progress} aside={s.lastWeeks(WEEKS_SHOWN)} />
+            <View style={styles.chart}>
+              {weeks.map((week, i) => (
+                <View key={week.start} style={styles.column}>
+                  <View style={styles.barArea}>
+                    <View
+                      style={[
+                        styles.bar,
+                        { height: `${Math.max(2, (week.distanceM / peak) * 100)}%` },
+                        i === weeks.length - 1 && styles.barCurrent,
+                      ]}
+                    />
                   </View>
-                ))}
-              </View>
-              <Text style={styles.caption}>{s.chartCaption(WEEKS_SHOWN)}</Text>
+                  <Text style={[styles.weekLabel, i === weeks.length - 1 && styles.weekLabelCurrent]}>
+                    {i === weeks.length - 1 ? s.today : `-${weeks.length - 1 - i}`}
+                  </Text>
+                </View>
+              ))}
             </View>
 
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>{s.records}</Text>
-              {records.longest && (
-                <RecordRow
-                  label={s.longest}
-                  value={`${formatDistance(records.longest.distanceM)} km`}
-                  detail={records.longest.name ?? undefined}
-                />
-              )}
-              {records.fastestKm?.fastestKmS != null && (
-                <RecordRow
-                  label={s.fastestKm}
-                  value={formatPace(records.fastestKm.fastestKmS)}
-                  detail={records.fastestKm.name ?? undefined}
-                />
-              )}
-              {records.bestAvgPace?.avgPaceSKm != null && (
-                <RecordRow
-                  label={s.bestAvgPace}
-                  value={formatPace(records.bestAvgPace.avgPaceSKm)}
-                  detail={s.bestAvgPaceDetail}
-                />
-              )}
-              {records.mostElevation?.elevationGainM != null && records.mostElevation.elevationGainM > 0 && (
-                <RecordRow
-                  label={s.mostElevation}
-                  value={`${formatElevation(records.mostElevation.elevationGainM)} m`}
-                  detail={records.mostElevation.name ?? undefined}
-                />
-              )}
-            </View>
+            <SectionHeader title={s.records} />
+            {recordRows.map((row, index) => (
+              <RecordRow key={row.label} first={index === 0} {...row} />
+            ))}
 
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>{s.allTime}</Text>
-              <RecordRow label={s.totalRuns} value={String(records.totalRuns)} />
-              <RecordRow label={s.distance} value={`${formatDistance(records.totalDistanceM)} km`} />
-              <RecordRow label={s.time} value={formatDuration(records.totalDurationS)} />
-              <RecordRow label={s.elevation} value={`${formatElevation(records.totalElevationM)} m`} />
+            <SectionHeader title={s.allTime} />
+            <View style={styles.totals}>
+              <Total label={s.totalRuns} value={String(records.totalRuns)} />
+              <Total label={s.distance} value={formatDistance(records.totalDistanceM)} unit="km" />
+              <Total label={s.time} value={formatDuration(records.totalDurationS)} />
+              <Total label={s.elevation} value={formatElevation(records.totalElevationM)} unit="m" />
             </View>
           </>
         )}
@@ -370,63 +398,56 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     paddingHorizontal: GUTTER, paddingTop: 10, paddingBottom: 14,
   },
+  headText: { flex: 1 },
   title: { color: colors.text, fontSize: 32, fontFamily: font.bold, letterSpacing: -0.6 },
-  cog: {
-    width: 40, height: 40, borderRadius: 20,
-    alignItems: "center", justifyContent: "center",
-    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline,
-  },
-  // The one line that says who this is: everything below it is the detail.
-  lede: {
-    color: colors.muted, fontFamily: font.regular, fontSize: 15,
-    paddingHorizontal: GUTTER, marginTop: 2, paddingBottom: 12,
-    fontVariant: ["tabular-nums"],
-  },
+  subtitle: { color: colors.subtle, fontFamily: font.regular, fontSize: 15, marginTop: 3 },
 
-  // Sections run edge to edge, told apart by a rule rather than by floating on
-  // their own surface.
-  card: {
-    paddingHorizontal: GUTTER, paddingVertical: 18, gap: 10,
-    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline,
+  goal: { gap: 5, marginTop: 8 },
+  goalBar: {
+    height: 5, borderRadius: 2.5, overflow: "hidden",
+    backgroundColor: "rgba(255, 255, 255, 0.22)",
   },
-  cardTitle: {
-    color: colors.subtle, fontSize: 13, fontFamily: font.semibold,
-    letterSpacing: 1.4, textTransform: "uppercase",
-  },
-  heroRow: { flexDirection: "row", alignItems: "baseline", gap: 5 },
-  hero: {
-    color: colors.text, fontSize: 53.5, fontFamily: font.bold,
-    letterSpacing: -1.17, fontVariant: ["tabular-nums"],
-  },
-  heroUnit: { color: colors.subtle, fontSize: 16.5, fontFamily: font.semibold },
-  heroSub: { color: colors.muted, fontFamily: font.regular, fontSize: 15, marginTop: -2, fontVariant: ["tabular-nums"] },
+  goalFill: { height: 5, borderRadius: 2.5, backgroundColor: colors.accentText },
 
-  chart: { flexDirection: "row", alignItems: "flex-end", gap: 8, height: 84, marginTop: 8 },
+  chart: {
+    flexDirection: "row", alignItems: "flex-end", gap: 8, height: 110,
+    paddingHorizontal: GUTTER, paddingTop: 4,
+  },
   column: { flex: 1, alignItems: "center", gap: 6 },
   barArea: { flex: 1, width: "100%", justifyContent: "flex-end" },
-  bar: { width: "100%", borderRadius: 2, backgroundColor: colors.accentSoft },
+  bar: { width: "100%", borderRadius: 6, backgroundColor: colors.accentSoft },
   barCurrent: { backgroundColor: colors.accent },
   weekLabel: { color: colors.subtle, fontFamily: font.regular, fontSize: 13, fontVariant: ["tabular-nums"] },
-  caption: { color: colors.subtle, fontSize: 13 },
+  weekLabelCurrent: { color: colors.accent, fontFamily: font.semibold },
 
-  goal: { gap: 6, paddingTop: 4 },
-  goalPressed: { opacity: 0.6 },
-  goalBar: { height: 7, borderRadius: 3.5, backgroundColor: colors.sunken, overflow: "hidden" },
-  goalFill: { height: 7, borderRadius: 3.5, backgroundColor: colors.accent },
-  goalText: { color: colors.muted, fontFamily: font.regular, fontSize: 14, fontVariant: ["tabular-nums"] },
-  goalInvite: { flexDirection: "row", alignItems: "center", gap: 6 },
-  goalInviteText: { color: colors.accent, fontFamily: font.semibold, fontSize: 14.5 },
-
-  linkPressed: { opacity: 0.6 },
-
-  record: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingVertical: 9,
+  // Laid out like a run in the history: a mark on the left, a rule that
+  // starts after it, the figure on the right.
+  record: { flexDirection: "row", alignItems: "center", gap: 14, paddingLeft: GUTTER },
+  recordMark: {
+    width: 40, height: 40, borderRadius: 12,
+    alignItems: "center", justifyContent: "center", backgroundColor: colors.accentSoft,
   },
-  recordLeft: { flex: 1, gap: 1 },
-  recordLabel: { color: colors.text, fontSize: 16.5 },
+  recordBody: {
+    flex: 1, flexDirection: "row", alignItems: "center", gap: 12,
+    paddingVertical: 12, paddingRight: GUTTER,
+  },
+  recordRule: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline },
+  recordText: { flex: 1, gap: 1 },
+  recordLabel: { color: colors.text, fontSize: 16.5, fontFamily: font.semibold },
   recordDetail: { color: colors.subtle, fontSize: 14 },
   recordValue: {
-    color: colors.text, fontSize: 19, fontFamily: font.semibold, fontVariant: ["tabular-nums"],
+    color: colors.text, fontSize: 21, fontFamily: font.semibold, fontVariant: ["tabular-nums"],
   },
+
+  totals: { flexDirection: "row", flexWrap: "wrap", gap: 10, paddingHorizontal: GUTTER, paddingTop: 2 },
+  total: {
+    flexBasis: "47%", flexGrow: 1, gap: 2,
+    padding: 14, borderRadius: 14, backgroundColor: colors.accentSoft,
+  },
+  totalValue: {
+    color: colors.accent, fontSize: 26, fontFamily: font.bold,
+    letterSpacing: -0.6, fontVariant: ["tabular-nums"],
+  },
+  totalUnit: { fontSize: 15, fontFamily: font.semibold, letterSpacing: 0 },
+  totalLabel: { color: colors.muted, fontSize: 14, fontFamily: font.medium },
 });

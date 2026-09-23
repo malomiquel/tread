@@ -7,6 +7,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Polyline } from "react-native-svg";
 import { EmptyState } from "@/components/EmptyState";
+import { HeaderButton } from "@/components/HeaderButton";
 import { RunButtonText } from "@/components/RunButtonText";
 import { SwipeToDelete } from "@/components/SwipeToDelete";
 import { RouteSnapshot, type RouteSnapshotHandle } from "@/components/RouteSnapshot";
@@ -239,16 +240,7 @@ export default function RoutesScreen() {
           {/* One way in, said in words. Two bare icons side by side — an
               arrow and a plus — left people guessing which one drew. */}
           {routes && routes.length === 0 ? null : (
-          <Pressable
-            onPress={draw}
-            accessibilityRole="button"
-            accessibilityLabel={s.drawNew}
-            hitSlop={8}
-            style={({ pressed }) => [styles.draw, pressed && styles.pressed]}
-          >
-            <Ionicons name="add" size={19} color={colors.accentText} />
-            <Text style={styles.drawLabel}>{s.newShort}</Text>
-          </Pressable>
+          <HeaderButton icon="add" label={s.newShort} accessibilityLabel={s.drawNew} primary onPress={draw} />
           )}
         </View>
 
@@ -344,12 +336,6 @@ const styles = StyleSheet.create({
   headText: { flex: 1 },
   title: { color: colors.text, fontSize: 32, fontFamily: font.bold, letterSpacing: -0.6 },
   subtitle: { color: colors.subtle, fontFamily: font.regular, fontSize: 15, marginTop: 3 },
-  draw: {
-    flexDirection: "row", alignItems: "center", gap: 4,
-    height: 36, paddingLeft: 10, paddingRight: 14, borderRadius: 18,
-    backgroundColor: colors.accent,
-  },
-  drawLabel: { color: colors.accentText, fontSize: 15.5, fontFamily: font.semibold },
   pressed: { opacity: 0.6 },
 
   // The same plain list the history uses, separated by rules rather than by
