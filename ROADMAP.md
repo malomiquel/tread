@@ -233,5 +233,9 @@ Comfort and safety
 - [ ] Business model: paid app, subscription or freemium (RevenueCat if subscription)
 - [ ] Store listings in French and English: description, keywords, category
 - [ ] Screenshots with realistic runs, in both languages, light and dark
+- [x] Release setup in the repository: `eas.json`, `npm run release:ios` /
+  `release:android` (local EAS builds, versions from git), export compliance
+  declared, [RELEASE.md](RELEASE.md) with the steps and the TestFlight texts
 - [ ] App Store Connect and Play Console setup, TestFlight / internal testing
+  (accounts to pay for, then RELEASE.md)
 - [ ] First tagged release built with the production configuration

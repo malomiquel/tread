@@ -33,11 +33,12 @@ npx expo run:ios --device      # Xcode, and an iPhone plugged in
 npx expo run:android           # Android Studio, or a device in debug mode
 ```
 
-No EAS, no account, no queue — and nothing EAS would add that a Mac does not
-already do. What EAS cannot help with either is Apple's price: TestFlight and
-installing on somebody else's iPhone need the Developer Program whatever
-builds the app. Signed with a free Apple ID, a build stops opening after
-seven days and has to be installed again.
+No account and no queue for these. Signed with a free Apple ID, a build stops
+opening after seven days and has to be installed again.
+
+For TestFlight and Google Play, see [RELEASE.md](RELEASE.md): EAS builds on
+this Mac and handles signing and upload, and the one step left is paying for
+the developer accounts.
 
 Android has a third way, which is the one that produces something to keep:
 push a `v*` tag and the repository builds a signed APK and publishes it as a

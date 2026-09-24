@@ -57,6 +57,9 @@
         "com.apple.security.application-groups": [
           "group.com.malomiquel.tread"
         ]
+      },
+      "config": {
+        "usesNonExemptEncryption": false
       }
     },
     "android": {

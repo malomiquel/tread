@@ -71,7 +71,9 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "test": "node --experimental-strip-types --test src/lib/*.test.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "release:ios": "eas build --platform ios --profile production --local --output dist/tread.ipa && eas submit --platform ios --profile production --path dist/tread.ipa",
+    "release:android": "eas build --platform android --profile production --local --output dist/tread.aab && eas submit --platform android --profile production --path dist/tread.aab"
   },
   "private": true
 }
