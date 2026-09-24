@@ -14,6 +14,7 @@ import { autoName } from "./format";
 import { hasMovedOn, hasStopped } from "./autoPause";
 import { bestEfforts } from "./efforts";
 import { refreshHomeWidget } from "./homeWidget";
+import { makeCopy } from "./safetyCopy";
 import { toPaceUnits, unitLengthM } from "./units";
 import {
   announceAutoPause, announceKilometre, announceLap, announceOffRoute, announcePace, announceRouteDone,
@@ -792,8 +793,9 @@ export async function finish(): Promise<number | null> {
     // repetition was done.
     blocks: closingBlocks(endedAt),
   });
-  // The week on the home screen has just grown.
+  // The week on the home screen has just grown, and the safety copy with it.
   void refreshHomeWidget();
+  void makeCopy();
 
   // Tick the plan off only now. The run is on disk at this point, so a
   // programme can never claim a session that was not recorded.

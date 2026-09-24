@@ -255,7 +255,8 @@ function readRoutes(routes: unknown): TransferRoute[] {
  */
 // The Health anchor marks what this phone's Health has already given; another
 // phone's Health has its own history.
-const LOCAL_SETTINGS = new Set(["routeId", "healthAnchor"]);
+// The safety copy's folder and its last write belong to this phone as well.
+const LOCAL_SETTINGS = new Set(["routeId", "healthAnchor", "backupFolder", "backupLast", "backupRestoreOffered"]);
 
 function readSettingsBag(settings: unknown): Record<string, string> {
   if (!settings || typeof settings !== "object") return {};

@@ -1,11 +1,13 @@
-import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useState } from "react";
 import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Switch, Text } from "react-native";
 import { SettingRow } from "@/components/SettingRow";
 import { SettingsGroup } from "@/components/SettingsGroup";
 import { exportRunArchive, importRouteFiles, importRunFiles } from "@/lib/files";
 import { healthAvailable, healthStoreName } from "@/lib/health";
 import { enableHealthImport } from "@/lib/healthSync";
+import { chooseCopyFolder, copyState, makeCopy, restoreNewestCopy, type CopyState } from "@/lib/safetyCopy";
+import { timeAgo } from "@/lib/stats";
 import { useSettings } from "@/lib/settings";
 import { defineStrings, plural, useStrings } from "@/lib/i18n";
 import { colors, font } from "@/lib/theme";
@@ -24,6 +26,27 @@ const dataStrings = defineStrings({
       "Ils font partie de la sauvegarde iCloud de ton iPhone, si elle est activée : sur un nouvel iPhone, restaure-la et tout revient. Supprimer l'app, elle, les efface.",
     backupAndroid:
       "Ils font partie de la sauvegarde Google de ton téléphone, si elle est activée, sauf les photos des courses, qui ne passent que d'un téléphone à l'autre. Supprimer l'app les efface.",
+    copyTitle: "Copie de sécurité",
+    icloud: "iCloud Drive",
+    folder: "Dossier de copie",
+    chooseFolder: "Choisir",
+    changeFolder: "Changer de dossier",
+    noICloud: "Connecte-toi à iCloud et active iCloud Drive dans les réglages de l'iPhone",
+    none: "Aucune",
+    copyNow: "Faire une copie maintenant",
+    copied: "Copie faite",
+    copyFailed: "La copie n'a pas pu être écrite. Réessaie dans un instant.",
+    restore: "Récupérer la dernière copie",
+    restoreTitle: "Récupérer la dernière copie ?",
+    restoreMessage: "Les courses qui manquent ici sont ajoutées ; celles déjà là ne bougent pas.",
+    restoreConfirm: "Récupérer",
+    cancel: "Annuler",
+    restored: "Copie récupérée",
+    noCopy: "Aucune copie à récupérer pour l'instant.",
+    copyFooterIos:
+      "Après chaque course et quand tu quittes l'app, Tread écrit une copie de tout dans ton iCloud Drive, dossier Tread : courses, parcours, programme, réglages. Les 7 dernières sont gardées. Pas de compte Tread : c'est ton iCloud. Les photos n'y sont pas.",
+    copyFooterAndroid:
+      "Choisis un dossier une fois, dans Google Drive par exemple : Tread y écrit une copie de tout après chaque course et quand tu quittes l'app, et garde les 7 dernières. Pas de compte Tread. Après une réinstallation, récupère-la avec Changer de téléphone › Recevoir. Les photos n'y sont pas.",
     import: "Importer",
     watch: "Courses de ta montre",
     watchDetail: (store: string) => `Ramène les courses qu'une montre ou une autre app a enregistrées dans ${store}`,
@@ -55,6 +78,27 @@ const dataStrings = defineStrings({
       "They are part of your iPhone's iCloud backup, if it is on: restore it on a new iPhone and everything comes back. Deleting the app erases them.",
     backupAndroid:
       "They are part of your phone's Google backup, if it is on, except run photos, which only travel phone to phone. Deleting the app erases them.",
+    copyTitle: "Safety copy",
+    icloud: "iCloud Drive",
+    folder: "Copy folder",
+    chooseFolder: "Choose",
+    changeFolder: "Change folder",
+    noICloud: "Sign in to iCloud and turn on iCloud Drive in the iPhone's settings",
+    none: "None",
+    copyNow: "Make a copy now",
+    copied: "Copy made",
+    copyFailed: "The copy couldn't be written. Try again in a moment.",
+    restore: "Bring back the latest copy",
+    restoreTitle: "Bring back the latest copy?",
+    restoreMessage: "Runs missing here are added; the ones already here stay as they are.",
+    restoreConfirm: "Bring back",
+    cancel: "Cancel",
+    restored: "Copy restored",
+    noCopy: "No copy to bring back yet.",
+    copyFooterIos:
+      "After every run and when you leave the app, Tread writes a copy of everything to your iCloud Drive, in a Tread folder: runs, routes, plan, settings. The last 7 are kept. No Tread account: it is your iCloud. Photos are not included.",
+    copyFooterAndroid:
+      "Pick a folder once, in Google Drive for instance: Tread writes a copy of everything there after every run and when you leave the app, and keeps the last 7. No Tread account. After a reinstall, bring it back with Switch phones › Receive. Photos are not included.",
     import: "Import",
     watch: "Runs from your watch",
     watchDetail: (store: string) => `Brings in the runs a watch or another app wrote to ${store}`,
@@ -89,6 +133,31 @@ export default function DataSettings() {
   const settings = useSettings();
   const router = useRouter();
   const [busy, setBusy] = useState<Job | null>(null);
+  const [copy, setCopy] = useState<CopyState | null>(null);
+  const [copying, setCopying] = useState(false);
+
+  const readCopy = useCallback(() => {
+    void copyState().then(setCopy).catch(() => undefined);
+  }, []);
+  useFocusEffect(readCopy);
+
+  const copyNow = async () => {
+    setCopying(true);
+    const made = await makeCopy(true);
+    setCopying(false);
+    readCopy();
+    Alert.alert(made ? s.copied : s.failed, made ? undefined : s.copyFailed);
+  };
+
+  const bringBack = () => {
+    Alert.alert(s.restoreTitle, s.restoreMessage, [
+      { text: s.cancel, style: "cancel" },
+      {
+        text: s.restoreConfirm,
+        onPress: () => void restoreNewestCopy().then((summary) => Alert.alert(summary ? s.restored : s.restoreTitle, summary ?? s.noCopy)),
+      },
+    ]);
+  };
   const s = useStrings(dataStrings);
 
   async function run(job: Job, title: string, task: () => Promise<string | null>) {
@@ -111,6 +180,48 @@ export default function DataSettings() {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <Text style={styles.lede}>{`${s.lede} ${Platform.OS === "ios" ? s.backupIos : s.backupAndroid}`}</Text>
+
+      {/* The copy that makes "nothing lost" true: the runner's own cloud,
+          written by the app itself, with how fresh it is in plain sight. */}
+      <SettingsGroup title={s.copyTitle} footer={Platform.OS === "ios" ? s.copyFooterIos : s.copyFooterAndroid}>
+        {copy === null ? null : Platform.OS === "ios" ? (
+          <SettingRow
+            icon={copy.target.kind === "icloud" ? "cloud-done-outline" : "cloud-offline-outline"}
+            label={s.icloud}
+            detail={copy.target.kind === "none" ? s.noICloud : undefined}
+            value={copy.lastAt ? timeAgo(copy.lastAt) : s.none}
+          />
+        ) : (
+          <SettingRow
+            icon={copy.target.kind === "folder" ? "cloud-done-outline" : "folder-open-outline"}
+            label={s.folder}
+            value={copy.target.kind === "folder" ? (copy.lastAt ? timeAgo(copy.lastAt) : s.none) : s.chooseFolder}
+            onPress={() => void chooseCopyFolder().then((uri) => {
+              if (uri) void makeCopy(true).then(readCopy);
+            })}
+          />
+        )}
+        {copy !== null && copy.target.kind !== "none" ? (
+          <SettingRow
+            icon="refresh-outline"
+            label={s.copyNow}
+            right={copying ? <ActivityIndicator size="small" color={colors.accent} /> : undefined}
+            onPress={copying ? undefined : () => void copyNow()}
+          />
+        ) : null}
+        {copy !== null && copy.lastAt !== null ? (
+          <SettingRow icon="arrow-undo-outline" label={s.restore} onPress={bringBack} />
+        ) : null}
+        {Platform.OS === "android" && copy?.target.kind === "folder" ? (
+          <SettingRow
+            icon="folder-open-outline"
+            label={s.changeFolder}
+            onPress={() => void chooseCopyFolder().then((uri) => {
+              if (uri) void makeCopy(true).then(readCopy);
+            })}
+          />
+        ) : null}
+      </SettingsGroup>
 
       {/* The one import that keeps itself going: Health is on the same phone. */}
       {healthAvailable() ? (

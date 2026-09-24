@@ -50,6 +50,11 @@ If the build stops on a provisioning error mentioning the app group, create
 the group by hand in Certificates, Identifiers & Profiles › Identifiers ›
 App Groups, then build again.
 
+The safety copy writes to iCloud Drive through the container
+`iCloud.com.malomiquel.tread` (iCloud capability, CloudDocuments). If the
+build stops on it, create the container in Identifiers › iCloud Containers,
+tick it on the app identifier's iCloud capability, and build again.
+
 ## Each build
 
 ```sh

@@ -8,12 +8,13 @@ import { Stack } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, AppState, StyleSheet, Text, useColorScheme, View } from "react-native";
+import { ActivityIndicator, AppState, StyleSheet, Text, useColorScheme, View, Alert } from "react-native";
 import { IncomingGpx } from "@/components/IncomingGpx";
 import { backfillEfforts, checkpoint, initDb } from "@/lib/db";
 import { importFromHealth } from "@/lib/healthSync";
+import { copyToOffer, makeCopy, restoreNewestCopy } from "@/lib/safetyCopy";
 import { refreshHomeWidget } from "@/lib/homeWidget";
-import { defineStrings, useStrings } from "@/lib/i18n";
+import { defineStrings, intlLocale, useStrings } from "@/lib/i18n";
 import { applyLanguage } from "@/lib/language";
 import { clearStaleRun } from "@/lib/liveActivity";
 import { refreshReminders } from "@/lib/planReminders";
@@ -25,6 +26,12 @@ import { colors, literalColors } from "@/lib/theme";
 const layoutStrings = defineStrings({
   fr: {
     databaseUnavailable: "Base de données inaccessible.",
+    restoreTitle: "Une copie de tes courses existe",
+    restoreMessage: (runs: number, date: string) =>
+      `Ta copie de sécurité du ${date} contient ${runs} course${runs > 1 ? "s" : ""}. La remettre dans l'app ?`,
+    restoreLater: "Plus tard",
+    restoreNow: "Récupérer",
+    restoredTitle: "Courses récupérées",
     back: "Retour",
     run: "Course",
     editRun: "Modifier la course",
@@ -49,6 +56,12 @@ const layoutStrings = defineStrings({
   },
   en: {
     databaseUnavailable: "The database can't be opened.",
+    restoreTitle: "A copy of your runs exists",
+    restoreMessage: (runs: number, date: string) =>
+      `Your safety copy from ${date} holds ${runs} run${runs > 1 ? "s" : ""}. Bring them back into the app?`,
+    restoreLater: "Later",
+    restoreNow: "Bring them back",
+    restoredTitle: "Runs restored",
     back: "Back",
     run: "Run",
     editRun: "Edit run",
@@ -120,6 +133,28 @@ export default function RootLayout() {
         void refreshReminders();
         // Runs a watch recorded while the app was closed, when that is on.
         void importFromHealth();
+        // An empty app with a copy in the cloud: a reinstall, or a new phone.
+        // Offered once, and only then is a first copy of this state written.
+        void copyToOffer().then((copy) => {
+          if (!copy) {
+            void makeCopy();
+            return;
+          }
+          const words = layoutStrings();
+          Alert.alert(
+            words.restoreTitle,
+            words.restoreMessage(copy.runs, new Date(copy.at).toLocaleDateString(intlLocale(), { day: "numeric", month: "long" })),
+            [
+              { text: words.restoreLater, style: "cancel" },
+              {
+                text: words.restoreNow,
+                onPress: () => void restoreNewestCopy().then((summary) => {
+                  if (summary) Alert.alert(words.restoredTitle, summary);
+                }),
+              },
+            ],
+          );
+        });
       })
       .catch((cause: unknown) => {
         setError(cause instanceof Error ? cause.message : layoutStrings().databaseUnavailable);
@@ -132,7 +167,8 @@ export default function RootLayout() {
     const subscription = AppState.addEventListener("change", (next) => {
       if (next === "background") {
         void refreshHomeWidget();
-        void checkpoint();
+        // Folded first, so the copy reads a database with the last run in it.
+        void checkpoint().then(() => makeCopy());
       }
       // Back from a run with the watch: its run is waiting in Health.
       if (next === "active") void importFromHealth();

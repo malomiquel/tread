@@ -102,7 +102,7 @@ promise is listed at the end, under "Not doing".
 ### Quality
 - [x] Pace rounding fixed (4'59"6 showed as 4'00")
 - [x] `DESIGN.md` design system, loaded by `CLAUDE.md` in every session
-- [x] 390 unit tests; typecheck, lint, expo-doctor 21/21, iOS bundle
+- [x] 396 unit tests; typecheck, lint, expo-doctor 21/21, iOS bundle
 
 ### Earlier work
 - [x] Weather before/after runs, forecasts on plan sessions, on the share card
@@ -204,8 +204,14 @@ and one that sends your position to others is not private.
   (under its 25 MB cap, past which it would keep nothing) and the photos too
   on a direct phone-to-phone transfer; the database is checkpointed each time
   the app goes to the background; Settings › Data says where the copy is 📱
-- [ ] A copy of one's own in iCloud Drive (a file in Files, restorable on any
-  iPhone): needs the iCloud capability, so the paid Apple account
+- [x] **Safety copy in the runner's own cloud** 📱: the "Switch phones" file
+  written by the app after every run, on leaving the app and at launch, only
+  when something changed — to iCloud Drive › Tread on iPhone, to a folder the
+  runner picks once (Google Drive…) on Android; the 7 newest kept; Settings ›
+  Data shows how fresh it is, makes one now, brings the newest back (merged,
+  nothing duplicated); an empty app finding a copy offers it back once (a
+  reinstall, a new iPhone). No Tread account, no server. The iCloud side
+  needs the paid Apple account to run on a phone (see RELEASE.md)
 - [x] **Automatic import of watch runs** from Apple Health 📱: Settings ›
   Data › "Runs from your watch" (off until asked, asks Health for workouts);
   running workouts other apps wrote (Apple Watch, Garmin through Health…),
@@ -276,6 +282,12 @@ The reason to pay is a plan that fits the runner, not more charts.
 - [ ] First tagged release built with the production configuration
 
 ### 5. Later: deepen, once people pay
+- [ ] **End-to-end encrypted backup**, if testers ask to move between iPhone
+  and Android or to use several devices: encrypted on the phone with a key
+  only the runner holds (a recovery phrase), stored as unreadable blobs
+  (S3 / Cloudflare R2), so the server knows nothing and holds no health data
+  in the clear; a lost phrase cannot be recovered, by anyone. A Pro feature
+  that keeps the promise. Never a central database in the clear with accounts
 - [ ] **Watch app**: Apple Watch first, then Wear OS
 - [ ] **Live heart rate** from a Bluetooth chest strap, with zone alerts
 - [ ] **Offline maps** for routes without signal

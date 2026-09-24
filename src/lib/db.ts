@@ -549,6 +549,31 @@ export async function checkpoint(): Promise<void> {
   await getDb().execAsync("PRAGMA wal_checkpoint(TRUNCATE)").catch(() => undefined);
 }
 
+/**
+ * A cheap summary of everything worth a safety copy: counts and totals of
+ * each table, over the columns a runner can change. Two equal summaries mean
+ * nothing a copy holds has moved since.
+ */
+export async function dataSummary(): Promise<Record<string, number | null>> {
+  const db = getDb();
+  const one = async (sql: string) => (await db.getFirstAsync<{ v: number | null }>(sql))?.v ?? null;
+  return {
+    runs: await one("SELECT COUNT(*) AS v FROM runs WHERE ended_at IS NOT NULL"),
+    lastRun: await one("SELECT MAX(id) AS v FROM runs"),
+    runFigures: await one("SELECT TOTAL(distance_m) + TOTAL(duration_s) AS v FROM runs"),
+    runWords: await one(
+      "SELECT TOTAL(LENGTH(COALESCE(name, '') || COALESCE(note, '') || COALESCE(tags, '') || COALESCE(activity, '')"
+      + " || COALESCE(exertion, '') || COALESCE(shoe_id, '') || COALESCE(route_id, '') || COALESCE(laps, ''))) AS v FROM runs",
+    ),
+    routes: await one("SELECT TOTAL(LENGTH(name || waypoints)) AS v FROM routes"),
+    plans: await one("SELECT COUNT(*) + TOTAL(id) AS v FROM plans"),
+    planDone: await one("SELECT COUNT(*) AS v FROM plan_done"),
+    sessions: await one("SELECT TOTAL(LENGTH(name || groups_json)) AS v FROM custom_sessions"),
+    shoes: await one("SELECT TOTAL(LENGTH(name) + start_m + limit_m + retired + is_default) AS v FROM shoes"),
+    settings: await one("SELECT TOTAL(LENGTH(key || value)) AS v FROM settings WHERE key NOT LIKE 'backup%' AND key != 'healthAnchor'"),
+  };
+}
+
 /** Every Health workout already here, as the app's own copy or as an import. */
 export async function knownHealthUuids(): Promise<Set<string>> {
   const rows = await getDb().getAllAsync<{ health_uuid: string }>(
