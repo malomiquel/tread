@@ -3,6 +3,7 @@ import { readRun, setHealthUuid, type Run } from "./db";
 import { estimateActiveEnergyKcal } from "./energy";
 import { maxHeartRateFor, summarise, type Beat, type Heart } from "./heart";
 import { segments, totalDistanceM, type TrackPoint } from "./geo";
+import type { HealthWorkout } from "./healthImport";
 
 type Api = typeof import("@kingstinct/react-native-healthkit");
 type Types = typeof import("@kingstinct/react-native-healthkit/types");
@@ -71,7 +72,9 @@ export function healthAvailable(): boolean {
 function permissions(types: Types) {
   return {
     toShare: [types.WorkoutTypeIdentifier, types.WorkoutRouteTypeIdentifier, DISTANCE, ENERGY],
-    toRead: [BODY_MASS, HEART_RATE, DATE_OF_BIRTH],
+    // Workouts and their routes are read as well as written: the runs a
+    // watch recorded are brought in when the runner asks for them.
+    toRead: [BODY_MASS, HEART_RATE, DATE_OF_BIRTH, types.WorkoutTypeIdentifier, types.WorkoutRouteTypeIdentifier],
   } as const;
 }
 
@@ -294,10 +297,72 @@ export async function syncRunToHealth(runId: number): Promise<string | null> {
  */
 export async function forgetRunInHealth(run: Run): Promise<void> {
   const health = healthKit();
-  if (!run.healthUuid || !health) return;
+  // A run brought in from Health is the watch's workout, not our copy: it
+  // stays there when it is removed from here.
+  if (!run.healthUuid || run.source !== null || !health) return;
   try {
     await health.api.deleteObjects(health.types.WorkoutTypeIdentifier, { uuid: run.healthUuid });
   } catch {
     /* nothing left to do: the run is already gone from this app */
+  }
+}
+
+/** Tread's own bundle: the workouts it wrote itself are not brought back in. */
+const OWN_BUNDLE = "com.malomiquel.tread";
+
+/** A Health quantity in the unit this app keeps: metres, seconds. */
+function inMetres(quantity: { quantity: number; unit: string } | undefined): number | null {
+  if (!quantity) return null;
+  const factor: Record<string, number> = { m: 1, km: 1000, mi: 1609.344, ft: 0.3048, yd: 0.9144 };
+  return factor[quantity.unit] === undefined ? null : quantity.quantity * factor[quantity.unit];
+}
+
+function inSeconds(quantity: { quantity: number; unit: string }): number {
+  const factor: Record<string, number> = { s: 1, min: 60, hr: 3600, ms: 0.001 };
+  return quantity.quantity * (factor[quantity.unit] ?? 1);
+}
+
+/**
+ * The running workouts other apps wrote to Health since `anchor`, with their
+ * tracks, and the anchor to ask from next time. Null where Health is absent
+ * or will not answer.
+ *
+ * Asked by anchor rather than by date, so a workout synced late from a watch
+ * that was out of range is still found, and none is read twice.
+ */
+export async function readNewWorkouts(anchor: string | undefined): Promise<{ workouts: HealthWorkout[]; anchor: string } | null> {
+  const health = healthKit();
+  if (!health) return null;
+  try {
+    const answer = await health.api.queryWorkoutSamplesWithAnchor({
+      limit: 0,
+      anchor,
+      filter: { workoutActivityType: health.types.WorkoutActivityType.running },
+    });
+    const workouts: HealthWorkout[] = [];
+    for (const workout of answer.workouts) {
+      if (workout.sourceRevision.source.bundleIdentifier === OWN_BUNDLE) continue;
+      const routes = await workout.getWorkoutRoutes().catch(() => []);
+      workouts.push({
+        uuid: workout.uuid,
+        startedAt: workout.startDate.getTime(),
+        endedAt: workout.endDate.getTime(),
+        durationS: inSeconds(workout.duration),
+        distanceM: inMetres(workout.totalDistance),
+        indoor: workout.metadata?.HKMetadataKeyIndoorWorkout === true,
+        sourceName: workout.sourceRevision.source.name,
+        locations: routes.flatMap((route) => route.locations).map((location) => ({
+          ts: location.date.getTime(),
+          lat: location.latitude,
+          lng: location.longitude,
+          alt: location.verticalAccuracy < 0 ? null : location.altitude,
+          accuracy: location.horizontalAccuracy < 0 ? null : location.horizontalAccuracy,
+          speed: location.speed < 0 ? null : location.speed,
+        })),
+      });
+    }
+    return { workouts, anchor: answer.newAnchor };
+  } catch {
+    return null;
   }
 }

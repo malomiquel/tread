@@ -1,10 +1,13 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Text } from "react-native";
+import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Switch, Text } from "react-native";
 import { SettingRow } from "@/components/SettingRow";
 import { SettingsGroup } from "@/components/SettingsGroup";
 import { exportRunArchive, importRouteFiles, importRunFiles } from "@/lib/files";
-import { defineStrings, useStrings } from "@/lib/i18n";
+import { healthAvailable } from "@/lib/health";
+import { enableHealthImport } from "@/lib/healthSync";
+import { useSettings } from "@/lib/settings";
+import { defineStrings, plural, useStrings } from "@/lib/i18n";
 import { colors, font } from "@/lib/theme";
 
 type Job = "runs" | "routes" | "export";
@@ -22,6 +25,13 @@ const dataStrings = defineStrings({
     backupAndroid:
       "Ils font partie de la sauvegarde Google de ton téléphone, si elle est activée, sauf les photos des courses, qui ne passent que d'un téléphone à l'autre. Supprimer l'app les efface.",
     import: "Importer",
+    watch: "Courses de ta montre",
+    watchDetail: "Ramène les courses qu'une Apple Watch ou une autre app a enregistrées dans Santé",
+    watchFooter: "Lu sur ce téléphone, dans Santé : rien ne passe par internet. Les nouvelles courses arrivent à chaque ouverture de l'app.",
+    watchDone: (count: number) => (count === 0
+      ? "Aucune nouvelle course dans Santé pour l'instant."
+      : `${plural(count, "course importée", "courses importées")} depuis Santé.`),
+    watchTitle: "Courses de ta montre",
     runs: "Des courses",
     runsDetail: "Fichiers GPX exportés de Strava, Garmin, d'une montre ou de Tread",
     routes: "Des parcours",
@@ -46,6 +56,13 @@ const dataStrings = defineStrings({
     backupAndroid:
       "They are part of your phone's Google backup, if it is on, except run photos, which only travel phone to phone. Deleting the app erases them.",
     import: "Import",
+    watch: "Runs from your watch",
+    watchDetail: "Brings in the runs an Apple Watch or another app wrote to Health",
+    watchFooter: "Read on this phone, from Health: nothing goes over the internet. New runs arrive each time the app opens.",
+    watchDone: (count: number) => (count === 0
+      ? "No new runs in Health yet."
+      : `${plural(count, "run", "runs")} imported from Health.`),
+    watchTitle: "Runs from your watch",
     runs: "Runs",
     runsDetail: "GPX files exported from Strava, Garmin, a watch or Tread",
     routes: "Routes",
@@ -69,6 +86,7 @@ const dataStrings = defineStrings({
  * and where the data lives is said once, plainly, above them.
  */
 export default function DataSettings() {
+  const settings = useSettings();
   const router = useRouter();
   const [busy, setBusy] = useState<Job | null>(null);
   const s = useStrings(dataStrings);
@@ -93,6 +111,29 @@ export default function DataSettings() {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <Text style={styles.lede}>{`${s.lede} ${Platform.OS === "ios" ? s.backupIos : s.backupAndroid}`}</Text>
+
+      {/* The one import that keeps itself going: Health is on the same phone. */}
+      {healthAvailable() ? (
+        <SettingsGroup footer={s.watchFooter}>
+          <SettingRow
+            icon="watch-outline"
+            label={s.watch}
+            detail={s.watchDetail}
+            right={
+              <Switch
+                value={settings.healthImport}
+                onValueChange={(on) => {
+                  void enableHealthImport(on).then((count) => {
+                    if (on) Alert.alert(s.watchTitle, s.watchDone(count));
+                  });
+                }}
+                trackColor={{ true: colors.accent, false: colors.hairline }}
+                accessibilityLabel={s.watch}
+              />
+            }
+          />
+        </SettingsGroup>
+      ) : null}
 
       <SettingsGroup title={s.import}>
         <SettingRow

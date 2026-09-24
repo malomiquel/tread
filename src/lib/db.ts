@@ -11,6 +11,7 @@ import { parseGroups, type CustomSession, type DraftGroup } from "./customSessio
 import { bestEfforts, EFFORT_KEYS, parseEfforts, type BestEfforts } from "./efforts";
 import { parseHeart, type Heart } from "./heart";
 import { parseLaps, type LapMark } from "./laps";
+import type { ImportedRun } from "./healthImport";
 import { forgetPhotos, parsePhotos } from "./photos";
 import type { EditedRun } from "./runEdit";
 import type { Shoe } from "./shoes";
@@ -123,6 +124,8 @@ export interface Run {
   note: string | null;
   /** Photo file names, in the app's photos folder. */
   photos: string[];
+  /** For a run brought in from Health, what recorded it: "Apple Watch". Null for the app's own. */
+  source: string | null;
 }
 
 /** Shape the SQL layer returns, before mapping to camelCase. */
@@ -151,6 +154,7 @@ interface RunRow {
   tags: string | null;
   note: string | null;
   photos: string | null;
+  source: string | null;
 }
 
 const toRun = (row: RunRow): Run => ({
@@ -182,6 +186,7 @@ const toRun = (row: RunRow): Run => ({
   tags: parseTags(row.tags ?? null),
   note: row.note ?? null,
   photos: parsePhotos(row.photos ?? null),
+  source: row.source ?? null,
 });
 
 function parseBlocks(raw: string | null): RanBlock[] {
@@ -196,7 +201,7 @@ function parseBlocks(raw: string | null): RanBlock[] {
   }
 }
 
-const SCHEMA_VERSION = 23;
+const SCHEMA_VERSION = 24;
 
 /**
  * The plan's two tables, written once and used twice — by a fresh install and
@@ -346,7 +351,8 @@ export async function initDb(): Promise<void> {
         activity TEXT,
         tags TEXT,
         note TEXT,
-        photos TEXT
+        photos TEXT,
+        source TEXT
       );
       CREATE TABLE IF NOT EXISTS points (
         id INTEGER PRIMARY KEY,
@@ -523,6 +529,11 @@ export async function initDb(): Promise<void> {
     version = 23;
   }
 
+  if (version < 24) {
+    await db.execAsync("ALTER TABLE runs ADD COLUMN source TEXT");
+    version = 24;
+  }
+
   await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
   await recoverInterruptedRuns();
 }
@@ -536,6 +547,33 @@ export async function initDb(): Promise<void> {
  */
 export async function checkpoint(): Promise<void> {
   await getDb().execAsync("PRAGMA wal_checkpoint(TRUNCATE)").catch(() => undefined);
+}
+
+/** Every Health workout already here, as the app's own copy or as an import. */
+export async function knownHealthUuids(): Promise<Set<string>> {
+  const rows = await getDb().getAllAsync<{ health_uuid: string }>(
+    "SELECT health_uuid FROM runs WHERE health_uuid IS NOT NULL",
+  );
+  return new Set(rows.map((row) => row.health_uuid));
+}
+
+/**
+ * Keep a run brought in from Health. Its Health id is kept too, which both
+ * stops it being brought in twice and stops the app offering to copy it back.
+ */
+export async function saveImportedRun(run: ImportedRun, uuid: string, source: string): Promise<number> {
+  const db = getDb();
+  const id = await createRun(run.startedAt);
+  await insertPoints(id, run.points);
+  await db.runAsync(
+    "UPDATE runs SET ended_at = ?, distance_m = ?, duration_s = ?, avg_pace_s_km = ?, name = ?,"
+    + " elevation_gain_m = ?, fastest_km_s = ?, best_efforts = ?, activity = ?, health_uuid = ?, source = ?,"
+    + " shoe_id = (SELECT id FROM shoes WHERE is_default = 1 AND retired = 0 LIMIT 1) WHERE id = ?",
+    run.endedAt, run.distanceM, run.durationS, run.avgPaceSKm, autoName(run.startedAt),
+    run.elevationGainM, run.fastestKmS, JSON.stringify(run.bestEfforts),
+    run.activity === "run" ? null : run.activity, uuid, source, id,
+  );
+  return id;
 }
 
 export async function createRun(startedAt: number): Promise<number> {
@@ -1240,7 +1278,10 @@ export async function rewriteRun(id: number, edited: EditedRun): Promise<void> {
     }
     await db.runAsync(
       "UPDATE runs SET started_at = ?, ended_at = ?, distance_m = ?, duration_s = ?, avg_pace_s_km = ?,"
-      + " elevation_gain_m = ?, fastest_km_s = ?, best_efforts = ?, laps = ?, health_uuid = NULL WHERE id = ?",
+      // A run brought in from Health keeps its link: the workout there is the
+      // watch's, not a copy of ours to replace.
+      + " elevation_gain_m = ?, fastest_km_s = ?, best_efforts = ?, laps = ?,"
+      + " health_uuid = CASE WHEN source IS NULL THEN NULL ELSE health_uuid END WHERE id = ?",
       edited.startedAt, edited.endedAt, edited.distanceM, edited.durationS, edited.avgPaceSKm,
       edited.elevationGainM, edited.fastestKmS, JSON.stringify(edited.bestEfforts),
       edited.laps.length ? JSON.stringify(edited.laps) : null, id,

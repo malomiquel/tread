@@ -62,6 +62,11 @@ export interface Settings {
   language: LanguageChoice;
   /** Pause the run when the runner stops, and resume when they set off. Off by default. */
   autoPause: boolean;
+  /**
+   * Bring in the runs a watch wrote to Apple Health. Off until asked for: it
+   * needs one more permission, and not everybody runs with a watch.
+   */
+  healthImport: boolean;
   /** Kilometres or miles, or whatever the phone's region uses. */
   units: UnitChoice;
   /** How much of a shared track is hidden around its start and finish, in metres. */
@@ -79,7 +84,7 @@ export interface Settings {
 const DEFAULTS: Settings = {
   voice: true, targetPaceSKm: null, weeklyGoalM: null, goalKind: "distance", weeklyGoalS: null,
   weeklyGoalClimbM: null, reminder: "off", routeId: null,
-  welcomed: false, language: "auto", runner: null, raceSetupOffered: false, autoPause: false, units: "auto", privacyRadiusM: DEFAULT_PRIVACY_RADIUS,
+  welcomed: false, language: "auto", runner: null, raceSetupOffered: false, autoPause: false, healthImport: false, units: "auto", privacyRadiusM: DEFAULT_PRIVACY_RADIUS,
 };
 
 /**
@@ -112,6 +117,7 @@ export async function loadSettings(): Promise<void> {
       runner: readRunnerProfile(stored.runner),
       raceSetupOffered: stored.raceSetupOffered === "true",
       autoPause: stored.autoPause === "true",
+      healthImport: stored.healthImport === "true",
       units: readUnitChoice(stored.units),
       privacyRadiusM: readPrivacyRadius(stored.privacyRadiusM),
     });
@@ -177,6 +183,10 @@ export async function setUnitChoice(choice: UnitChoice): Promise<void> {
 }
 
 /** Pause by itself at a stop, or only when asked. */
+export async function setHealthImport(on: boolean): Promise<void> {
+  await store({ ...current, healthImport: on }, "healthImport", String(on));
+}
+
 export async function toggleAutoPause(): Promise<void> {
   await store({ ...current, autoPause: !current.autoPause }, "autoPause", String(!current.autoPause));
 }

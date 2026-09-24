@@ -11,6 +11,7 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, AppState, StyleSheet, Text, useColorScheme, View } from "react-native";
 import { IncomingGpx } from "@/components/IncomingGpx";
 import { backfillEfforts, checkpoint, initDb } from "@/lib/db";
+import { importFromHealth } from "@/lib/healthSync";
 import { refreshHomeWidget } from "@/lib/homeWidget";
 import { defineStrings, useStrings } from "@/lib/i18n";
 import { applyLanguage } from "@/lib/language";
@@ -117,6 +118,8 @@ export default function RootLayout() {
         // wanted at all. Not awaited: it reaches the network for the weather,
         // and nothing about opening the app depends on its answer.
         void refreshReminders();
+        // Runs a watch recorded while the app was closed, when that is on.
+        void importFromHealth();
       })
       .catch((cause: unknown) => {
         setError(cause instanceof Error ? cause.message : layoutStrings().databaseUnavailable);
@@ -131,6 +134,8 @@ export default function RootLayout() {
         void refreshHomeWidget();
         void checkpoint();
       }
+      // Back from a run with the watch: its run is waiting in Health.
+      if (next === "active") void importFromHealth();
     });
     return () => subscription.remove();
   }, []);

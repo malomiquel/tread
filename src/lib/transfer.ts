@@ -253,7 +253,9 @@ function readRoutes(routes: unknown): TransferRoute[] {
  * other side: carried across, it would put somebody else's route — or none
  * at all — under the first run on the new phone.
  */
-const LOCAL_SETTINGS = new Set(["routeId"]);
+// The Health anchor marks what this phone's Health has already given; another
+// phone's Health has its own history.
+const LOCAL_SETTINGS = new Set(["routeId", "healthAnchor"]);
 
 function readSettingsBag(settings: unknown): Record<string, string> {
   if (!settings || typeof settings !== "object") return {};

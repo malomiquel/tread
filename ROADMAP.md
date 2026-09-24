@@ -206,8 +206,14 @@ and one that sends your position to others is not private.
   the app goes to the background; Settings › Data says where the copy is 📱
 - [ ] A copy of one's own in iCloud Drive (a file in Files, restorable on any
   iPhone): needs the iCloud capability, so the paid Apple account
-- [ ] **Automatic import of watch runs** from Apple Health (then Garmin via
-  Health), so a runner with a watch has a reason to stay without a watch app
+- [x] **Automatic import of watch runs** from Apple Health 📱: Settings ›
+  Data › "Runs from your watch" (off until asked, asks Health for workouts);
+  running workouts other apps wrote (Apple Watch, Garmin through Health…),
+  with their track, read by anchor at launch and on each return to the app;
+  the app's own copies skipped, a run recorded by the phone at the same time
+  kept once; indoor workouts become treadmill runs; "Imported from Apple
+  Health · Apple Watch" on the run; editing or deleting it never touches the
+  watch's workout; migration 24
 - [ ] **Health Connect** on Android (Apple Health only today)
 - [ ] **Coarse positions to third parties**: weather and routing requests
   sent with coordinates rounded to about a kilometre, never a doorstep

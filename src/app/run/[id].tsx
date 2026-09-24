@@ -106,6 +106,7 @@ const runStrings = defineStrings({
     fastestLap: "le plus rapide",
     gpsPoints: (n: number) => `${n} points GPS enregistrés`,
     copiedToHealth: "Copiée dans Apple Santé",
+    importedFrom: (source: string) => `Importée depuis Apple Santé · ${source}`,
     sending: "Envoi…",
     addToHealth: "Ajouter à Apple Santé",
     validate: "Valider",
@@ -183,6 +184,7 @@ const runStrings = defineStrings({
     fastestLap: "fastest",
     gpsPoints: (n: number) => (n === 1 ? "1 GPS point recorded" : `${n} GPS points recorded`),
     copiedToHealth: "Copied to Apple Health",
+    importedFrom: (source: string) => `Imported from Apple Health · ${source}`,
     sending: "Sending…",
     addToHealth: "Add to Apple Health",
     validate: "Done",
@@ -1024,7 +1026,7 @@ export default function RunDetailScreen() {
         {hasHealth && run.healthUuid && (
           <View style={styles.synced}>
             <Ionicons name="heart" size={12} color={colors.accent} />
-            <Text style={styles.syncedText}>{s.copiedToHealth}</Text>
+            <Text style={styles.syncedText}>{run.source ? s.importedFrom(run.source) : s.copiedToHealth}</Text>
           </View>
         )}
       </View>

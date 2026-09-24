@@ -134,9 +134,10 @@ export default function EditRunScreen() {
     try {
       // The copy in Health holds the old figures: it goes, and the new ones
       // are written in its place once the run is saved.
-      if (run.healthUuid) await forgetRunInHealth(run);
+      const ownCopy = run.healthUuid !== null && run.source === null;
+      if (ownCopy) await forgetRunInHealth(run);
       await rewriteRun(run.id, edited);
-      if (run.healthUuid) void syncRunToHealth(run.id);
+      if (ownCopy) void syncRunToHealth(run.id);
       router.back();
     } catch {
       setSaving(false);
