@@ -51,6 +51,8 @@ when it is done; add a line when something new comes up.
 ### Routes
 - [x] Draw, edit (drag, delete points, undo), rename, delete from the editor
 - [x] GPX import and share; map previews; play from the list
+- [x] Search by name or place (accents ignored), sort (newest, nearest, most
+  run, distance, name), filter chips (loops, one way, three lengths, never run)
 
 ### Settings
 - [x] Grouped like the phone's own: Training, While running, App, Data, About
@@ -205,7 +207,9 @@ High value, large effort
 - [x] **Route guidance** 📱: on a chosen route, the status line shows the
   distance left, the next turn within 200 m ("À gauche dans 80 m") and "Off
   route" after 10 s more than 40 m away; turns spoken 60 m ahead, leaving and
-  finding the route again said aloud (leaving also buzzes twice)
+  finding the route again said aloud (leaving also buzzes twice); the run
+  finishes by itself at the end of the route once 90 % of it is covered
+  (not while a session is still under way)
 - [ ] **Offline maps** for routes without signal
 - [ ] **Training load**: relative effort from heart rate; fitness and
   freshness curves

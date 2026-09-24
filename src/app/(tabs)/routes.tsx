@@ -2,10 +2,11 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useFocusEffect, useRouter, useScrollToTop } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import {
-  Alert, FlatList, Image, Pressable, StyleSheet, Text, useColorScheme, View,
+  Alert, FlatList, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, useColorScheme, View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Polyline } from "react-native-svg";
+import { ChoiceSheet } from "@/components/ChoiceSheet";
 import { EmptyState } from "@/components/EmptyState";
 import { HeaderButton } from "@/components/HeaderButton";
 import { RunButtonText } from "@/components/RunButtonText";
@@ -16,6 +17,10 @@ import { importRouteFiles } from "@/lib/files";
 import { formatDistance, formatDuration } from "@/lib/format";
 import { defineStrings, useStrings } from "@/lib/i18n";
 import { useTabBarSpace } from "@/lib/layout";
+import { useKnownLocation } from "@/lib/location";
+import {
+  filterName, findRoutes, ROUTE_FILTERS, ROUTE_SORTS, sortName, type RouteFilter, type RouteSort,
+} from "@/lib/routeFilter";
 import { drawnLine, isLoop, thumbnail, type StoredRoute } from "@/lib/route";
 import { setRoute, useSettings } from "@/lib/settings";
 import { colors, font, literalColors } from "@/lib/theme";
@@ -46,6 +51,13 @@ const routesStrings = defineStrings({
     onMap: " · sur ta carte",
     recordTime: (time: string) => ` · record ${time}`,
     run: (name: string) => `Courir ${name}`,
+    search: "Rechercher un parcours ou un lieu",
+    clearSearch: "Effacer la recherche",
+    sort: "Trier",
+    sortBy: (name: string) => `Trier : ${name}`,
+    noMatch: "Aucun parcours ne correspond.",
+    showAll: "Tout afficher",
+    count: (shown: number, total: number) => `${shown} sur ${total}`,
   },
   en: {
     title: "Routes",
@@ -71,6 +83,13 @@ const routesStrings = defineStrings({
     onMap: " · on your map",
     recordTime: (time: string) => ` · best ${time}`,
     run: (name: string) => `Run ${name}`,
+    search: "Search a route or a place",
+    clearSearch: "Clear the search",
+    sort: "Sort",
+    sortBy: (name: string) => `Sort: ${name}`,
+    noMatch: "No route matches.",
+    showAll: "Show all",
+    count: (shown: number, total: number) => `${shown} of ${total}`,
   },
 });
 
@@ -140,6 +159,11 @@ export default function RoutesScreen() {
   const [routes, setRoutes] = useState<StoredRoute[] | null>(null);
   const [records, setRecords] = useState<Map<number, RouteRecord>>(new Map());
   const [importing, setImporting] = useState(false);
+  const [query, setQuery] = useState("");
+  const [filters, setFilters] = useState<RouteFilter[]>([]);
+  const [sort, setSort] = useState<RouteSort>("recent");
+  const [choosingSort, setChoosingSort] = useState(false);
+  const here = useKnownLocation();
   const camera = useRef<RouteSnapshotHandle>(null);
   /** Routes already photographed in this session, so none is done twice. */
   const shot = useRef(new Set<number>());
@@ -209,6 +233,25 @@ export default function RoutesScreen() {
 
   const draw = () => router.push({ pathname: "/route/[id]", params: { id: "new" } });
 
+  // Every route with what it is judged on, then searched, filtered and sorted.
+  const all = routes ?? [];
+  const shown = findRoutes(
+    all.map((route) => ({
+      ...route,
+      loop: isLoop(route),
+      start: route.waypoints[0] ?? null,
+      runs: records.get(route.id)?.runs ?? 0,
+    })),
+    { query, filters, sort, here },
+  );
+  const narrowed = query.trim() !== "" || filters.length > 0;
+  const toggle = (filter: RouteFilter) =>
+    setFilters((held) => (held.includes(filter) ? held.filter((on) => on !== filter) : [...held, filter]));
+  const showAll = () => {
+    setQuery("");
+    setFilters([]);
+  };
+
   function remove(route: StoredRoute) {
     const text = routesStrings();
     Alert.alert(
@@ -250,13 +293,72 @@ export default function RoutesScreen() {
           )}
         </View>
 
+        {/* Only once there is something to look through. */}
+        {all.length > 1 ? (
+          <View style={styles.tools}>
+            <View style={styles.search}>
+              <Ionicons name="search" size={17} color={colors.subtle} />
+              <TextInput
+                value={query}
+                onChangeText={setQuery}
+                placeholder={s.search}
+                placeholderTextColor={colors.subtle}
+                returnKeyType="search"
+                autoCorrect={false}
+                style={styles.searchInput}
+                accessibilityLabel={s.search}
+              />
+              {query ? (
+                <Pressable onPress={() => setQuery("")} accessibilityRole="button" accessibilityLabel={s.clearSearch} hitSlop={10}>
+                  <Ionicons name="close-circle" size={18} color={colors.subtle} />
+                </Pressable>
+              ) : null}
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+              <Pressable
+                onPress={() => setChoosingSort(true)}
+                accessibilityRole="button"
+                accessibilityLabel={s.sortBy(sortName(sort))}
+                style={({ pressed }) => [styles.chip, styles.sortChip, pressed && styles.pressed]}
+              >
+                <Ionicons name="swap-vertical" size={15} color={colors.accent} />
+                <Text style={[styles.chipText, styles.chipTextOn]}>{sortName(sort)}</Text>
+              </Pressable>
+              {ROUTE_FILTERS.map((filter) => {
+                const on = filters.includes(filter);
+                return (
+                  <Pressable
+                    key={filter}
+                    onPress={() => toggle(filter)}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: on }}
+                    style={({ pressed }) => [styles.chip, on && styles.chipOn, pressed && styles.pressed]}
+                  >
+                    <Text style={[styles.chipText, on && styles.chipTextOn]}>{filterName(filter)}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+            {narrowed ? <Text style={styles.count}>{s.count(shown.length, all.length)}</Text> : null}
+          </View>
+        ) : null}
+
         <FlatList
           ref={list}
-          data={routes ?? []}
+          data={shown}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
           keyExtractor={(route) => String(route.id)}
           contentContainerStyle={{ paddingBottom: tabBarSpace + 60 }}
           ListEmptyComponent={
-            routes === null ? null : (
+            routes === null ? null : all.length > 0 ? (
+              <View style={styles.noMatch}>
+                <Text style={styles.noMatchText}>{s.noMatch}</Text>
+                <Pressable onPress={showAll} accessibilityRole="button" hitSlop={8}>
+                  <Text style={styles.showAll}>{s.showAll}</Text>
+                </Pressable>
+              </View>
+            ) : (
               <EmptyState
                 actions={[
                   { icon: "add", title: s.draw, detail: s.drawDetail, primary: true, onPress: draw },
@@ -326,6 +428,15 @@ export default function RoutesScreen() {
         />
       </View>
 
+      <ChoiceSheet
+        visible={choosingSort}
+        title={s.sort}
+        selected={sort}
+        choices={ROUTE_SORTS.map((option) => ({ value: option, label: sortName(option) }))}
+        onChoose={setSort}
+        onClose={() => setChoosingSort(false)}
+      />
+
       {/* Parked off screen, and only ever asked for a picture of a route that
           has none. */}
       <RouteSnapshot ref={camera} />
@@ -346,6 +457,27 @@ const styles = StyleSheet.create({
   title: { color: colors.text, fontSize: 32, fontFamily: font.bold, letterSpacing: -0.6 },
   subtitle: { color: colors.subtle, fontFamily: font.regular, fontSize: 15, marginTop: 3 },
   pressed: { opacity: 0.6 },
+
+  tools: { gap: 10, paddingBottom: 12 },
+  search: {
+    flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: GUTTER,
+    paddingHorizontal: 12, height: 40, borderRadius: 10, backgroundColor: colors.sunken,
+  },
+  searchInput: { flex: 1, color: colors.text, fontSize: 16, fontFamily: font.regular, paddingVertical: 0 },
+  chips: { gap: 8, paddingHorizontal: GUTTER },
+  chip: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    paddingHorizontal: 12, height: 32, borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline,
+  },
+  sortChip: { backgroundColor: colors.accentSoft, borderColor: colors.accentSoft },
+  chipOn: { backgroundColor: colors.accentSoft, borderColor: colors.accentSoft },
+  chipText: { color: colors.muted, fontSize: 14.5, fontFamily: font.medium },
+  chipTextOn: { color: colors.accent, fontFamily: font.semibold },
+  count: { color: colors.subtle, fontSize: 13.5, fontFamily: font.regular, marginHorizontal: GUTTER },
+  noMatch: { alignItems: "center", gap: 8, paddingTop: 40, paddingHorizontal: GUTTER },
+  noMatchText: { color: colors.muted, fontSize: 15.5, fontFamily: font.regular },
+  showAll: { color: colors.accent, fontSize: 15.5, fontFamily: font.semibold },
 
   // The same plain list the history uses, separated by rules rather than by
   // cards: two lists of the same kind of thing should not be set differently.

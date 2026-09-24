@@ -187,6 +187,7 @@ defaults.
 | `HoldButton` | Steppers that repeat while held (goal, pace). |
 | `Segmented` | Two or three ways of seeing the same thing (History: list or calendar). The one showing is filled on the `sunken` track. |
 | `StepSlider` | A choice among a few ordered stops (1–4 runs a week). Snaps, ticks with a haptic, works with VoiceOver. |
+| `DropdownMenu` | A round ⋯ button whose menu drops just under it: the actions on the thing a page shows. |
 | `SwipeToDelete` | Deleting a row in a list. Never the only way: the item's own page has a delete too. |
 | `RunButtonText` | Any sentence that mentions the run button. |
 
@@ -243,6 +244,11 @@ Section heading                     aside
 - Lists are rows separated by hairlines, indented past their leading tile so
   the tiles read as one column. No floating cards in a list.
 - The page leaves `useTabBarSpace()` (+60 in lists) at the bottom.
+- A list that grows (the routes) gets a search field (`sunken`, height 40)
+  and a row of chips under the title, shown once there are two items: the
+  sort first, tinted, opening a `ChoiceSheet`; then filters that tint when on.
+  "3 of 12" appears while narrowed; an empty result says so and offers "Show
+  all".
 - **A tab is an overview, not an archive.** A list longer than a few rows
   gets its own page: the tab shows its headline in one `RecordRow` with a
   chevron (Profile: Records → longest run, Best efforts → 5K, Predicted
@@ -283,6 +289,16 @@ Once a lap is pressed the status line follows the lap under way, in
 `accent`, as a session's line does; a session's line wins over it. On a chosen route the
 line follows the route: distance left, the next turn within 200 m, "Off
 route" in `warning`; a session's or a lap's line wins over it.
+
+### A pushed page's actions
+
+What can be done to the thing a page shows — a run: save as a route, edit,
+add to Health, export, delete — sits behind one round ⋯ button beside that
+thing's title, next to its share button: a `DropdownMenu` that drops from
+the button, aligned to its right edge, an icon and a word per row, the
+destructive one last, set apart and in red. Never a row of buttons at the
+foot of the page (four abreast, their words break), never the phone's action
+sheet (it rises far from the finger and reads as a warning).
 
 ### The welcome
 
