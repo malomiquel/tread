@@ -196,7 +196,7 @@ function parseBlocks(raw: string | null): RanBlock[] {
   }
 }
 
-const SCHEMA_VERSION = 22;
+const SCHEMA_VERSION = 23;
 
 /**
  * The plan's two tables, written once and used twice — by a fresh install and
@@ -515,6 +515,12 @@ export async function initDb(): Promise<void> {
     await db.execAsync("ALTER TABLE runs ADD COLUMN note TEXT");
     await db.execAsync("ALTER TABLE runs ADD COLUMN photos TEXT");
     version = 22;
+  }
+
+  if (version < 23) {
+    // Runs still pointing at a route deleted before deleting let go of them.
+    await db.execAsync("UPDATE runs SET route_id = NULL WHERE route_id IS NOT NULL AND route_id NOT IN (SELECT id FROM routes)");
+    version = 23;
   }
 
   await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
@@ -913,6 +919,18 @@ export async function saveRoute(name: string, route: Route, look: RouteLook): Pr
   return Number(result.lastInsertRowId);
 }
 
+/**
+ * Keep a run's way as a route, and count the run as its first time round.
+ *
+ * The run becomes the route's record straight away, so the next time the
+ * route is run its ghost is the run it was made from.
+ */
+export async function saveRunAsRoute(runId: number, name: string, route: Route, look: RouteLook): Promise<number> {
+  const routeId = await saveRoute(name, route, look);
+  await getDb().runAsync("UPDATE runs SET route_id = ? WHERE id = ?", routeId, runId);
+  return routeId;
+}
+
 /** Every route, newest first. */
 interface ShoeRow {
   id: number; name: string; added_at: number; start_m: number; limit_m: number;
@@ -1104,6 +1122,10 @@ export async function renameRoute(id: number, name: string): Promise<void> {
 
 export async function deleteRoute(id: number): Promise<void> {
   const route = await readRoute(id);
+  // Its runs stay, as runs that followed no route: one of them may well be
+  // worth keeping as a route again, and a run tied to a route that no longer
+  // exists could not be.
+  await getDb().runAsync("UPDATE runs SET route_id = NULL WHERE route_id = ?", id);
   await getDb().runAsync("DELETE FROM routes WHERE id = ?", id);
   if (route?.preview) forgetPicture(route.preview);
 }

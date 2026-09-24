@@ -13,11 +13,15 @@ import { FeelSheet } from "@/components/FeelSheet";
 import { RunMap } from "@/components/RunMap";
 import { PlanAttachment } from "@/components/PlanAttachment";
 import { LineChart } from "@/components/LineChart";
+import { DropdownMenu, type MenuItem } from "@/components/DropdownMenu";
 import { RunDetails } from "@/components/RunDetails";
 import { canShareImage, ShareRunSheet } from "@/components/ShareRunSheet";
 import { exertionName, type Exertion } from "@/lib/plan";
 import { deleteRun, effortRecords, readRoute, readRun, routeRecords, type RouteRecord, renameRun, type Run, setRunExertion, setRunHeart, planSessionOfRun,
+  saveRunAsRoute,
 } from "@/lib/db";
+import { placeName } from "@/lib/location";
+import { autoRouteName, routeFromLine, runLine } from "@/lib/route";
 import {
   formatDate, formatDistance, formatDuration, formatElevation, formatEnergy, formatPace, formatSpeed,
 } from "@/lib/format";
@@ -109,6 +113,16 @@ const runStrings = defineStrings({
     exportGpx: "Exporter en GPX",
     manual: "Saisie à la main, sans tracé GPS",
     editRun: "Modifier la course",
+    actions: "Plus d'actions sur cette course",
+    saveAsRoute: "Enregistrer comme parcours",
+    routeName: "Nom du parcours",
+    routeNameHint: "Le nom sous lequel tu le retrouveras dans tes parcours.",
+    routeSaved: "Parcours enregistré",
+    routeSavedMessage: (name: string) => `« ${name} » est dans tes parcours. Cette course en est le premier passage : ce sera ton fantôme la prochaine fois.`,
+    openRoute: "Voir le parcours",
+    ok: "OK",
+    routeFailed: "Parcours impossible à créer",
+    routeFailedMessage: "Réessaie dans un instant.",
     runName: "Nom de la course",
     namePlaceholder: "Course matinale",
     save: "Enregistrer",
@@ -176,6 +190,16 @@ const runStrings = defineStrings({
     exportGpx: "Export as GPX",
     manual: "Entered by hand, with no GPS track",
     editRun: "Edit run",
+    actions: "More actions on this run",
+    saveAsRoute: "Save as a route",
+    routeName: "Route name",
+    routeNameHint: "The name you will find it under in your routes.",
+    routeSaved: "Route saved",
+    routeSavedMessage: (name: string) => `"${name}" is in your routes. This run is its first time round: it will be your ghost next time.`,
+    openRoute: "See the route",
+    ok: "OK",
+    routeFailed: "Couldn't create the route",
+    routeFailedMessage: "Try again in a moment.",
     runName: "Run name",
     namePlaceholder: "Morning run",
     save: "Save",
@@ -275,6 +299,8 @@ export default function RunDetailScreen() {
   /** The route this run covered, with that route's record, once read. */
   const [onRoute, setOnRoute] = useState<{ name: string; record: RouteRecord } | null>(null);
   const [renaming, setRenaming] = useState(false);
+  /** The name being typed for a route made from this run, or null when not asked. */
+  const [routeDraft, setRouteDraft] = useState<string | null>(null);
   const [draftName, setDraftName] = useState("");
   const [exporting, setExporting] = useState(false);
   const [mapExpanded, setMapExpanded] = useState(false);
@@ -484,6 +510,52 @@ export default function RunDetailScreen() {
    * The cache is the right home: the system reclaims it on its own, and the
    * file only needs to survive long enough to be shared.
    */
+  /**
+   * Everything that can be done to this run, from one button at the top of
+   * the page. They used to be a row of buttons under the splits, four abreast
+   * with their words broken over five lines, at the one place on the page
+   * nobody scrolls to on purpose.
+   */
+  const actions: MenuItem[] = [
+    ...(points.length > 1 && run.routeId === null
+      ? [{
+        key: "route", label: s.saveAsRoute, icon: "map-outline" as const,
+        // Named first: a route is found again by its name, and the run's is
+        // usually "Course matinale", which says nothing about where it goes.
+        onPress: () => setRouteDraft(run.name ?? autoRouteName(run.startedAt)),
+      }]
+      : []),
+    ...(points.length > 1
+      ? [{
+        key: "edit", label: s.editRun, icon: "cut-outline" as const,
+        onPress: () => router.push({ pathname: "/run/edit/[id]", params: { id: String(run.id) } }),
+      }]
+      : []),
+    ...(hasHealth && !run.healthUuid && !syncing
+      ? [{ key: "health", label: s.addToHealth, icon: "heart-outline" as const, onPress: () => void sendToHealth() }]
+      : []),
+    ...(points.length > 0 && !exporting
+      ? [{ key: "gpx", label: s.exportGpx, icon: "document-outline" as const, onPress: () => void exportGpx() }]
+      : []),
+    { key: "delete", label: s.delete, icon: "trash-outline", destructive: true, onPress: askDelete },
+  ];
+
+  async function keepAsRoute(typed: string) {
+    const name = typed.trim() || autoRouteName(run.startedAt);
+    setRouteDraft(null);
+    try {
+      const place = await placeName(points[0].lat, points[0].lng).catch(() => null);
+      const routeId = await saveRunAsRoute(run.id, name, routeFromLine(runLine(points)), { place, preview: null });
+      setData({ ...data!, run: { ...run, routeId } });
+      Alert.alert(s.routeSaved, s.routeSavedMessage(name), [
+        { text: s.ok, style: "cancel" },
+        { text: s.openRoute, onPress: () => router.push({ pathname: "/route/[id]", params: { id: String(routeId) } }) },
+      ]);
+    } catch {
+      Alert.alert(s.routeFailed, s.routeFailedMessage);
+    }
+  }
+
   async function exportGpx() {
     if (exporting) return;
     setExporting(true);
@@ -587,6 +659,7 @@ export default function RunDetailScreen() {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+
       <View style={styles.heading}>
         <View style={styles.headingText}>
           <Pressable
@@ -631,6 +704,7 @@ export default function RunDetailScreen() {
           <Ionicons name="share-outline" size={19} color={colors.text} />
         </Pressable>
         ) : null}
+        <DropdownMenu items={actions} accessibilityLabel={s.actions} />
       </View>
 
       <View style={styles.section}>
@@ -955,17 +1029,6 @@ export default function RunDetailScreen() {
         )}
       </View>
 
-      {hasHealth && !run.healthUuid && (
-        <View style={styles.wideAction}>
-          <Button
-            label={syncing ? s.sending : s.addToHealth}
-            variant="secondary"
-            onPress={() => void sendToHealth()}
-            disabled={syncing}
-          />
-        </View>
-      )}
-
       {/* Only for a run just finished. Opened from the history or the plan,
           the sheet is something you leave by going back, and a button
           claiming to validate what is already recorded would be noise. */}
@@ -976,23 +1039,6 @@ export default function RunDetailScreen() {
           <Button label={s.validate} onPress={validate} />
         </View>
       ) : null}
-
-      <View style={styles.actions}>
-        {points.length > 1 ? (
-          <Button
-            label={s.editRun}
-            variant="secondary"
-            onPress={() => router.push({ pathname: "/run/edit/[id]", params: { id: String(run.id) } })}
-          />
-        ) : null}
-        <Button
-          label={exporting ? s.exporting : s.exportGpx}
-          variant="secondary"
-          onPress={() => void exportGpx()}
-          disabled={exporting || points.length === 0}
-        />
-        <Button label={s.delete} variant="danger" onPress={askDelete} />
-      </View>
 
       <FeelSheet
         // Only for a run just finished and not yet rated. Derived rather than
@@ -1039,6 +1085,31 @@ export default function RunDetailScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+      <Modal visible={routeDraft !== null} transparent animationType="fade" onRequestClose={() => setRouteDraft(null)}>
+        <Pressable style={styles.backdrop} onPress={() => setRouteDraft(null)}>
+          {/* Stops a tap inside the card from closing it. */}
+          <Pressable style={styles.dialog} onPress={() => undefined}>
+            <Text style={styles.dialogTitle}>{s.routeName}</Text>
+            <Text style={styles.dialogHint}>{s.routeNameHint}</Text>
+            <TextInput
+              value={routeDraft ?? ""}
+              onChangeText={setRouteDraft}
+              placeholder={autoRouteName(run.startedAt)}
+              placeholderTextColor={colors.subtle}
+              autoFocus
+              selectTextOnFocus
+              returnKeyType="done"
+              onSubmitEditing={() => void keepAsRoute(routeDraft ?? "")}
+              maxLength={60}
+              style={styles.input}
+            />
+            <View style={styles.dialogActions}>
+              <Button label={s.cancel} variant="secondary" onPress={() => setRouteDraft(null)} />
+              <Button label={s.save} onPress={() => void keepAsRoute(routeDraft ?? "")} />
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ScrollView>
   );
 }
@@ -1053,7 +1124,7 @@ const styles = StyleSheet.create({
   },
 
   heading: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12,
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8,
     paddingHorizontal: GUTTER, paddingTop: 4, paddingBottom: 13,
   },
   headingText: { flex: 1, gap: 3 },
@@ -1174,8 +1245,6 @@ const styles = StyleSheet.create({
   muted: { color: colors.subtle, fontFamily: font.regular, fontSize: 13.5, textAlign: "center" },
   synced: { flexDirection: "row", alignItems: "center", gap: 5 },
   syncedText: { color: colors.accent, fontSize: 13.5, fontFamily: font.medium },
-  wideAction: { paddingHorizontal: GUTTER, paddingBottom: 10 },
-  actions: { flexDirection: "row", gap: 10, paddingHorizontal: GUTTER },
 
   backdrop: {
     flex: 1, backgroundColor: colors.scrim,
@@ -1186,6 +1255,7 @@ const styles = StyleSheet.create({
     ...floatingShadow,
   },
   dialogTitle: { color: colors.text, fontSize: 19, fontFamily: font.bold },
+  dialogHint: { color: colors.muted, fontSize: 14.5, fontFamily: font.regular, lineHeight: 19, marginTop: -4 },
   input: {
     backgroundColor: colors.background, borderRadius: 6, paddingHorizontal: 13, paddingVertical: 11,
     fontFamily: font.regular, fontSize: 17, color: colors.text, borderWidth: 1, borderColor: colors.hairline,

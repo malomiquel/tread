@@ -361,6 +361,30 @@ export function routeFromLine(
   };
 }
 
+/** Fixes closer together than this say nothing a route needs. */
+const RUN_LINE_SPACING_M = 5;
+
+/**
+ * The line a run leaves behind, ready to become a route.
+ *
+ * Every fix, pauses joined up — a route is where to go, not when anybody
+ * stopped — and thinned to one point every five metres or so: a run records
+ * a fix a second, and a route of three thousand points would be heavy to
+ * draw, store and drag about for nothing the eye could see.
+ */
+export function runLine(points: readonly { lat: number; lng: number }[]): RoutePoint[] {
+  if (points.length < 2) return points.map(({ lat, lng }) => ({ lat, lng }));
+  const line: RoutePoint[] = [{ lat: points[0].lat, lng: points[0].lng }];
+  for (let i = 1; i < points.length - 1; i += 1) {
+    if (distanceM(line[line.length - 1], points[i]) >= RUN_LINE_SPACING_M) {
+      line.push({ lat: points[i].lat, lng: points[i].lng });
+    }
+  }
+  const last = points[points.length - 1];
+  line.push({ lat: last.lat, lng: last.lng });
+  return line;
+}
+
 /** A route back out of the database, where it is kept as two json columns. */
 export function parseRoute(waypoints: string | null, legs: string | null): Route {
   const read = (raw: string | null): unknown => {

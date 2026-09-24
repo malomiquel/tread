@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   autoRouteName, drawnLine, emptyRoute, isLoop, lastWaypoint, legUrl, parseRoute, readLeg,
-  legsAround, movedWaypoint, routeDistanceM, routeFromLine, snapped, thumbnail, withoutLast,
+  legsAround, movedWaypoint, routeDistanceM, routeFromLine, runLine, snapped, thumbnail, withoutLast,
   withoutWaypoint, withWaypoint, type RoutePoint,
 } from "./route.ts";
 
@@ -324,4 +324,14 @@ test("a run counts for its route once it covers nine tenths of it", async () => 
   assert.equal(coversRoute(4400, 5000), false);
   assert.equal(coversRoute(8000, 5000), true);
   assert.equal(coversRoute(100, 0), false);
+});
+
+test("a run's line keeps its ends and drops fixes a metre apart", () => {
+  // Fixes a metre apart for a hundred metres.
+  const fixes = Array.from({ length: 101 }, (_, i) => ({ lat: 48 + i / 110_540, lng: 2 }));
+  const line = runLine(fixes);
+  assert.deepEqual(line[0], fixes[0]);
+  assert.deepEqual(line[line.length - 1], fixes[100]);
+  assert.ok(line.length > 15 && line.length < 25);
+  assert.deepEqual(runLine([fixes[0]]), [fixes[0]]);
 });
