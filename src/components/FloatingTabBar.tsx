@@ -11,6 +11,7 @@ import { defineStrings, useStrings } from "@/lib/i18n";
 import { nextToRun, startOfDay } from "@/lib/plan";
 import { TAB_BAR_HEIGHT, useTabBarBottom } from "@/lib/layout";
 import { colors, font } from "@/lib/theme";
+import { setRoute } from "@/lib/settings";
 import { chooseSession, useTracker } from "@/lib/tracker";
 import type { Session } from "@/lib/workout";
 
@@ -83,6 +84,10 @@ export function FloatingTabBar({
       router.push("/record");
       return;
     }
+    // A run started from here follows no route. The route chosen for the last
+    // one was still on the map, and a runner who pressed the disc and saw it
+    // took it for today's plan. A route is followed from the routes tab.
+    void setRoute(null);
     try {
       const plan = await activePlan();
       if (!plan) return startFree();
