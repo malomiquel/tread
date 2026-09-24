@@ -145,7 +145,8 @@
             }
           ]
         }
-      ]
+      ],
+      "./plugins/withSceneLifecycle"
     ],
     "experiments": {
       "typedRoutes": true,
