@@ -32,30 +32,33 @@ export function useInitialLocation(): InitialLocation {
     let active = true;
 
     const locate = async () => {
-      const permission = await Location.requestForegroundPermissionsAsync();
+      const permission = await Location.requestForegroundPermissionsAsync().catch(() => null);
       if (!active) return;
-      if (permission.status !== "granted") {
+      if (permission?.status !== "granted") {
         setGranted(false);
         return;
       }
       setGranted(true);
 
-      const known = await Location.getLastKnownPositionAsync();
-      if (active && known) {
-        setCoords({ lat: known.coords.latitude, lng: known.coords.longitude });
-      }
-
-      const fix = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      if (active) {
-        setCoords({ lat: fix.coords.latitude, lng: fix.coords.longitude });
+      // From here on a failure means no fix yet — indoors, a cold GPS, a
+      // simulator with no position — not a refusal. It used to be reported as
+      // one, and "location denied" on a phone that had said yes sends people
+      // to a setting that is already right.
+      try {
+        const known = await Location.getLastKnownPositionAsync();
+        if (active && known) {
+          setCoords({ lat: known.coords.latitude, lng: known.coords.longitude });
+        }
+        const fix = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        if (active) {
+          setCoords({ lat: fix.coords.latitude, lng: fix.coords.longitude });
+        }
+      } catch {
+        /* the map keeps its default framing until the run's own fixes arrive */
       }
     };
 
-    // Failing here is not fatal: the map keeps its default framing and the run
-    // stays possible, since starting one asks for permission again.
-    locate().catch(() => {
-      if (active) setGranted(false);
-    });
+    void locate();
 
     return () => {
       active = false;
