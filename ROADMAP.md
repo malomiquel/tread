@@ -1,11 +1,28 @@
 # Tread roadmap
 
-What has been done, and what is left before the app can be sold. Tick a box
-when it is done; add a line when something new comes up.
+What has been done, and what is left before the app can be sold, in the
+order that serves one promise. Tick a box when it is done; add a line when
+something new comes up.
 
 - `[x]` done and verified in code (typecheck, lint, unit tests, bundle)
 - `[ ]` to do
 - Items marked **📱** are written but still need checking on a real phone.
+
+---
+
+## Positioning
+
+> **The running app that knows nothing about you.**
+> A plan that adapts to how you feel, your own routes, your progress —
+> no account, no social network, and your runs never leave your phone.
+
+For regular and newer runners training for a 10K or a half, put off by
+Strava's feed or by Runna's price, in France and Europe first, where privacy
+is an argument people act on. Priced well below the big names.
+
+Every item below is judged against that line: does it keep the promise, make
+the coach worth paying for, or prove that people want it? What would break the
+promise is listed at the end, under "Not doing".
 
 ---
 
@@ -85,7 +102,7 @@ when it is done; add a line when something new comes up.
 ### Quality
 - [x] Pace rounding fixed (4'59"6 showed as 4'00")
 - [x] `DESIGN.md` design system, loaded by `CLAUDE.md` in every session
-- [x] 386 unit tests; typecheck, lint, expo-doctor 21/21, iOS bundle
+- [x] 390 unit tests; typecheck, lint, expo-doctor 21/21, iOS bundle
 
 ### Earlier work
 - [x] Weather before/after runs, forecasts on plan sessions, on the share card
@@ -94,35 +111,7 @@ when it is done; add a line when something new comes up.
 - [x] Map replay, share as picture or GIF
 - [x] Tag-driven Android APK releases, versions from the commit history
 
----
-
-## To do
-
-### Code, to check on a phone 📱
-- [ ] Full pass on device, light and dark: welcome, slider, History, Profile,
-  Settings, empty tabs, English, miles
-- [ ] Auto-pause outdoors: stops at a light, resumes on setting off, no false
-  pauses in a tunnel or under trees
-- [ ] Native rebuild (`npx expo prebuild`) for the Live Activity unit fields,
-  the translated permission texts (`locales/`) and `expo-localization`
-- [ ] Large text (iOS Dynamic Type): check fixed heights (empty-state cards,
-  rows); cap `maxFontSizeMultiplier` where it breaks
-
-### Code, still to write
-- [ ] Health Connect on Android (Apple Health only today)
-- [ ] Automatic backup: iCloud on iOS, Auto Backup rules on Android
-- [ ] End-to-end tests (Maestro) for the main flows: welcome, start → finish
-  a run, create a plan; add `testID`s
-- [ ] Live Activity labels in the app's chosen language, not the phone's
-- [ ] Target-pace stepper in miles: step per mile rather than 5 s/km
-- [ ] "Fastest kilometre" record in miles: now covered by best efforts (1
-  mile); drop or rename the old record
-- [ ] Offer to update the weekly goal when the runner profile changes
-- [ ] More languages (the `{ fr, en }` tables are ready to take a third)
-
-### Feature ideas, by priority
-
-High value, moderate effort
+### Features shipped
 - [x] **Route records**: a run counts for its route once it covers 90 % of
   it; best time shown in the list, and on each run "new best", "first time"
   or the gap to the best
@@ -171,8 +160,6 @@ High value, moderate effort
   by steps; no map, "entered by hand" on its page; counts for the default pair
 - [x] **Charts on a run**: pace and heart rate (from Health, when a watch
   recorded it) against distance, lined up with the elevation profile
-- [ ] **Cadence chart**: needs steps recorded minute by minute during the run
-  (only the average is kept today, and the pedometer's history is short)
 - [x] **Lap button** during a run, for track and hill repeats: under pause
   and stop, the lap said aloud, the lap under way on the status line, a
   "Laps" section on the run with the fastest one marked; carried by transfer
@@ -197,45 +184,101 @@ High value, moderate effort
 - [x] **Personal heatmap**: Profile › "Map of all your runs": every track
   sampled to ~150 points, translucent lines whose overlaps darken; opens on
   where most runs are; All / This year
-
-High value, large effort
-- [ ] **Strava upload** after each run (OAuth, activity upload API)
-- [ ] **Watch app**: Apple Watch first, then Wear OS
-- [ ] **Live heart rate** from a Bluetooth chest strap, with zone alerts
-- [ ] **Automatic import of watch runs** from Apple Health (then Garmin),
-  instead of GPX files
 - [x] **Route guidance** 📱: on a chosen route, the status line shows the
   distance left, the next turn within 200 m ("À gauche dans 80 m") and "Off
   route" after 10 s more than 40 m away; turns spoken 60 m ahead, leaving and
   finding the route again said aloud (leaving also buzzes twice); the run
   finishes by itself at the end of the route once 90 % of it is covered
   (not while a session is still under way)
-- [ ] **Offline maps** for routes without signal
-- [ ] **Training load**: relative effort from heart rate; fitness and
-  freshness curves
 
-Comfort and safety
-- [ ] **Treadmill mode**: no GPS, distance from the pedometer, corrected at
-  the end
+---
+
+## To do, in order
+
+### 1. Keep the promise: nothing lost, nothing leaked
+A private app that loses your history with your phone is not trusted twice,
+and one that sends your position to others is not private.
+- [ ] **Automatic backup** without a Tread account: iCloud on iOS (the
+  runner's own storage, Apple's encryption), Auto Backup rules on Android
+- [ ] **Automatic import of watch runs** from Apple Health (then Garmin via
+  Health), so a runner with a watch has a reason to stay without a watch app
+- [ ] **Health Connect** on Android (Apple Health only today)
+- [ ] **Coarse positions to third parties**: weather and routing requests
+  sent with coordinates rounded to about a kilometre, never a doorstep
+- [ ] **App Store privacy label "Data Not Collected"**, checked against every
+  request the app makes; no analytics or crash SDK (crashes through Apple's
+  opt-in reports only)
+- [ ] Privacy policy hosted at a public URL, written in plain words: what
+  stays on the phone (everything) and the few requests that leave it
+- [ ] Open-Meteo commercial subscription → `TREAD_WEATHER_URL` / `TREAD_WEATHER_KEY`
+- [ ] Own routing server (OSRM or a provider) → `TREAD_ROUTING_URL`
+
+### 2. The coach worth paying for
+The reason to pay is a plan that fits the runner, not more charts.
+- [ ] **Weather-aware plan**: offer to move a session when heavy rain is due
 - [ ] **Custom voice cues**: every X minutes or X km, heart rate, time left
   in the session
-- [ ] **Weather-aware plan**: offer to move a session when heavy rain is due
-- [ ] **Siri Shortcuts / App Intents**: "Start a run in Tread"
-- [ ] **Safety**: share live location with someone during a run; alert after
-  a long unexpected stop
+- [ ] **Training load** from heart rate: relative effort per run, fitness and
+  freshness over weeks, feeding the plan's easing
+- [ ] Offer to update the weekly goal when the runner profile changes
+- [ ] Target-pace stepper in miles: step per mile rather than 5 s/km
+- [ ] "Fastest kilometre" record in miles: now covered by best efforts (1
+  mile); drop or rename the old record
 
-### Before selling (not code)
-- [ ] Open-Meteo commercial subscription → set `TREAD_WEATHER_URL` / `TREAD_WEATHER_KEY`
-- [ ] Own routing server (OSRM or a provider) → set `TREAD_ROUTING_URL`
-- [ ] Support mailbox → set `TREAD_SUPPORT_EMAIL`
-- [ ] Privacy policy hosted at a public URL (required by both stores)
-- [ ] Terms of use / legal notice
-- [ ] Business model: paid app, subscription or freemium (RevenueCat if subscription)
-- [ ] Store listings in French and English: description, keywords, category
+### 3. Prove it before scaling it
+- [ ] Full pass on device, light and dark: welcome, slider, History, Profile,
+  Settings, empty tabs, English, miles 📱
+- [ ] Auto-pause outdoors: stops at a light, resumes on setting off, no false
+  pauses in a tunnel or under trees 📱
+- [ ] Native rebuild for the Live Activity unit fields, the translated
+  permission texts (`locales/`) and `expo-localization` 📱
+- [ ] Large text (iOS Dynamic Type): check fixed heights (empty-state cards,
+  rows); cap `maxFontSizeMultiplier` where it breaks
+- [ ] End-to-end tests (Maestro) for the main flows: welcome, start → finish
+  a run, create a plan; add `testID`s
+- [ ] **TestFlight beta with 20–30 runners** (friends, a club): ask "how
+  would you feel if Tread disappeared tomorrow?" — aim for 40 % "very
+  disappointed" before paying for launch; retention read from TestFlight and
+  App Store Connect's opt-in figures, never from our own tracking
+
+### 4. Launch and price
+- [ ] **Tread Pro**: the core free (recording, history, simple routes); plans,
+  guidance and ghost, heatmap, recaps, custom sessions and predictions in Pro.
+  Annual subscription around 19,99 €/year with a free trial, or a one-time
+  "pay once, keep it" price — decide from the beta. StoreKit / Play Billing
+  directly (expo-iap) rather than a third party that would see every purchase
+- [ ] Store listings in French and English, led by the positioning line
 - [ ] Screenshots with realistic runs, in both languages, light and dark
+- [ ] Terms of use / legal notice; trader status (EU DSA) and a business
+  (micro-entreprise to start, a company to sell under another name)
+- [ ] Support mailbox → `TREAD_SUPPORT_EMAIL`
 - [x] Release setup in the repository: `eas.json`, `npm run release:ios` /
   `release:android` (local EAS builds, versions from git), export compliance
   declared, [RELEASE.md](RELEASE.md) with the steps and the TestFlight texts
 - [ ] App Store Connect and Play Console setup, TestFlight / internal testing
   (accounts to pay for, then RELEASE.md)
 - [ ] First tagged release built with the production configuration
+
+### 5. Later: deepen, once people pay
+- [ ] **Watch app**: Apple Watch first, then Wear OS
+- [ ] **Live heart rate** from a Bluetooth chest strap, with zone alerts
+- [ ] **Offline maps** for routes without signal
+- [ ] **Treadmill mode**: no GPS, distance from the pedometer, corrected at
+  the end
+- [ ] **Siri Shortcuts / App Intents**: "Start a run in Tread"
+- [ ] **Safety**: share your live position with one person you choose, for
+  the length of a run, directly and only then; alert after a long unexpected
+  stop
+- [ ] **Cadence chart**: needs steps recorded minute by minute during the run
+- [ ] Live Activity labels in the app's chosen language, not the phone's
+- [ ] More languages (the `{ fr, en }` tables are ready to take a third)
+
+---
+
+## Not doing
+What would break the promise, kept here so it is not proposed again.
+- **Accounts, a social feed, kudos, leaderboards**: the promise is that the
+  app needs nothing from you and nobody watches
+- **Ads, analytics or attribution SDKs**, and selling or sharing data
+- **Automatic Strava upload**: it needs an account elsewhere and sends every
+  run away; a runner who wants it has the GPX export, one run at a time
