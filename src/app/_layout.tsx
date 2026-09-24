@@ -10,7 +10,7 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, AppState, StyleSheet, Text, useColorScheme, View } from "react-native";
 import { IncomingGpx } from "@/components/IncomingGpx";
-import { backfillEfforts, initDb } from "@/lib/db";
+import { backfillEfforts, checkpoint, initDb } from "@/lib/db";
 import { refreshHomeWidget } from "@/lib/homeWidget";
 import { defineStrings, useStrings } from "@/lib/i18n";
 import { applyLanguage } from "@/lib/language";
@@ -127,7 +127,10 @@ export default function RootLayout() {
   // goal set, a plan made, a language switched — so it is rewritten then.
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (next) => {
-      if (next === "background") void refreshHomeWidget();
+      if (next === "background") {
+        void refreshHomeWidget();
+        void checkpoint();
+      }
     });
     return () => subscription.remove();
   }, []);

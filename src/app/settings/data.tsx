@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text } from "react-native";
+import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Text } from "react-native";
 import { SettingRow } from "@/components/SettingRow";
 import { SettingsGroup } from "@/components/SettingsGroup";
 import { exportRunArchive, importRouteFiles, importRunFiles } from "@/lib/files";
@@ -16,7 +16,11 @@ const dataStrings = defineStrings({
     failed: "Opération impossible",
     unexpected: "Erreur inattendue.",
     lede:
-      "Tes courses et tes parcours sont enregistrés sur ce téléphone uniquement, sans compte ni serveur. Supprimer l'app les efface : exporte-les de temps en temps pour en garder une copie.",
+      "Tes courses et tes parcours sont enregistrés sur ce téléphone, sans compte ni serveur Tread.",
+    backupIos:
+      "Ils font partie de la sauvegarde iCloud de ton iPhone, si elle est activée : sur un nouvel iPhone, restaure-la et tout revient. Supprimer l'app, elle, les efface.",
+    backupAndroid:
+      "Ils font partie de la sauvegarde Google de ton téléphone, si elle est activée, sauf les photos des courses, qui ne passent que d'un téléphone à l'autre. Supprimer l'app les efface.",
     import: "Importer",
     runs: "Des courses",
     runsDetail: "Fichiers GPX exportés de Strava, Garmin, d'une montre ou de Tread",
@@ -36,7 +40,11 @@ const dataStrings = defineStrings({
     failed: "Something went wrong",
     unexpected: "Unexpected error.",
     lede:
-      "Your runs and routes are stored on this phone only, with no account and no server. Deleting the app erases them, so export them now and then to keep a copy.",
+      "Your runs and routes are stored on this phone, with no account and no Tread server.",
+    backupIos:
+      "They are part of your iPhone's iCloud backup, if it is on: restore it on a new iPhone and everything comes back. Deleting the app erases them.",
+    backupAndroid:
+      "They are part of your phone's Google backup, if it is on, except run photos, which only travel phone to phone. Deleting the app erases them.",
     import: "Import",
     runs: "Runs",
     runsDetail: "GPX files exported from Strava, Garmin, a watch or Tread",
@@ -84,7 +92,7 @@ export default function DataSettings() {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Text style={styles.lede}>{s.lede}</Text>
+      <Text style={styles.lede}>{`${s.lede} ${Platform.OS === "ios" ? s.backupIos : s.backupAndroid}`}</Text>
 
       <SettingsGroup title={s.import}>
         <SettingRow

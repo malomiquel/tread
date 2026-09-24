@@ -149,7 +149,8 @@
           ]
         }
       ],
-      "./plugins/withSceneLifecycle"
+      "./plugins/withSceneLifecycle",
+      "./plugins/withBackupRules"
     ],
     "experiments": {
       "typedRoutes": true,

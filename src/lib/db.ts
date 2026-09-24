@@ -527,6 +527,17 @@ export async function initDb(): Promise<void> {
   await recoverInterruptedRuns();
 }
 
+/**
+ * Fold the write-ahead log back into the database file.
+ *
+ * Recent writes live in a side file until SQLite gets round to merging them,
+ * and a backup taken between the two could keep a database without the last
+ * run. Done when the app leaves the screen, which is when a phone backs up.
+ */
+export async function checkpoint(): Promise<void> {
+  await getDb().execAsync("PRAGMA wal_checkpoint(TRUNCATE)").catch(() => undefined);
+}
+
 export async function createRun(startedAt: number): Promise<number> {
   const result = await getDb().runAsync("INSERT INTO runs (started_at) VALUES (?)", startedAt);
   return Number(result.lastInsertRowId);

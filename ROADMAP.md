@@ -198,8 +198,14 @@ promise is listed at the end, under "Not doing".
 ### 1. Keep the promise: nothing lost, nothing leaked
 A private app that loses your history with your phone is not trusted twice,
 and one that sends your position to others is not private.
-- [ ] **Automatic backup** without a Tread account: iCloud on iOS (the
-  runner's own storage, Apple's encryption), Auto Backup rules on Android
+- [x] **Automatic backup** without a Tread account, through the phone's own
+  backup: iOS keeps everything in Documents (iCloud and computer backups);
+  Android rules keep the database and route pictures in the Google backup
+  (under its 25 MB cap, past which it would keep nothing) and the photos too
+  on a direct phone-to-phone transfer; the database is checkpointed each time
+  the app goes to the background; Settings › Data says where the copy is 📱
+- [ ] A copy of one's own in iCloud Drive (a file in Files, restorable on any
+  iPhone): needs the iCloud capability, so the paid Apple account
 - [ ] **Automatic import of watch runs** from Apple Health (then Garmin via
   Health), so a runner with a watch has a reason to stay without a watch app
 - [ ] **Health Connect** on Android (Apple Health only today)
