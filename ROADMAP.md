@@ -83,7 +83,7 @@ when it is done; add a line when something new comes up.
 ### Quality
 - [x] Pace rounding fixed (4'59"6 showed as 4'00")
 - [x] `DESIGN.md` design system, loaded by `CLAUDE.md` in every session
-- [x] 378 unit tests; typecheck, lint, expo-doctor 21/21, iOS bundle
+- [x] 386 unit tests; typecheck, lint, expo-doctor 21/21, iOS bundle
 
 ### Earlier work
 - [x] Weather before/after runs, forecasts on plan sessions, on the share card
@@ -124,8 +124,9 @@ High value, moderate effort
 - [x] **Route records**: a run counts for its route once it covers 90 % of
   it; best time shown in the list, and on each run "new best", "first time"
   or the gap to the best
-- [ ] **Ghost runner**: your best run on a route, moving on the map as you
-  run it
+- [x] **Ghost runner** 📱: on a route with a record, the best run replayed
+  by active time as a hollow dot on the map, the gap in seconds on the status
+  line beside the distance left, and after each kilometre by voice
 - [x] **Custom sessions**: an editor (steps repeated ×N, blocks by effort,
   distance or time, figures by steps rather than typed), in the session
   picker under "My sessions" with a pencil to edit; migration 19; carried by
@@ -201,7 +202,10 @@ High value, large effort
 - [ ] **Live heart rate** from a Bluetooth chest strap, with zone alerts
 - [ ] **Automatic import of watch runs** from Apple Health (then Garmin),
   instead of GPX files
-- [ ] **Route guidance**: off-route alert, turn cues, distance left
+- [x] **Route guidance** 📱: on a chosen route, the status line shows the
+  distance left, the next turn within 200 m ("À gauche dans 80 m") and "Off
+  route" after 10 s more than 40 m away; turns spoken 60 m ahead, leaving and
+  finding the route again said aloud (leaving also buzzes twice)
 - [ ] **Offline maps** for routes without signal
 - [ ] **Training load**: relative effort from heart rate; fitness and
   freshness curves

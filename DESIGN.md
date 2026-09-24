@@ -280,7 +280,9 @@ colour (`accent` on, `text` off), never by fading.
 While running, the controls are pause and stop side by side, with the **lap
 button** under them: a flat pill (height 36), flag and word, found by feel.
 Once a lap is pressed the status line follows the lap under way, in
-`accent`, as a session's line does; a session's line wins over it.
+`accent`, as a session's line does; a session's line wins over it. On a chosen route the
+line follows the route: distance left, the next turn within 200 m, "Off
+route" in `warning`; a session's or a lap's line wins over it.
 
 ### The welcome
 

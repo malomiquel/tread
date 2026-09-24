@@ -20,6 +20,8 @@ import { defineStrings, plural, useStrings } from "@/lib/i18n";
 import { currentPace, elevationGainM, MAX_ACCURACY_M, paceSecPerKm, totalDistanceM } from "@/lib/geo";
 import { CONTROL_SIZE, CONTROLS_TOP, useTabBarBottom } from "@/lib/layout";
 import { locationAccess, useInitialLocation } from "@/lib/location";
+import { ghostAt, ghostGapS } from "@/lib/ghost";
+import { turnName } from "@/lib/guidance";
 import { drawnLine, type RoutePoint } from "@/lib/route";
 import { measure } from "@/lib/goals";
 import { toggleVoice, useSettings, weeklyGoal } from "@/lib/settings";
@@ -79,6 +81,14 @@ const recordStrings = defineStrings({
     start: "Démarrer",
     pause: "Pause",
     resume: "Reprendre",
+    routeLeft: (distance: string) => `Parcours · ${distance} ${distanceUnit()} restants`,
+    ghostAhead: (gap: string) => `${gap} d'avance`,
+    ghostBehind: (gap: string) => `${gap} de retard`,
+    ghostLevel: "à égalité",
+    ghostOnly: (gap: string) => `Record · ${gap}`,
+    routeTurn: (direction: string, metres: string) => `${direction.charAt(0).toUpperCase()}${direction.slice(1)} dans ${metres}`,
+    routeOff: (metres: string) => `Hors parcours · à ${metres}`,
+    routeDone: "Parcours terminé",
     lap: "Tour",
     lapLabel: (number: number) => `Terminer le tour ${number}`,
     lapLine: (number: number, distance: string, duration: string) =>
@@ -129,12 +139,30 @@ const recordStrings = defineStrings({
     start: "Start",
     pause: "Pause",
     resume: "Resume",
+    routeLeft: (distance: string) => `Route · ${distance} ${distanceUnit()} left`,
+    ghostAhead: (gap: string) => `${gap} ahead`,
+    ghostBehind: (gap: string) => `${gap} behind`,
+    ghostLevel: "level",
+    ghostOnly: (gap: string) => `Best · ${gap}`,
+    routeTurn: (direction: string, metres: string) => `${direction.charAt(0).toUpperCase()}${direction.slice(1)} in ${metres}`,
+    routeOff: (metres: string) => `Off route · ${metres} away`,
+    routeDone: "Route complete",
     lap: "Lap",
     lapLabel: (number: number) => `End lap ${number}`,
     lapLine: (number: number, distance: string, duration: string) =>
       `Lap ${number} · ${distance} ${distanceUnit()} · ${duration}`,
   },
 });
+
+/** A gap to the record: "8 s" under a minute, "1:12" beyond. */
+const gapText = (seconds: number): string => (seconds < 60 ? `${seconds} s` : formatDuration(seconds));
+
+/** A short distance, in tens of metres or fifties of feet: "80 m", "250 ft". */
+function shortDistance(metres: number): string {
+  return elevationUnit() === "ft"
+    ? `${Math.max(50, Math.round(metres / 0.3048 / 50) * 50)} ft`
+    : `${Math.max(10, Math.round(metres / 10) * 10)} m`;
+}
 
 /** Height of the lap button under the run's controls. */
 const LAP_HEIGHT = 36;
@@ -494,7 +522,36 @@ export default function RecordScreen() {
       formatDuration(duration - lastLap.durationS),
     )
     : null;
-  const guideLine = sessionLine ?? lapLine;
+  /**
+   * Following a route, the line says what the route asks next: the turn when
+   * one is close, the way back when the runner has left it, otherwise how
+   * much is left. A session or a lap already divides the run and keeps the
+   * line; the voice still gives the turns.
+   */
+  const guidance = recording ? tracker.guidance : null;
+  // Against the record on this route: the gap in seconds, measured where the
+  // runner is now. Said beside the distance left, where there is room for it.
+  const ghost = recording ? tracker.ghost : null;
+  const ghostSpot = ghost ? ghostAt(ghost, duration) : null;
+  const gapS = ghost ? ghostGapS(ghost, distance, duration) : null;
+  const gapWords = gapS === null
+    ? null
+    : Math.abs(gapS) < 1
+      ? s.ghostLevel
+      : gapS > 0
+        ? s.ghostAhead(gapText(Math.round(gapS)))
+        : s.ghostBehind(gapText(Math.round(-gapS)));
+  const followLine = guidance === null
+    ? gapWords === null ? null : s.ghostOnly(gapWords)
+    : guidance.off
+      ? s.routeOff(shortDistance(guidance.offM))
+      : guidance.done
+        ? s.routeDone
+        : guidance.next && guidance.next.inM <= 200
+          ? s.routeTurn(turnName(guidance.next.direction), shortDistance(guidance.next.inM))
+          : `${s.routeLeft(formatDistance(guidance.leftM))}${gapWords ? ` · ${gapWords}` : ""}`;
+  const guideLine = sessionLine ?? lapLine ?? followLine;
+  const routeWarning = sessionLine === null && lapLine === null && guidance?.off === true;
 
   // The same threshold the tracker throws fixes away at, so the warning and
   // the filter can never disagree about what counts as a poor signal.
@@ -579,6 +636,7 @@ export default function RecordScreen() {
         points={tracker.points}
         follow
         route={routeLine}
+        ghost={ghostSpot}
         initialCenter={coords}
         locateOnFocus
         controlsAbove={locateAbove}
@@ -678,7 +736,10 @@ export default function RecordScreen() {
                   hitSlop={6}
                 >
                   <Text
-                    style={[styles.state, weakSignal && styles.stateWeak, guideLine && styles.stateSession]}
+                    style={[
+                      styles.state, weakSignal && styles.stateWeak, guideLine && styles.stateSession,
+                      routeWarning && styles.stateWeak,
+                    ]}
                     numberOfLines={1}
                   >
                     {guideLine ?? `${state} · ${recording ? signal : idleSignal}`}

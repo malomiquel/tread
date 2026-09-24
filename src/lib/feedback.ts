@@ -80,6 +80,14 @@ const spokenWords = defineStrings({
     autoResumed: "Reprise",
     drift: (seconds: number, slow: boolean) =>
       `${seconds} seconde${seconds > 1 ? "s" : ""} ${slow ? "trop lent" : "trop rapide"}`,
+    ghost: (seconds: number, ahead: boolean) =>
+      `${seconds} seconde${seconds > 1 ? "s" : ""} ${ahead ? "d'avance" : "de retard"} sur ton record`,
+    ghostLevel: "À égalité avec ton record",
+    turn: (direction: string, distance: string) => `Dans ${distance}, ${direction}`,
+    offRoute: "Tu as quitté le parcours",
+    backOnRoute: "De retour sur le parcours",
+    routeDone: "Parcours terminé",
+    feet: (feet: number) => `${feet} pieds`,
     lap: (number: number, distance: string, minutes: number, seconds: number) => `Tour ${number}. ${distance}, ${
       minutes > 0
         ? `${minutes} minute${minutes > 1 ? "s" : ""}${seconds > 0 ? ` ${seconds}` : ""}`
@@ -99,6 +107,14 @@ const spokenWords = defineStrings({
     autoResumed: "Resumed",
     drift: (seconds: number, slow: boolean) =>
       `${seconds} second${seconds > 1 ? "s" : ""} ${slow ? "too slow" : "too fast"}`,
+    ghost: (seconds: number, ahead: boolean) =>
+      `${seconds} second${seconds > 1 ? "s" : ""} ${ahead ? "ahead of" : "behind"} your best`,
+    ghostLevel: "Level with your best",
+    turn: (direction: string, distance: string) => `In ${distance}, ${direction}`,
+    offRoute: "You have left the route",
+    backOnRoute: "Back on the route",
+    routeDone: "Route complete",
+    feet: (feet: number) => `${feet} feet`,
     lap: (number: number, distance: string, minutes: number, seconds: number) => `Lap ${number}. ${distance}, ${
       minutes > 0
         ? `${minutes} minute${minutes > 1 ? "s" : ""}${seconds > 0 ? ` ${seconds}` : ""}`
@@ -121,7 +137,7 @@ export function announceAutoPause(paused: boolean, spoken: boolean): void {
   Speech.speak(paused ? words.autoPaused : words.autoResumed, { language: speechLocale(), rate: 1 });
 }
 
-export function announceKilometre(km: number, splitS: number, spoken: boolean): void {
+export function announceKilometre(km: number, splitS: number, spoken: boolean, ghostGapS: number | null = null): void {
   // The buzz fires whatever happens: it is the part that works with headphones
   // out, music playing, or the phone deep in a pocket.
   //
@@ -132,7 +148,12 @@ export function announceKilometre(km: number, splitS: number, spoken: boolean): 
 
   const minutes = Math.floor(splitS / 60);
   const seconds = Math.round(splitS % 60);
-  Speech.speak(spokenWords().kilometre(km, minutes, seconds), { language: speechLocale(), rate: 1 });
+  const words = spokenWords();
+  // Against the record on this route, when there is one: the one figure a
+  // ghost exists to give, and the kilometre is the moment it is asked for.
+  const gap = ghostGapS === null ? null : Math.round(ghostGapS);
+  const ghost = gap === null ? "" : gap === 0 ? `. ${words.ghostLevel}` : `. ${words.ghost(Math.abs(gap), gap > 0)}`;
+  Speech.speak(`${words.kilometre(km, minutes, seconds)}${ghost}`, { language: speechLocale(), rate: 1 });
 }
 
 
@@ -209,4 +230,38 @@ export function announceLap(number: number, distanceM: number, durationS: number
   Speech.speak(spokenWords().lap(number, spokenDistance(distanceM), minutes, seconds), {
     language: speechLocale(), rate: 1,
   });
+}
+
+/** A short distance ahead, as it is said: tens of metres, or fifties of feet. */
+function spokenAhead(metres: number): string {
+  const words = spokenWords();
+  if (getUnitSystem() === "imperial") return words.feet(Math.max(50, Math.round(metres / 0.3048 / 50) * 50));
+  return words.metres(Math.max(10, Math.round(metres / 10) * 10));
+}
+
+/**
+ * The next turn of the route, said shortly before it. Voice only: a buzz
+ * cannot say which way, and every count the motor has is already taken.
+ */
+export function announceTurn(direction: string, inM: number, spoken: boolean): void {
+  if (!spoken) return;
+  Speech.speak(spokenWords().turn(direction, spokenAhead(inM)), { language: speechLocale(), rate: 1 });
+}
+
+/**
+ * Leaving the route, or finding it again. Felt as well as heard when leaving,
+ * since a wrong turn is worth knowing about with the voice off: two buzzes,
+ * the pattern that already means "something changed, look".
+ */
+export function announceOffRoute(off: boolean, spoken: boolean): void {
+  if (off) buzz(2, GAP_MS);
+  if (!spoken) return;
+  const words = spokenWords();
+  Speech.speak(off ? words.offRoute : words.backOnRoute, { language: speechLocale(), rate: 1 });
+}
+
+/** The end of the route reached. */
+export function announceRouteDone(spoken: boolean): void {
+  if (!spoken) return;
+  Speech.speak(spokenWords().routeDone, { language: speechLocale(), rate: 1 });
 }

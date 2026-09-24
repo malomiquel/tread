@@ -73,6 +73,11 @@ interface Props {
    * failed to load rather than as a plan.
    */
   route?: RoutePoint[] | null;
+  /**
+   * Where the ghost is — the record on this route, replayed — or nothing.
+   * A hollow dot in the track's colour: the same runner, not there.
+   */
+  ghost?: { lat: number; lng: number } | null;
   /** Supplying this shows the expand button and reports every tap on it. */
   onToggleFullscreen?: () => void;
   /** Flips the expand button into a collapse button. */
@@ -117,7 +122,7 @@ const RUNNER_ZOOM = 0.006;
  */
 export function RunMap({
   points, follow = false, fitAll = false, initialCenter = null, locateOnFocus = false,
-  replayable = false, route = null, onToggleFullscreen, fullscreen = false, controlsBottom = 12,
+  replayable = false, route = null, ghost = null, onToggleFullscreen, fullscreen = false, controlsBottom = 12,
   controlsAtTop = false, controlsArrive, controlsAbove, style,
 }: Props) {
   const s = useStrings(mapStrings);
@@ -140,7 +145,7 @@ export function RunMap({
   /** Whether anything is being drawn over the route, which changes how it is drawn. */
   const underway = points.length > 1;
   const plan = readColour(literalColors.track[scheme]);
-  const planInk = `rgba(${plan[0]}, ${plan[1]}, ${plan[2]}, 0.45)`;
+  const planInk = `rgba(${plan[0]}, ${plan[1]}, ${plan[2]}, 0.28)`;
 
   /**
    * The replay's timeline, laid out once per track rather than per frame.
@@ -277,10 +282,12 @@ export function RunMap({
           <Polyline
             coordinates={route.map((point) => ({ latitude: point.lat, longitude: point.lng }))}
             strokeColor={underway ? planInk : literalColors.track[scheme]}
+            // Once a track is being laid over it, the route becomes what a
+            // satnav draws: a wide, pale band, with the run drawn narrow and
+            // dark down its middle. On it, the dark line sits inside the band;
+            // off it, the two part visibly. Dashes and dots were tried first
+            // and read as noise over a street map.
             strokeWidth={underway ? 7 : 4}
-            // Only once there is a track to tell it apart from. A solid pale
-            // line under a solid dark one reads as one line with a halo.
-            lineDashPattern={underway ? [3, 9] : undefined}
             lineCap="round"
             lineJoin="round"
           />
@@ -298,6 +305,16 @@ export function RunMap({
             lineJoin="round"
           />
         ))}
+
+        {ghost && (
+          <Marker
+            coordinate={{ latitude: ghost.lat, longitude: ghost.lng }}
+            anchor={{ x: 0.5, y: 0.5 }}
+            tracksViewChanges={false}
+          >
+            <View style={[styles.ghost, { borderColor: literalColors.track[scheme] }]} />
+          </Marker>
+        )}
 
         {/* The runner. A plain dot, because anything with a picture in it
             would be redrawn from scratch on every one of its twenty-five
@@ -403,6 +420,7 @@ const styles = StyleSheet.create({
     width: 13, height: 13, borderRadius: 6.5,
     backgroundColor: "#ffffff", borderWidth: 3.5,
   },
+  ghost: { width: 13, height: 13, borderRadius: 6.5, borderWidth: 2.5, opacity: 0.6 },
   // In its own corner, twelve points in from both edges, which is where the
   // map's own controls sit on the other side.
   readout: {

@@ -3,8 +3,11 @@ import { Pedometer } from "expo-sensors";
 import * as TaskManager from "expo-task-manager";
 import { useSyncExternalStore } from "react";
 import { cadenceSpm } from "./cadence";
-import { createRun, finishRun, insertPoints, markPlanSessionDone, readRoute, setRunWeather } from "./db";
-import { coversRoute } from "./route";
+import {
+  createRun, finishRun, insertPoints, markPlanSessionDone, readRoute, readRun, routeRecords, setRunWeather,
+} from "./db";
+import { ghostGapS, ghostOf, type Ghost } from "./ghost";
+import { coversRoute, drawnLine } from "./route";
 import { syncRunToHealth } from "./health";
 import { defineStrings } from "./i18n";
 import { autoName } from "./format";
@@ -13,8 +16,10 @@ import { bestEfforts } from "./efforts";
 import { refreshHomeWidget } from "./homeWidget";
 import { toPaceUnits, unitLengthM } from "./units";
 import {
-  announceAutoPause, announceKilometre, announceLap, announcePace, announceStep, stopSpeaking,
+  announceAutoPause, announceKilometre, announceLap, announceOffRoute, announcePace, announceRouteDone,
+  announceStep, announceTurn, stopSpeaking,
 } from "./feedback";
+import { locate, nextTurn, OFF_ROUTE_M, routeLine, turnName, type RouteLine, type TurnDirection } from "./guidance";
 import {
   currentPace, elevationGainM, fastestKmS, isAcceptable, paceSecPerKm, splits, totalDistanceM,
   type TrackPoint,
@@ -31,6 +36,19 @@ import {
 export const TASK_NAME = "tread-gps-tracking";
 
 export type TrackerStatus = "idle" | "running" | "paused";
+
+/** The runner against the route they chose. */
+export interface Guidance {
+  alongM: number;
+  leftM: number;
+  /** How far from the line, in metres. */
+  offM: number;
+  /** Off the route long enough to be told. */
+  off: boolean;
+  /** The next turn and how far to it, or null past the last one. */
+  next: { direction: TurnDirection; inM: number } | null;
+  done: boolean;
+}
 
 export interface TrackerState {
   status: TrackerStatus;
@@ -72,6 +90,13 @@ export interface TrackerState {
   routeId: number | null;
   /** Where the lap button was pressed so far. */
   laps: LapMark[];
+  /** Where the runner stands on the route being followed, or null without one. */
+  guidance: Guidance | null;
+  /**
+   * The best run on the route being run, replayed beside this one, or null:
+   * no route, a route never run, or still loading.
+   */
+  ghost: Ghost | null;
   error: string | null;
 }
 
@@ -79,7 +104,7 @@ const IDLE: TrackerState = {
   status: "idle", runId: null, points: [], segment: 0, startedAt: null,
   bankedS: 0, segmentStartedAt: null, announcedKm: 0,
   session: null, planOrder: null, stepIndex: 0, stepStartM: 0, stepStartS: 0, blocks: [],
-  accuracyM: null, backgroundMode: false, autoPaused: false, routeId: null, laps: [], error: null,
+  accuracyM: null, backgroundMode: false, autoPaused: false, routeId: null, laps: [], guidance: null, ghost: null, error: null,
 };
 
 /** How many points may sit in memory before they are flushed to disk. */
@@ -280,7 +305,10 @@ function announceIfKilometre(): void {
   const full = splits(state.points, unitM).filter((split) => !split.partial);
   const latest = full[full.length - 1];
   publish({ announcedKm: km });
-  announceKilometre(km, latest?.durationS ?? 0, getSettings().voice);
+  const gapS = state.ghost
+    ? ghostGapS(state.ghost, totalDistanceM(state.points), activeDurationS(state, Date.now()))
+    : null;
+  announceKilometre(km, latest?.durationS ?? 0, getSettings().voice, gapS);
 }
 
 export function handleLocation(location: Location.LocationObject): void {
@@ -308,6 +336,7 @@ export function handleLocation(location: Location.LocationObject): void {
     publish({ points: [...state.points, point] });
     if (state.points.length - savedCount >= FLUSH_EVERY) void flush();
     announceIfKilometre();
+    followRoute(point);
   }
 }
 
@@ -470,7 +499,7 @@ export async function start(): Promise<void> {
     publish({
       status: "running", runId, points: [], segment: 0, startedAt,
       bankedS: 0, segmentStartedAt: startedAt, announcedKm: 0,
-      stepIndex: 0, stepStartM: 0, stepStartS: 0, blocks: [], laps: [],
+      stepIndex: 0, stepStartM: 0, stepStartS: 0, blocks: [], laps: [], guidance: null, ghost: null,
       backgroundMode: false, autoPaused: false,
       // Taken now rather than at the finish: the route is what was run,
       // even if the map was cleared on the way.
@@ -478,6 +507,9 @@ export async function start(): Promise<void> {
     });
     const { session } = state;
     if (session) announceStep(stepLabel(session.steps[0]), getSettings().voice);
+    // Not awaited: the run starts now, and the guidance joins it once read.
+    void loadGuidance(runId, state.routeId);
+    void loadGhost(runId, state.routeId);
     // One clock for both: the session needs it because a block measured in
     // time must end without gps fixes, and the pace needs it because a runner
     // drifting off target produces no event of their own.
@@ -492,6 +524,107 @@ export async function start(): Promise<void> {
     await stopGps();
     publish({ ...IDLE, error: cause instanceof Error ? cause.message : trackerWords().cannotStart });
   }
+}
+
+/** The route being followed, and what has been said about it so far. */
+let guide: {
+  runId: number;
+  line: RouteLine;
+  /** The last position that was on the route: where it is looked for next. */
+  lastAlongM: number | null;
+  offSince: number | null;
+  offAnnounced: boolean;
+  /** Turns already announced, by where they are. */
+  announced: Set<number>;
+  doneAnnounced: boolean;
+} | null = null;
+
+/** Seconds off the route before being told: a GPS jump is not a wrong turn. */
+const OFF_FOR_MS = 10_000;
+/** How far ahead of a turn it is announced. */
+const TURN_CUE_M = 60;
+/** How close to the end counts as having finished the route. */
+const FINISH_WITHIN_M = 30;
+
+/**
+ * Put the record on this route beside the run, if there is one.
+ *
+ * Checked against the run id on arrival: a run finished and another started
+ * before the read came back must not inherit the wrong ghost.
+ */
+async function loadGhost(runId: number, routeId: number | null): Promise<void> {
+  if (routeId === null) return;
+  try {
+    const record = (await routeRecords()).get(routeId);
+    if (!record) return;
+    const best = await readRun(record.best.id);
+    const ghost = best ? ghostOf(best.points) : null;
+    if (ghost && state.runId === runId) publish({ ghost });
+  } catch {
+    /* running without a ghost is running all the same */
+  }
+}
+
+async function loadGuidance(runId: number, routeId: number | null): Promise<void> {
+  guide = null;
+  if (routeId === null) return;
+  const route = await readRoute(routeId).catch(() => null);
+  const line = route ? routeLine(drawnLine(route)) : null;
+  if (!line || state.runId !== runId) return;
+  guide = {
+    runId, line, lastAlongM: null, offSince: null, offAnnounced: false, announced: new Set(), doneAnnounced: false,
+  };
+}
+
+/**
+ * Place the runner on the route after each fix, and say what needs saying:
+ * the turn coming, the route left or found again, the end reached.
+ */
+function followRoute(point: TrackPoint): void {
+  if (!guide || guide.runId !== state.runId) return;
+  const { line } = guide;
+  const { voice } = getSettings();
+  const position = locate(line, point, guide.lastAlongM);
+  const now = point.ts;
+
+  if (position.offM > OFF_ROUTE_M) {
+    guide.offSince ??= now;
+    if (!guide.offAnnounced && now - guide.offSince >= OFF_FOR_MS) {
+      guide.offAnnounced = true;
+      announceOffRoute(true, voice);
+    }
+  } else {
+    guide.offSince = null;
+    guide.lastAlongM = position.alongM;
+    // Back well inside the line, not just across it, before saying so.
+    if (guide.offAnnounced && position.offM < OFF_ROUTE_M * 0.6) {
+      guide.offAnnounced = false;
+      announceOffRoute(false, voice);
+    }
+  }
+
+  const along = guide.lastAlongM ?? position.alongM;
+  const next = nextTurn(line, along);
+  if (next && !guide.offAnnounced && next.inM <= TURN_CUE_M && !guide.announced.has(next.turn.alongM)) {
+    guide.announced.add(next.turn.alongM);
+    announceTurn(turnName(next.turn.direction), next.inM, voice);
+  }
+  const done = along >= line.totalM - FINISH_WITHIN_M;
+  if (done && !guide.doneAnnounced) {
+    guide.doneAnnounced = true;
+    announceRouteDone(voice);
+  }
+
+  publish({
+    guidance: {
+      alongM: along,
+      leftM: Math.max(0, line.totalM - along),
+      offM: position.offM,
+      off: guide.offAnnounced,
+      next: next ? { direction: next.turn.direction, inM: next.inM } : null,
+      done,
+    },
+  });
 }
 
 /** The route this run counts for, if it covered enough of the one it started on. */
@@ -661,6 +794,7 @@ function reset(): void {
   }
   // reset bypasses publish, so the lock screen is cleared by hand here.
   stopRun();
+  guide = null;
   // The chosen session outlives the run: having just finished one set of
   // intervals, the last thing wanted is to have to choose it again.
   state = { ...IDLE, session: state.session, planOrder: state.planOrder };
