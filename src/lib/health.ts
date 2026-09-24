@@ -4,6 +4,11 @@ import { estimateActiveEnergyKcal } from "./energy";
 import { maxHeartRateFor, summarise, type Beat, type Heart } from "./heart";
 import { segments, totalDistanceM, type TrackPoint } from "./geo";
 import type { HealthWorkout } from "./healthImport";
+import {
+  deleteRun as deleteFromHealthConnect, healthConnectPresent, readHeartBeats, readNewSessions,
+  readWeightKg, requestHealthConnectAccess, writeRun,
+} from "./healthConnect";
+import { defineStrings } from "./i18n";
 
 type Api = typeof import("@kingstinct/react-native-healthkit");
 type Types = typeof import("@kingstinct/react-native-healthkit/types");
@@ -53,10 +58,21 @@ function healthKit(): { api: Api; types: Types } | null {
   return loaded;
 }
 
-/** HealthKit exists on iPhone and iPad, and nowhere else this app runs. */
+/**
+ * Whether there is a health store to talk to: Apple Health on an iPhone,
+ * Health Connect on Android. Everything below goes to whichever it is.
+ */
 export function healthAvailable(): boolean {
-  return healthKit() !== null;
+  return Platform.OS === "android" ? healthConnectPresent() : healthKit() !== null;
 }
+
+const storeNames = defineStrings({
+  fr: { ios: "Apple Santé", android: "Health Connect" },
+  en: { ios: "Apple Health", android: "Health Connect" },
+});
+
+/** The health store's name, as the phone calls it. */
+export const healthStoreName = (): string => storeNames()[Platform.OS === "android" ? "android" : "ios"];
 
 /**
  * What the app asks Health for, and nothing beyond it. The workout and its
@@ -88,6 +104,7 @@ function permissions(types: Types) {
  * something. Writing is different, and sharingRefused() below does report it.
  */
 export async function requestHealthAccess(): Promise<boolean> {
+  if (Platform.OS === "android") return requestHealthConnectAccess();
   const health = healthKit();
   if (!health) return false;
   try {
@@ -131,6 +148,7 @@ async function bodyMassKg(api: Api): Promise<number | null> {
  * figure is simply not shown rather than guessed at from an average person.
  */
 export async function readBodyMassKg(): Promise<number | null> {
+  if (Platform.OS === "android") return readWeightKg();
   const health = healthKit();
   if (!health) return null;
   return bodyMassKg(health.api);
@@ -151,6 +169,12 @@ export async function readBodyMassKg(): Promise<number | null> {
 export async function readRunHeart(
   startedAt: number, endedAt: number,
 ): Promise<Heart | null> {
+  if (Platform.OS === "android") {
+    // Health Connect holds no date of birth to cut zones against: average and
+    // peak only, the same bargain as on an iPhone that has none.
+    const beats = await readHeartBeats(startedAt, endedAt);
+    return beats.length ? summarise(beats, null) : null;
+  }
   const health = healthKit();
   if (!health) return null;
   const beats = await readRunBeats(startedAt, endedAt);
@@ -163,6 +187,7 @@ export async function readRunHeart(
  * permission, or off iOS.
  */
 export async function readRunBeats(startedAt: number, endedAt: number): Promise<Beat[]> {
+  if (Platform.OS === "android") return readHeartBeats(startedAt, endedAt);
   const health = healthKit();
   if (!health) return [];
 
@@ -250,6 +275,7 @@ function toLocations(points: TrackPoint[]) {
  * copied before, and is left alone.
  */
 export async function syncRunToHealth(runId: number): Promise<string | null> {
+  if (Platform.OS === "android") return syncRunToHealthConnect(runId);
   const health = healthKit();
   if (!health) return null;
 
@@ -299,7 +325,9 @@ export async function forgetRunInHealth(run: Run): Promise<void> {
   const health = healthKit();
   // A run brought in from Health is the watch's workout, not our copy: it
   // stays there when it is removed from here.
-  if (!run.healthUuid || run.source !== null || !health) return;
+  if (!run.healthUuid || run.source !== null) return;
+  if (Platform.OS === "android") return deleteFromHealthConnect(run.healthUuid);
+  if (!health) return;
   try {
     await health.api.deleteObjects(health.types.WorkoutTypeIdentifier, { uuid: run.healthUuid });
   } catch {
@@ -331,6 +359,7 @@ function inSeconds(quantity: { quantity: number; unit: string }): number {
  * that was out of range is still found, and none is read twice.
  */
 export async function readNewWorkouts(anchor: string | undefined): Promise<{ workouts: HealthWorkout[]; anchor: string } | null> {
+  if (Platform.OS === "android") return readNewSessions(anchor);
   const health = healthKit();
   if (!health) return null;
   try {
@@ -365,4 +394,18 @@ export async function readNewWorkouts(anchor: string | undefined): Promise<{ wor
   } catch {
     return null;
   }
+}
+
+/** The Android side of syncRunToHealth: the same run, written to Health Connect. */
+async function syncRunToHealthConnect(runId: number): Promise<string | null> {
+  const stored = await readRun(runId);
+  const endedAt = stored?.run.endedAt ?? null;
+  if (!stored || endedAt === null) return null;
+  const { run, points } = stored;
+  if (run.healthUuid) return run.healthUuid;
+  const weight = await readWeightKg();
+  const energy = weight === null ? null : estimateActiveEnergyKcal(run.distanceM, weight);
+  const id = await writeRun({ name: run.name, startedAt: run.startedAt, endedAt, distanceM: run.distanceM }, points, energy);
+  if (id) await setHealthUuid(run.id, id);
+  return id;
 }

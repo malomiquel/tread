@@ -4,7 +4,7 @@ import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Switch, Tex
 import { SettingRow } from "@/components/SettingRow";
 import { SettingsGroup } from "@/components/SettingsGroup";
 import { exportRunArchive, importRouteFiles, importRunFiles } from "@/lib/files";
-import { healthAvailable } from "@/lib/health";
+import { healthAvailable, healthStoreName } from "@/lib/health";
 import { enableHealthImport } from "@/lib/healthSync";
 import { useSettings } from "@/lib/settings";
 import { defineStrings, plural, useStrings } from "@/lib/i18n";
@@ -26,11 +26,11 @@ const dataStrings = defineStrings({
       "Ils font partie de la sauvegarde Google de ton téléphone, si elle est activée, sauf les photos des courses, qui ne passent que d'un téléphone à l'autre. Supprimer l'app les efface.",
     import: "Importer",
     watch: "Courses de ta montre",
-    watchDetail: "Ramène les courses qu'une Apple Watch ou une autre app a enregistrées dans Santé",
-    watchFooter: "Lu sur ce téléphone, dans Santé : rien ne passe par internet. Les nouvelles courses arrivent à chaque ouverture de l'app.",
-    watchDone: (count: number) => (count === 0
-      ? "Aucune nouvelle course dans Santé pour l'instant."
-      : `${plural(count, "course importée", "courses importées")} depuis Santé.`),
+    watchDetail: (store: string) => `Ramène les courses qu'une montre ou une autre app a enregistrées dans ${store}`,
+    watchFooter: (store: string) => `Lu sur ce téléphone, dans ${store} : rien ne passe par internet. Les nouvelles courses arrivent à chaque ouverture de l'app.`,
+    watchDone: (count: number, store: string) => (count === 0
+      ? `Aucune nouvelle course dans ${store} pour l'instant.`
+      : `${plural(count, "course importée", "courses importées")} depuis ${store}.`),
     watchTitle: "Courses de ta montre",
     runs: "Des courses",
     runsDetail: "Fichiers GPX exportés de Strava, Garmin, d'une montre ou de Tread",
@@ -57,11 +57,11 @@ const dataStrings = defineStrings({
       "They are part of your phone's Google backup, if it is on, except run photos, which only travel phone to phone. Deleting the app erases them.",
     import: "Import",
     watch: "Runs from your watch",
-    watchDetail: "Brings in the runs an Apple Watch or another app wrote to Health",
-    watchFooter: "Read on this phone, from Health: nothing goes over the internet. New runs arrive each time the app opens.",
-    watchDone: (count: number) => (count === 0
-      ? "No new runs in Health yet."
-      : `${plural(count, "run", "runs")} imported from Health.`),
+    watchDetail: (store: string) => `Brings in the runs a watch or another app wrote to ${store}`,
+    watchFooter: (store: string) => `Read on this phone, from ${store}: nothing goes over the internet. New runs arrive each time the app opens.`,
+    watchDone: (count: number, store: string) => (count === 0
+      ? `No new runs in ${store} yet.`
+      : `${plural(count, "run", "runs")} imported from ${store}.`),
     watchTitle: "Runs from your watch",
     runs: "Runs",
     runsDetail: "GPX files exported from Strava, Garmin, a watch or Tread",
@@ -114,17 +114,17 @@ export default function DataSettings() {
 
       {/* The one import that keeps itself going: Health is on the same phone. */}
       {healthAvailable() ? (
-        <SettingsGroup footer={s.watchFooter}>
+        <SettingsGroup footer={s.watchFooter(healthStoreName())}>
           <SettingRow
             icon="watch-outline"
             label={s.watch}
-            detail={s.watchDetail}
+            detail={s.watchDetail(healthStoreName())}
             right={
               <Switch
                 value={settings.healthImport}
                 onValueChange={(on) => {
                   void enableHealthImport(on).then((count) => {
-                    if (on) Alert.alert(s.watchTitle, s.watchDone(count));
+                    if (on) Alert.alert(s.watchTitle, s.watchDone(count, healthStoreName()));
                   });
                 }}
                 trackColor={{ true: colors.accent, false: colors.hairline }}

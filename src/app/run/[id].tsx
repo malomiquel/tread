@@ -34,7 +34,7 @@ import { gpxFileName, toGpx } from "@/lib/gpx";
 import { estimateActiveEnergyKcal } from "@/lib/energy";
 import {
   forgetRunInHealth, healthAvailable, readBodyMassKg, readRunBeats, readRunHeart, requestHealthAccess,
-  sharingRefused, syncRunToHealth,
+  sharingRefused, syncRunToHealth, healthStoreName,
 } from "@/lib/health";
 import { formatBpm, zoneName, type Beat, type Heart } from "@/lib/heart";
 import { bestEfforts, EFFORT_KEYS, effortName as distanceName } from "@/lib/efforts";
@@ -56,7 +56,7 @@ const runStrings = defineStrings({
     shareUnavailableBody: "Impossible d'ouvrir la feuille de partage sur cet appareil.",
     exportFailed: "Export impossible",
     unexpectedError: "Erreur inattendue.",
-    healthNothing: "Santé n'a rien reçu",
+    healthNothing: (store: string) => `${store} n'a rien reçu`,
     healthRefused: "Tread n'a pas le droit d'écrire tes courses. Tu peux le lui donner dans Réglages › Santé › Accès aux données › Tread.",
     healthFailed: "L'envoi a échoué. Réessaie dans un instant.",
     deleteTitle: "Supprimer cette course ?",
@@ -105,10 +105,10 @@ const runStrings = defineStrings({
     lapRest: "Jusqu'à l'arrivée",
     fastestLap: "le plus rapide",
     gpsPoints: (n: number) => `${n} points GPS enregistrés`,
-    copiedToHealth: "Copiée dans Apple Santé",
-    importedFrom: (source: string) => `Importée depuis Apple Santé · ${source}`,
+    copiedToHealth: (store: string) => `Copiée dans ${store}`,
+    importedFrom: (store: string, source: string) => `Importée depuis ${store} · ${source}`,
     sending: "Envoi…",
-    addToHealth: "Ajouter à Apple Santé",
+    addToHealth: (store: string) => `Ajouter à ${store}`,
     validate: "Valider",
     exporting: "Export…",
     exportGpx: "Exporter en GPX",
@@ -134,7 +134,7 @@ const runStrings = defineStrings({
     shareUnavailableBody: "The share sheet can't be opened on this device.",
     exportFailed: "Couldn't export",
     unexpectedError: "Something went wrong.",
-    healthNothing: "Health received nothing",
+    healthNothing: (store: string) => `${store} received nothing`,
     healthRefused: "Tread isn't allowed to write your runs. You can allow it in Settings › Health › Data Access & Devices › Tread.",
     healthFailed: "Sending failed. Try again in a moment.",
     deleteTitle: "Delete this run?",
@@ -183,10 +183,10 @@ const runStrings = defineStrings({
     lapRest: "To the finish",
     fastestLap: "fastest",
     gpsPoints: (n: number) => (n === 1 ? "1 GPS point recorded" : `${n} GPS points recorded`),
-    copiedToHealth: "Copied to Apple Health",
-    importedFrom: (source: string) => `Imported from Apple Health · ${source}`,
+    copiedToHealth: (store: string) => `Copied to ${store}`,
+    importedFrom: (store: string, source: string) => `Imported from ${store} · ${source}`,
     sending: "Sending…",
-    addToHealth: "Add to Apple Health",
+    addToHealth: (store: string) => `Add to ${store}`,
     validate: "Done",
     exporting: "Exporting…",
     exportGpx: "Export as GPX",
@@ -534,7 +534,7 @@ export default function RunDetailScreen() {
       }]
       : []),
     ...(hasHealth && !run.healthUuid && !syncing
-      ? [{ key: "health", label: s.addToHealth, icon: "heart-outline" as const, onPress: () => void sendToHealth() }]
+      ? [{ key: "health", label: s.addToHealth(healthStoreName()), icon: "heart-outline" as const, onPress: () => void sendToHealth() }]
       : []),
     ...(points.length > 0 && !exporting
       ? [{ key: "gpx", label: s.exportGpx, icon: "document-outline" as const, onPress: () => void exportGpx() }]
@@ -593,7 +593,7 @@ export default function RunDetailScreen() {
         // to go change a setting that is already right is its own small
         // betrayal.
         Alert.alert(
-          s.healthNothing,
+          s.healthNothing(healthStoreName()),
           sharingRefused() ? s.healthRefused : s.healthFailed,
         );
         return;
@@ -1026,7 +1026,7 @@ export default function RunDetailScreen() {
         {hasHealth && run.healthUuid && (
           <View style={styles.synced}>
             <Ionicons name="heart" size={12} color={colors.accent} />
-            <Text style={styles.syncedText}>{run.source ? s.importedFrom(run.source) : s.copiedToHealth}</Text>
+            <Text style={styles.syncedText}>{run.source ? s.importedFrom(healthStoreName(), run.source) : s.copiedToHealth(healthStoreName())}</Text>
           </View>
         )}
       </View>

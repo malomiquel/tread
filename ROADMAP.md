@@ -214,7 +214,11 @@ and one that sends your position to others is not private.
   kept once; indoor workouts become treadmill runs; "Imported from Apple
   Health · Apple Watch" on the run; editing or deleting it never touches the
   watch's workout; migration 24
-- [ ] **Health Connect** on Android (Apple Health only today)
+- [x] **Health Connect** on Android 📱: the same jobs as Apple Health through
+  one module — runs written with their route, distance and energy; weight and
+  heart rate read back; runs from other apps (Samsung Health, Garmin, Google
+  Fit, Fitbit…) imported by "Runs from your watch"; the store named per
+  platform everywhere; Android 8 (API 26) minimum
 - [ ] **Coarse positions to third parties**: weather and routing requests
   sent with coordinates rounded to about a kilometre, never a doorstep
 - [ ] **App Store privacy label "Data Not Collected"**, checked against every

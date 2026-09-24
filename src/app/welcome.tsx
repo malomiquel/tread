@@ -5,7 +5,7 @@ import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-na
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "@/components/Button";
 import { StepSlider } from "@/components/StepSlider";
-import { healthAvailable, requestHealthAccess } from "@/lib/health";
+import { healthAvailable, requestHealthAccess, healthStoreName } from "@/lib/health";
 import { defineStrings, useStrings } from "@/lib/i18n";
 import {
   RUNNER_FREQUENCIES, RUNNER_GOALS, RUNNER_LEVELS, runnerWords, startingWeeklyGoalM, suggestedFrequency,
@@ -48,7 +48,6 @@ const welcomeStrings = defineStrings({
       "Pour mesurer ta distance et dessiner ton tracé. Au départ d'une course, le téléphone proposera aussi de la garder écran éteint : accepte, sinon l'enregistrement s'arrête dès qu'il est dans ta poche.",
     openSettings: "Ouvrir les réglages",
     allow: "Autoriser",
-    healthTitle: "Apple Santé",
     healthDetail:
       "Pour y copier tes courses, calculer tes calories avec ton poids, et afficher ta fréquence cardiaque si tu cours avec une montre.",
     connect: "Connecter",
@@ -86,7 +85,6 @@ const welcomeStrings = defineStrings({
       "To measure your distance and draw your track. When you start a run, your phone will also offer to keep it with the screen off: say yes, or recording stops as soon as the phone is in your pocket.",
     openSettings: "Open Settings",
     allow: "Allow",
-    healthTitle: "Apple Health",
     healthDetail:
       "To save your runs there, work out your calories from your weight, and show your heart rate if you run with a watch.",
     connect: "Connect",
@@ -403,7 +401,7 @@ function Permissions() {
         {withHealth ? (
           <Permission
             icon="heart"
-            title={s.healthTitle}
+            title={healthStoreName()}
             detail={s.healthDetail}
             access={health}
             action={s.connect}

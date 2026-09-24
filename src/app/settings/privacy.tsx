@@ -1,4 +1,5 @@
 import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { healthStoreName } from "@/lib/health";
 import { defineStrings, useStrings } from "@/lib/i18n";
 import { colors, font } from "@/lib/theme";
 
@@ -18,9 +19,8 @@ const privacyStrings = defineStrings({
     mapsTitle: "Les cartes et les noms de lieux",
     maps:
       "La carte et le nom de la ville sous un parcours viennent du service de cartes du téléphone (Plans sur iPhone, Google sur Android), qui voit la zone affichée.",
-    healthTitle: "Apple Santé",
-    health:
-      "Si tu l'autorises, Tread y copie tes courses et y lit ton poids, ta fréquence cardiaque et ta date de naissance, pour les calories et les zones cardiaques. Ces données restent dans Santé, sur ton téléphone.",
+    health: (store: string) =>
+      `Si tu l'autorises, Tread copie tes courses dans ${store} et y lit ton poids et ta fréquence cardiaque (et ta date de naissance sur iPhone), pour les calories et les zones cardiaques. Avec « Courses de ta montre », il y lit aussi les courses enregistrées par d'autres apps. Tout reste dans ${store}, sur ton téléphone.`,
     sharingTitle: "Quand c'est toi qui partages",
     sharing:
       "Une image, un fichier GPX ou un transfert vers un nouveau téléphone ne partent que lorsque tu le demandes, et seulement vers l'endroit que tu choisis. Le transfert par WiFi va directement d'un téléphone à l'autre, sans passer par internet. Sur les images et les GIF, le tracé est coupé autour du départ et de l'arrivée (réglable dans Réglages › Partage).",
@@ -43,9 +43,8 @@ const privacyStrings = defineStrings({
     mapsTitle: "Maps and place names",
     maps:
       "The map and the town name under a route come from your phone's map service (Apple Maps on iPhone, Google on Android), which sees the area shown.",
-    healthTitle: "Apple Health",
-    health:
-      "If you allow it, Tread saves your runs there and reads your weight, heart rate and date of birth, for calories and heart rate zones. This data stays in Health, on your phone.",
+    health: (store: string) =>
+      `If you allow it, Tread saves your runs to ${store} and reads your weight and heart rate there (and your date of birth on iPhone), for calories and heart rate zones. With "Runs from your watch", it also reads the runs other apps recorded. It all stays in ${store}, on your phone.`,
     sharingTitle: "When you share",
     sharing:
       "A picture, a GPX file or a transfer to a new phone only goes out when you ask, and only to the place you choose. The WiFi transfer goes straight from one phone to the other, without going through the internet. On pictures and GIFs, the track is cut around the start and finish (adjustable in Settings › Sharing).",
@@ -74,7 +73,7 @@ export default function PrivacyScreen() {
       <Item title={s.routingTitle}>{s.routing}</Item>
       <Item title={s.mapsTitle}>{s.maps}</Item>
 
-      <Section title={s.healthTitle}>{s.health}</Section>
+      <Section title={healthStoreName()}>{s.health(healthStoreName())}</Section>
 
       <Section title={s.sharingTitle}>{s.sharing}</Section>
 

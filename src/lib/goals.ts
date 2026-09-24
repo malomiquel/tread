@@ -1,4 +1,4 @@
-import { formatDistance, formatDuration, formatElevation } from "./format.ts";
+import { formatDistance, formatElevation } from "./format.ts";
 import { defineStrings } from "./i18n.ts";
 import { distanceUnit, elevationUnit, getUnitSystem, toDistanceUnits, unitLengthM } from "./units.ts";
 
