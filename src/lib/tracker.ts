@@ -97,6 +97,11 @@ export interface TrackerState {
    * no route, a route never run, or still loading.
    */
   ghost: Ghost | null;
+  /**
+   * The run the tracker closed by itself at the end of its route, for the
+   * run screen to open. Survives the reset that follows, until read.
+   */
+  autoFinished: { runId: number; from: "plan" | "history" } | null;
   error: string | null;
 }
 
@@ -104,7 +109,7 @@ const IDLE: TrackerState = {
   status: "idle", runId: null, points: [], segment: 0, startedAt: null,
   bankedS: 0, segmentStartedAt: null, announcedKm: 0,
   session: null, planOrder: null, stepIndex: 0, stepStartM: 0, stepStartS: 0, blocks: [],
-  accuracyM: null, backgroundMode: false, autoPaused: false, routeId: null, laps: [], guidance: null, ghost: null, error: null,
+  accuracyM: null, backgroundMode: false, autoPaused: false, routeId: null, laps: [], guidance: null, ghost: null, autoFinished: null, error: null,
 };
 
 /** How many points may sit in memory before they are flushed to disk. */
@@ -543,8 +548,14 @@ let guide: {
 const OFF_FOR_MS = 10_000;
 /** How far ahead of a turn it is announced. */
 const TURN_CUE_M = 60;
-/** How close to the end counts as having finished the route. */
-const FINISH_WITHIN_M = 30;
+/**
+ * How close to the end counts as having finished the route.
+ *
+ * Measured along the route, where a position past the end stays at the end,
+ * so this can be tight: thirty metres stopped runs visibly short of the
+ * finish, on a map where the gap is plain to see.
+ */
+const FINISH_WITHIN_M = 8;
 
 /**
  * Put the record on this route beside the run, if there is one.
@@ -609,10 +620,16 @@ function followRoute(point: TrackPoint): void {
     guide.announced.add(next.turn.alongM);
     announceTurn(turnName(next.turn.direction), next.inM, voice);
   }
-  const done = along >= line.totalM - FINISH_WITHIN_M;
+  // At the finish, and having actually run the route: on a loop the finish
+  // is the start, and the first fix would otherwise count as arriving.
+  const done = along >= line.totalM - FINISH_WITHIN_M && coversRoute(totalDistanceM(state.points), line.totalM);
   if (done && !guide.doneAnnounced) {
     guide.doneAnnounced = true;
     announceRouteDone(voice);
+    // A session still under way keeps the run going: the route was the way,
+    // the session is the work.
+    const sessionLeft = state.session !== null && state.stepIndex < state.session.steps.length;
+    if (!sessionLeft) void finishAtRouteEnd();
   }
 
   publish({
@@ -625,6 +642,25 @@ function followRoute(point: TrackPoint): void {
       done,
     },
   });
+}
+
+/**
+ * Close the run at the end of its route, as the runner would have, and leave
+ * word for the run screen to open it. Nothing is lost if nobody is looking:
+ * the run is saved, and the screen opens it whenever it is next shown.
+ */
+async function finishAtRouteEnd(): Promise<void> {
+  const from = state.planOrder !== null ? "plan" : "history";
+  const runId = await finish();
+  if (runId === null) return;
+  state = { ...state, autoFinished: { runId, from } };
+  for (const listener of listeners) listener();
+}
+
+/** The run screen has opened the run the tracker closed by itself. */
+export function clearAutoFinished(): void {
+  if (state.autoFinished === null) return;
+  publish({ autoFinished: null });
 }
 
 /** The route this run counts for, if it covered enough of the one it started on. */

@@ -29,7 +29,7 @@ import { goalProgress, weekTotals } from "@/lib/stats";
 import { colors, font } from "@/lib/theme";
 import { distanceUnit, elevationUnit, paceUnit } from "@/lib/units";
 import {
-  activeDurationS, chooseSession, discard, finish, lap, pause, resume, start, useTracker,
+  activeDurationS, chooseSession, clearAutoFinished, discard, finish, lap, pause, resume, start, useTracker,
 } from "@/lib/tracker";
 import { useCurrentWeather, weatherIcon, weatherLine } from "@/lib/weather";
 import { findSession } from "@/lib/sessionLibrary";
@@ -623,6 +623,15 @@ export default function RecordScreen() {
   }
 
   const tooShort = distance < 100;
+
+  // The run closed itself at the end of its route: open it, as finishing by
+  // hand would have.
+  const autoFinished = tracker.autoFinished;
+  useEffect(() => {
+    if (autoFinished === null) return;
+    clearAutoFinished();
+    router.push({ pathname: "/run/[id]", params: { id: String(autoFinished.runId), from: autoFinished.from } });
+  }, [autoFinished, router]);
 
   return (
     // Translated, never faded: an animated opacity is what the map and the
