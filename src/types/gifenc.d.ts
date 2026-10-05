@@ -25,6 +25,9 @@ declare module "gifenc" {
     format?: GifFormat,
   ): Uint8Array;
 
+  /** The palette entry closest to one colour, by its index. */
+  export function nearestColorIndex(palette: GifPalette, pixel: number[]): number;
+
   export interface GifEncoder {
     writeFrame(
       indexed: Uint8Array,
@@ -37,6 +40,9 @@ declare module "gifenc" {
         /** Zero repeats for ever, which is what an animation of a run wants. */
         repeat?: number;
         transparent?: boolean;
+        /** The palette index that stands for "leave what is there". */
+        transparentIndex?: number;
+        /** What becomes of this frame under the next: 1 leaves it in place. */
         dispose?: number;
         first?: boolean;
       },
@@ -48,11 +54,12 @@ declare module "gifenc" {
 
   export function GIFEncoder(options?: { auto?: boolean; initialCapacity?: number }): GifEncoder;
 
-  /** The three functions this app uses, however they arrive. */
+  /** The functions this app uses, however they arrive. */
   export interface GifencModule {
     GIFEncoder: typeof GIFEncoder;
     quantize: typeof quantize;
     applyPalette: typeof applyPalette;
+    nearestColorIndex: typeof nearestColorIndex;
   }
 
   /**

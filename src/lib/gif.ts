@@ -23,7 +23,8 @@ export function pickGifenc(module: unknown): GifencModule {
     if (found
       && typeof found.GIFEncoder === "function"
       && typeof found.quantize === "function"
-      && typeof found.applyPalette === "function") {
+      && typeof found.applyPalette === "function"
+      && typeof found.nearestColorIndex === "function") {
       return found as GifencModule;
     }
   }
@@ -50,11 +51,12 @@ const gifenc = (): GifencModule => pickGifenc(gifencModule);
  * How many colours the animation is reduced to.
  *
  * A GIF holds 256 at most, and the frames are mostly a map: greys, a green or
- * two, water, and one saturated line over the top. A hundred and twenty-eight
+ * two, water, and one saturated line over the top. A hundred and twenty-seven
  * leaves the line and the type clean while nearly halving what each frame
- * costs against the full table.
+ * costs against the full table — and the hundred and twenty-eighth slot of a
+ * table of 128 is kept for "unchanged", below.
  */
-const COLOURS = 128;
+const COLOURS = 127;
 
 /**
  * The palette every frame shares, read off one of them.
@@ -83,15 +85,56 @@ export interface GifWriter {
  * One at a time on purpose: a run's replay is forty frames of nearly six
  * hundred thousand bytes each, and holding them all to encode at the end
  * would be twenty-three megabytes of pixels alive at once on a phone. Written
- * as they arrive, only one is ever in hand.
+ * as they arrive, only the frame in hand and the one before it are kept.
+ *
+ * Only the first frame is written whole. Each one after it holds just the
+ * pixels that changed; every other pixel is the palette's spare index, which
+ * the file declares transparent, and each frame is left in place under the
+ * next — so what shows through is the frame before. A replay changes a few
+ * hundred pixels a frame out of a hundred and fifty thousand: matching those
+ * few to the palette, instead of all of them, is most of the time saved, and
+ * a frame that is one index repeated compresses to almost nothing.
  */
 export function startGif(width: number, height: number, palette: number[][]): GifWriter {
-  const { applyPalette, GIFEncoder } = gifenc();
+  const { applyPalette, GIFEncoder, nearestColorIndex } = gifenc();
   const encoder = GIFEncoder();
+  // Indexed against the colours alone, so the spare slot is never chosen
+  // for a real one; the file's table carries the spare as well.
+  const keep = palette.length;
+  const table = [...palette, [0, 0, 0]];
+  const pixels = width * height;
+  let previous: Uint32Array | null = null;
+  /** Colours already matched, by their packed value: a line is one colour. */
+  const matched = new Map<number, number>();
+
   return {
     add: (rgba, delayMs) => {
-      const indexed = applyPalette(rgba, palette, "rgb565");
-      encoder.writeFrame(indexed, width, height, { palette, delay: delayMs });
+      // Read four bytes at a time, which needs the pixels on a four-byte boundary.
+      const whole = rgba.byteOffset % 4 === 0 ? rgba : rgba.slice();
+      const current = new Uint32Array(whole.buffer, whole.byteOffset, pixels);
+      if (previous === null) {
+        encoder.writeFrame(applyPalette(rgba, palette, "rgb565"), width, height, {
+          palette: table, delay: delayMs, dispose: 1,
+        });
+      } else {
+        const indexed = new Uint8Array(pixels).fill(keep);
+        for (let i = 0; i < pixels; i += 1) {
+          const colour = current[i];
+          if (colour === previous[i]) continue;
+          let index = matched.get(colour);
+          if (index === undefined) {
+            const at = i * 4;
+            index = nearestColorIndex(palette, [rgba[at], rgba[at + 1], rgba[at + 2]]);
+            matched.set(colour, index);
+          }
+          indexed[i] = index;
+        }
+        encoder.writeFrame(indexed, width, height, {
+          delay: delayMs, transparent: true, transparentIndex: keep, dispose: 1,
+        });
+      }
+      // Copied: the caller goes on drawing into the same buffer.
+      previous = current.slice();
     },
     finish: () => {
       encoder.finish();
