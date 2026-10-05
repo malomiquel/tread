@@ -25,8 +25,8 @@ const privacyStrings = defineStrings({
     sharing:
       "Une image, un fichier GPX ou un transfert vers un nouveau téléphone ne partent que lorsque tu le demandes, et seulement vers l'endroit que tu choisis. Le transfert par WiFi va directement d'un téléphone à l'autre, sans passer par internet. Sur les images et les GIF, le tracé est coupé autour du départ et de l'arrivée (réglable dans Réglages › Partage).",
     eraseTitle: "Effacer",
-    erase:
-      "Supprimer une course l'efface pour de bon, y compris sa copie dans Santé. Supprimer un parcours efface son tracé et son image. Supprimer l'app efface tout le reste.",
+    erase: (store: string) =>
+      `Supprimer une course l'efface pour de bon, y compris sa copie dans ${store}. Supprimer un parcours efface son tracé et son image. Supprimer l'app efface tout le reste.`,
   },
   en: {
     onPhoneTitle: "On your phone",
@@ -49,8 +49,8 @@ const privacyStrings = defineStrings({
     sharing:
       "A picture, a GPX file or a transfer to a new phone only goes out when you ask, and only to the place you choose. The WiFi transfer goes straight from one phone to the other, without going through the internet. On pictures and GIFs, the track is cut around the start and finish (adjustable in Settings › Sharing).",
     eraseTitle: "Deleting",
-    erase:
-      "Deleting a run erases it for good, including its copy in Health. Deleting a route erases its track and its picture. Deleting the app erases everything else.",
+    erase: (store: string) =>
+      `Deleting a run erases it for good, including its copy in ${store}. Deleting a route erases its track and its picture. Deleting the app erases everything else.`,
   },
 });
 
@@ -77,7 +77,7 @@ export default function PrivacyScreen() {
 
       <Section title={s.sharingTitle}>{s.sharing}</Section>
 
-      <Section title={s.eraseTitle}>{s.erase}</Section>
+      <Section title={s.eraseTitle}>{s.erase(healthStoreName())}</Section>
     </ScrollView>
   );
 }

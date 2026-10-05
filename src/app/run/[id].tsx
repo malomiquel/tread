@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { File, Paths } from "expo-file-system";
-import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import * as Sharing from "expo-sharing";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -23,15 +23,16 @@ import { deleteRun, effortRecords, readRoute, readRun, routeRecords, type RouteR
 import { placeName } from "@/lib/location";
 import { autoRouteName, routeFromLine, runLine } from "@/lib/route";
 import {
-  formatDate, formatDistance, formatDuration, formatElevation, formatEnergy, formatPace, formatSpeed,
+  autoName, formatDate, formatDistance, formatDuration, formatElevation, formatEnergy, formatPace, formatSpeed,
 } from "@/lib/format";
-import { elevationProfile, splits, type TrackPoint } from "@/lib/geo";
+import { elevationProfile, splits, topSpeedMs, type TrackPoint } from "@/lib/geo";
 import { gradeAdjustedPace } from "@/lib/gradePace";
 import { lapsOf, type Lap } from "@/lib/laps";
 import { findSession } from "@/lib/sessionLibrary";
 import { effortName, sessionName, vmaFromBlocks, type RanBlock } from "@/lib/workout";
 import { gpxFileName, toGpx } from "@/lib/gpx";
-import { estimateActiveEnergyKcal } from "@/lib/energy";
+import { outingEnergyKcal } from "@/lib/energy";
+import { sportOf, type Sport } from "@/lib/activity";
 import {
   forgetRunInHealth, healthAvailable, readBodyMassKg, readRunBeats, readRunHeart, requestHealthAccess,
   sharingRefused, syncRunToHealth, healthStoreName,
@@ -51,22 +52,27 @@ type Loaded = { run: Run; points: TrackPoint[] };
 
 const runStrings = defineStrings({
   fr: {
-    notFound: "Course introuvable.",
+    notFound: "Sortie introuvable.",
+    pageTitle: { running: "Course", cycling: "Vélo" } as Record<Sport, string>,
     shareUnavailable: "Partage indisponible",
     shareUnavailableBody: "Impossible d'ouvrir la feuille de partage sur cet appareil.",
     exportFailed: "Export impossible",
     unexpectedError: "Erreur inattendue.",
+    deleteFailedTitle: "Suppression impossible",
+    renameFailedTitle: "Nom non enregistré",
+    renameFailed: "L'ancien nom est gardé. Réessaie dans un instant.",
+    deleteFailed: "La sortie est toujours là. Réessaie dans un instant.",
     healthNothing: (store: string) => `${store} n'a rien reçu`,
     healthRefused: "Tread n'a pas le droit d'écrire tes courses. Tu peux le lui donner dans Réglages › Santé › Accès aux données › Tread.",
     healthFailed: "L'envoi a échoué. Réessaie dans un instant.",
-    deleteTitle: "Supprimer cette course ?",
+    deleteTitle: { running: "Supprimer cette course ?", cycling: "Supprimer cette sortie vélo ?" } as Record<Sport, string>,
     deleteBody: "Ses points GPS seront effacés et l'action est définitive.",
     deletePlanNote: " La séance correspondante redeviendra à faire dans ton programme.",
     cancel: "Annuler",
     delete: "Supprimer",
-    renameLabel: "Renommer la course",
+    renameLabel: { running: "Renommer la course", cycling: "Renommer la sortie" } as Record<Sport, string>,
     untitled: "Sans nom",
-    shareImageLabel: "Partager la course en image",
+    shareImageLabel: { running: "Partager la course en image", cycling: "Partager la sortie en image" } as Record<Sport, string>,
     distance: "Distance",
     duration: "Durée",
     avgPace: "Allure moyenne",
@@ -74,6 +80,8 @@ const runStrings = defineStrings({
     elevationGain: "Dénivelé positif",
     bestSplit: (unit: string): string => (unit === "km" ? "Meilleur km" : "Meilleur mile"),
     avgSpeed: "Vitesse moyenne",
+    topSpeed: "Vitesse max",
+    speedChart: "Vitesse",
     estimatedCalories: "Calories estimées",
     cadence: "Cadence",
     stepsPerMin: "pas/min",
@@ -113,8 +121,8 @@ const runStrings = defineStrings({
     exporting: "Export…",
     exportGpx: "Exporter en GPX",
     manual: "Saisie à la main, sans tracé GPS",
-    editRun: "Modifier la course",
-    actions: "Plus d'actions sur cette course",
+    editRun: { running: "Modifier la course", cycling: "Modifier la sortie" } as Record<Sport, string>,
+    actions: { running: "Plus d'actions sur cette course", cycling: "Plus d'actions sur cette sortie" } as Record<Sport, string>,
     saveAsRoute: "Enregistrer comme parcours",
     routeName: "Nom du parcours",
     routeNameHint: "Le nom sous lequel tu le retrouveras dans tes parcours.",
@@ -124,27 +132,31 @@ const runStrings = defineStrings({
     ok: "OK",
     routeFailed: "Parcours impossible à créer",
     routeFailedMessage: "Réessaie dans un instant.",
-    runName: "Nom de la course",
-    namePlaceholder: "Course matinale",
+    runName: { running: "Nom de la course", cycling: "Nom de la sortie" } as Record<Sport, string>,
     save: "Enregistrer",
   },
   en: {
-    notFound: "Run not found.",
+    notFound: "Outing not found.",
+    pageTitle: { running: "Run", cycling: "Ride" },
     shareUnavailable: "Sharing unavailable",
     shareUnavailableBody: "The share sheet can't be opened on this device.",
     exportFailed: "Couldn't export",
     unexpectedError: "Something went wrong.",
+    deleteFailedTitle: "Couldn't delete",
+    renameFailedTitle: "Name not saved",
+    renameFailed: "The old name is kept. Try again in a moment.",
+    deleteFailed: "The outing is still there. Try again in a moment.",
     healthNothing: (store: string) => `${store} received nothing`,
     healthRefused: "Tread isn't allowed to write your runs. You can allow it in Settings › Health › Data Access & Devices › Tread.",
     healthFailed: "Sending failed. Try again in a moment.",
-    deleteTitle: "Delete this run?",
+    deleteTitle: { running: "Delete this run?", cycling: "Delete this ride?" },
     deleteBody: "Its GPS points will be erased, and this can't be undone.",
     deletePlanNote: " The matching session will be back on your training plan.",
     cancel: "Cancel",
     delete: "Delete",
-    renameLabel: "Rename the run",
+    renameLabel: { running: "Rename the run", cycling: "Rename the ride" },
     untitled: "Untitled",
-    shareImageLabel: "Share the run as a picture",
+    shareImageLabel: { running: "Share the run as a picture", cycling: "Share the ride as a picture" },
     distance: "Distance",
     duration: "Duration",
     avgPace: "Average pace",
@@ -152,6 +164,8 @@ const runStrings = defineStrings({
     elevationGain: "Elevation gain",
     bestSplit: (unit: string): string => (unit === "km" ? "Best km" : "Best mile"),
     avgSpeed: "Average speed",
+    topSpeed: "Top speed",
+    speedChart: "Speed",
     estimatedCalories: "Estimated calories",
     cadence: "Cadence",
     stepsPerMin: "spm",
@@ -191,8 +205,8 @@ const runStrings = defineStrings({
     exporting: "Exporting…",
     exportGpx: "Export as GPX",
     manual: "Entered by hand, with no GPS track",
-    editRun: "Edit run",
-    actions: "More actions on this run",
+    editRun: { running: "Edit run", cycling: "Edit ride" },
+    actions: { running: "More actions on this run", cycling: "More actions on this ride" },
     saveAsRoute: "Save as a route",
     routeName: "Route name",
     routeNameHint: "The name you will find it under in your routes.",
@@ -202,8 +216,7 @@ const runStrings = defineStrings({
     ok: "OK",
     routeFailed: "Couldn't create the route",
     routeFailedMessage: "Try again in a moment.",
-    runName: "Run name",
-    namePlaceholder: "Morning run",
+    runName: { running: "Run name", cycling: "Ride name" },
     save: "Save",
   },
 });
@@ -389,17 +402,19 @@ export default function RunDetailScreen() {
   // The route this run covered, and where it stands against that route's
   // record. Read once the run is known, since the run says which route.
   const coveredRouteId = data?.run.routeId ?? null;
+  // A ride is read in speed, and compared only with other rides.
+  const sport = sportOf(data?.run.activity ?? "run");
   useEffect(() => {
     if (coveredRouteId === null) return;
     let active = true;
-    void Promise.all([readRoute(coveredRouteId), routeRecords()])
+    void Promise.all([readRoute(coveredRouteId), routeRecords(sport)])
       .then(([route, records]) => {
         const record = records.get(coveredRouteId);
         if (active && route && record) setOnRoute({ name: route.name, record });
       })
       .catch(() => undefined);
     return () => { active = false; };
-  }, [coveredRouteId]);
+  }, [coveredRouteId, sport]);
 
   // Read again each time the page comes back into view: an edited run
   // returns here with different figures.
@@ -442,6 +457,7 @@ export default function RunDetailScreen() {
   }
 
   const { run, points } = data;
+  const riding = sport === "cycling";
   const weather = run.weather ?? lateWeather;
   const sky = weather === null ? null : [
     weatherLabel(weather.code),
@@ -455,7 +471,7 @@ export default function RunDetailScreen() {
   // Only where the hills made a difference worth reading: on the flat it is
   // the pace again, and a second figure saying the same thing is noise.
   const gradePace = (run.elevationGainM ?? 0) >= 20 ? gradeAdjustedPace(points, run.durationS) : null;
-  const showGradePace = gradePace !== null && run.avgPaceSKm !== null && Math.abs(gradePace - run.avgPaceSKm) >= 3;
+  const showGradePace = !riding && gradePace !== null && run.avgPaceSKm !== null && Math.abs(gradePace - run.avgPaceSKm) >= 3;
   // Only worth pointing out among two full laps or more.
   const fullLaps = laps.filter((lap) => !lap.partial && lap.paceSKm !== null);
   const fastestLap = fullLaps.length > 1
@@ -465,9 +481,12 @@ export default function RunDetailScreen() {
   // stretch around its start and finish, which is usually a front door.
   const sharedPoints = hideEnds(points, privacyRadiusM);
   const paceLine = paceSeries(points);
+  const speedLine = riding ? paceLine.map((point) => ({ ...point, value: 1000 / point.value })) : [];
+  const avgSpeedMs = run.durationS > 0 ? run.distanceM / run.durationS : 0;
+  const topSpeed = riding ? topSpeedMs(points) : null;
   const heartLine = heartSeries(beats, points);
   // Worked out here for a run the background pass has not reached yet.
-  const efforts = run.bestEfforts ?? bestEfforts(points);
+  const efforts = riding ? {} : run.bestEfforts ?? bestEfforts(points);
   const runEfforts = EFFORT_KEYS
     .filter((key) => efforts[key] !== undefined)
     .map((key) => [key, efforts[key]] as const);
@@ -505,7 +524,7 @@ export default function RunDetailScreen() {
   const fastestPaceSKm = fastest === null ? null : fastest / (unitLengthM() / 1000);
   // Null until Health has answered, and null for good if it has no weight on
   // file: an invented figure would be worse than a missing one.
-  const energyKcal = weightKg === null ? null : estimateActiveEnergyKcal(run.distanceM, weightKg);
+  const energyKcal = weightKg === null ? null : outingEnergyKcal(run.activity, run.distanceM, run.durationS, weightKg);
 
   /**
    * Writes the run as GPX into the cache and hands it to the share sheet.
@@ -529,7 +548,7 @@ export default function RunDetailScreen() {
       : []),
     ...(points.length > 1
       ? [{
-        key: "edit", label: s.editRun, icon: "cut-outline" as const,
+        key: "edit", label: s.editRun[sport], icon: "cut-outline" as const,
         onPress: () => router.push({ pathname: "/run/edit/[id]", params: { id: String(run.id) } }),
       }]
       : []),
@@ -628,8 +647,12 @@ export default function RunDetailScreen() {
     const next = draftName.trim();
     setRenaming(false);
     if (!next || next === run.name) return;
-    await renameRun(run.id, next);
-    setData({ run: { ...run, name: next }, points });
+    try {
+      await renameRun(run.id, next);
+      setData({ run: { ...run, name: next }, points });
+    } catch {
+      Alert.alert(s.renameFailedTitle, s.renameFailed);
+    }
   }
 
   /**
@@ -642,7 +665,7 @@ export default function RunDetailScreen() {
    */
   function askDelete() {
     Alert.alert(
-      s.deleteTitle,
+      s.deleteTitle[sport],
       s.deleteBody + (planLinked ? s.deletePlanNote : ""),
       [
         { text: s.cancel, style: "cancel" },
@@ -655,12 +678,33 @@ export default function RunDetailScreen() {
     // The copy in Health goes first: deleting the run here would otherwise
     // strand a workout that nothing in the app can reach any more.
     void forgetRunInHealth(run)
+      .catch(() => undefined)
       .then(() => deleteRun(run.id))
-      .then(() => router.back());
+      // Just finished, going back would land on the empty run screen: the
+      // way out is the one "Done" takes.
+      .then(() => (from !== undefined ? validate() : router.back()))
+      .catch(() => Alert.alert(s.deleteFailedTitle, s.deleteFailed));
   }
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+      {/* Just finished, the page is closed with "Done", in the corner where
+          back usually is: back would return to the empty run screen, the one
+          place nobody wants to be once they have stopped. */}
+      <Stack.Screen
+        options={from !== undefined
+          ? {
+            title: s.pageTitle[sport],
+            headerBackVisible: false,
+            gestureEnabled: false,
+            headerRight: () => (
+              <Pressable onPress={validate} accessibilityRole="button" hitSlop={10}>
+                <Text style={styles.headerDone}>{s.validate}</Text>
+              </Pressable>
+            ),
+          }
+          : { title: s.pageTitle[sport] }}
+      />
 
       <View style={styles.heading}>
         <View style={styles.headingText}>
@@ -670,7 +714,7 @@ export default function RunDetailScreen() {
               setRenaming(true);
             }}
             accessibilityRole="button"
-            accessibilityLabel={s.renameLabel}
+            accessibilityLabel={s.renameLabel[sport]}
             hitSlop={8}
             style={styles.nameRow}
           >
@@ -695,7 +739,7 @@ export default function RunDetailScreen() {
           onPress={() => setSharingImage(true)}
           disabled={sharedPoints.length === 0}
           accessibilityRole="button"
-          accessibilityLabel={s.shareImageLabel}
+          accessibilityLabel={s.shareImageLabel[sport]}
           hitSlop={10}
           style={({ pressed }) => [
             styles.share,
@@ -706,33 +750,38 @@ export default function RunDetailScreen() {
           <Ionicons name="share-outline" size={19} color={colors.text} />
         </Pressable>
         ) : null}
-        <DropdownMenu items={actions} accessibilityLabel={s.actions} />
+        <DropdownMenu items={actions} accessibilityLabel={s.actions[sport]} />
       </View>
 
       <View style={styles.section}>
         <Metric label={s.distance} value={formatDistance(run.distanceM)} unit={distanceUnit()} large />
         <View style={styles.row}>
           <Metric label={s.duration} value={formatDuration(run.durationS)} />
-          <Metric label={s.avgPace} value={formatPace(run.avgPaceSKm)} unit={paceUnit()} />
+          {riding ? (
+            <Metric label={s.avgSpeed} value={formatSpeed(avgSpeedMs)} unit={speedUnit()} />
+          ) : (
+            <Metric label={s.avgPace} value={formatPace(run.avgPaceSKm)} unit={paceUnit()} />
+          )}
         </View>
         {run.elevationGainM !== null && (
           <View style={styles.row}>
             <Metric label={s.elevationGain} value={formatElevation(run.elevationGainM)} unit={elevationUnit()} />
-            {fastestPaceSKm !== null ? (
+            {riding ? (
+              topSpeed !== null ? <Metric label={s.topSpeed} value={formatSpeed(topSpeed)} unit={speedUnit()} /> : null
+            ) : fastestPaceSKm !== null ? (
               <Metric label={s.bestSplit(distanceUnit())} value={formatPace(fastestPaceSKm)} unit={paceUnit()} />
             ) : null}
           </View>
         )}
-        <View style={styles.row}>
-          <Metric
-            label={s.avgSpeed}
-            value={formatSpeed(run.durationS > 0 ? run.distanceM / run.durationS : 0)}
-            unit={speedUnit()}
-          />
-          {energyKcal !== null ? (
-            <Metric label={s.estimatedCalories} value={formatEnergy(energyKcal)} unit="kcal" />
-          ) : null}
-        </View>
+        {/* A ride already leads with its speed; a run gives it here, beside its pace. */}
+        {!riding || energyKcal !== null ? (
+          <View style={styles.row}>
+            {riding ? null : <Metric label={s.avgSpeed} value={formatSpeed(avgSpeedMs)} unit={speedUnit()} />}
+            {energyKcal !== null ? (
+              <Metric label={s.estimatedCalories} value={formatEnergy(energyKcal)} unit="kcal" />
+            ) : null}
+          </View>
+        ) : null}
         {run.cadenceSpm !== null || showGradePace ? (
           <View style={styles.row}>
             {showGradePace ? (
@@ -831,7 +880,9 @@ export default function RunDetailScreen() {
       {/* The one thing in this screen the phone could not have measured, and
           the only way a programme ever learns it asked too much. Offered on
           every run, not only planned ones: what a run cost you is true of the
-          run, whoever asked for it. */}
+          run, whoever asked for it. A ride is not asked: its effort feeds
+          no programme. */}
+      {riding ? null : (
       <View style={styles.section}>
         <View style={styles.feelHead}>
           <Text style={styles.sectionTitle}>{s.feel}</Text>
@@ -892,6 +943,7 @@ export default function RunDetailScreen() {
             : exertionName(run.exertion)}
         </Text>
       </View>
+      )}
 
       {/* Right under the exertion, because both answer the same question in
           different words: what this run was, beyond the numbers the phone
@@ -924,7 +976,14 @@ export default function RunDetailScreen() {
         </View>
       )}
 
-      {paceLine.length > 1 && (
+      {riding ? (
+        speedLine.length > 1 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>{s.speedChart}</Text>
+            <LineChart points={speedLine} format={formatSpeed} unit={speedUnit()} />
+          </View>
+        )
+      ) : paceLine.length > 1 && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{s.paceChart}</Text>
           <LineChart points={paceLine} format={formatPace} invert unit={paceUnit()} />
@@ -1014,7 +1073,9 @@ export default function RunDetailScreen() {
                     ]}
                   />
                 </View>
-                <Text style={[styles.splitPace, isBest && styles.best]}>{formatPace(pace)}</Text>
+                <Text style={[styles.splitPace, riding && styles.splitSpeed, isBest && styles.best]}>
+                  {riding ? `${formatSpeed(1000 / pace)} ${speedUnit()}` : formatPace(pace)}
+                </Text>
               </View>
             );
           })}
@@ -1045,7 +1106,7 @@ export default function RunDetailScreen() {
       <FeelSheet
         // Only for a run just finished and not yet rated. Derived rather than
         // stored, so answering closes it by itself.
-        visible={from !== undefined && !feelLater && run.exertion === null}
+        visible={!riding && from !== undefined && !feelLater && run.exertion === null}
         onChoose={(level) => {
           setData({ run: { ...run, exertion: level }, points });
           void setRunExertion(run.id, level).catch(() => undefined);
@@ -1069,11 +1130,11 @@ export default function RunDetailScreen() {
         <Pressable style={styles.backdrop} onPress={() => setRenaming(false)}>
           {/* Stops a tap inside the card from closing it. */}
           <Pressable style={styles.dialog} onPress={() => undefined}>
-            <Text style={styles.dialogTitle}>{s.runName}</Text>
+            <Text style={styles.dialogTitle}>{s.runName[sport]}</Text>
             <TextInput
               value={draftName}
               onChangeText={setDraftName}
-              placeholder={s.namePlaceholder}
+              placeholder={autoName(run.startedAt, riding)}
               placeholderTextColor={colors.subtle}
               autoFocus
               returnKeyType="done"
@@ -1147,6 +1208,7 @@ const styles = StyleSheet.create({
   // Set apart from the export and delete pair below it: closing a run and
   // disposing of one are not the same kind of act, and a button stacked
   // against those two reads as a third member of the group.
+  headerDone: { color: colors.accent, fontSize: 17, fontFamily: font.semibold },
   validate: {
     paddingHorizontal: GUTTER, paddingTop: 20, paddingBottom: 22, gap: 7,
     marginBottom: 16,
@@ -1241,6 +1303,8 @@ const styles = StyleSheet.create({
     color: colors.text, width: 52, textAlign: "right",
     fontSize: 15.5, fontFamily: font.semibold, fontVariant: ["tabular-nums"],
   },
+  // "27,4 km/h" is wider than "4:35".
+  splitSpeed: { width: 84 },
   best: { color: colors.accent },
 
   footnotes: { alignItems: "center", gap: 4, paddingVertical: 13 },

@@ -1,5 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { Stack, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
+import { usePreventRemove } from "expo-router/react-navigation";
 import { useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { Button } from "@/components/Button";
@@ -42,6 +43,10 @@ const strings = defineStrings({
     deleteTitle: "Supprimer cette paire ?",
     deleteMessage: "Ses courses restent, sans paire.",
     cancel: "Annuler",
+    leaveTitle: "Quitter sans enregistrer ?",
+    leaveBody: "Les changements apportés à cette paire seront perdus.",
+    stay: "Rester",
+    leave: "Quitter",
     saveFailed: "Enregistrement impossible",
     tryAgain: "La paire n'a pas pu être enregistrée. Réessaie.",
   },
@@ -69,6 +74,10 @@ const strings = defineStrings({
     deleteTitle: "Delete this pair?",
     deleteMessage: "Its runs stay, with no pair.",
     cancel: "Cancel",
+    leaveTitle: "Leave without saving?",
+    leaveBody: "The changes made to this pair will be lost.",
+    stay: "Stay",
+    leave: "Leave",
     saveFailed: "Couldn't save",
     tryAgain: "The pair couldn't be saved. Try again.",
   },
@@ -90,7 +99,7 @@ function DistanceStepper({ metres, min, max, onChange }: {
         disabled={metres <= min}
         accessibilityRole="button"
         accessibilityLabel={s.less}
-        hitSlop={6}
+        hitSlop={8}
         style={({ pressed }) => [styles.stepButton, pressed && styles.pressed, metres <= min && styles.disabled]}
       >
         <Ionicons name="remove" size={18} color={colors.text} />
@@ -101,7 +110,7 @@ function DistanceStepper({ metres, min, max, onChange }: {
         disabled={metres >= max}
         accessibilityRole="button"
         accessibilityLabel={s.more}
-        hitSlop={6}
+        hitSlop={8}
         style={({ pressed }) => [styles.stepButton, pressed && styles.pressed, metres >= max && styles.disabled]}
       >
         <Ionicons name="add" size={18} color={colors.text} />
@@ -127,6 +136,26 @@ export default function ShoeScreen() {
   const [isDefault, setIsDefault] = useState(true);
   const [retired, setRetired] = useState(false);
   const [saving, setSaving] = useState(false);
+  /** Written or deleted: the screen is now free to close. */
+  const [written, setWritten] = useState(false);
+  const navigation = useNavigation();
+  const dirty = loaded && (
+    name.trim() !== (shoe?.name ?? "")
+    || startM !== (shoe?.startM ?? 0)
+    || limitM !== (shoe?.limitM ?? DEFAULT_LIMIT_M)
+  );
+
+  usePreventRemove(dirty && !written, ({ data }) => {
+    Alert.alert(s.leaveTitle, s.leaveBody, [
+      { text: s.stay, style: "cancel" },
+      { text: s.leave, style: "destructive", onPress: () => navigation.dispatch(data.action) },
+    ]);
+  });
+
+  // Left once the save has been rendered, so the guard above has let go.
+  useEffect(() => {
+    if (written) router.back();
+  }, [written, router]);
 
   useEffect(() => {
     let active = true;
@@ -157,7 +186,7 @@ export default function ShoeScreen() {
     setSaving(true);
     try {
       await saveShoe(id, { name, startM, limitM, retired: fields.retired, isDefault });
-      router.back();
+      setWritten(true);
     } catch {
       setSaving(false);
       Alert.alert(s.saveFailed, s.tryAgain);
@@ -168,7 +197,7 @@ export default function ShoeScreen() {
     if (id === null) return;
     Alert.alert(s.deleteTitle, s.deleteMessage, [
       { text: s.cancel, style: "cancel" },
-      { text: s.delete, style: "destructive", onPress: () => void deleteShoe(id).then(() => router.back()) },
+      { text: s.delete, style: "destructive", onPress: () => void deleteShoe(id).then(() => setWritten(true)) },
     ]);
   };
 
@@ -178,7 +207,23 @@ export default function ShoeScreen() {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <Stack.Screen options={{ title: id === null ? s.newTitle : s.editTitle }} />
+      {/* Saved from the top: with the keyboard up, the button at the foot
+          of the form is underneath it. */}
+      <Stack.Screen
+        options={{
+          title: id === null ? s.newTitle : s.editTitle,
+          headerRight: () => (
+            <Pressable
+              onPress={() => void save()}
+              disabled={saving || !name.trim()}
+              accessibilityRole="button"
+              hitSlop={10}
+            >
+              <Text style={[styles.headerSave, (saving || !name.trim()) && styles.disabled]}>{s.save}</Text>
+            </Pressable>
+          ),
+        }}
+      />
 
       <SettingsGroup title={s.name}>
         <TextInput
@@ -189,6 +234,8 @@ export default function ShoeScreen() {
           style={styles.input}
           maxLength={50}
           autoFocus={id === null}
+          returnKeyType="done"
+          onSubmitEditing={() => void save()}
           accessibilityLabel={s.name}
         />
       </SettingsGroup>
@@ -270,8 +317,9 @@ const styles = StyleSheet.create({
   fillWorn: { backgroundColor: colors.warning },
   wearDetail: { color: colors.subtle, fontSize: 13.5, fontFamily: font.regular },
   stepper: { flexDirection: "row", alignItems: "center", gap: 2 },
+  headerSave: { color: colors.accent, fontSize: 17, fontFamily: font.semibold },
   stepButton: {
-    width: 30, height: 30, borderRadius: 15,
+    width: 36, height: 36, borderRadius: 18,
     alignItems: "center", justifyContent: "center", backgroundColor: colors.background,
   },
   stepValue: {

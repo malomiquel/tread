@@ -5,17 +5,19 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-nati
 import { SafeAreaView } from "react-native-safe-area-context";
 import { PlanSetup, type PlanDraft } from "@/components/PlanSetup";
 import { EmptyState } from "@/components/EmptyState";
+import { HeaderButton } from "@/components/HeaderButton";
+import { LoadError } from "@/components/LoadError";
 import { SessionDetail } from "@/components/SessionDetail";
 import {
-  activePlan, createPlan, deletePlan, markPlanSessionDone, planDone, recentExertions,
+  activePlan, createPlan, deletePlan, markPlanSessionDone, unmarkPlanSessionDone, planDone, recentExertions,
   type StoredPlan,
 } from "@/lib/db";
-import { formatDuration, formatPace } from "@/lib/format";
-import { defineStrings, plural, useStrings } from "@/lib/i18n";
+import { formatDuration } from "@/lib/format";
+import { defineStrings, intlLocale, plural, useStrings } from "@/lib/i18n";
 import { useTabBarSpace } from "@/lib/layout";
 import { useKnownLocation } from "@/lib/location";
 import {
-  buildPlan, daysBetween, goalById, goalName, kindName, nextSession, phaseName, planProgress, ranCount,
+  buildPlan, daysBetween, goalById, goalName, kindName, nextSession, phaseName, planProgress, ranCount, targetName,
   schedule,
   easeFactor, startOfDay, type Done, type Exertion, type ScheduledSession,
 } from "@/lib/plan";
@@ -43,11 +45,6 @@ const BOOT_DAY = startOfDay(Date.now());
 
 const planStrings = defineStrings({
   fr: {
-    days: ["dim.", "lun.", "mar.", "mer.", "jeu.", "ven.", "sam."],
-    months: [
-      "janv.", "févr.", "mars", "avr.", "mai", "juin",
-      "juil.", "août", "sept.", "oct.", "nov.", "déc.",
-    ],
     skippedLabel: (name: string) => `${name}, passée`,
     doneLabel: (name: string, day: string) => `${name}, faite le ${day}, voir la course`,
     skipped: "Passée",
@@ -65,8 +62,11 @@ const planStrings = defineStrings({
     abandon: "Abandonner",
     programme: "Programme",
     method: "Comment ce programme est construit",
+    methodShort: "Méthode",
     raceLine: (date: string, daysLeft: number, target: string) =>
-      `${date} · ${daysLeft > 0 ? `dans ${plural(daysLeft, "jour", "jours")}` : "c'est aujourd'hui"} · ${target} visé`,
+      `${date} · ${daysLeft > 0
+        ? `dans ${plural(daysLeft, "jour", "jours")}`
+        : daysLeft === 0 ? "c'est aujourd'hui" : `il y a ${plural(-daysLeft, "jour", "jours")}`} · ${target} visé`,
     progress: (ran: number, total: number, skipped: number) =>
       `${plural(ran, "séance", "séances")} sur ${total}`
       + (skipped > 0 ? ` · ${plural(skipped, "passée", "passées")}` : ""),
@@ -80,11 +80,6 @@ const planStrings = defineStrings({
     abandonPlan: "Abandonner le programme",
   },
   en: {
-    days: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
-    months: [
-      "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-    ],
     skippedLabel: (name: string) => `${name}, skipped`,
     doneLabel: (name: string, day: string) => `${name}, done on ${day}, view the run`,
     skipped: "Skipped",
@@ -102,8 +97,11 @@ const planStrings = defineStrings({
     abandon: "Abandon",
     programme: "Training plan",
     method: "How this plan is built",
+    methodShort: "Method",
     raceLine: (date: string, daysLeft: number, target: string) =>
-      `${date} · ${daysLeft > 0 ? `in ${plural(daysLeft, "day", "days")}` : "it's today"} · aiming for ${target}`,
+      `${date} · ${daysLeft > 0
+        ? `in ${plural(daysLeft, "day", "days")}`
+        : daysLeft === 0 ? "it's today" : `${plural(-daysLeft, "day", "days")} ago`} · aiming for ${target}`,
     progress: (ran: number, total: number, skipped: number) =>
       `${ran} of ${total} ${total === 1 ? "session" : "sessions"}`
       + (skipped > 0 ? ` · ${skipped} skipped` : ""),
@@ -118,10 +116,13 @@ const planStrings = defineStrings({
   },
 });
 
+/** Passed over without being run. */
+const isSkipped = (entry: ScheduledSession): boolean => entry.settled && entry.runId === null;
+
 const dayName = (at: number): string =>
-  `${planStrings().days[new Date(at).getDay()]} ${new Date(at).getDate()}`;
+  new Date(at).toLocaleDateString(intlLocale(), { weekday: "short", day: "numeric" });
 const dateName = (at: number): string =>
-  `${new Date(at).getDate()} ${planStrings().months[new Date(at).getMonth()]}`;
+  new Date(at).toLocaleDateString(intlLocale(), { day: "numeric", month: "short" });
 
 const ICONS: Record<string, React.ComponentProps<typeof Ionicons>["name"]> = {
   easy: "walk",
@@ -188,7 +189,7 @@ function SessionRow({
           {name}
         </Text>
         <Text style={styles.rowDetail}>
-          {skipped ? s.skipped : kindName(entry.kind)} · {minutes} min · {formatPace(entry.targetSKm)}
+          {skipped ? s.skipped : kindName(entry.kind)} · {minutes} min · {targetName(entry.targetSKm)}
         </Text>
       </View>
       {/* The day and its weather in one column, because the weather belongs
@@ -227,6 +228,11 @@ export default function PlanScreen() {
   const page = useRef<ScrollView>(null);
   useScrollToTop(page);
   const [plan, setPlan] = useState<StoredPlan | null | undefined>(undefined);
+  /**
+   * The programme could not be read. Never shown as "no programme": that
+   * page offers to make a new one, to somebody halfway through theirs.
+   */
+  const [failed, setFailed] = useState(false);
   const [done, setDone] = useState<Map<number, Done>>(new Map());
   /** Refreshed on arrival; never read from the clock during a render. */
   const [today, setToday] = useState(BOOT_DAY);
@@ -265,20 +271,29 @@ export default function PlanScreen() {
         // On every arrival, so a plan left open overnight moves on with the
         // calendar instead of still pointing at yesterday.
         setToday(startOfDay(Date.now()));
+        // Read whole before anything is shown, so a failure halfway leaves
+        // the page as it was rather than a programme with nothing done.
+        const [done, recent] = await Promise.all([
+          found ? planDone(found.id) : Promise.resolve(new Map()),
+          recentExertions(),
+        ]);
+        if (!live) return;
         setPlan(found);
-        setDone(found ? await planDone(found.id) : new Map());
-        setRecent(await recentExertions());
+        setDone(done);
+        setRecent(recent);
+        setFailed(false);
         // What is pending on the lock screen is rebuilt from the programme
         // every time the programme is looked at, which is the cheapest place
         // to notice that a session has been run, skipped or slid a week.
         void refreshReminders();
       })
-      .catch(() => live && setPlan(null));
+      .catch(() => live && setFailed(true));
     return () => { live = false; };
   }, []);
 
   useFocusEffect(load);
 
+  /** Rejects when the plan could not be written; the form says so and keeps the answers. */
   async function create(draft: PlanDraft) {
     const sessions = buildPlan(draft);
     if (!sessions.length) return;
@@ -345,9 +360,16 @@ export default function PlanScreen() {
     void markPlanSessionDone(entry.order, null).then(load).catch(() => undefined);
   }
 
+  /** A skipped session goes back to being one to run. */
+  function restoreSession(entry: ScheduledSession) {
+    setViewing(null);
+    if (!plan) return;
+    void unmarkPlanSessionDone(plan.id, entry.order).then(load).catch(() => undefined);
+  }
+
   function startSession(entry: ScheduledSession) {
     setViewing(null);
-    chooseSession(entry.session, entry.order);
+    chooseSession(entry.session, entry.order, entry.targetSKm);
     router.push("/record");
   }
 
@@ -361,6 +383,7 @@ export default function PlanScreen() {
         <View style={styles.head}>
           <Text style={styles.title}>{s.title}</Text>
         </View>
+        {failed ? <LoadError onRetry={load} /> : null}
       </SafeAreaView>
     );
   }
@@ -416,7 +439,7 @@ export default function PlanScreen() {
           appeared on some tab changes and not others. */}
         <View style={styles.fill}>
           <PlanSetup
-            onCreate={(draft) => void create(draft)}
+            onCreate={create}
             onCancel={closeSetup}
             profile={settings.runner}
           />
@@ -456,15 +479,12 @@ export default function PlanScreen() {
             {/* The reasoning behind the plan, one tap from the plan itself.
                 Someone told what to run for three months is owed the why —
                 including which parts of it are only my judgement. */}
-            <Pressable
-              onPress={() => router.push("/plan-method")}
-              accessibilityRole="button"
+            <HeaderButton
+              icon="information-circle-outline"
+              label={s.methodShort}
               accessibilityLabel={s.method}
-              hitSlop={10}
-              style={({ pressed }) => [styles.method, pressed && styles.pressed]}
-            >
-              <Ionicons name="information-circle-outline" size={23} color={colors.subtle} />
-            </Pressable>
+              onPress={() => router.push("/plan-method")}
+            />
           </View>
           <Text style={styles.lede}>
             {s.raceLine(dateName(plan.raceAt), daysLeft, formatDuration(plan.targetTimeS))}
@@ -495,7 +515,7 @@ export default function PlanScreen() {
                 </Text>
                 <Text style={styles.nextName}>{sessionName(next.session)}</Text>
                 <Text style={styles.nextDetail}>
-                  {kindName(next.kind)} · {formatPace(next.targetSKm)} · {s.week(next.week)}
+                  {kindName(next.kind)} · {targetName(next.targetSKm)} · {s.week(next.week)}
                 </Text>
                 {nextForecast ? <ForecastLine forecast={nextForecast} /> : null}
               </View>
@@ -535,7 +555,8 @@ export default function PlanScreen() {
             session={viewing?.session ?? null}
             targetSKm={viewing?.targetSKm ?? null}
             onStart={() => viewing && startSession(viewing)}
-            onSkip={viewing && viewing.kind !== "race" ? () => skipSession(viewing) : undefined}
+            onSkip={viewing && viewing.kind !== "race" && !isSkipped(viewing) ? () => skipSession(viewing) : undefined}
+            onRestore={viewing && isSkipped(viewing) ? () => restoreSession(viewing) : undefined}
             onClose={() => setViewing(null)}
           />
 
@@ -561,7 +582,6 @@ const styles = StyleSheet.create({
   title: {
     flex: 1, color: colors.text, fontSize: 32, fontFamily: font.bold, letterSpacing: -0.6,
   },
-  method: { padding: 4 },
 
   // The same room under the heading as every other tab leaves above its
   // content, so an empty plan lines up with an empty history.

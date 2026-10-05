@@ -1,14 +1,15 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import * as Haptics from "expo-haptics";
-import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { useState } from "react";
+import { Stack, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
+import { usePreventRemove } from "expo-router/react-navigation";
+import { useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Button } from "@/components/Button";
 import {
   customSessionId, defaultName, EFFORTS, MAX_TIMES, measureLabel, nudge, starterGroups, switchMeasure, toSession,
   type DraftBlock, type DraftGroup,
 } from "@/lib/customSession";
-import { defineStrings, useStrings } from "@/lib/i18n";
+import { defineStrings, plural, useStrings } from "@/lib/i18n";
 import { customSession, removeCustomSession, storeCustomSession } from "@/lib/sessionLibrary";
 import { colors, font } from "@/lib/theme";
 import { chooseSession, getSnapshot } from "@/lib/tracker";
@@ -19,7 +20,7 @@ const editorStrings = defineStrings({
     newTitle: "Nouvelle séance",
     editTitle: "Modifier la séance",
     name: "Nom",
-    summary: (minutes: number, blocks: number) => `environ ${minutes} min · ${blocks} blocs`,
+    summary: (minutes: number, blocks: number) => `environ ${minutes} min · ${plural(blocks, "bloc", "blocs")}`,
     step: (index: number) => `Étape ${index}`,
     repeat: "Répéter",
     fewer: "Une fois de moins",
@@ -37,6 +38,13 @@ const editorStrings = defineStrings({
     deleteTitle: "Supprimer cette séance ?",
     deleteMessage: "Les courses déjà faites avec elle gardent leurs blocs.",
     cancel: "Annuler",
+    leaveTitle: "Quitter sans enregistrer ?",
+    leaveBody: "Les changements apportés à cette séance seront perdus.",
+    stay: "Rester",
+    leave: "Quitter",
+    removeStepTitle: (index: number) => `Retirer l'étape ${index} ?`,
+    removeStepBody: "Tous ses blocs et ses répétitions partent avec elle.",
+    remove: "Retirer",
     saveFailed: "Enregistrement impossible",
     tryAgain: "La séance n'a pas pu être enregistrée. Réessaie.",
   },
@@ -44,7 +52,7 @@ const editorStrings = defineStrings({
     newTitle: "New session",
     editTitle: "Edit session",
     name: "Name",
-    summary: (minutes: number, blocks: number) => `about ${minutes} min · ${blocks} blocks`,
+    summary: (minutes: number, blocks: number) => `about ${minutes} min · ${plural(blocks, "block", "blocks")}`,
     step: (index: number) => `Step ${index}`,
     repeat: "Repeat",
     fewer: "One time fewer",
@@ -62,6 +70,13 @@ const editorStrings = defineStrings({
     deleteTitle: "Delete this session?",
     deleteMessage: "Runs already done with it keep their blocks.",
     cancel: "Cancel",
+    leaveTitle: "Leave without saving?",
+    leaveBody: "The changes made to this session will be lost.",
+    stay: "Stay",
+    leave: "Leave",
+    removeStepTitle: (index: number) => `Remove step ${index}?`,
+    removeStepBody: "All its blocks and repeats go with it.",
+    remove: "Remove",
     saveFailed: "Couldn't save",
     tryAgain: "The session couldn't be saved. Try again.",
   },
@@ -85,7 +100,7 @@ function Stepper({ icon, label, onPress, disabled = false }: {
       disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={label}
-      hitSlop={6}
+      hitSlop={8}
       style={({ pressed }) => [styles.stepper, pressed && styles.pressed, disabled && styles.disabled]}
     >
       <Ionicons name={icon} size={18} color={colors.text} />
@@ -177,6 +192,26 @@ export default function SessionEditor() {
   const [name, setName] = useState(existing?.name ?? "");
   const [groups, setGroups] = useState<DraftGroup[]>(() => existing?.groups ?? starterGroups());
   const [saving, setSaving] = useState(false);
+  /** Written to disk: the screen is now free to close. */
+  const [written, setWritten] = useState(false);
+  const navigation = useNavigation();
+  // What the screen opened on, to tell an edit from a visit.
+  const [opened] = useState(() => JSON.stringify({ name: existing?.name ?? "", groups }));
+  const dirty = JSON.stringify({ name, groups }) !== opened;
+
+  // A session is built block by block; a swipe back must not throw it away
+  // without asking, as the route editor already does for a drawn route.
+  usePreventRemove(dirty && !written, ({ data }) => {
+    Alert.alert(s.leaveTitle, s.leaveBody, [
+      { text: s.stay, style: "cancel" },
+      { text: s.leave, style: "destructive", onPress: () => navigation.dispatch(data.action) },
+    ]);
+  });
+
+  // Left once the save has been rendered, so the guard above has let go.
+  useEffect(() => {
+    if (written) router.back();
+  }, [written, router]);
 
   const draft = toSession({ id: existing?.id ?? 0, name, groups });
 
@@ -198,7 +233,7 @@ export default function SessionEditor() {
     try {
       const id = await storeCustomSession(existing?.id ?? null, name, groups);
       follow(id);
-      router.back();
+      setWritten(true);
     } catch {
       setSaving(false);
       Alert.alert(s.saveFailed, s.tryAgain);
@@ -215,7 +250,7 @@ export default function SessionEditor() {
         onPress: () => {
           void removeCustomSession(existing.id).then(() => {
             follow(null);
-            router.back();
+            setWritten(true);
           });
         },
       },
@@ -224,7 +259,18 @@ export default function SessionEditor() {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <Stack.Screen options={{ title: existing ? s.editTitle : s.newTitle }} />
+      {/* Saved from the top, where it is reached without scrolling past
+          every block; the button at the foot stays for whoever ends there. */}
+      <Stack.Screen
+        options={{
+          title: existing ? s.editTitle : s.newTitle,
+          headerRight: () => (
+            <Pressable onPress={() => void save()} disabled={saving} accessibilityRole="button" hitSlop={10}>
+              <Text style={[styles.headerSave, saving && styles.disabled]}>{s.save}</Text>
+            </Pressable>
+          ),
+        }}
+      />
 
       <Text style={styles.label}>{s.name}</Text>
       <View style={styles.card}>
@@ -248,7 +294,19 @@ export default function SessionEditor() {
             <Text style={styles.label}>{s.step(index + 1)}</Text>
             {groups.length > 1 ? (
               <Pressable
-                onPress={() => setGroups((current) => current.filter((_, i) => i !== index))}
+                onPress={() => {
+                  const drop = () => setGroups((current) => current.filter((_, i) => i !== index));
+                  // A step of one block, run once, goes at a tap; anything
+                  // more is work worth a question before it is thrown away.
+                  if (group.blocks.length === 1 && group.times === 1) {
+                    drop();
+                    return;
+                  }
+                  Alert.alert(s.removeStepTitle(index + 1), s.removeStepBody, [
+                    { text: s.cancel, style: "cancel" },
+                    { text: s.remove, style: "destructive", onPress: drop },
+                  ]);
+                }}
                 accessibilityRole="button"
                 accessibilityLabel={s.removeStep(index + 1)}
                 hitSlop={8}
@@ -326,6 +384,7 @@ export default function SessionEditor() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
+  headerSave: { color: colors.accent, fontSize: 17, fontFamily: font.semibold },
   content: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 48 },
   label: {
     color: colors.subtle, fontSize: 12.5, fontFamily: font.medium,
@@ -362,7 +421,7 @@ const styles = StyleSheet.create({
     minWidth: 70, textAlign: "center", fontVariant: ["tabular-nums"],
   },
   stepper: {
-    width: 32, height: 32, borderRadius: 16,
+    width: 36, height: 36, borderRadius: 18,
     alignItems: "center", justifyContent: "center", backgroundColor: colors.background,
   },
   disabled: { opacity: 0.35 },

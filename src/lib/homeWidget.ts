@@ -1,5 +1,6 @@
 import { ExtensionStorage } from "@bacons/apple-targets";
 import { Platform } from "react-native";
+import { ofSport } from "./activity";
 import { activePlan, listRuns, planDone, recentExertions } from "./db";
 import { easeFactor, kindName, nextSession, schedule, startOfDay } from "./plan";
 import { weeklyGoal } from "./settings";
@@ -24,10 +25,11 @@ const storage = new ExtensionStorage(APP_GROUP);
  * Android widget task (src/lib/widgetTask.ts) does it before calling this.
  */
 export async function currentWidgetSnapshot(now = Date.now()): Promise<WidgetSnapshot> {
-  const runs = await listRuns();
+  // The widget shows a runner's week: rides are counted apart.
+  const runs = ofSport(await listRuns());
   const week = weekTotals(runs, now);
 
-  let next: { at: number; name: string; kind: string; targetSKm: number } | null = null;
+  let next: { at: number; name: string; kind: string; targetSKm: number | null } | null = null;
   const plan = await activePlan();
   if (plan) {
     const [done, recent] = await Promise.all([planDone(plan.id), recentExertions()]);

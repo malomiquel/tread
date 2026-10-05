@@ -21,17 +21,24 @@ interface Props {
  * nothing to land on.
  */
 export function Metric({ label, value, unit, large, compact, align = "left" }: Props) {
+  // Compact figures sit in the run panel, whose height is fixed: they grow
+  // with the phone's text size, but only so far, or they are clipped.
+  const cap = compact ? 1.3 : undefined;
   return (
     <View style={[styles.block, compact && styles.blockCompact, align === "right" && styles.right]}>
-      <Text style={[styles.label, compact && styles.labelCompact]} numberOfLines={1}>
+      <Text style={[styles.label, compact && styles.labelCompact]} numberOfLines={1} maxFontSizeMultiplier={cap}>
         {label}
       </Text>
       <View style={[styles.row, align === "right" && styles.rowRight]}>
-        <Text style={[styles.value, large && styles.large, compact && styles.valueCompact]} numberOfLines={1}>
+        <Text
+          style={[styles.value, large && styles.large, compact && styles.valueCompact]}
+          numberOfLines={1}
+          maxFontSizeMultiplier={cap}
+        >
           {value}
         </Text>
         {unit ? (
-          <Text style={[styles.unit, large && styles.unitLarge, compact && styles.unitCompact]}>
+          <Text style={[styles.unit, large && styles.unitLarge, compact && styles.unitCompact]} maxFontSizeMultiplier={cap}>
             {unit}
           </Text>
         ) : null}

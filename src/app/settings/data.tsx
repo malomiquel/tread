@@ -43,6 +43,7 @@ const dataStrings = defineStrings({
     cancel: "Annuler",
     restored: "Copie récupérée",
     noCopy: "Aucune copie à récupérer pour l'instant.",
+    restoreFailed: "La copie existe, mais elle n'a pas pu être lue. Vérifie ta connexion, puis réessaie.",
     copyFooterIos:
       "Après chaque course et quand tu quittes l'app, Tread écrit une copie de tout dans ton iCloud Drive, dossier Tread : courses, parcours, programme, réglages. Les 7 dernières sont gardées. Pas de compte Tread : c'est ton iCloud. Les photos n'y sont pas.",
     copyFooterAndroid:
@@ -55,6 +56,7 @@ const dataStrings = defineStrings({
       ? `Aucune nouvelle course dans ${store} pour l'instant.`
       : `${plural(count, "course importée", "courses importées")} depuis ${store}.`),
     watchTitle: "Courses de ta montre",
+    watchUnavailable: (store: string) => `${store} n'a pas répondu. Vérifie que l'app y a accès dans les réglages du téléphone.`,
     runs: "Des courses",
     runsDetail: "Fichiers GPX exportés de Strava, Garmin, d'une montre ou de Tread",
     routes: "Des parcours",
@@ -95,6 +97,7 @@ const dataStrings = defineStrings({
     cancel: "Cancel",
     restored: "Copy restored",
     noCopy: "No copy to bring back yet.",
+    restoreFailed: "The copy is there, but it couldn't be read. Check your connection, then try again.",
     copyFooterIos:
       "After every run and when you leave the app, Tread writes a copy of everything to your iCloud Drive, in a Tread folder: runs, routes, plan, settings. The last 7 are kept. No Tread account: it is your iCloud. Photos are not included.",
     copyFooterAndroid:
@@ -107,6 +110,7 @@ const dataStrings = defineStrings({
       ? `No new runs in ${store} yet.`
       : `${plural(count, "run", "runs")} imported from ${store}.`),
     watchTitle: "Runs from your watch",
+    watchUnavailable: (store: string) => `${store} didn't answer. Check that the app has access in your phone's settings.`,
     runs: "Runs",
     runsDetail: "GPX files exported from Strava, Garmin, a watch or Tread",
     routes: "Routes",
@@ -135,6 +139,9 @@ export default function DataSettings() {
   const [busy, setBusy] = useState<Job | null>(null);
   const [copy, setCopy] = useState<CopyState | null>(null);
   const [copying, setCopying] = useState(false);
+  /** While the newest copy is downloaded and merged, which can take a while. */
+  const [restoring, setRestoring] = useState(false);
+  const [importingHealth, setImportingHealth] = useState(false);
 
   const readCopy = useCallback(() => {
     void copyState().then(setCopy).catch(() => undefined);
@@ -154,7 +161,16 @@ export default function DataSettings() {
       { text: s.cancel, style: "cancel" },
       {
         text: s.restoreConfirm,
-        onPress: () => void restoreNewestCopy().then((summary) => Alert.alert(summary ? s.restored : s.restoreTitle, summary ?? s.noCopy)),
+        onPress: () => {
+          setRestoring(true);
+          restoreNewestCopy()
+            .then((summary) => Alert.alert(summary ? s.restored : s.restoreTitle, summary ?? s.noCopy))
+            .catch(() => Alert.alert(s.failed, s.restoreFailed))
+            .finally(() => {
+              setRestoring(false);
+              readCopy();
+            });
+        },
       },
     ]);
   };
@@ -210,7 +226,12 @@ export default function DataSettings() {
           />
         ) : null}
         {copy !== null && copy.lastAt !== null ? (
-          <SettingRow icon="arrow-undo-outline" label={s.restore} onPress={bringBack} />
+          <SettingRow
+            icon="arrow-undo-outline"
+            label={s.restore}
+            right={restoring ? <ActivityIndicator size="small" color={colors.accent} /> : undefined}
+            onPress={restoring ? undefined : bringBack}
+          />
         ) : null}
         {Platform.OS === "android" && copy?.target.kind === "folder" ? (
           <SettingRow
@@ -233,10 +254,19 @@ export default function DataSettings() {
             right={
               <Switch
                 value={settings.healthImport}
+                // Held still through the first import, which can take a while
+                // on a long history: a second flick would start it twice.
+                disabled={importingHealth}
                 onValueChange={(on) => {
-                  void enableHealthImport(on).then((count) => {
-                    if (on) Alert.alert(s.watchTitle, s.watchDone(count, healthStoreName()));
-                  });
+                  setImportingHealth(true);
+                  enableHealthImport(on)
+                    .then((count) => {
+                      if (!on) return;
+                      if (count === null) Alert.alert(s.watchTitle, s.watchUnavailable(healthStoreName()));
+                      else Alert.alert(s.watchTitle, s.watchDone(count, healthStoreName()));
+                    })
+                    .catch(() => Alert.alert(s.failed, s.unexpected))
+                    .finally(() => setImportingHealth(false));
                 }}
                 trackColor={{ true: colors.accent, false: colors.hairline }}
                 accessibilityLabel={s.watch}

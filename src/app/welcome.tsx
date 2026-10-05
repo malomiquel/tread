@@ -1,7 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import * as Location from "expo-location";
 import { useEffect, useState } from "react";
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { AppState, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "@/components/Button";
 import { StepSlider } from "@/components/StepSlider";
@@ -133,7 +133,12 @@ export default function WelcomeScreen() {
     setStep("permissions");
   }
 
-  const skip = () => setStep("permissions");
+  // Skipping the rest keeps what was already answered: a goal and a level
+  // given on the first two pages are worth having without the third.
+  const skip = () => {
+    if (goal !== null && level !== null) void keep();
+    else setStep("permissions");
+  };
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -160,7 +165,7 @@ export default function WelcomeScreen() {
         </Question>
       ) : null}
 
-      {step === "permissions" ? <Permissions /> : null}
+      {step === "permissions" ? <Permissions onBack={() => setStep("frequency")} /> : null}
     </SafeAreaView>
   );
 }
@@ -340,7 +345,7 @@ function Choice({
   );
 }
 
-function Permissions() {
+function Permissions({ onBack }: { onBack: () => void }) {
   const s = useStrings(welcomeStrings);
   const [location, setLocation] = useState<Access>("unknown");
   const [health, setHealth] = useState<Access>("unknown");
@@ -349,17 +354,28 @@ function Permissions() {
 
   // A phone that already said yes, restored from a backup or reinstalled,
   // should not be asked a question it has answered.
+  // Read again on coming back to the app: somebody sent to the phone's
+  // settings to allow it should not return to a page still saying "refused".
   useEffect(() => {
     let active = true;
-    void Location.getForegroundPermissionsAsync()
-      .then((existing) => {
-        if (!active) return;
-        setCanAskLocation(existing.canAskAgain);
-        if (existing.status === "granted") setLocation("granted");
-        else if (existing.status === "denied") setLocation("refused");
-      })
-      .catch(() => undefined);
-    return () => { active = false; };
+    const read = () => {
+      void Location.getForegroundPermissionsAsync()
+        .then((existing) => {
+          if (!active) return;
+          setCanAskLocation(existing.canAskAgain);
+          if (existing.status === "granted") setLocation("granted");
+          else if (existing.status === "denied") setLocation("refused");
+        })
+        .catch(() => undefined);
+    };
+    read();
+    const subscription = AppState.addEventListener("change", (next) => {
+      if (next === "active") read();
+    });
+    return () => {
+      active = false;
+      subscription.remove();
+    };
   }, []);
 
   async function askLocation() {
@@ -385,6 +401,15 @@ function Permissions() {
 
   return (
     <View style={styles.page}>
+      {/* The same bar as the questions: the fourth segment filled, and a way
+          back to change an answer. No skip: this page is the last. */}
+      <View style={styles.bar}>
+        <Pressable onPress={onBack} accessibilityRole="button" accessibilityLabel={s.back} hitSlop={12}>
+          <Ionicons name="chevron-back" size={24} color={colors.text} />
+        </Pressable>
+        <Progress step="permissions" />
+        <View style={styles.barSpacer} />
+      </View>
       <ScrollView contentContainerStyle={styles.body}>
         <Text style={styles.title}>{withHealth ? s.twoPermissions : s.onePermission}</Text>
         <Text style={styles.lede}>{s.permissionsLede}</Text>
@@ -469,6 +494,7 @@ const styles = StyleSheet.create({
   segment: { flex: 1, height: 4, borderRadius: 2, backgroundColor: colors.accentSoft },
   segmentOn: { backgroundColor: colors.accent },
   skipLabel: { color: colors.subtle, fontSize: 16, fontFamily: font.semibold },
+  barSpacer: { width: 24 },
   questionBody: { paddingHorizontal: GUTTER, paddingTop: 28, paddingBottom: 24, gap: 10 },
   answers: { gap: 10, marginTop: 18 },
 

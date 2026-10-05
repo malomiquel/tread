@@ -1,7 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import * as Haptics from "expo-haptics";
 import { Tabs, useRouter } from "expo-router";
-import { useState, type ComponentProps } from "react";
+import { useRef, useState, type ComponentProps } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, { Easing, useAnimatedStyle, withTiming } from "react-native-reanimated";
 import { GlassPanel } from "@/components/GlassPanel";
@@ -58,7 +58,9 @@ export function FloatingTabBar({
   const tracker = useTracker();
   const recording = tracker.status !== "idle";
   /** The session a programme is waiting on, once it has been asked for. */
-  const [proposal, setProposal] = useState<{ session: Session; order: number } | null>(null);
+  const [proposal, setProposal] = useState<{ session: Session; order: number; paceSKm: number | null } | null>(null);
+
+  const going = useRef(false);
 
   const startFree = () => {
     setProposal(null);
@@ -78,12 +80,24 @@ export function FloatingTabBar({
    * one tap away.
    */
   const go = async () => {
+    // Reading the programme is an await away: a second tap meanwhile would
+    // open the run screen twice, one on top of the other.
+    if (going.current) return;
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
     // Already out there: the button is a way back to the run, not a new one.
     if (recording) {
       router.push("/record");
       return;
     }
+    going.current = true;
+    try {
+      await chooseWhatToRun();
+    } finally {
+      going.current = false;
+    }
+  };
+
+  const chooseWhatToRun = async () => {
     // A run started from here follows no route. The route chosen for the last
     // one was still on the map, and a runner who pressed the disc and saw it
     // took it for today's plan. A route is followed from the routes tab.
@@ -96,7 +110,7 @@ export function FloatingTabBar({
         plan.sessions, done, plan.days, plan.raceAt, recent, startOfDay(Date.now()),
       );
       if (!next) return startFree();
-      setProposal({ session: next.session, order: next.order });
+      setProposal({ session: next.session, order: next.order, paceSKm: next.targetSKm });
     } catch {
       // A programme that cannot be read is not a reason to stand still.
       startFree();
@@ -220,7 +234,7 @@ export function FloatingTabBar({
         session={proposal?.session ?? null}
         onStart={() => {
           if (!proposal) return;
-          chooseSession(proposal.session, proposal.order);
+          chooseSession(proposal.session, proposal.order, proposal.paceSKm);
           setProposal(null);
           router.push("/record");
         }}

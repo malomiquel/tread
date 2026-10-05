@@ -467,7 +467,7 @@ const styles = StyleSheet.create({
   chips: { gap: 8, paddingHorizontal: GUTTER },
   chip: {
     flexDirection: "row", alignItems: "center", gap: 5,
-    paddingHorizontal: 12, height: 32, borderRadius: 8,
+    paddingHorizontal: 12, height: 36, borderRadius: 8,
     borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline,
   },
   sortChip: { backgroundColor: colors.accentSoft, borderColor: colors.accentSoft },

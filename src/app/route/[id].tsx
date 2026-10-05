@@ -12,9 +12,11 @@ import MapView, { Marker, Polyline } from "react-native-maps";
 import { distanceM, fitRegion } from "@/lib/geo";
 import { routeGpxFileName, routeToGpx } from "@/lib/gpx";
 import { keepPicture, PREVIEW } from "@/lib/picture";
+import { Button } from "@/components/Button";
+import { LoadError } from "@/components/LoadError";
 import { deleteRoute, readRoute, saveRoute, updateRoute } from "@/lib/db";
 import { formatDistance } from "@/lib/format";
-import { placeName, useInitialLocation } from "@/lib/location";
+import { placeName, useKnownLocation } from "@/lib/location";
 import {
   autoRouteName, drawnLine, emptyRoute, fetchLeg, isLoop, lastWaypoint, legsAround, movedWaypoint,
   regionAroundRoute, routeDistanceM, snapped, withoutWaypoint, withWaypoint,
@@ -48,6 +50,8 @@ const routeStrings = defineStrings({
     notSaved: "Parcours non enregistré",
     newRoute: "Nouveau parcours",
     edit: "Modifier",
+    gone: "Ce parcours n'existe plus. Il a peut-être été supprimé.",
+    back: "Retour",
     deleteLabel: "Supprimer ce parcours",
     renameLabel: (name: string) => `${name}, renommer`,
     nameLabel: "Nommer ce parcours",
@@ -89,6 +93,8 @@ const routeStrings = defineStrings({
     notSaved: "Route not saved",
     newRoute: "New route",
     edit: "Edit",
+    gone: "This route no longer exists. It may have been deleted.",
+    back: "Back",
     deleteLabel: "Delete this route",
     renameLabel: (name: string) => `${name}, rename`,
     nameLabel: "Name this route",
@@ -135,7 +141,11 @@ export default function RouteBuilder() {
   const { id } = useLocalSearchParams<{ id: string }>();
   /** The route being changed, or null when one is being drawn from nothing. */
   const editing = id === "new" || id === undefined ? null : Number(id);
-  const { coords } = useInitialLocation();
+  // Where the phone last was, without asking: drawing a route needs no
+  // permission, and the system prompt arriving unannounced on a map screen
+  // reads as a demand rather than a question. Without one, the map opens on
+  // its default and the runner moves it.
+  const coords = useKnownLocation();
   const [route, setRoute] = useState<Route>(emptyRoute());
   /** Null until an existing route has been read, so the map can open on it. */
   const [opened, setOpened] = useState<Route | null>(editing === null ? emptyRoute() : null);
@@ -149,6 +159,15 @@ export default function RouteBuilder() {
    */
   const [name, setName] = useState<string | null>(null);
   const [naming, setNaming] = useState(false);
+  /** Keep the name typed in the sheet, and close it. */
+  const commitName = () => {
+    const next = draft.trim() || null;
+    if (next !== name) {
+      setName(next);
+      setDirty(true);
+    }
+    setNaming(false);
+  };
   const [draft, setDraft] = useState("");
   /** Something has been drawn or renamed since this screen was opened. */
   const [dirty, setDirty] = useState(false);
@@ -157,18 +176,34 @@ export default function RouteBuilder() {
   /** Written to disk: the screen is now free to close. */
   const [written, setWritten] = useState(false);
 
+  /**
+   * Reading the route failed, or it is gone: deleted from another screen, or
+   * opened from a link that outlived it. Said, rather than a blank screen.
+   */
+  const [missing, setMissing] = useState<"gone" | "failed" | null>(null);
+  const [attempt, setAttempt] = useState(0);
+
   useEffect(() => {
     if (editing === null) return;
     let active = true;
-    void readRoute(editing).then((found) => {
-      if (!active || !found) return;
-      const loaded = { waypoints: found.waypoints, legs: found.legs };
-      setRoute(loaded);
-      setOpened(loaded);
-      setName(found.name);
-    });
+    readRoute(editing)
+      .then((found) => {
+        if (!active) return;
+        if (!found) {
+          setMissing("gone");
+          return;
+        }
+        const loaded = { waypoints: found.waypoints, legs: found.legs };
+        setMissing(null);
+        setRoute(loaded);
+        setOpened(loaded);
+        setName(found.name);
+      })
+      .catch(() => {
+        if (active) setMissing("failed");
+      });
     return () => { active = false; };
-  }, [editing]);
+  }, [editing, attempt]);
   /** True while the router is being asked about the leg just tapped. */
   const [asking, setAsking] = useState(false);
   /**
@@ -457,7 +492,20 @@ export default function RouteBuilder() {
   // The map is mounted only once it knows what to open on: an initial region
   // is read once and never again, so a route arriving a moment later would be
   // drawn off screen.
-  if (opened === null) return <View style={styles.screen} />;
+  if (opened === null) {
+    return (
+      <View style={styles.screen}>
+        <Stack.Screen options={{ title: s.edit }} />
+        {missing === "failed" ? <LoadError onRetry={() => setAttempt((n) => n + 1)} /> : null}
+        {missing === "gone" ? (
+          <View style={styles.gone}>
+            <Text style={styles.goneText}>{s.gone}</Text>
+            <Button label={s.back} variant="secondary" onPress={() => router.back()} />
+          </View>
+        ) : null}
+      </View>
+    );
+  }
 
   return (
     <View style={styles.screen}>
@@ -702,8 +750,11 @@ export default function RouteBuilder() {
         </Pressable>
       </Modal>
 
-      <Modal visible={naming} transparent animationType="fade" onRequestClose={() => setNaming(false)}>
-        <Pressable style={styles.sheetBackdrop} onPress={() => setNaming(false)}>
+      {/* Closed by a tap beside it as much as by the keyboard's Done: what
+          was typed is kept either way, since nothing on screen says the
+          other way out would throw it away. */}
+      <Modal visible={naming} transparent animationType="fade" onRequestClose={commitName}>
+        <Pressable style={styles.sheetBackdrop} onPress={commitName}>
           <Pressable onPress={() => undefined} style={styles.sheetBody}>
             <Text style={styles.sheetTitle}>{s.routeName}</Text>
             <TextInput
@@ -717,11 +768,7 @@ export default function RouteBuilder() {
               placeholderTextColor={colors.subtle}
               autoFocus
               returnKeyType="done"
-              onSubmitEditing={() => {
-                setName(draft.trim() || null);
-                setDirty(true);
-                setNaming(false);
-              }}
+              onSubmitEditing={commitName}
               style={styles.namingField}
             />
             <Text style={styles.namingHint}>{s.emptyNameHint}</Text>
@@ -751,6 +798,8 @@ export default function RouteBuilder() {
 }
 
 const styles = StyleSheet.create({
+  gone: { padding: 20, gap: 16 },
+  goneText: { color: colors.muted, fontSize: 15.5, fontFamily: font.regular, textAlign: "center" },
   screen: { flex: 1, backgroundColor: colors.background },
   deleteLabel: { color: colors.danger, fontSize: 16.5, fontFamily: font.semibold },
 

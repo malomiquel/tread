@@ -1,5 +1,5 @@
 import { decimal, defineStrings, speechLocale } from "./i18n";
-import { getUnitSystem, METRES_PER_MILE } from "./units";
+import { getUnitSystem, METRES_PER_MILE, toPaceUnits, toSpeedUnits } from "./units";
 import * as Speech from "expo-speech";
 import { Platform, Vibration } from "react-native";
 
@@ -84,6 +84,7 @@ const spokenWords = defineStrings({
       `${seconds} seconde${seconds > 1 ? "s" : ""} ${ahead ? "d'avance" : "de retard"} sur ton record`,
     ghostLevel: "À égalité avec ton record",
     turn: (direction: string, distance: string) => `Dans ${distance}, ${direction}`,
+    pace: (pace: string) => `à ${pace} au ${getUnitSystem() === "metric" ? "kilomètre" : "mile"}`,
     offRoute: "Tu as quitté le parcours",
     backOnRoute: "De retour sur le parcours",
     routeDone: "Parcours terminé",
@@ -95,6 +96,9 @@ const spokenWords = defineStrings({
     metres: (metres: number) => `${metres} mètres`,
     kilometres: (km: string) => `${km} kilomètres`,
     miles: (miles: string) => `${miles} miles`,
+    rideSplit: (distance: number, speed: string) => `${
+      getUnitSystem() === "metric" ? "Kilomètre" : "Mile"} ${distance}. ${speed} ${
+      getUnitSystem() === "metric" ? "kilomètres heure" : "miles par heure"}`,
   },
   en: {
     kilometre: (km: number, minutes: number, seconds: number) => `${
@@ -111,6 +115,7 @@ const spokenWords = defineStrings({
       `${seconds} second${seconds > 1 ? "s" : ""} ${ahead ? "ahead of" : "behind"} your best`,
     ghostLevel: "Level with your best",
     turn: (direction: string, distance: string) => `In ${distance}, ${direction}`,
+    pace: (pace: string) => `at ${pace} per ${getUnitSystem() === "metric" ? "kilometre" : "mile"}`,
     offRoute: "You have left the route",
     backOnRoute: "Back on the route",
     routeDone: "Route complete",
@@ -122,6 +127,9 @@ const spokenWords = defineStrings({
     metres: (metres: number) => `${metres} metres`,
     kilometres: (km: string) => `${km} kilometres`,
     miles: (miles: string) => `${miles} miles`,
+    rideSplit: (distance: number, speed: string) => `${
+      getUnitSystem() === "metric" ? "Kilometre" : "Mile"} ${distance}. ${speed} ${
+      getUnitSystem() === "metric" ? "kilometres per hour" : "miles per hour"}`,
   },
 });
 
@@ -156,6 +164,20 @@ export function announceKilometre(km: number, splitS: number, spoken: boolean, g
   Speech.speak(`${words.kilometre(km, minutes, seconds)}${ghost}`, { language: speechLocale(), rate: 1 });
 }
 
+/**
+ * A ride's milestone, spoken and felt: the distance reached and the speed
+ * held since the last one. A cyclist reads speed, not minutes per kilometre,
+ * and passes a kilometre too often for each one to be worth a word.
+ */
+export function announceRideSplit(distance: number, speedMs: number, spoken: boolean, ghostGapS: number | null = null): void {
+  buzz(1);
+  if (!spoken) return;
+  const words = spokenWords();
+  const gap = ghostGapS === null ? null : Math.round(ghostGapS);
+  const ghost = gap === null ? "" : gap === 0 ? `. ${words.ghostLevel}` : `. ${words.ghost(Math.abs(gap), gap > 0)}`;
+  const speed = decimal(toSpeedUnits(speedMs).toFixed(1));
+  Speech.speak(`${words.rideSplit(distance, speed)}${ghost}`, { language: speechLocale(), rate: 1 });
+}
 
 /**
  * The next block of a structured session, spoken as the last one ends.
@@ -165,7 +187,7 @@ export function announceKilometre(km: number, splitS: number, spoken: boolean, g
  * bent over recovering. The buzz marks the change, the voice says what the
  * change is.
  */
-export function announceStep(label: string | null, spoken: boolean): void {
+export function announceStep(label: string | null, spoken: boolean, paceSKm: number | null = null): void {
   // Two for a change of block, three for the end of the session. The count
   // rises with how final the thing is, not with how urgently it must be acted
   // on: a block change is one of many and comes back in a few minutes, the
@@ -173,7 +195,19 @@ export function announceStep(label: string | null, spoken: boolean): void {
   if (label) buzz(2, GAP_MS);
   else buzz(3, GAP_MS);
   if (!spoken) return;
-  Speech.speak(label ?? spokenWords().sessionDone, { language: speechLocale(), rate: 1 });
+  const words = spokenWords();
+  // The pace goes with the block it belongs to: said once, as the block
+  // starts, which is when a runner settles into it.
+  const pace = label !== null && paceSKm !== null ? `, ${words.pace(spokenPace(paceSKm))}` : "";
+  Speech.speak(label === null ? words.sessionDone : `${label}${pace}`, { language: speechLocale(), rate: 1 });
+}
+
+/** A pace as it is said: "4 minutes 35" per kilometre, or per mile. */
+function spokenPace(secPerKm: number): string {
+  const whole = Math.round(toPaceUnits(secPerKm));
+  const minutes = Math.floor(whole / 60);
+  const seconds = whole % 60;
+  return `${minutes} minute${minutes > 1 ? "s" : ""}${seconds > 0 ? ` ${seconds}` : ""}`;
 }
 
 /**

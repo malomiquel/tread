@@ -2,6 +2,8 @@ import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-rou
 import { useCallback, useState } from "react";
 import { ScrollView, StyleSheet, Text } from "react-native";
 import { RecordRow, type RecordIcon } from "@/components/RecordRow";
+import { LoadError } from "@/components/LoadError";
+import { ofSport } from "@/lib/activity";
 import { effortRecords, listRuns, personalRecords, type EffortRecord, type PersonalRecords, type Run } from "@/lib/db";
 import { effortName } from "@/lib/efforts";
 import { formatDate, formatDistance, formatDuration, formatElevation, formatPace } from "@/lib/format";
@@ -76,20 +78,24 @@ export default function PerformanceScreen() {
   const [data, setData] = useState<{
     runs: Run[]; records: PersonalRecords; efforts: EffortRecord[]; readAt: number;
   } | null>(null);
+  const [failed, setFailed] = useState(false);
 
-  useFocusEffect(
-    useCallback(() => {
-      let active = true;
-      Promise.all([listRuns(), personalRecords(), effortRecords()])
-        .then(([runs, records, efforts]) => {
-          if (active) setData({ runs, records, efforts, readAt: Date.now() });
-        })
-        .catch(() => undefined);
-      return () => {
-        active = false;
-      };
-    }, []),
-  );
+  const load = useCallback(() => {
+    let active = true;
+    Promise.all([listRuns().then((all) => ofSport(all)), personalRecords(), effortRecords()])
+      .then(([runs, records, efforts]) => {
+        if (!active) return;
+        setData({ runs, records, efforts, readAt: Date.now() });
+        setFailed(false);
+      })
+      .catch(() => {
+        if (active) setFailed(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+  useFocusEffect(load);
 
   const rows: Row[] = [];
   let lede: string | null = null;
@@ -106,14 +112,14 @@ export default function PerformanceScreen() {
     if (records.fastestKm?.fastestKmS != null) {
       rows.push({
         key: "fastestKm", icon: "flash-outline", label: s.fastestKm,
-        value: formatPace(records.fastestKm.fastestKmS),
+        value: `${formatPace(records.fastestKm.fastestKmS)} ${paceUnit()}`,
         detail: records.fastestKm.name ?? undefined, runId: records.fastestKm.id,
       });
     }
     if (records.bestAvgPace?.avgPaceSKm != null) {
       rows.push({
         key: "bestAvgPace", icon: "speedometer-outline", label: s.bestAvgPace,
-        value: formatPace(records.bestAvgPace.avgPaceSKm),
+        value: `${formatPace(records.bestAvgPace.avgPaceSKm)} ${paceUnit()}`,
         detail: s.bestAvgPaceDetail, runId: records.bestAvgPace.id,
       });
     }
@@ -153,7 +159,7 @@ export default function PerformanceScreen() {
       rows.push({
         key: prediction.goal, icon: "flag-outline", label: goalName(prediction.goal),
         value: formatDuration(Math.round(prediction.timeS)),
-        detail: s.predictionFrom(`${formatPace(prediction.paceSKm)}${paceUnit()}`, inSentence(effortName(prediction.from.key))),
+        detail: s.predictionFrom(`${formatPace(prediction.paceSKm)} ${paceUnit()}`, inSentence(effortName(prediction.from.key))),
       });
     }
   }
@@ -161,6 +167,7 @@ export default function PerformanceScreen() {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <Stack.Screen options={{ title: titles[section] }} />
+      {data === null && failed ? <LoadError onRetry={load} /> : null}
       {lede ? <Text style={styles.lede}>{lede}</Text> : null}
       {rows.map((row, index) => (
         <RecordRow

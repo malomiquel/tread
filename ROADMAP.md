@@ -53,12 +53,24 @@ promise is listed at the end, under "Not doing".
 - [x] Auto-pause (opt-in): pauses after 10 s standing still, resumes on
   setting off, announced by voice and haptics
 - [x] Pace drift, splits and spoken markers follow the chosen unit
+- [x] **Cycling**: Run / Ride on the run screen, remembered; a ride reads in
+  speed (dashboard, panel, its page, splits, chart, share card), says its
+  distance and speed every 5 km, has no session, cadence or best efforts,
+  wears no shoes, and counts in none of a runner's totals or records; route
+  records and ghosts per sport; written to Health as cycling (distance
+  cycling, energy from METs by speed), rides brought in from Health and
+  Health Connect, GPX `<type>cycling</type>` both ways
 
 ### History
 - [x] Month banner (this month vs last), sticky month headers with totals
 - [x] Each run's outline drawn from a 60-point sample, cached
 - [x] Weather and session kind marks on each run
 - [x] "Import" button in the header once there are runs
+
+### Plan
+- [x] Plan setup in steps (race, date, rhythm and days, fitness today, target
+  time) with a recap of every answer before the plan is made, each line
+  opening its step again
 
 ### Profile
 - [x] Built from the same parts as History: week banner with goal, sections,
@@ -299,6 +311,8 @@ The reason to pay is a plan that fits the runner, not more charts.
   stop
 - [ ] **Cadence chart**: needs steps recorded minute by minute during the run
 - [ ] Live Activity labels in the app's chosen language, not the phone's
+- [ ] Live Activity in speed on a ride (needs a native rebuild: it shows a pace)
+- [ ] Ride totals of their own: a week, a month and records for cycling
 - [ ] More languages (the `{ fr, en }` tables are ready to take a third)
 
 ---

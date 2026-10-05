@@ -7,16 +7,21 @@ import { thumbnail } from "@/lib/route";
 import { colors, literalColors } from "@/lib/theme";
 
 /**
- * Shapes already read, by run id.
+ * Shapes already read, by run id and track.
  *
- * A run's track never changes once it is saved, so a shape read once is good
- * for the life of the process. Scrolling back up the history draws from here
- * instead of asking the database again.
+ * Not by id alone: SQLite hands a deleted run's id to the next one saved,
+ * and an edit trims a run's track, so the same id can draw two different
+ * shapes. Scrolling back up the history draws from here instead of asking
+ * the database again.
  */
-const shapes = new Map<number, { x: number; y: number }[]>();
+const shapes = new Map<string, { x: number; y: number }[]>();
 
 interface Props {
   runId: number;
+  /** Changes whenever the track does: the run's start and end. */
+  track: string;
+  /** A ride, shown by a bicycle while it has no shape to draw. */
+  ride?: boolean;
   size?: number;
 }
 
@@ -28,25 +33,26 @@ interface Props {
  * with no GPS points, or one still loading, shows a running figure instead of
  * an empty square.
  */
-export function RunShape({ runId, size = 56 }: Props) {
+export function RunShape({ runId, track, ride = false, size = 56 }: Props) {
   const scheme = useColorScheme() === "dark" ? "dark" : "light";
   const inner = size - 12;
-  const [loaded, setLoaded] = useState<{ id: number; shape: { x: number; y: number }[] } | null>(null);
-  const cached = shapes.get(runId);
-  const shape = cached ?? (loaded?.id === runId ? loaded.shape : null);
+  const key = `${runId}:${track}`;
+  const [loaded, setLoaded] = useState<{ key: string; shape: { x: number; y: number }[] } | null>(null);
+  const cached = shapes.get(key);
+  const shape = cached ?? (loaded?.key === key ? loaded.shape : null);
 
   useEffect(() => {
-    if (shapes.has(runId)) return;
+    if (shapes.has(key)) return;
     let active = true;
     void runShape(runId)
       .then((points) => {
         const drawn = thumbnail(points, inner, 3);
-        shapes.set(runId, drawn);
-        if (active) setLoaded({ id: runId, shape: drawn });
+        shapes.set(key, drawn);
+        if (active) setLoaded({ key, shape: drawn });
       })
       .catch(() => undefined);
     return () => { active = false; };
-  }, [runId, inner]);
+  }, [key, runId, inner]);
 
   return (
     <View style={[styles.tile, { width: size, height: size, borderRadius: size * 0.28 }]}>
@@ -62,12 +68,12 @@ export function RunShape({ runId, size = 56 }: Props) {
           />
         </Svg>
       ) : (
-        <Ionicons name="walk" size={size * 0.42} color={colors.accent} />
+        <Ionicons name={ride ? "bicycle" : "walk"} size={size * 0.42} color={colors.subtle} />
       )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  tile: { alignItems: "center", justifyContent: "center", backgroundColor: colors.accentSoft },
+  tile: { alignItems: "center", justifyContent: "center", backgroundColor: colors.sunken },
 });

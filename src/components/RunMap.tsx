@@ -2,7 +2,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator, Pressable, StyleSheet, Text, useColorScheme, View,
+  ActivityIndicator, Alert, Linking, Pressable, StyleSheet, Text, useColorScheme, View,
   type StyleProp, type ViewStyle,
 } from "react-native";
 import MapView, { Marker, Polyline } from "react-native-maps";
@@ -11,7 +11,7 @@ import { formatDistance, formatDuration } from "@/lib/format";
 import { defineStrings, useStrings } from "@/lib/i18n";
 import { bounds, regionAround, segments, type TrackPoint } from "@/lib/geo";
 import { CONTROL_SIZE, CONTROLS_TOP } from "@/lib/layout";
-import { getCurrentCoords, type Coords } from "@/lib/location";
+import { getCurrentCoords, locationAccess, type Coords } from "@/lib/location";
 import { readColour } from "@/lib/raster";
 import { buildReplay, drawnSoFar, headAt, REPLAY_MS } from "@/lib/replay";
 import type { RoutePoint } from "@/lib/route";
@@ -21,12 +21,20 @@ import { distanceUnit } from "@/lib/units";
 const mapStrings = defineStrings({
   fr: {
     stopReplay: "Arrêter le tracé animé",
+    locationOffTitle: "Localisation désactivée",
+    locationOffMessage: "Pour centrer la carte sur toi, autorise la localisation dans les réglages du téléphone.",
+    cancel: "Annuler",
+    openSettings: "Ouvrir les réglages",
     replay: "Rejouer le parcours",
     shrink: "Réduire la carte",
     expand: "Agrandir la carte",
     recenter: "Recentrer la carte sur ma position",
   },
   en: {
+    locationOffTitle: "Location turned off",
+    locationOffMessage: "To centre the map on you, allow location in your phone's settings.",
+    cancel: "Cancel",
+    openSettings: "Open settings",
     stopReplay: "Stop the animated track",
     replay: "Replay the route",
     shrink: "Shrink the map",
@@ -244,6 +252,25 @@ export function RunMap({
     }
   }, []);
 
+  /**
+   * The button's own way in. A tap on a map that cannot find the phone used
+   * to do nothing at all; once the phone has stopped asking, the way forward
+   * is its settings, and the button says so. The automatic locate on arrival
+   * stays silent.
+   */
+  const recentreByHand = async () => {
+    const access = await locationAccess().catch(() => "denied" as const);
+    if (access === "blocked") {
+      const words = mapStrings();
+      Alert.alert(words.locationOffTitle, words.locationOffMessage, [
+        { text: words.cancel, style: "cancel" },
+        { text: words.openSettings, onPress: () => void Linking.openSettings() },
+      ]);
+      return;
+    }
+    if (access === "granted") void recentre();
+  };
+
   // The same thing the locate button does, on arrival rather than on demand.
   // Only while there is no track to look at: mid-run the camera is already
   // following the last fix, and re-framing under it would fight it for the
@@ -363,7 +390,7 @@ export function RunMap({
         )}
         {!fitAll && (
         <Pressable
-          onPress={() => void recentre()}
+          onPress={() => void recentreByHand()}
           accessibilityRole="button"
           accessibilityLabel={s.recenter}
           // 44 points across, plus slop: below that the target gets hard to

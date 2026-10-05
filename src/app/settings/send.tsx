@@ -2,6 +2,7 @@ import { useFocusEffect } from "expo-router";
 import { Directory, File, Paths } from "expo-file-system";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { Button } from "@/components/Button";
 import QRCode from "react-native-qrcode-svg";
 import { everythingForTransfer } from "@/lib/db";
 import {
@@ -17,9 +18,10 @@ const sendStrings = defineStrings({
       "Cette version de l'app ne peut pas ouvrir de serveur. Elle demande une version installée, pas Expo Go. Le transfert par fichier, lui, marche partout.",
     nothingToSend: "Cette app n'a encore ni course ni programme à envoyer.",
     serverFailed: "Le serveur n'a pas démarré.",
-    timedOut: "Le temps est écoulé. Reviens sur cet écran pour recommencer.",
+    timedOut: "Le temps est écoulé.",
+    again: "Recommencer",
     packing: "Préparation de tes courses…",
-    lede: "Sur le nouveau téléphone : Réglages, Transfert, Recevoir. Puis vise ce code.",
+    lede: "Sur le nouveau téléphone : Réglages › Changer de téléphone › Recevoir depuis l'ancien. Puis vise ce code.",
     countdown: (clock: string) => `Actif encore ${clock}`,
     note: (minutes: number) =>
       `Les deux téléphones doivent être sur le même WiFi. Le partage s'arrête tout seul en quittant cet écran, et dans tous les cas au bout de ${minutes} minutes.`,
@@ -29,9 +31,10 @@ const sendStrings = defineStrings({
       "This version of the app can't open a server. It needs an installed build, not Expo Go. The file transfer works everywhere, though.",
     nothingToSend: "This app has no runs or training plan to send yet.",
     serverFailed: "The server didn't start.",
-    timedOut: "Time's up. Come back to this screen to start again.",
+    timedOut: "Time's up.",
+    again: "Start again",
     packing: "Getting your runs ready…",
-    lede: "On the new phone: Settings, Switch phones, Receive. Then scan this code.",
+    lede: "On the new phone: Settings › Switch phones › Receive from the old one. Then scan this code.",
     countdown: (clock: string) => `Active for another ${clock}`,
     note: (minutes: number) =>
       `Both phones need to be on the same WiFi. Sharing stops by itself when you leave this screen, and after ${minutes} minutes in any case.`,
@@ -52,7 +55,8 @@ function handoverDir(): string {
 type Stage =
   | { step: "packing" }
   | { step: "serving"; url: string; startedAt: number }
-  | { step: "over"; why: string };
+  /** `again` when trying once more could work: not for a build with no server. */
+  | { step: "over"; why: string; again?: boolean };
 
 /**
  * The sending half: a QR code, and a server that exists for two minutes.
@@ -65,6 +69,12 @@ type Stage =
  * without stopping it.
  */
 export default function SendOverWifi() {
+  // Starting again is starting over: a fresh sender, with a fresh server.
+  const [attempt, setAttempt] = useState(0);
+  return <Sender key={attempt} onRestart={() => setAttempt((n) => n + 1)} />;
+}
+
+function Sender({ onRestart }: { onRestart: () => void }) {
   const [stage, setStage] = useState<Stage>({ step: "packing" });
   const [now, setNow] = useState(() => Date.now());
   const live = useRef<Handover | null>(null);
@@ -99,7 +109,10 @@ export default function SendOverWifi() {
           },
           async () => handoverDir(),
         );
-        if (!handover) return;
+        if (!handover) {
+          if (active) setStage({ step: "over", why: sendStrings().serverFailed, again: true });
+          return;
+        }
 
         // Left while it was starting: stop it at once rather than leave a
         // server running behind a screen nobody is on.
@@ -115,7 +128,8 @@ export default function SendOverWifi() {
         if (active) {
           setStage({
             step: "over",
-            why: cause instanceof Error ? cause.message : sendStrings().serverFailed,
+            why: sendStrings().serverFailed,
+            again: true,
           });
         }
       });
@@ -148,7 +162,7 @@ export default function SendOverWifi() {
       clearInterval(timer);
       void live.current?.stop();
       live.current = null;
-      setStage({ step: "over", why: sendStrings().timedOut });
+      setStage({ step: "over", why: sendStrings().timedOut, again: true });
     }, 1000);
     return () => clearInterval(timer);
   }, [startedAt]);
@@ -159,6 +173,7 @@ export default function SendOverWifi() {
     return (
       <View style={styles.screen}>
         <Text style={styles.over}>{stage.why}</Text>
+        {stage.again ? <Button label={s.again} onPress={onRestart} style={styles.again} /> : null}
       </View>
     );
   }
@@ -196,6 +211,7 @@ export default function SendOverWifi() {
 }
 
 const styles = StyleSheet.create({
+  again: { alignSelf: "stretch", marginTop: 16 },
   screen: {
     flex: 1, backgroundColor: colors.background,
     alignItems: "center", justifyContent: "center", gap: 18, padding: 28,

@@ -2,6 +2,7 @@ import * as Location from "expo-location";
 import { Pedometer } from "expo-sensors";
 import * as TaskManager from "expo-task-manager";
 import { useSyncExternalStore } from "react";
+import { recordedActivity, type Sport } from "./activity";
 import { cadenceSpm } from "./cadence";
 import {
   createRun, finishRun, insertPoints, markPlanSessionDone, readRoute, readRun, routeRecords, setRunWeather,
@@ -17,8 +18,8 @@ import { refreshHomeWidget } from "./homeWidget";
 import { makeCopy } from "./safetyCopy";
 import { toPaceUnits, unitLengthM } from "./units";
 import {
-  announceAutoPause, announceKilometre, announceLap, announceOffRoute, announcePace, announceRouteDone,
-  announceStep, announceTurn, stopSpeaking,
+  announceAutoPause, announceKilometre, announceLap, announceOffRoute, announcePace, announceRideSplit,
+  announceRouteDone, announceStep, announceTurn, stopSpeaking,
 } from "./feedback";
 import { locate, nextTurn, OFF_ROUTE_M, routeLine, turnName, type RouteLine, type TurnDirection } from "./guidance";
 import {
@@ -28,10 +29,10 @@ import {
 import type { LapMark } from "./laps";
 import { reflectRun, stopRun, type RunProgress } from "./liveActivity";
 import { paceDrift } from "./pace";
-import { getSettings } from "./settings";
+import { getSettings, setSport } from "./settings";
 import { weatherAt, type Weather } from "./weather";
 import {
-  hasSinglePace, isPaced, stepIsDone, stepLabel, type RanBlock, type Session,
+  hasSinglePace, isPaced, stepIsDone, stepLabel, type RanBlock, type Session, type Step,
 } from "./workout";
 
 export const TASK_NAME = "tread-gps-tracking";
@@ -54,6 +55,8 @@ export interface Guidance {
 export interface TrackerState {
   status: TrackerStatus;
   runId: number | null;
+  /** What is being recorded: a run, or a ride. Fixed when it starts. */
+  sport: Sport;
   points: TrackPoint[];
   /** Current segment, bumped on every resume so pauses never join up. */
   segment: number;
@@ -76,6 +79,11 @@ export interface TrackerState {
   session: Session | null;
   /** Its position in the programme, when it came from one. */
   planOrder: number | null;
+  /**
+   * The pace a programme's session is to be run at, in seconds per km, for
+   * its fast and steady blocks; null for a session that sets none.
+   */
+  sessionPaceSKm: number | null;
   /** Which block of it is under way. Past the last one, the session is done. */
   stepIndex: number;
   /** Distance and active time at which that block began. */
@@ -107,9 +115,9 @@ export interface TrackerState {
 }
 
 const IDLE: TrackerState = {
-  status: "idle", runId: null, points: [], segment: 0, startedAt: null,
+  status: "idle", runId: null, sport: "running", points: [], segment: 0, startedAt: null,
   bankedS: 0, segmentStartedAt: null, announcedKm: 0,
-  session: null, planOrder: null, stepIndex: 0, stepStartM: 0, stepStartS: 0, blocks: [],
+  session: null, planOrder: null, sessionPaceSKm: null, stepIndex: 0, stepStartM: 0, stepStartS: 0, blocks: [],
   accuracyM: null, backgroundMode: false, autoPaused: false, routeId: null, laps: [], guidance: null, ghost: null, autoFinished: null, error: null,
 };
 
@@ -159,7 +167,7 @@ function reflectLiveActivity(): void {
     reflectRun("idle", "", () => EMPTY_PROGRESS);
     return;
   }
-  reflectRun(state.status, autoName(state.startedAt ?? Date.now()), (): RunProgress => {
+  reflectRun(state.status, autoName(state.startedAt ?? Date.now(), state.sport === "cycling"), (): RunProgress => {
     const elapsedS = activeDurationS(state, Date.now());
     const distanceM = totalDistanceM(state.points);
     return {
@@ -221,9 +229,19 @@ function toPoint(location: Location.LocationObject): TrackPoint {
  * sessions mid-effort would leave the blocks already done belonging to a plan
  * that no longer exists.
  */
-export function chooseSession(session: Session | null, planOrder: number | null = null): void {
+export function chooseSession(
+  session: Session | null, planOrder: number | null = null, paceSKm: number | null = null,
+): void {
   if (state.status !== "idle") return;
-  publish({ session, planOrder });
+  // A session is run on foot: choosing one from the plan means the next
+  // outing is a run, whatever the last one was.
+  if (session && getSettings().sport !== "running") void setSport("running");
+  publish({ session, planOrder, sessionPaceSKm: session ? paceSKm : null });
+}
+
+/** The pace to hold through a block: the session's, on the blocks that have one. */
+export function paceForStep(step: Step | null | undefined, sessionPaceSKm: number | null): number | null {
+  return step && sessionPaceSKm !== null && isPaced(step) ? sessionPaceSKm : null;
 }
 
 /**
@@ -262,7 +280,7 @@ function advanceSession(): void {
     blocks: [...state.blocks, ran],
   });
   const nextStep = session.steps[nextIndex];
-  announceStep(nextStep ? stepLabel(nextStep) : null, getSettings().voice);
+  announceStep(nextStep ? stepLabel(nextStep) : null, getSettings().voice, paceForStep(nextStep, state.sessionPaceSKm));
 }
 
 /**
@@ -271,22 +289,35 @@ function advanceSession(): void {
  * Runs for a free run as much as a structured one: a pace to hold is the
  * runner's own, not the session's.
  */
-function checkPace(): void {
-  const { targetPaceSKm, voice } = getSettings();
-  if (state.status !== "running" || targetPaceSKm === null) return;
+/**
+ * The pace to hold right now, or null for none: what the voice corrects
+ * towards and what the run screen's gauge measures against, so the two can
+ * never disagree.
+ */
+export function heldPace(
+  session: Session | null,
+  stepIndex: number,
+  sessionPaceSKm: number | null,
+  settingsPaceSKm: number | null,
+): number | null {
+  if (!session) return settingsPaceSKm;
+  // Only through the blocks a pace is held in. A long run warms up and cools
+  // down around its pace, and nobody wants to be told they are running their
+  // warm-up too slowly.
+  const step = session.steps[stepIndex];
+  if (!step || !isPaced(step)) return null;
+  // A programme's session brings its own pace. Otherwise a session of varied
+  // efforts takes none: a target left over from an earlier run would correct
+  // a recovery towards a figure chosen for a repetition.
+  return paceForStep(step, sessionPaceSKm) ?? (hasSinglePace(session) ? settingsPaceSKm : null);
+}
 
-  // A session of varied efforts sets its own paces, and a target left over
-  // from an earlier run would talk over it — correcting a recovery towards a
-  // figure chosen for a repetition.
-  const { session } = state;
-  if (session) {
-    if (!hasSinglePace(session)) return;
-    // Even then, only through the block the target was meant for. A long run
-    // warms up and cools down around its pace, and nobody wants to be told
-    // they are running their warm-up too slowly.
-    const step = session.steps[state.stepIndex];
-    if (!step || !isPaced(step)) return;
-  }
+function checkPace(): void {
+  const { voice, targetPaceSKm: settingsPace } = getSettings();
+  // A pace to hold is a runner's: on a bike the road sets the speed.
+  if (state.status !== "running" || state.sport === "cycling") return;
+  const targetPaceSKm = heldPace(state.session, state.stepIndex, state.sessionPaceSKm, settingsPace);
+  if (targetPaceSKm === null) return;
 
   const now = Date.now();
   if (state.startedAt !== null && now - state.startedAt < PACE_WORD_AFTER_MS) return;
@@ -306,16 +337,28 @@ function checkPace(): void {
  */
 function announceIfKilometre(): void {
   const unitM = unitLengthM();
-  const km = Math.floor(totalDistanceM(state.points) / unitM);
+  // A ride passes a kilometre every two minutes: said that often, the voice
+  // would never stop. Every fifth one, with the speed held since the last.
+  const every = state.sport === "cycling" ? RIDE_SPLIT_UNITS : 1;
+  const km = Math.floor(totalDistanceM(state.points) / unitM / every) * every;
   if (km <= state.announcedKm) return;
   const full = splits(state.points, unitM).filter((split) => !split.partial);
-  const latest = full[full.length - 1];
   publish({ announcedKm: km });
   const gapS = state.ghost
     ? ghostGapS(state.ghost, totalDistanceM(state.points), activeDurationS(state, Date.now()))
     : null;
-  announceKilometre(km, latest?.durationS ?? 0, getSettings().voice, gapS);
+  const { voice } = getSettings();
+  if (state.sport === "cycling") {
+    const stretch = full.slice(-every);
+    const seconds = stretch.reduce((total, split) => total + split.durationS, 0);
+    announceRideSplit(km, seconds > 0 ? (stretch.length * unitM) / seconds : 0, voice, gapS);
+    return;
+  }
+  announceKilometre(km, full[full.length - 1]?.durationS ?? 0, voice, gapS);
 }
+
+/** How many kilometres, or miles, a ride goes between two announcements. */
+const RIDE_SPLIT_UNITS = 5;
 
 export function handleLocation(location: Location.LocationObject): void {
   let point = toPoint(location);
@@ -423,16 +466,16 @@ function flush(): Promise<void> {
 
 const trackerWords = defineStrings({
   fr: {
-    noLocation: "Sans autorisation de localisation, impossible de tracer la course.",
-    serviceTitle: "Course en cours",
+    noLocation: "Sans autorisation de localisation, impossible de tracer la sortie.",
+    serviceTitle: { running: "Course en cours", cycling: "Sortie vélo en cours" } as Record<Sport, string>,
     serviceBody: "Le suivi GPS continue, même écran verrouillé.",
-    cannotStart: "Impossible de démarrer la course.",
+    cannotStart: "Impossible de démarrer la sortie.",
   },
   en: {
-    noLocation: "Without location access, the run can't be tracked.",
-    serviceTitle: "Run in progress",
+    noLocation: "Without location access, the outing can't be tracked.",
+    serviceTitle: { running: "Run in progress", cycling: "Ride in progress" },
     serviceBody: "GPS tracking continues, even with the screen locked.",
-    cannotStart: "The run couldn't be started.",
+    cannotStart: "The outing couldn't be started.",
   },
 });
 
@@ -460,11 +503,13 @@ async function startGps(): Promise<boolean> {
           accuracy: Location.Accuracy.Highest,
           distanceInterval: 3,
           timeInterval: 1000,
-          activityType: Location.ActivityType.Fitness,
+          activityType: state.sport === "cycling"
+            ? Location.ActivityType.OtherNavigation
+            : Location.ActivityType.Fitness,
           showsBackgroundLocationIndicator: true,
           pausesUpdatesAutomatically: false,
           foregroundService: {
-            notificationTitle: trackerWords().serviceTitle,
+            notificationTitle: trackerWords().serviceTitle[state.sport],
             notificationBody: trackerWords().serviceBody,
             notificationColor: "#00348f",
           },
@@ -495,15 +540,32 @@ async function stopGps(): Promise<void> {
   }
 }
 
+/**
+ * Set from the first instant of a start until the run is under way.
+ *
+ * The status only turns to "running" once the run's row exists, which is
+ * an await away: without this, a second tap in that gap started a second
+ * run, with its own ticker announcing every kilometre twice.
+ */
+let starting = false;
+
 export async function start(): Promise<void> {
-  if (state.status !== "idle") return;
+  if (state.status !== "idle" || starting) return;
+  starting = true;
   publish({ error: null });
   try {
     const startedAt = Date.now();
-    const runId = await createRun(startedAt);
+    const sport = getSettings().sport;
+    const runId = await createRun(startedAt, recordedActivity(sport));
     savedCount = 0;
+    // A session is a running workout. A ride sets it aside rather than
+    // dropping it, so the one chosen is still there for the next run.
+    shelved = sport === "cycling"
+      ? { session: state.session, planOrder: state.planOrder, sessionPaceSKm: state.sessionPaceSKm }
+      : null;
     publish({
-      status: "running", runId, points: [], segment: 0, startedAt,
+      ...(shelved ? { session: null, planOrder: null, sessionPaceSKm: null } : {}),
+      status: "running", runId, sport, points: [], segment: 0, startedAt,
       bankedS: 0, segmentStartedAt: startedAt, announcedKm: 0,
       stepIndex: 0, stepStartM: 0, stepStartS: 0, blocks: [], laps: [], guidance: null, ghost: null,
       backgroundMode: false, autoPaused: false,
@@ -512,7 +574,7 @@ export async function start(): Promise<void> {
       routeId: getSettings().routeId,
     });
     const { session } = state;
-    if (session) announceStep(stepLabel(session.steps[0]), getSettings().voice);
+    if (session) announceStep(stepLabel(session.steps[0]), getSettings().voice, paceForStep(session.steps[0], state.sessionPaceSKm));
     // Not awaited: the run starts now, and the guidance joins it once read.
     void loadGuidance(runId, state.routeId);
     void loadGhost(runId, state.routeId);
@@ -528,7 +590,20 @@ export async function start(): Promise<void> {
     publish({ backgroundMode: await startGps() });
   } catch (cause) {
     await stopGps();
-    publish({ ...IDLE, error: cause instanceof Error ? cause.message : trackerWords().cannotStart });
+    // The clock may already be ticking when the GPS is what refused.
+    if (runTicker) {
+      clearInterval(runTicker);
+      runTicker = null;
+    }
+    // Only the refusal is said as it is; anything else is a failure nobody
+    // can act on from its wording, said in the app's own words instead.
+    const words = trackerWords();
+    publish({
+      ...IDLE,
+      error: cause instanceof Error && cause.message === words.noLocation ? cause.message : words.cannotStart,
+    });
+  } finally {
+    starting = false;
   }
 }
 
@@ -567,7 +642,7 @@ const FINISH_WITHIN_M = 8;
 async function loadGhost(runId: number, routeId: number | null): Promise<void> {
   if (routeId === null) return;
   try {
-    const record = (await routeRecords()).get(routeId);
+    const record = (await routeRecords(state.sport)).get(routeId);
     if (!record) return;
     const best = await readRun(record.best.id);
     const ghost = best ? ghostOf(best.points) : null;
@@ -670,6 +745,9 @@ async function coveredRoute(runM: number): Promise<number | null> {
   const route = await readRoute(state.routeId).catch(() => null);
   return route && coversRoute(runM, route.distanceM) ? route.id : null;
 }
+
+/** The session a ride set aside, given back when it ends. */
+let shelved: Pick<TrackerState, "session" | "planOrder" | "sessionPaceSKm"> | null = null;
 
 /** Where the run paused itself, which is what "set off again" is measured from. */
 let stoppedAt: TrackPoint | null = null;
@@ -774,16 +852,19 @@ export async function finish(): Promise<number | null> {
   await flush();
 
   const distance = totalDistanceM(points);
-  const cadence = startedAt === null ? null : await cadenceOf(startedAt, endedAt, duration);
+  const riding = state.sport === "cycling";
+  // Steps, the fastest kilometre and the classic distances are a runner's
+  // measures; a ride stores none, and an empty set so nothing looks for them.
+  const cadence = startedAt === null || riding ? null : await cadenceOf(startedAt, endedAt, duration);
   await finishRun(runId, {
     endedAt,
     distanceM: distance,
     durationS: Math.round(duration),
     avgPaceSKm: paceSecPerKm(distance, duration),
-    name: autoName(startedAt ?? endedAt),
+    name: autoName(startedAt ?? endedAt, riding),
     elevationGainM: elevationGainM(points),
-    fastestKmS: fastestKmS(points),
-    bestEfforts: bestEfforts(points),
+    fastestKmS: riding ? null : fastestKmS(points),
+    bestEfforts: riding ? {} : bestEfforts(points),
     routeId: await coveredRoute(distance),
     laps: state.laps,
     cadenceSpm: cadence,
@@ -835,7 +916,9 @@ function reset(): void {
   guide = null;
   // The chosen session outlives the run: having just finished one set of
   // intervals, the last thing wanted is to have to choose it again.
-  state = { ...IDLE, session: state.session, planOrder: state.planOrder };
+  const kept = shelved ?? state;
+  shelved = null;
+  state = { ...IDLE, session: kept.session, planOrder: kept.planOrder, sessionPaceSKm: kept.sessionPaceSKm };
   savedCount = 0;
   for (const listener of listeners) listener();
 }

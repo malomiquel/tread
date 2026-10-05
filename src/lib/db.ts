@@ -6,7 +6,7 @@ import { elevationGainM, fastestKmS, paceSecPerKm, segments, totalDistanceM, typ
 import {
   normaliseDays, type Done, type Exertion, type Goal, type PerWeek, type PlannedSession,
 } from "./plan";
-import { parseTags, readActivity, type ActivityType, type RunTag } from "./activity";
+import { ofSport, parseTags, readActivity, type ActivityType, type RunTag, type Sport } from "./activity";
 import { parseGroups, type CustomSession, type DraftGroup } from "./customSession";
 import { bestEfforts, EFFORT_KEYS, parseEfforts, type BestEfforts } from "./efforts";
 import { parseHeart, type Heart } from "./heart";
@@ -525,7 +525,12 @@ export async function initDb(): Promise<void> {
 
   if (version < 23) {
     // Runs still pointing at a route deleted before deleting let go of them.
-    await db.execAsync("UPDATE runs SET route_id = NULL WHERE route_id IS NOT NULL AND route_id NOT IN (SELECT id FROM routes)");
+    // Only where the column is there to read: a drifted table gets it from
+    // the repair below, empty, with nothing to let go of.
+    const columns = await db.getAllAsync<{ name: string }>("PRAGMA table_info(runs)");
+    if (columns.some((column) => column.name === "route_id")) {
+      await db.execAsync("UPDATE runs SET route_id = NULL WHERE route_id IS NOT NULL AND route_id NOT IN (SELECT id FROM routes)");
+    }
     version = 23;
   }
 
@@ -534,8 +539,48 @@ export async function initDb(): Promise<void> {
     version = 24;
   }
 
+  await repairColumns(db);
   await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
   await recoverInterruptedRuns();
+}
+
+/**
+ * Every column a table of today's schema has, with what it is added as when
+ * it is missing. Only the ones that can be added to a table holding rows.
+ */
+const EXPECTED_COLUMNS: Record<string, readonly (readonly [string, string])[]> = {
+  runs: [
+    ["ended_at", "INTEGER"], ["distance_m", "REAL NOT NULL DEFAULT 0"], ["duration_s", "INTEGER NOT NULL DEFAULT 0"],
+    ["avg_pace_s_km", "REAL"], ["name", "TEXT"], ["elevation_gain_m", "REAL"], ["fastest_km_s", "REAL"],
+    ["health_uuid", "TEXT"], ["session_id", "TEXT"], ["session_blocks", "TEXT"], ["cadence_spm", "REAL"],
+    ["exertion", "INTEGER"], ["weather", "TEXT"], ["heart", "TEXT"], ["best_efforts", "TEXT"],
+    ["route_id", "INTEGER"], ["laps", "TEXT"], ["shoe_id", "INTEGER"], ["activity", "TEXT"], ["tags", "TEXT"],
+    ["note", "TEXT"], ["photos", "TEXT"], ["source", "TEXT"],
+  ],
+  points: [["alt", "REAL"], ["accuracy_m", "REAL"], ["speed", "REAL"], ["segment", "INTEGER NOT NULL DEFAULT 0"]],
+};
+
+/**
+ * Add whatever column a table is missing, whatever its version says.
+ *
+ * The version is a promise about the schema, and a database can outlive the
+ * promise: one first created by an early build, before every table it holds
+ * was versioned, opens as "fresh", keeps its old table, and is then stamped
+ * current. Every later query naming a newer column fails — at launch, with
+ * nothing anybody can do about it. Asking the table itself is the only
+ * answer that cannot be wrong, and on a sound database it adds nothing.
+ */
+async function repairColumns(db: SQLiteDatabase): Promise<void> {
+  for (const [table, columns] of Object.entries(EXPECTED_COLUMNS)) {
+    const present = new Set(
+      (await db.getAllAsync<{ name: string }>(`PRAGMA table_info(${table})`)).map((column) => column.name),
+    );
+    // A table that is not there at all is not this function's to make.
+    if (present.size === 0) continue;
+    for (const [column, type] of columns) {
+      if (!present.has(column)) await db.execAsync(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+    }
+  }
 }
 
 /**
@@ -588,21 +633,23 @@ export async function knownHealthUuids(): Promise<Set<string>> {
  */
 export async function saveImportedRun(run: ImportedRun, uuid: string, source: string): Promise<number> {
   const db = getDb();
-  const id = await createRun(run.startedAt);
+  const id = await createRun(run.startedAt, run.activity);
   await insertPoints(id, run.points);
   await db.runAsync(
     "UPDATE runs SET ended_at = ?, distance_m = ?, duration_s = ?, avg_pace_s_km = ?, name = ?,"
     + " elevation_gain_m = ?, fastest_km_s = ?, best_efforts = ?, activity = ?, health_uuid = ?, source = ?,"
-    + " shoe_id = (SELECT id FROM shoes WHERE is_default = 1 AND retired = 0 LIMIT 1) WHERE id = ?",
-    run.endedAt, run.distanceM, run.durationS, run.avgPaceSKm, autoName(run.startedAt),
+    + " shoe_id = " + DEFAULT_SHOE + " WHERE id = ?",
+    run.endedAt, run.distanceM, run.durationS, run.avgPaceSKm, autoName(run.startedAt, run.activity === "ride"),
     run.elevationGainM, run.fastestKmS, JSON.stringify(run.bestEfforts),
     run.activity === "run" ? null : run.activity, uuid, source, id,
   );
   return id;
 }
 
-export async function createRun(startedAt: number): Promise<number> {
-  const result = await getDb().runAsync("INSERT INTO runs (started_at) VALUES (?)", startedAt);
+export async function createRun(startedAt: number, activity: ActivityType = "run"): Promise<number> {
+  const result = await getDb().runAsync(
+    "INSERT INTO runs (started_at, activity) VALUES (?, ?)", startedAt, activity === "run" ? null : activity,
+  );
   return Number(result.lastInsertRowId);
 }
 
@@ -636,12 +683,22 @@ export interface RunTotals {
   laps?: LapMark[];
 }
 
+/**
+ * The pair on the runner's feet, for a run being saved: the default one, and
+ * none at all for a ride, whose kilometres never wore a shoe.
+ */
+const DEFAULT_SHOE =
+  "CASE WHEN activity = 'ride' THEN NULL ELSE (SELECT id FROM shoes WHERE is_default = 1 AND retired = 0 LIMIT 1) END";
+
+/** Every finished outing on foot: the runs records and totals are made of. */
+const ON_FOOT = "ended_at IS NOT NULL AND COALESCE(activity, '') != 'ride'";
+
 export async function finishRun(id: number, totals: RunTotals): Promise<void> {
   await getDb().runAsync(
     "UPDATE runs SET ended_at = ?, distance_m = ?, duration_s = ?, avg_pace_s_km = ?, name = ?, elevation_gain_m = ?, fastest_km_s = ?, session_id = ?, session_blocks = ?, cadence_spm = ?, best_efforts = ?, route_id = ?, laps = ?,"
     // Put against the pair on the runner's feet, which is the default one:
     // asked here rather than by the tracker, so it is the pair at the finish.
-    + " shoe_id = (SELECT id FROM shoes WHERE is_default = 1 AND retired = 0 LIMIT 1) WHERE id = ?",
+    + " shoe_id = " + DEFAULT_SHOE + " WHERE id = ?",
     totals.endedAt, totals.distanceM, totals.durationS, totals.avgPaceSKm,
     totals.name, totals.elevationGainM, totals.fastestKmS,
     totals.sessionId ?? null,
@@ -696,10 +753,13 @@ export interface RouteRecord {
  * Only routes that still exist: a deleted route's runs keep its id but no
  * longer have anything to be a record of.
  */
-export async function routeRecords(): Promise<Map<number, RouteRecord>> {
+export async function routeRecords(sport: Sport = "running"): Promise<Map<number, RouteRecord>> {
+  // A ride and a run on the same route are never compared: the record on
+  // foot is the one a runner chases, and a bike would hold it for ever.
   const rows = await getDb().getAllAsync<RunRow>(
     "SELECT runs.* FROM runs JOIN routes ON routes.id = runs.route_id"
-    + " WHERE runs.ended_at IS NOT NULL ORDER BY runs.duration_s ASC",
+    + ` WHERE runs.ended_at IS NOT NULL AND COALESCE(runs.activity, '') ${sport === "cycling" ? "=" : "!="} 'ride'`
+    + " ORDER BY runs.duration_s ASC",
   );
   const records = new Map<number, RouteRecord>();
   for (const row of rows) {
@@ -728,7 +788,7 @@ export interface EffortRecord {
  */
 export async function effortRecords(): Promise<EffortRecord[]> {
   const best = new Map<string, EffortRecord>();
-  for (const run of await listRuns()) {
+  for (const run of ofSport(await listRuns())) {
     for (const [key, seconds] of Object.entries(run.bestEfforts ?? {})) {
       const held = best.get(key);
       if (!held || seconds < held.seconds) best.set(key, { key, seconds, run });
@@ -1074,6 +1134,8 @@ export async function deleteShoe(id: number): Promise<void> {
 /** Say what kind of outing a run was. A plain run is stored as nothing. */
 export async function setRunActivity(runId: number, activity: ActivityType): Promise<void> {
   await getDb().runAsync("UPDATE runs SET activity = ? WHERE id = ?", activity === "run" ? null : activity, runId);
+  // A ride wears no shoes: the pair it was put against lets go of it.
+  if (activity === "ride") await getDb().runAsync("UPDATE runs SET shoe_id = NULL WHERE id = ?", runId);
 }
 
 export async function setRunNote(runId: number, note: string): Promise<void> {
@@ -1254,7 +1316,9 @@ export async function setRunHeart(id: number, heart: Heart): Promise<void> {
  * file written elsewhere states its own figures and they are rarely measured
  * the same way. The run then sits alongside the others on equal terms.
  */
-export async function importRun(name: string | null, points: TrackPoint[]): Promise<number | null> {
+export async function importRun(
+  name: string | null, points: TrackPoint[], activity: ActivityType = "run",
+): Promise<number | null> {
   if (points.length < 2) return null;
   const startedAt = points[0].ts;
 
@@ -1263,9 +1327,10 @@ export async function importRun(name: string | null, points: TrackPoint[]): Prom
   );
   if (existing) return null;
 
-  const id = await createRun(startedAt);
+  const id = await createRun(startedAt, activity);
   await insertPoints(id, points);
 
+  const riding = activity === "ride";
   const distance = totalDistanceM(points);
   const duration = segments(points)
     .reduce((total, s) => total + (s[s.length - 1].ts - s[0].ts) / 1000, 0);
@@ -1275,9 +1340,11 @@ export async function importRun(name: string | null, points: TrackPoint[]): Prom
     distanceM: distance,
     durationS: Math.round(duration),
     avgPaceSKm: paceSecPerKm(distance, duration),
-    name: name ?? autoName(startedAt),
+    name: name ?? autoName(startedAt, riding),
     elevationGainM: elevationGainM(points),
-    fastestKmS: fastestKmS(points),
+    fastestKmS: riding ? null : fastestKmS(points),
+    // An empty set, so the background pass never looks for a ride's 5K.
+    bestEfforts: riding ? {} : undefined,
   });
   return id;
 }
@@ -1324,9 +1391,9 @@ export async function addManualRun(run: {
 }): Promise<number> {
   const result = await getDb().runAsync(
     "INSERT INTO runs (started_at, ended_at, distance_m, duration_s, avg_pace_s_km, name, best_efforts, activity, shoe_id)"
-    + " VALUES (?, ?, ?, ?, ?, ?, '{}', ?, (SELECT id FROM shoes WHERE is_default = 1 AND retired = 0 LIMIT 1))",
+    + ` VALUES (?, ?, ?, ?, ?, ?, '{}', ?, ${run.activity === "ride" ? "NULL" : "(SELECT id FROM shoes WHERE is_default = 1 AND retired = 0 LIMIT 1)"})`,
     run.startedAt, run.startedAt + run.durationS * 1000, run.distanceM, run.durationS,
-    paceSecPerKm(run.distanceM, run.durationS), run.name.trim() || autoName(run.startedAt),
+    paceSecPerKm(run.distanceM, run.durationS), run.name.trim() || autoName(run.startedAt, run.activity === "ride"),
     run.activity === "run" ? null : run.activity,
   );
   return Number(result.lastInsertRowId);
@@ -1366,7 +1433,8 @@ export async function runShape(id: number, points = 60): Promise<{ lat: number; 
 
 /**
  * Every finished run's track, sampled down to about `points` fixes each, for
- * the map of all of them. One query, sampled by SQLite per run, so a long
+ * the map of all of them. Runs only: the map is of where somebody runs, and
+ * one long ride would draw over a year of it. One query, sampled by SQLite per run, so a long
  * history reads a few hundred rows a run rather than every fix.
  */
 export async function allShapes(since = 0, points = 150): Promise<{ run_id: number; lat: number; lng: number }[]> {
@@ -1376,7 +1444,7 @@ export async function allShapes(since = 0, points = 150): Promise<{ run_id: numb
               ROW_NUMBER() OVER (PARTITION BY points.run_id ORDER BY points.ts) AS position,
               COUNT(*) OVER (PARTITION BY points.run_id) AS total
        FROM points JOIN runs ON runs.id = points.run_id
-       WHERE runs.ended_at IS NOT NULL AND runs.started_at >= ?
+       WHERE runs.ended_at IS NOT NULL AND COALESCE(runs.activity, '') != 'ride' AND runs.started_at >= ?
      )
      WHERE (position - 1) % MAX(1, total / ?) = 0 OR position = total
      ORDER BY run_id, ts`,
@@ -1448,7 +1516,7 @@ export async function personalRecords(): Promise<PersonalRecords> {
   const totals = await db.getFirstAsync<{
     n: number; distance: number | null; duration: number | null; elevation: number | null;
   }>(
-    "SELECT COUNT(*) AS n, SUM(distance_m) AS distance, SUM(duration_s) AS duration, SUM(elevation_gain_m) AS elevation FROM runs WHERE ended_at IS NOT NULL",
+    "SELECT COUNT(*) AS n, SUM(distance_m) AS distance, SUM(duration_s) AS duration, SUM(elevation_gain_m) AS elevation FROM runs WHERE " + ON_FOOT,
   );
 
   const best = async (sql: string): Promise<Run | null> => {
@@ -1461,11 +1529,11 @@ export async function personalRecords(): Promise<PersonalRecords> {
     totalDistanceM: totals?.distance ?? 0,
     totalDurationS: totals?.duration ?? 0,
     totalElevationM: totals?.elevation ?? 0,
-    longest: await best("SELECT * FROM runs WHERE ended_at IS NOT NULL ORDER BY distance_m DESC LIMIT 1"),
-    fastestKm: await best("SELECT * FROM runs WHERE ended_at IS NOT NULL AND fastest_km_s IS NOT NULL ORDER BY fastest_km_s ASC LIMIT 1"),
+    longest: await best("SELECT * FROM runs WHERE " + ON_FOOT + " ORDER BY distance_m DESC LIMIT 1"),
+    fastestKm: await best("SELECT * FROM runs WHERE " + ON_FOOT + " AND fastest_km_s IS NOT NULL ORDER BY fastest_km_s ASC LIMIT 1"),
     // A pace record over 400 m means nothing, so 2 km is the entry ticket.
-    bestAvgPace: await best("SELECT * FROM runs WHERE ended_at IS NOT NULL AND distance_m >= 2000 AND avg_pace_s_km IS NOT NULL ORDER BY avg_pace_s_km ASC LIMIT 1"),
-    mostElevation: await best("SELECT * FROM runs WHERE ended_at IS NOT NULL AND elevation_gain_m IS NOT NULL ORDER BY elevation_gain_m DESC LIMIT 1"),
+    bestAvgPace: await best("SELECT * FROM runs WHERE " + ON_FOOT + " AND distance_m >= 2000 AND avg_pace_s_km IS NOT NULL ORDER BY avg_pace_s_km ASC LIMIT 1"),
+    mostElevation: await best("SELECT * FROM runs WHERE " + ON_FOOT + " AND elevation_gain_m IS NOT NULL ORDER BY elevation_gain_m DESC LIMIT 1"),
   };
 }
 
@@ -1514,9 +1582,9 @@ async function recoverInterruptedRuns(): Promise<void> {
       distanceM: distance,
       durationS: Math.round(duration),
       avgPaceSKm: paceSecPerKm(distance, duration),
-      name: autoName(run.startedAt),
+      name: autoName(run.startedAt, run.activity === "ride"),
       elevationGainM: elevationGainM(stored.points),
-      fastestKmS: fastestKmS(stored.points),
+      fastestKmS: run.activity === "ride" ? null : fastestKmS(stored.points),
     });
   }
 }

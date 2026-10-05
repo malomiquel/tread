@@ -44,13 +44,21 @@ export function importFromHealth(): Promise<number> {
   return running;
 }
 
-/** Switch the import on — asking Health first — or off. */
-export async function enableHealthImport(on: boolean): Promise<number> {
+/**
+ * Switch the import on — asking Health first — or off. Returns how many runs
+ * came in, or null when Health could not be asked: the switch then stays off
+ * rather than claiming an import that cannot happen.
+ *
+ * A refusal to *read* is never reported by Health — it answers as though
+ * there were simply nothing there — so a yes from the request is the most
+ * this can know.
+ */
+export async function enableHealthImport(on: boolean): Promise<number | null> {
   if (!on) {
     await setHealthImport(false);
     return 0;
   }
-  await requestHealthAccess();
+  if (!(await requestHealthAccess())) return null;
   await setHealthImport(true);
   return importFromHealth();
 }

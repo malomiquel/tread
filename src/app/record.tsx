@@ -6,34 +6,39 @@ import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useCallback, useEffect, useState } from "react";
 import { Alert, Linking, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import Animated, {
-  FadeIn, FadeOut, runOnJS, useAnimatedStyle, useDerivedValue, useSharedValue, withTiming,
+  runOnJS, useAnimatedStyle, useDerivedValue, useSharedValue, withTiming,
 } from "react-native-reanimated";
 import { GlassPanel } from "@/components/GlassPanel";
 import { Metric } from "@/components/Metric";
 import { RoutePicker } from "@/components/RoutePicker";
+import { RideDashboard } from "@/components/RideDashboard";
+import { RunDashboard, type DashboardBlock } from "@/components/RunDashboard";
 import { RunMap } from "@/components/RunMap";
 import { SessionDetail } from "@/components/SessionDetail";
+import { Segmented } from "@/components/Segmented";
 import { SessionPicker } from "@/components/SessionPicker";
+import { ofSport, sportName, type Sport } from "@/lib/activity";
 import { listRuns, readRoute, type Run } from "@/lib/db";
-import { formatDistance, formatDuration, formatElevation, formatPace } from "@/lib/format";
+import { formatDistance, formatDuration, formatElevation, formatPace, formatSpeed } from "@/lib/format";
 import { defineStrings, plural, useStrings } from "@/lib/i18n";
-import { currentPace, elevationGainM, MAX_ACCURACY_M, paceSecPerKm, totalDistanceM } from "@/lib/geo";
+import { currentPace, elevationGainM, MAX_ACCURACY_M, paceSecPerKm, topSpeedMs, totalDistanceM } from "@/lib/geo";
 import { CONTROL_SIZE, CONTROLS_TOP, useTabBarBottom } from "@/lib/layout";
 import { locationAccess, useInitialLocation } from "@/lib/location";
 import { ghostAt, ghostGapS } from "@/lib/ghost";
 import { turnName } from "@/lib/guidance";
 import { drawnLine, type RoutePoint } from "@/lib/route";
 import { measure } from "@/lib/goals";
-import { toggleVoice, useSettings, weeklyGoal } from "@/lib/settings";
+import { setSport, toggleVoice, useSettings, weeklyGoal } from "@/lib/settings";
 import { goalProgress, weekTotals } from "@/lib/stats";
-import { colors, font } from "@/lib/theme";
-import { distanceUnit, elevationUnit, paceUnit } from "@/lib/units";
+import { colors, floatingShadow, font } from "@/lib/theme";
+import { distanceUnit, elevationUnit, paceUnit, speedUnit } from "@/lib/units";
 import {
-  activeDurationS, chooseSession, clearAutoFinished, discard, finish, lap, pause, resume, start, useTracker,
+  activeDurationS, chooseSession, clearAutoFinished, discard, finish, heldPace, lap, paceForStep, pause, resume,
+  start, useTracker,
 } from "@/lib/tracker";
-import { useCurrentWeather, weatherIcon, weatherLine } from "@/lib/weather";
+import { formatTemperature, useCurrentWeather, weatherIcon, weatherLine } from "@/lib/weather";
 import { findSession } from "@/lib/sessionLibrary";
-import { sessionName, stepLabel, stepRemaining } from "@/lib/workout";
+import { isPaced, sessionName, stepLabel, stepRemaining } from "@/lib/workout";
 
 const recordStrings = defineStrings({
   fr: {
@@ -46,34 +51,42 @@ const recordStrings = defineStrings({
     gpsReady: "GPS prêt",
     paused: "En pause",
     autoPaused: "Pause automatique",
-    running: "Course en cours",
-    ready: "Prêt à courir",
+    running: { running: "Course en cours", cycling: "Sortie vélo en cours" } as Record<Sport, string>,
+    ready: { running: "Prêt à courir", cycling: "Prêt à rouler" } as Record<Sport, string>,
     sessionBlocks: (name: string, blocks: number) => `${name} · ${blocks} blocs`,
     sessionDone: (name: string) => `${name} · terminée`,
     locationOffTitle: "Localisation désactivée",
-    locationOffMessage: "Tread a besoin de ta position pour mesurer ta course. Autorise-la dans les réglages du téléphone, puis reviens ici.",
+    locationOffMessage: "Tread a besoin de ta position pour mesurer ta sortie. Autorise-la dans les réglages du téléphone, puis reviens ici.",
     cancel: "Annuler",
     openSettings: "Ouvrir les réglages",
     ok: "OK",
-    shortTitle: "Course très courte",
+    shortTitle: { running: "Course très courte", cycling: "Sortie très courte" } as Record<Sport, string>,
     shortMessage: "Moins de 100 m enregistrés. La garder quand même ?",
     discard: "Abandonner",
     keep: "Garder",
-    finishTitle: "Terminer la course ?",
+    finishTitle: { running: "Terminer la course ?", cycling: "Terminer la sortie ?" } as Record<Sport, string>,
     finishMessage: (distance: string, duration: string) => `${distance} ${distanceUnit()} en ${duration}.`,
     continue: "Continuer",
     finish: "Terminer",
+    saveFailedTitle: "Sortie non enregistrée",
+    saveFailedMessage: "Rien n'est perdu : elle reste en pause. Appuie de nouveau sur Terminer pour réessayer.",
     leave: "Quitter l'écran de course",
+    sportLabel: "Ce que tu vas enregistrer",
     sessionToggle: "SÉANCE",
     sessionToggleLabel: "Choisir une séance d'entraînement",
     routeToggle: "PARCOURS",
     routeToggleLabel: "Choisir le parcours affiché sur la carte",
     voiceToggle: "VOIX",
     voiceToggleLabel: "Annonces vocales",
+    viewPace: "Allure",
+    viewSpeed: "Vitesse",
+    viewMap: "Carte",
+    average: "Moyenne",
     seeBlocks: (name: string) => `${name}, voir les blocs`,
     distance: "Distance",
     duration: "Durée",
     pace: "Allure",
+    speed: "Vitesse",
     elevation: "Dénivelé",
     thisWeek: "Cette semaine",
     goalPercent: (percent: number) => `· objectif ${percent} %`,
@@ -104,34 +117,42 @@ const recordStrings = defineStrings({
     gpsReady: "GPS ready",
     paused: "Paused",
     autoPaused: "Auto-paused",
-    running: "Run in progress",
-    ready: "Ready to run",
+    running: { running: "Run in progress", cycling: "Ride in progress" },
+    ready: { running: "Ready to run", cycling: "Ready to ride" },
     sessionBlocks: (name: string, blocks: number) => `${name} · ${plural(blocks, "block", "blocks")}`,
     sessionDone: (name: string) => `${name} · done`,
     locationOffTitle: "Location turned off",
-    locationOffMessage: "Tread needs your location to measure your run. Allow it in your phone's settings, then come back here.",
+    locationOffMessage: "Tread needs your location to measure your outing. Allow it in your phone's settings, then come back here.",
     cancel: "Cancel",
     openSettings: "Open settings",
     ok: "OK",
-    shortTitle: "Very short run",
+    shortTitle: { running: "Very short run", cycling: "Very short ride" },
     shortMessage: "Less than 100 m recorded. Keep it anyway?",
     discard: "Discard",
     keep: "Keep",
-    finishTitle: "Finish the run?",
+    finishTitle: { running: "Finish the run?", cycling: "Finish the ride?" },
     finishMessage: (distance: string, duration: string) => `${distance} ${distanceUnit()} in ${duration}.`,
     continue: "Keep going",
     finish: "Finish",
+    saveFailedTitle: "Outing not saved",
+    saveFailedMessage: "Nothing is lost: it stays paused. Press Finish again to try once more.",
     leave: "Leave the run screen",
+    sportLabel: "What you are about to record",
     sessionToggle: "SESSION",
     sessionToggleLabel: "Choose a training session",
     routeToggle: "ROUTE",
     routeToggleLabel: "Choose the route shown on the map",
     voiceToggle: "VOICE",
     voiceToggleLabel: "Voice announcements",
+    viewPace: "Pace",
+    viewSpeed: "Speed",
+    viewMap: "Map",
+    average: "Average",
     seeBlocks: (name: string) => `${name}, see the blocks`,
     distance: "Distance",
     duration: "Time",
     pace: "Pace",
+    speed: "Speed",
     elevation: "Elevation",
     thisWeek: "This week",
     goalPercent: (percent: number) => `· goal ${percent} %`,
@@ -165,7 +186,10 @@ function shortDistance(metres: number): string {
 }
 
 /** Height of the lap button under the run's controls. */
-const LAP_HEIGHT = 36;
+/** The pause, the largest thing on the panel while running. */
+const RUN_CONTROL = 72;
+/** Lap and finish either side of it. */
+const PILL_HEIGHT = 56;
 
 /** How long the panel takes to change shape, and everything above it with it. */
 const GROW = { duration: 280 } as const;
@@ -188,7 +212,14 @@ const ARRIVE = { duration: 300 } as const;
  * nothing, a clipped distance costs the number you went out to get. They are
  * the two values to revisit if the type ever changes size again.
  */
-const PANEL_HEIGHT = { idle: 96, idleWeather: 122, live: 146 } as const;
+/**
+ * How far the panel's text may grow with the phone's text size. The panel
+ * has a stated height, so text past this would be clipped; up to it, the
+ * figures still read larger for whoever asked for larger.
+ */
+const TEXT_CAP = 1.3;
+
+const PANEL_HEIGHT = { idle: 96, idleWeather: 122, live: 188 } as const;
 
 /**
  * Holds the screen awake for as long as it is mounted. Inside Expo Go the GPS
@@ -201,13 +232,15 @@ function KeepAwake() {
 
 /** A round control sized for a panel laid over the map. */
 function RoundButton({
-  icon, label, onPress, primary = false, danger = false, size = 46, disabled = false,
+  icon, label, onPress, primary = false, danger = false, light = false, size = 46, disabled = false,
 }: {
   icon: React.ComponentProps<typeof Ionicons>["name"];
   label: string;
   onPress: () => void;
   primary?: boolean;
   danger?: boolean;
+  /** The lightest tap whatever the look: a pause, momentary, undone by the next tap. */
+  light?: boolean;
   size?: number;
   disabled?: boolean;
 }) {
@@ -225,7 +258,7 @@ function RoundButton({
    * momentary and undone by the next tap, so it barely does.
    */
   const weight =
-    primary || danger ? Haptics.ImpactFeedbackStyle.Medium : Haptics.ImpactFeedbackStyle.Light;
+    (primary || danger) && !light ? Haptics.ImpactFeedbackStyle.Medium : Haptics.ImpactFeedbackStyle.Light;
 
   return (
     <Pressable
@@ -274,10 +307,19 @@ export default function RecordScreen() {
   const bottomInset = useTabBarBottom() + 8;
   const [now, setNow] = useState(() => Date.now());
   const [finishing, setFinishing] = useState(false);
+  /** Between the tap on start and the run being under way. */
+  const [beginning, setBeginning] = useState(false);
   /** The block list, opened from the session line. */
   const [showingSteps, setShowingSteps] = useState(false);
   const [choosing, setChoosing] = useState(false);
   const [choosingRoute, setChoosingRoute] = useState(false);
+  // While a run records, the screen leads with the pace rather than the map:
+  // mid-run the question is "am I on pace", far more often than "where am I".
+  // The choice holds for the run it was made in, not for the next one: this
+  // screen stays mounted between runs, and a run begun on the map because
+  // the last one ended there would hide the pace nobody asked to hide.
+  const [mapForRun, setMapForRun] = useState<number | null>(null);
+  const showingMap = mapForRun !== null && mapForRun === tracker.startedAt;
   /**
    * The chosen route, drawn out, kept with the id it was read from.
    *
@@ -330,10 +372,6 @@ export default function RecordScreen() {
 
   const chevronArrive = useAnimatedStyle(
     () => ({ transform: [{ translateY: (1 - arrive.value) * -30 }] }),
-    [],
-  );
-  const togglesArrive = useAnimatedStyle(
-    () => ({ transform: [{ translateX: (1 - arrive.value) * 34 }] }),
     [],
   );
   const panelArrive = useAnimatedStyle(
@@ -402,6 +440,9 @@ export default function RecordScreen() {
 
 
   const recording = tracker.status !== "idle";
+  // What the screen measures: the outing under way, or the one about to start.
+  const sport: Sport = recording ? tracker.sport : settings.sport;
+  const riding = sport === "cycling";
 
   // The right-hand column, read from the bottom up: the panel, then the map's
   // locate button, then the two settings.
@@ -414,7 +455,9 @@ export default function RecordScreen() {
    * all the way. Moving them at once puts them a single frame apart — the one
    * it takes to measure — which nobody can see, and nothing ever overlaps.
    */
-  const target = PANEL_HEIGHT[recording ? "live" : weather ? "idleWeather" : "idle"];
+  // The weather's line is kept whether or not it has answered yet, so the
+  // panel and the buttons above it do not jump when it does.
+  const target = PANEL_HEIGHT[recording ? "live" : "idleWeather"];
 
   /**
    * The panel's live height, and the single figure every piece above it
@@ -428,7 +471,31 @@ export default function RecordScreen() {
 
   const grow = useAnimatedStyle(() => ({ height: panelH.value }), []);
   const locateAbove = useDerivedValue(() => bottomInset + panelH.value + 12, [bottomInset]);
+
+  /**
+   * 1 while the pace dashboard covers the map, 0 while the map shows. The
+   * dashboard slides in from the right edge and the map's own column of
+   * toggles leaves by the same edge, both moved rather than faded.
+   */
+  const dashboardShown = recording && !showingMap;
+  const dash = useSharedValue(dashboardShown ? 1 : 0);
+  useEffect(() => {
+    dash.value = withTiming(dashboardShown ? 1 : 0, GROW);
+  }, [dashboardShown, dash]);
+  const dashSlide = useAnimatedStyle(() => ({ transform: [{ translateX: (1 - dash.value) * width }] }), [width]);
+  // Its own style rather than the chevron's: one animated style is written
+  // to one view.
+  const chevronArriveTwin = useAnimatedStyle(
+    () => ({ transform: [{ translateY: (1 - arrive.value) * -30 }] }),
+    [],
+  );
   const togglesRise = useAnimatedStyle(() => ({ bottom: locateAbove.value + CONTROL_SIZE + 10 }), []);
+  // Arriving with the screen and leaving for the dashboard are both a slide
+  // to the right edge, added on the one view: see the note on the toggles.
+  const togglesArrive = useAnimatedStyle(
+    () => ({ transform: [{ translateX: (1 - arrive.value) * 34 + dash.value * (CONTROL_SIZE + 24) }] }),
+    [],
+  );
 
   useEffect(() => {
     if (!recording) return;
@@ -462,13 +529,19 @@ export default function RecordScreen() {
   const duration = activeDurationS(tracker, now);
   const avgPace = paceSecPerKm(distance, duration);
   const pace = tracker.status === "running" ? currentPace(tracker.points, now) : null;
+  // A bike's speed changes in seconds, not half-minutes: a shorter window.
+  const ridePace = riding && tracker.status === "running" ? currentPace(tracker.points, now, 10) : null;
+  const speed = ridePace === null ? null : 1000 / ridePace;
+  const avgSpeed = duration > 0 ? distance / duration : 0;
+  const topSpeed = riding ? topSpeedMs(tracker.points) : null;
   const elevation = elevationGainM(tracker.points);
-  const week = weekTotals(history);
+  // The week of the sport about to be recorded: rides never count in a runner's.
+  const week = weekTotals(ofSport(history, sport));
   // Where the week stands, on the screen where it can still be changed. The
   // count of outings says what has happened; against a goal the same line
   // says what is left, which is the only version of it worth reading with a
   // hand on the play button.
-  const weekly = weeklyGoal(settings);
+  const weekly = riding ? null : weeklyGoal(settings);
   const goal = weekly === null ? null : goalProgress(measure(weekly.kind, week), weekly.target);
 
   const signal =
@@ -482,9 +555,10 @@ export default function RecordScreen() {
     : coords === null ? s.acquiringGps
     : s.gpsReady;
 
+  const paused = tracker.status === "paused";
   const state = recording
-    ? tracker.status === "paused" ? (tracker.autoPaused ? s.autoPaused : s.paused) : s.running
-    : s.ready;
+    ? tracker.status === "paused" ? (tracker.autoPaused ? s.autoPaused : s.paused) : s.running[sport]
+    : s.ready[sport];
 
   /**
    * While a session is under way the status line is given over to it: which
@@ -492,11 +566,14 @@ export default function RecordScreen() {
    * this screen can say that, and mid-interval it is the only thing anyone
    * looks for.
    */
-  const session = tracker.session;
+  const session = riding ? null : tracker.session;
   const step = session?.steps[tracker.stepIndex] ?? null;
   const sessionLine = (() => {
     if (!session) return null;
-    if (!recording) return s.sessionBlocks(sessionName(session), session.steps.length);
+    if (!recording) {
+      const paceWords = tracker.sessionPaceSKm === null ? "" : ` · ${formatPace(tracker.sessionPaceSKm)}${paceUnit()}`;
+      return `${s.sessionBlocks(sessionName(session), session.steps.length)}${paceWords}`;
+    }
     if (!step) return s.sessionDone(sessionName(session));
     const left = stepRemaining(
       step,
@@ -506,7 +583,33 @@ export default function RecordScreen() {
     const remaining = left.metres !== null
       ? `${Math.round(left.metres)} m`
       : formatDuration(Math.ceil(left.seconds ?? 0));
-    return `${tracker.stepIndex + 1}/${session.steps.length} · ${stepLabel(step)} · ${remaining}`;
+    const blockPace = paceForStep(step, tracker.sessionPaceSKm);
+    const paceWords = blockPace === null ? "" : ` · ${formatPace(blockPace)}${paceUnit()}`;
+    return `${tracker.stepIndex + 1}/${session.steps.length} · ${stepLabel(step)}${paceWords} · ${remaining}`;
+  })();
+
+  /** The pace to hold now, measured against on the dashboard as the voice does. */
+  const targetPace = heldPace(session, tracker.stepIndex, tracker.sessionPaceSKm, settings.targetPaceSKm);
+  const nextStep = session?.steps[tracker.stepIndex + 1] ?? null;
+  const block: DashboardBlock | null = (() => {
+    if (!session || !step) return null;
+    const coveredM = distance - tracker.stepStartM;
+    const elapsedS = duration - tracker.stepStartS;
+    const left = stepRemaining(step, coveredM, elapsedS);
+    return {
+      index: tracker.stepIndex + 1,
+      count: session.steps.length,
+      label: stepLabel(step),
+      remaining: left.metres !== null
+        ? `${Math.round(left.metres)} m`
+        : formatDuration(Math.ceil(left.seconds ?? 0)),
+      done: step.metres !== undefined
+        ? coveredM / step.metres
+        : step.seconds !== undefined ? elapsedS / step.seconds : 0,
+      next: nextStep ? stepLabel(nextStep) : null,
+      easy: !isPaced(step),
+      walk: step.effort === "walk",
+    };
   })();
 
   /**
@@ -575,11 +678,17 @@ export default function RecordScreen() {
    * a map that would never move.
    */
   async function begin() {
-    const access = await locationAccess();
+    // Asking for the location is an await away from the start itself, and a
+    // second tap in between must not count.
+    if (beginning) return;
+    setBeginning(true);
+    const access = await locationAccess().catch(() => "denied" as const);
     if (access === "granted") {
-      void start();
+      await start();
+      setBeginning(false);
       return;
     }
+    setBeginning(false);
     Alert.alert(
       s.locationOffTitle,
       s.locationOffMessage,
@@ -594,14 +703,16 @@ export default function RecordScreen() {
 
   function askFinish() {
     if (tooShort) {
-      Alert.alert(s.shortTitle, s.shortMessage, [
+      Alert.alert(s.shortTitle[sport], s.shortMessage, [
+        // A finish pressed by accident in the first metres has to be undoable.
+        { text: s.continue, style: "cancel" },
         { text: s.discard, style: "destructive", onPress: () => void discard() },
         { text: s.keep, onPress: () => void close() },
       ]);
       return;
     }
     Alert.alert(
-      s.finishTitle,
+      s.finishTitle[sport],
       s.finishMessage(formatDistance(distance), formatDuration(duration)),
       [
         { text: s.continue, style: "cancel" },
@@ -615,7 +726,16 @@ export default function RecordScreen() {
     // Read before finishing, which clears it: the sheet needs to know where
     // this run came from so that closing it lands somewhere sensible.
     const from = tracker.planOrder !== null ? "plan" : "history";
-    const id = await finish();
+    let id: number | null;
+    try {
+      id = await finish();
+    } catch {
+      // Nothing is lost: the tracker keeps the run, paused, and finishing
+      // again tries the save again.
+      setFinishing(false);
+      Alert.alert(s.saveFailedTitle, s.saveFailedMessage);
+      return;
+    }
     setFinishing(false);
     if (id !== null) {
       router.push({ pathname: "/run/[id]", params: { id: String(id), from } });
@@ -654,6 +774,64 @@ export default function RecordScreen() {
       />
       {recording && <KeepAwake />}
 
+      {/* Over the map rather than instead of it: the map keeps following the
+          run underneath, so switching back shows it already in place. */}
+      {recording ? (
+        <Animated.View pointerEvents={dashboardShown ? "auto" : "none"} style={[styles.dashboard, dashSlide]}>
+          {riding ? (
+            <RideDashboard
+              speedMs={speed}
+              averageMs={avgSpeed}
+              topMs={topSpeed}
+              paused={paused ? (tracker.autoPaused ? s.autoPaused : s.paused) : null}
+              topSpace={CONTROLS_TOP + CONTROL_SIZE + 16}
+              bottomSpace={bottomInset + PANEL_HEIGHT.live + 16}
+            />
+          ) : (
+            <RunDashboard
+              currentPaceSKm={pace}
+              targetPaceSKm={targetPace}
+              paused={paused ? (tracker.autoPaused ? s.autoPaused : s.paused) : null}
+              block={block}
+              topSpace={CONTROLS_TOP + CONTROL_SIZE + 16}
+              bottomSpace={bottomInset + PANEL_HEIGHT.live + 16}
+            />
+          )}
+        </Animated.View>
+      ) : null}
+
+      {/* Pace or map, named both, at the top in the middle: a single button
+          for it was read as the way back, and a tap on the panel was found
+          by nobody. The same control as the history's list or calendar. */}
+      {recording ? (
+        <Animated.View style={[styles.viewSwitch, chevronArriveTwin]}>
+          <Segmented
+            options={[
+              { value: "pace", label: riding ? s.viewSpeed : s.viewPace },
+              { value: "map", label: s.viewMap },
+            ]}
+            value={showingMap ? "map" : "pace"}
+            onChange={(view) => setMapForRun(view === "map" ? tracker.startedAt : null)}
+          />
+        </Animated.View>
+      ) : (
+        // At rest, the same place says what the next outing will be. Kept
+        // from one to the next, so most days it is already right.
+        <Animated.View
+          style={[styles.viewSwitch, chevronArriveTwin]}
+          accessibilityLabel={s.sportLabel}
+        >
+          <Segmented
+            options={[
+              { value: "running", label: sportName("running") },
+              { value: "cycling", label: sportName("cycling") },
+            ]}
+            value={settings.sport}
+            onChange={(next) => void setSport(next)}
+          />
+        </Animated.View>
+      )}
+
       <GestureDetector gesture={swipeBack}>
         <View style={styles.backEdge} />
       </GestureDetector>
@@ -687,27 +865,37 @@ export default function RecordScreen() {
             pills are its children, and a gap set on their grandparent
             separates nothing. */}
         <Animated.View style={[styles.toggleStack, togglesArrive]}>
-          <GlassPanel style={styles.togglePill}>
-            <Toggle
-              on={session !== null || settings.targetPaceSKm !== null}
-              onPress={() => setChoosing(true)}
-              icon="list"
-              name={s.sessionToggle}
-              label={s.sessionToggleLabel}
-            />
-          </GlassPanel>
+          {/* Sessions and paces are a runner's: a ride has neither. And both
+              this and the route are chosen before setting off: mid-run, a
+              new choice would change the map but not what the run follows,
+              so they leave once it starts. Voice stays. */}
+          {riding || recording ? null : (
+            <GlassPanel style={styles.togglePill}>
+              <Toggle
+                on={session !== null || settings.targetPaceSKm !== null}
+                onPress={() => setChoosing(true)}
+                icon="list"
+                opens
+                name={s.sessionToggle}
+                label={s.sessionToggleLabel}
+              />
+            </GlassPanel>
+          )}
           {/* The route is shown for what it is — a choice that holds from one
               run to the next — so it has to be visible and undoable here,
               where the run starts, and not only in the tab it was picked in. */}
-          <GlassPanel style={styles.togglePill}>
-            <Toggle
-              on={chosenRoute !== null}
-              onPress={() => setChoosingRoute(true)}
-              icon="map"
-              name={s.routeToggle}
-              label={s.routeToggleLabel}
-            />
-          </GlassPanel>
+          {recording ? null : (
+            <GlassPanel style={styles.togglePill}>
+              <Toggle
+                on={chosenRoute !== null}
+                onPress={() => setChoosingRoute(true)}
+                icon="map"
+                opens
+                name={s.routeToggle}
+                label={s.routeToggleLabel}
+              />
+            </GlassPanel>
+          )}
           <GlassPanel style={styles.togglePill}>
             <Toggle
               on={settings.voice}
@@ -730,42 +918,72 @@ export default function RecordScreen() {
         <GlassPanel style={styles.panel} interactive>
             {/* One row for the whole panel, so the button centres against
                 everything written beside it. */}
-            <View style={styles.panelRow}>
+            <View style={[styles.panelRow, recording && styles.panelRowRunning]}>
               <View style={styles.panelMetrics}>
                 {/* The session line opens the whole session. Mid-interval it
                     says which block and what is left of it, which is the only
                     thing anyone looks for — but "3/23" says nothing about what
                     the other twenty are, and that question has nowhere else to
                     go on this screen. */}
-                <Pressable
-                  onPress={() => session && setShowingSteps(true)}
-                  disabled={session === null}
-                  accessibilityRole={session ? "button" : "text"}
-                  accessibilityLabel={session ? s.seeBlocks(sessionName(session)) : undefined}
-                  hitSlop={6}
-                >
-                  <Text
-                    style={[
-                      styles.state, weakSignal && styles.stateWeak, guideLine && styles.stateSession,
-                      routeWarning && styles.stateWeak,
-                    ]}
-                    numberOfLines={1}
+                <View style={styles.stateRow}>
+                  <Pressable
+                    onPress={() => session && setShowingSteps(true)}
+                    disabled={session === null}
+                    accessibilityRole={session ? "button" : "text"}
+                    accessibilityLabel={session ? s.seeBlocks(sessionName(session)) : undefined}
+                    hitSlop={6}
+                    style={styles.stateLine}
                   >
-                    {guideLine ?? `${state} · ${recording ? signal : idleSignal}`}
-                  </Text>
-                </Pressable>
+                    {/* A pause leads the line, whatever else it says: the clock
+                        has stopped, and nothing else on the panel shows it. */}
+                    <Text
+                      style={[
+                        styles.state, weakSignal && styles.stateWeak, guideLine && styles.stateSession,
+                        routeWarning && styles.stateWeak, paused && styles.statePaused,
+                      ]}
+                      numberOfLines={1}
+                      maxFontSizeMultiplier={TEXT_CAP}
+                    >
+                      {paused
+                        ? `${state} · ${guideLine ?? signal}`
+                        : guideLine ?? `${state} · ${recording ? signal : idleSignal}`}
+                    </Text>
+                  </Pressable>
+                  {/* Running, the weather keeps a corner of the status line:
+                      the sky and the degrees, which is what changes how a run
+                      feels. At rest it has a line of its own, below. */}
+                  {recording && weather ? (
+                    <View style={styles.liveWeather} accessibilityLabel={weatherLine(weather)}>
+                      <Ionicons name={weatherIcon(weather.code, weather.day)} size={15} color={colors.muted} />
+                      <Text style={styles.liveWeatherText} maxFontSizeMultiplier={TEXT_CAP}>
+                        {formatTemperature(weather.temperatureC)}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
 
                 {recording ? (
-                  // Two rows of two rather than four abreast: on a narrow phone
-                  // the single row fell to 46 points a column, which clipped the
-                  // unit off the pace.
+                  // Four abreast across the whole panel: the controls moved to a
+                  // row of their own under the figures, so each column has a
+                  // quarter of the width rather than the 46 points that once
+                  // clipped the unit off the pace.
                   <View style={styles.metricStack}>
                     <View style={styles.metricRow}>
                       <Metric compact label={s.distance} value={formatDistance(distance)} unit={distanceUnit()} />
                       <Metric compact label={s.duration} value={formatDuration(duration)} />
-                    </View>
-                    <View style={styles.metricRow}>
-                      <Metric compact label={s.pace} value={formatPace(pace ?? avgPace)} unit={paceUnit()} />
+                      {/* The dashboard already shows the pace of the moment,
+                          large; beside it the panel gives the run's average. */}
+                      {riding ? (
+                        dashboardShown ? (
+                          <Metric compact label={s.average} value={formatSpeed(avgSpeed)} unit={speedUnit()} />
+                        ) : (
+                          <Metric compact label={s.speed} value={formatSpeed(speed ?? avgSpeed)} unit={speedUnit()} />
+                        )
+                      ) : dashboardShown ? (
+                        <Metric compact label={s.average} value={formatPace(avgPace)} unit={paceUnit()} />
+                      ) : (
+                        <Metric compact label={s.pace} value={formatPace(pace ?? avgPace)} unit={paceUnit()} />
+                      )}
                       <Metric compact label={s.elevation} value={formatElevation(elevation)} unit={elevationUnit()} />
                     </View>
                   </View>
@@ -810,54 +1028,46 @@ export default function RecordScreen() {
                 {tracker.error && <Text style={styles.error}>{tracker.error}</Text>}
               </View>
 
-              {/* A box of fixed size holding two layers that cross-fade in
-                  place. Laid out in flow instead, the arriving buttons pushed
-                  the leaving one aside on their way in — which is what made
-                  the play button look like it came back from below. */}
-              <View style={[styles.panelControls, recording && styles.panelControlsRunning]}>
-                {!recording ? (
-                  <Animated.View
-                    key="rest"
-                    entering={FadeIn.duration(200)}
-                    exiting={FadeOut.duration(140)}
-                    style={styles.controlLayer}
-                  >
-                    <RoundButton icon="play" label={s.start} onPress={() => void begin()} primary size={52} />
+              {/* At rest, the one button beside what the panel says. */}
+              {!recording ? (
+                <View style={styles.panelControls}>
+                  <Animated.View style={styles.controlLayer}>
+                    <RoundButton icon="play" label={s.start} onPress={() => void begin()} primary size={52} disabled={beginning} />
                   </Animated.View>
-                ) : (
-                  <Animated.View
-                    key="running"
-                    entering={FadeIn.duration(200)}
-                    exiting={FadeOut.duration(140)}
-                    style={[styles.controlLayer, styles.controlColumn]}
-                  >
-                    <View style={styles.controlRow}>
-                      {tracker.status === "running" ? (
-                        <RoundButton icon="pause" label={s.pause} onPress={pause} />
-                      ) : (
-                        <RoundButton icon="play" label={s.resume} onPress={resume} primary />
-                      )}
-                      <RoundButton
-                        icon="stop"
-                        label={s.finish}
-                        onPress={askFinish}
-                        danger
-                        disabled={finishing}
-                      />
-                    </View>
-                    {/* Under the two that change the run, not beside them: a
-                        lap is pressed mid-effort, without looking, and has to
-                        be the one button that cannot be mistaken for a stop. */}
-                    <LapButton
-                      label={s.lap}
-                      accessibilityLabel={s.lapLabel(tracker.laps.length + 1)}
-                      onPress={lap}
-                      disabled={tracker.status !== "running"}
-                    />
-                  </Animated.View>
-                )}
-              </View>
+                </View>
+              ) : null}
             </View>
+
+            {/* Running, the controls take a row of their own, the panel's full
+                width: they are pressed mid-stride, with a glance at most, and
+                have to be found by a thumb rather than aimed at. Pause in the
+                middle, largest, since it is the one pressed most; lap and
+                finish either side, each with its word, so neither can be
+                taken for the other. Finish still asks before it ends. */}
+            {recording ? (
+              <Animated.View style={styles.runControls}>
+                <PillButton
+                  icon="flag-outline"
+                  label={s.lap}
+                  accessibilityLabel={s.lapLabel(tracker.laps.length + 1)}
+                  onPress={lap}
+                  disabled={tracker.status !== "running"}
+                />
+                {tracker.status === "running" ? (
+                  <RoundButton icon="pause" label={s.pause} onPress={pause} primary light size={RUN_CONTROL} />
+                ) : (
+                  <RoundButton icon="play" label={s.resume} onPress={resume} primary size={RUN_CONTROL} />
+                )}
+                <PillButton
+                  icon="stop"
+                  label={s.finish}
+                  accessibilityLabel={s.finish}
+                  onPress={askFinish}
+                  disabled={finishing}
+                  danger
+                />
+              </Animated.View>
+            ) : null}
         </GlassPanel>
         </Animated.View>
       </Animated.View>
@@ -868,6 +1078,7 @@ export default function RecordScreen() {
         // Only while running: standing still, the question is what the session
         // is, not how far into it you are.
         currentIndex={recording ? tracker.stepIndex : null}
+        targetSKm={tracker.sessionPaceSKm}
         onClose={() => setShowingSteps(false)}
       />
 
@@ -897,29 +1108,48 @@ export default function RecordScreen() {
  * finish line. Wide and flat, so it is found by feel under the two round
  * buttons. The lightest tap under the finger; the voice says the lap.
  */
-function LapButton({
-  label, accessibilityLabel, onPress, disabled,
+/**
+ * A running control beside the pause: an icon and its word, as tall as a
+ * thumb. Lap lands lightly, as a mark in passing; finish lands like the
+ * other controls that change the run, and is red, ring and word.
+ */
+function PillButton({
+  icon, label, accessibilityLabel, onPress, disabled, danger = false,
 }: {
+  icon: React.ComponentProps<typeof Ionicons>["name"];
   label: string;
   accessibilityLabel: string;
   onPress: () => void;
   disabled: boolean;
+  danger?: boolean;
 }) {
+  const tint = danger ? colors.danger : colors.text;
   return (
     <Pressable
       onPress={() => {
-        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+        const weight = danger ? Haptics.ImpactFeedbackStyle.Medium : Haptics.ImpactFeedbackStyle.Light;
+        void Haptics.impactAsync(weight).catch(() => undefined);
         onPress();
       }}
       disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       accessibilityState={{ disabled }}
-      hitSlop={4}
-      style={({ pressed }) => [styles.lap, pressed && styles.pressed, disabled && styles.roundDisabled]}
+      hitSlop={6}
+      style={({ pressed }) => [
+        styles.pill, danger && styles.pillDanger, pressed && styles.pressed, disabled && styles.roundDisabled,
+      ]}
     >
-      <Ionicons name="flag-outline" size={16} color={colors.text} />
-      <Text style={styles.lapText}>{label}</Text>
+      <Ionicons name={icon} size={20} color={tint} />
+      <Text
+        style={[styles.pillText, { color: tint }]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.8}
+        maxFontSizeMultiplier={TEXT_CAP}
+      >
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -933,10 +1163,12 @@ function LapButton({
  * touches. The word says what it is, the colour says whether it is on.
  */
 function Toggle({
-  on, onPress, icon, name, label,
+  on, onPress, icon, name, label, opens = false,
 }: {
   on: boolean;
   onPress: () => void;
+  /** Opens a choice rather than flipping a setting: a button, not a switch. */
+  opens?: boolean;
   icon: React.ComponentProps<typeof Ionicons>["name"];
   /** The word shown under the icon. Short enough to sit over a map. */
   name: string;
@@ -950,12 +1182,15 @@ function Toggle({
   return (
     <Pressable
       onPress={onPress}
-      accessibilityRole="switch"
-      accessibilityState={{ checked: on }}
+      accessibilityRole={opens ? "button" : "switch"}
+      accessibilityState={opens ? { selected: on } : { checked: on }}
       accessibilityLabel={label}
       hitSlop={8}
       style={({ pressed }) => [styles.toggle, pressed && styles.pressed]}
     >
+      {/* A dot as well as the colour: on and off told apart by a shape too,
+          for anybody who cannot tell the blue from the black. */}
+      {on && opens ? <View style={[styles.toggleDot, { backgroundColor: tint }]} /> : null}
       <Ionicons name={icon} size={18} color={tint} />
       {/* Shrunk rather than cut: "PARCOURS" is the longest word here and the
           widest this square has to hold. */}
@@ -963,7 +1198,8 @@ function Toggle({
         style={[styles.toggleName, { color: tint }]}
         numberOfLines={1}
         adjustsFontSizeToFit
-        minimumFontScale={0.75}
+        minimumFontScale={0.7}
+        maxFontSizeMultiplier={1}
       >
         {name}
       </Text>
@@ -982,6 +1218,13 @@ const styles = StyleSheet.create({
   toggles: { position: "absolute", right: 12, alignItems: "flex-end" },
   toggleStack: { alignItems: "flex-end", gap: 10 },
   leave: { position: "absolute", top: CONTROLS_TOP, left: 12 },
+  dashboard: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
+  // Centred between the way out and the right edge's column, level with the
+  // way out.
+  viewSwitch: {
+    position: "absolute", top: CONTROLS_TOP + 1, alignSelf: "center", width: 200,
+    borderRadius: 10, ...floatingShadow,
+  },
   leavePill: { borderRadius: CONTROL_SIZE / 2, padding: 0 },
   leaveButton: {
     width: CONTROL_SIZE, height: CONTROL_SIZE,
@@ -999,8 +1242,9 @@ const styles = StyleSheet.create({
     width: CONTROL_SIZE, height: CONTROL_SIZE,
     alignItems: "center", justifyContent: "center", gap: 1,
   },
+  toggleDot: { position: "absolute", top: 5, right: 5, width: 6, height: 6, borderRadius: 3 },
   toggleName: {
-    fontSize: 9, fontFamily: font.semibold, letterSpacing: 0.2,
+    fontSize: 11, fontFamily: font.semibold, letterSpacing: 0.2,
     maxWidth: CONTROL_SIZE - 4, textAlign: "center",
   },
 
@@ -1015,12 +1259,20 @@ const styles = StyleSheet.create({
     flex: 1, borderRadius: 22, paddingHorizontal: 16, paddingVertical: 12,
     overflow: "hidden",
   },
-  state: { color: colors.muted, fontSize: 14.5, fontFamily: font.medium },
+  stateRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  stateLine: { flex: 1, minWidth: 0 },
+  liveWeather: { flexDirection: "row", alignItems: "center", gap: 4, flexShrink: 0 },
+  liveWeatherText: {
+    color: colors.muted, fontSize: 14.5, fontFamily: font.semibold, fontVariant: ["tabular-nums"],
+  },
+  state: { color: colors.muted, fontSize: 14.5, fontFamily: font.medium, fontVariant: ["tabular-nums"] },
   stateWeak: { color: colors.warning },
   // A session line is instruction rather than commentary, so it is given
   // the accent and the app's heavier face.
   stateSession: { color: colors.accent, fontFamily: font.semibold },
+  statePaused: { color: colors.warning, fontFamily: font.semibold },
   panelRow: { flex: 1, flexDirection: "row", alignItems: "center", gap: 12 },
+  panelRowRunning: { flex: 0 },
   panelMetrics: { flex: 1, gap: 8, minWidth: 0 },
   metricStack: { gap: 10 },
   metricRow: { flexDirection: "row", gap: 12 },
@@ -1028,17 +1280,15 @@ const styles = StyleSheet.create({
   // larger single one at rest: the box never changes, so nothing around it
   // shifts when its contents do.
   panelControls: { width: CONTROL_SIZE * 2 + 8, height: 52, flexShrink: 0 },
-  // Room for the lap button under the two round ones. The panel is taller
-  // than this while running anyway, so the box growing moves nothing.
-  panelControlsRunning: { height: 46 + 8 + LAP_HEIGHT },
-  controlColumn: { flexDirection: "column", gap: 8 },
-  controlRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
-  lap: {
-    alignSelf: "stretch", height: LAP_HEIGHT, borderRadius: LAP_HEIGHT / 2,
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5,
+  // Pinned to the foot of the panel, whatever the figures above take.
+  runControls: { marginTop: "auto", flexDirection: "row", alignItems: "center", gap: 12 },
+  pill: {
+    flex: 1, height: PILL_HEIGHT, borderRadius: PILL_HEIGHT / 2,
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
     borderWidth: 1.5, borderColor: colors.subtle,
   },
-  lapText: { color: colors.text, fontSize: 15, fontFamily: font.semibold },
+  pillDanger: { borderColor: colors.danger },
+  pillText: { fontSize: 18, fontFamily: font.semibold, letterSpacing: 0.3 },
   controlLayer: {
     position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
@@ -1059,7 +1309,9 @@ const styles = StyleSheet.create({
   // full colour instead of a tenth of it.
   roundDanger: { borderColor: colors.danger },
   roundDisabled: { opacity: 0.35 },
-  pressed: { opacity: 0.55 },
+  // Gives under the finger rather than fading: a control that turns pale on
+  // glass over a map looks like it has gone away.
+  pressed: { transform: [{ scale: 0.96 }] },
   play: { marginLeft: 2 },
 
   weather: { flexDirection: "row", alignItems: "center", gap: 6 },

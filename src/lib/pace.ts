@@ -33,3 +33,27 @@ export function clampTarget(seconds: number): number {
   const stepped = Math.round(seconds / TARGET_STEP_S) * TARGET_STEP_S;
   return Math.min(TARGET_MAX_S, Math.max(TARGET_MIN_S, stepped));
 }
+
+export type PaceState = "onPace" | "slow" | "fast" | "free";
+
+/**
+ * Where the runner stands against their target, for the run screen's gauge:
+ * inside the tolerance, too slow or too fast, or running free. `offset` places
+ * the marker on the gauge, from −1 (far too fast) to 1 (far too slow), with
+ * the tolerance band in the middle third.
+ */
+export function paceStatus(
+  currentSKm: number | null,
+  targetSKm: number | null,
+  toleranceS = 8,
+): { state: PaceState; driftS: number; offset: number } {
+  if (targetSKm === null) return { state: "free", driftS: 0, offset: 0 };
+  if (currentSKm === null || !Number.isFinite(currentSKm) || currentSKm > 30 * 60) {
+    return { state: "onPace", driftS: 0, offset: 0 };
+  }
+  const driftS = Math.round(currentSKm - targetSKm);
+  // The band spans a third of the gauge; three tolerances either side fill it.
+  const offset = Math.max(-1, Math.min(1, driftS / (toleranceS * 3)));
+  const state = Math.abs(driftS) < toleranceS ? "onPace" : driftS > 0 ? "slow" : "fast";
+  return { state, driftS, offset };
+}

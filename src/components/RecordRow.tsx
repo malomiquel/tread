@@ -29,7 +29,7 @@ export function RecordRow({ icon, label, value, detail, first, onPress, accessib
   const body = (
     <>
       <View style={styles.mark}>
-        <Ionicons name={icon} size={19} color={colors.accent} />
+        <Ionicons name={icon} size={19} color={colors.muted} />
       </View>
       <View style={[styles.body, !first && styles.rule]}>
         <View style={styles.text}>
@@ -62,7 +62,7 @@ const styles = StyleSheet.create({
   pressed: { backgroundColor: colors.sunken },
   mark: {
     width: 40, height: 40, borderRadius: 12,
-    alignItems: "center", justifyContent: "center", backgroundColor: colors.accentSoft,
+    alignItems: "center", justifyContent: "center", backgroundColor: colors.sunken,
   },
   body: {
     flex: 1, flexDirection: "row", alignItems: "center", gap: 10,
@@ -71,6 +71,6 @@ const styles = StyleSheet.create({
   rule: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline },
   text: { flex: 1, gap: 1 },
   label: { color: colors.text, fontSize: 16.5, fontFamily: font.semibold },
-  detail: { color: colors.subtle, fontSize: 14 },
+  detail: { color: colors.subtle, fontSize: 14, fontFamily: font.regular },
   value: { color: colors.text, fontSize: 21, fontFamily: font.semibold, fontVariant: ["tabular-nums"] },
 });

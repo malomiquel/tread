@@ -156,32 +156,35 @@ export function makeCopy(force = false): Promise<boolean> {
   return writing;
 }
 
-/** The newest copy's contents, for restoring, or null when there is none to read. */
+/**
+ * The newest copy's contents, for restoring, or null when there is none.
+ *
+ * A copy that is there but cannot be read — a download that failed, a file
+ * cut short — throws instead: "no copy" said about a copy that exists sends
+ * somebody away from the one thing that would have brought their runs back.
+ */
 export async function readNewestCopy(): Promise<{ transfer: Transfer; at: number } | null> {
-  try {
-    const target = await copyTarget();
-    const newest = (await listCopies(target))[0];
-    if (!newest) return null;
-    let base64: string;
-    if (target.kind === "icloud") {
-      const api = cloud();
-      if (!api) return null;
-      const staged = new File(Paths.cache, newest);
-      await api.CloudStorage.downloadFile(`/${newest}`, localPath(staged), api.CloudStorageScope.Documents);
-      base64 = await staged.base64();
-      staged.delete();
-    } else if (target.kind === "folder") {
-      const found = new Directory(target.uri).list().find((entry) => entry.name === newest);
-      if (!(found instanceof File)) return null;
-      base64 = await found.base64();
-    } else {
-      return null;
-    }
-    const transfer = await unpackTransfer(base64);
-    return transfer ? { transfer, at: backupTime(newest) ?? 0 } : null;
-  } catch {
+  const target = await copyTarget();
+  const newest = (await listCopies(target))[0];
+  if (!newest) return null;
+  let base64: string;
+  if (target.kind === "icloud") {
+    const api = cloud();
+    if (!api) return null;
+    const staged = new File(Paths.cache, newest);
+    await api.CloudStorage.downloadFile(`/${newest}`, localPath(staged), api.CloudStorageScope.Documents);
+    base64 = await staged.base64();
+    staged.delete();
+  } else if (target.kind === "folder") {
+    const found = new Directory(target.uri).list().find((entry) => entry.name === newest);
+    if (!(found instanceof File)) return null;
+    base64 = await found.base64();
+  } else {
     return null;
   }
+  const transfer = await unpackTransfer(base64);
+  if (!transfer) throw new Error("unreadable copy");
+  return { transfer, at: backupTime(newest) ?? 0 };
 }
 
 /**
@@ -211,6 +214,8 @@ export async function copyToOffer(): Promise<{ runs: number; at: number } | null
   try {
     if ((await readSettings())[OFFERED_KEY] === "true") return null;
     if ((await listRuns()).length > 0) return null;
+    // A copy that could not be read is offered again at the next launch:
+    // only an answer, a copy or none, settles the question.
     const copy = await readNewestCopy();
     await writeSetting(OFFERED_KEY, "true");
     return copy && copy.transfer.runs.length > 0 ? { runs: copy.transfer.runs.length, at: copy.at } : null;

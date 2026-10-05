@@ -26,10 +26,14 @@ import { colors, literalColors } from "@/lib/theme";
 const layoutStrings = defineStrings({
   fr: {
     databaseUnavailable: "Base de données inaccessible.",
+    launchFailedTitle: "Tread n'a pas pu ouvrir tes données",
+    launchFailed: "Rien n'est effacé. Ferme l'app complètement puis rouvre-la. Si ça recommence, ce détail aidera à comprendre :",
     restoreTitle: "Une copie de tes courses existe",
     restoreMessage: (runs: number, date: string) =>
       `Ta copie de sécurité du ${date} contient ${runs} course${runs > 1 ? "s" : ""}. La remettre dans l'app ?`,
     restoreLater: "Plus tard",
+    restoreFailedTitle: "Copie illisible",
+    restoreFailed: "La copie n'a pas pu être lue. Tu peux réessayer dans Réglages › Données.",
     restoreNow: "Récupérer",
     restoredTitle: "Courses récupérées",
     back: "Retour",
@@ -56,10 +60,14 @@ const layoutStrings = defineStrings({
   },
   en: {
     databaseUnavailable: "The database can't be opened.",
+    launchFailedTitle: "Tread couldn't open your data",
+    launchFailed: "Nothing has been erased. Close the app completely and open it again. If it happens again, this detail will help:",
     restoreTitle: "A copy of your runs exists",
     restoreMessage: (runs: number, date: string) =>
       `Your safety copy from ${date} holds ${runs} run${runs > 1 ? "s" : ""}. Bring them back into the app?`,
     restoreLater: "Later",
+    restoreFailedTitle: "Copy unreadable",
+    restoreFailed: "The copy couldn't be read. You can try again in Settings › Data.",
     restoreNow: "Bring them back",
     restoredTitle: "Runs restored",
     back: "Back",
@@ -148,9 +156,11 @@ export default function RootLayout() {
               { text: words.restoreLater, style: "cancel" },
               {
                 text: words.restoreNow,
-                onPress: () => void restoreNewestCopy().then((summary) => {
-                  if (summary) Alert.alert(words.restoredTitle, summary);
-                }),
+                onPress: () => void restoreNewestCopy()
+                  .then((summary) => {
+                    if (summary) Alert.alert(words.restoredTitle, summary);
+                  })
+                  .catch(() => Alert.alert(words.restoreFailedTitle, words.restoreFailed)),
               },
             ],
           );
@@ -176,10 +186,15 @@ export default function RootLayout() {
     return () => subscription.remove();
   }, []);
 
+  // Said in words first; the cause stays underneath, small and selectable,
+  // because it is the one thing that lets anybody find out what went wrong.
   if (error) {
+    const words = layoutStrings();
     return (
       <View style={styles.centered}>
-        <Text style={styles.error}>{error}</Text>
+        <Text style={styles.errorTitle}>{words.launchFailedTitle}</Text>
+        <Text style={styles.errorText}>{words.launchFailed}</Text>
+        <Text style={styles.error} selectable>{error}</Text>
       </View>
     );
   }
@@ -323,5 +338,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     padding: 24,
   },
-  error: { color: colors.danger, textAlign: "center" },
+  errorTitle: { color: colors.text, fontSize: 20, fontWeight: "700", textAlign: "center", marginBottom: 8 },
+  errorText: { color: colors.muted, fontSize: 15, textAlign: "center", marginBottom: 16 },
+  error: { color: colors.subtle, fontSize: 12, textAlign: "center" },
 });

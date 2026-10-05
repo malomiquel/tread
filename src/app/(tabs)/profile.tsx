@@ -1,14 +1,15 @@
-import Ionicons from "@expo/vector-icons/Ionicons";
 import { useFocusEffect, useRouter, useScrollToTop } from "expo-router";
 import { useCallback, useState, useRef } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { EmptyState } from "@/components/EmptyState";
+import { LoadError } from "@/components/LoadError";
 import { HeaderButton } from "@/components/HeaderButton";
 import { RecordRow } from "@/components/RecordRow";
 import { SectionHeader } from "@/components/SectionHeader";
 import { BannerTag, bannerText, SummaryBanner } from "@/components/SummaryBanner";
 import { WeeklyGoalSheet } from "@/components/WeeklyGoalSheet";
+import { ofSport } from "@/lib/activity";
 import { effortRecords, listRuns, personalRecords, type EffortRecord, type PersonalRecords, type Run } from "@/lib/db";
 import { effortName } from "@/lib/efforts";
 import { formatDistance, formatDuration, formatElevation } from "@/lib/format";
@@ -32,6 +33,7 @@ const profileStrings = defineStrings({
     summary: (count: number, km: string) => `${plural(count, "course", "courses")} · ${km} ${distanceUnit()} au total`,
     progress: "Progression",
     lastWeeks: (weeks: number) => `${weeks} dernières semaines`,
+    chartLabel: (figures: string) => `Distance par semaine, de la plus ancienne à celle-ci : ${figures}`,
     settings: "Réglages",
     runNow: "Courir maintenant",
     runNowDetail: "Ta première sortie lance tes records et tes totaux.",
@@ -42,6 +44,7 @@ const profileStrings = defineStrings({
     goalEdit: (amount: string) => `Objectif hebdomadaire, ${amount}, modifier`,
     goalSet: "Définir un objectif hebdomadaire",
     goalReached: (amount: string, percent: number) => `Objectif de ${amount} atteint · ${percent} %`,
+    change: (percent: number) => ` · ${percent > 0 ? "+" : ""}${percent} %`,
     goalRemaining: (remaining: string, amount: string) => `${remaining} pour tenir l'objectif de ${amount}`,
     goalInvite: "Se fixer un objectif hebdomadaire",
     today: "auj.",
@@ -70,6 +73,7 @@ const profileStrings = defineStrings({
     summary: (count: number, km: string) => `${plural(count, "run", "runs")} · ${km} ${distanceUnit()} in total`,
     progress: "Progress",
     lastWeeks: (weeks: number) => `last ${weeks} weeks`,
+    chartLabel: (figures: string) => `Distance per week, oldest first: ${figures}`,
     settings: "Settings",
     runNow: "Run now",
     runNowDetail: "Your first run starts your records and totals.",
@@ -80,6 +84,7 @@ const profileStrings = defineStrings({
     goalEdit: (amount: string) => `Weekly goal, ${amount}, edit`,
     goalSet: "Set a weekly goal",
     goalReached: (amount: string, percent: number) => `${amount} goal reached · ${percent}%`,
+    change: (percent: number) => ` · ${percent > 0 ? "+" : ""}${percent}%`,
     goalRemaining: (remaining: string, amount: string) => `${remaining} to go to reach your ${amount} goal`,
     goalInvite: "Set yourself a weekly goal",
     today: "now",
@@ -154,7 +159,7 @@ function Total({ label, value, unit, compare, change }: {
       </Text>
       <Text style={styles.totalLabel}>
         {label}
-        {change !== undefined ? <Text style={styles.totalChange}>{` · ${change > 0 ? "+" : ""}${change} %`}</Text> : null}
+        {change !== undefined ? <Text style={styles.totalChange}>{profileStrings().change(change)}</Text> : null}
       </Text>
       {compare ? <Text style={styles.totalCompare} numberOfLines={1}>{compare}</Text> : null}
     </View>
@@ -193,28 +198,33 @@ export default function ProfileScreen() {
   /** Their own recent average, to open the goal sheet on something familiar. */
   const [suggestedM, setSuggestedM] = useState(5000);
   const [settingGoal, setSettingGoal] = useState(false);
+  /** The figures could not be read; bumping the attempt reads them again. */
+  const [failed, setFailed] = useState(false);
   const settings = useSettings();
   const tabBarSpace = useTabBarSpace();
   const router = useRouter();
 
-  useFocusEffect(
-    useCallback(() => {
-      let active = true;
-      Promise.all([listRuns(), personalRecords(), effortRecords()])
-        .then(([runs, best, fastest]) => {
-          if (!active) return;
-          setRuns(runs);
-          setReadAt(Date.now());
-          setRecords(best);
-          setEfforts(fastest);
-          setSuggestedM(suggestedWeeklyGoalM(runs));
-        })
-        .catch(() => undefined);
-      return () => {
-        active = false;
-      };
-    }, []),
-  );
+  const load = useCallback(() => {
+    let active = true;
+    // Rides keep out of a runner's week, streak and records.
+    Promise.all([listRuns().then((all) => ofSport(all)), personalRecords(), effortRecords()])
+      .then(([runs, best, fastest]) => {
+        if (!active) return;
+        setRuns(runs);
+        setReadAt(Date.now());
+        setRecords(best);
+        setEfforts(fastest);
+        setSuggestedM(suggestedWeeklyGoalM(runs));
+        setFailed(false);
+      })
+      .catch(() => {
+        if (active) setFailed(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+  useFocusEffect(load);
 
   // The heading stays while the figures are fetched. An empty screen for the
   // length of a query is indistinguishable from a broken one, and it is the
@@ -225,6 +235,7 @@ export default function ProfileScreen() {
         <View style={styles.head}>
           <Text style={styles.title}>{s.title}</Text>
         </View>
+        {failed ? <LoadError onRetry={load} /> : null}
       </SafeAreaView>
     );
   }
@@ -333,7 +344,6 @@ export default function ProfileScreen() {
                 <View style={styles.tags}>
                   {streak.current >= 2 ? (
                     <BannerTag>
-                      <Ionicons name="flame-outline" size={15} color={colors.accentText} />
                       <Text style={bannerText.tag}>
                         {streak.kind === "goal" ? s.streakGoal(streak.current) : s.streakActive(streak.current)}
                       </Text>
@@ -341,7 +351,6 @@ export default function ProfileScreen() {
                   ) : null}
                   {!goal ? (
                     <BannerTag>
-                      <Ionicons name="flag-outline" size={15} color={colors.accentText} />
                       <Text style={bannerText.tag}>{s.goalInvite}</Text>
                     </BannerTag>
                   ) : null}
@@ -350,7 +359,13 @@ export default function ProfileScreen() {
             </SummaryBanner>
 
             <SectionHeader title={s.progress} aside={s.lastWeeks(WEEKS_SHOWN)} />
-            <View style={styles.chart}>
+            {/* Read out as one sentence: a column of bars is invisible to
+                anybody listening rather than looking. */}
+            <View
+              style={styles.chart}
+              accessible
+              accessibilityLabel={s.chartLabel(weeks.map((week) => formatDistance(week.distanceM)).join(", "))}
+            >
               {weeks.map((week, i) => (
                 <View key={week.start} style={styles.column}>
                   <View style={styles.barArea}>
@@ -498,22 +513,27 @@ const styles = StyleSheet.create({
   },
   column: { flex: 1, alignItems: "center", gap: 6 },
   barArea: { flex: 1, width: "100%", justifyContent: "flex-end" },
-  bar: { width: "100%", borderRadius: 6, backgroundColor: colors.accentSoft },
+  // Past weeks in grey, this one in blue: the colour marks the week that is
+  // still yours to change, not every bar.
+  bar: { width: "100%", borderRadius: 3, backgroundColor: colors.hairline },
   barCurrent: { backgroundColor: colors.accent },
   weekLabel: { color: colors.subtle, fontFamily: font.regular, fontSize: 13, fontVariant: ["tabular-nums"] },
   weekLabelCurrent: { color: colors.accent, fontFamily: font.semibold },
 
   heatmap: { marginTop: 10 },
-  totals: { flexDirection: "row", flexWrap: "wrap", gap: 10, paddingHorizontal: GUTTER, paddingTop: 2 },
+  // Figures set on the page in two columns, rows split by a rule, like a
+  // results sheet. They used to be four tinted boxes, which is the shape of
+  // every dashboard and of no runner's logbook.
+  totals: { flexDirection: "row", flexWrap: "wrap", columnGap: 20, paddingHorizontal: GUTTER },
   total: {
-    flexBasis: "47%", flexGrow: 1, gap: 2,
-    padding: 14, borderRadius: 14, backgroundColor: colors.accentSoft,
+    flexBasis: "40%", flexGrow: 1, gap: 1, paddingVertical: 12,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline,
   },
   totalValue: {
-    color: colors.accent, fontSize: 26, fontFamily: font.bold,
+    color: colors.text, fontSize: 26, fontFamily: font.semibold,
     letterSpacing: -0.6, fontVariant: ["tabular-nums"],
   },
-  totalUnit: { fontSize: 15, fontFamily: font.semibold, letterSpacing: 0 },
+  totalUnit: { color: colors.subtle, fontSize: 15, fontFamily: font.semibold, letterSpacing: 0 },
   totalLabel: { color: colors.muted, fontSize: 14, fontFamily: font.medium },
   totalChange: { color: colors.accent, fontFamily: font.semibold },
   totalCompare: { color: colors.subtle, fontSize: 13, fontFamily: font.regular },

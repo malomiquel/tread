@@ -56,6 +56,8 @@ type Kind = "image" | "gif";
 
 const shareStrings = defineStrings({
   fr: {
+    mapFailed: "La carte n'a pas pu être dessinée. Vérifie ta connexion, puis réessaie.",
+    mapRetry: "Redessiner la carte",
     mapUnreadable: "La carte n'a pas pu être lue.",
     tooShort: "Ce parcours est trop court pour être animé.",
     imageUnavailableTitle: "Image indisponible",
@@ -70,6 +72,8 @@ const shareStrings = defineStrings({
     share: "Partager",
   },
   en: {
+    mapFailed: "The map couldn't be drawn. Check your connection, then try again.",
+    mapRetry: "Draw the map again",
     mapUnreadable: "The map couldn't be read.",
     tooShort: "This run is too short to animate.",
     imageUnavailableTitle: "Image unavailable",
@@ -178,6 +182,12 @@ function Sheet({ run, points, preparedMapUri, onClose }: Omit<Props, "visible">)
    */
   const bareSource = useRef<CardMapHandle>(null);
   const [bareMap, setBareMap] = useState<string | null>(null);
+  /**
+   * The map could not be drawn — no network for the tiles, usually. Said,
+   * rather than a spinner that never stops; a retry draws both again.
+   */
+  const [mapFailed, setMapFailed] = useState(false);
+  const [mapAttempt, setMapAttempt] = useState(0);
   /** How far along the drawing is, from nought to one. */
   const [progress, setProgress] = useState(1);
   /** Frames written so far, while an animation is being made. */
@@ -223,9 +233,8 @@ function Sheet({ run, points, preparedMapUri, onClose }: Omit<Props, "visible">)
     void source.current
       ?.render()
       .then(setMapUri)
-      .catch(() => {
-        /* the share button stays out of reach rather than sending a blank */
-      });
+      // Never a blank sent: the button turns into a way to try again.
+      .catch(() => setMapFailed(true));
   }
 
   /** The same map again, without its track, for the animation to draw over. */
@@ -234,9 +243,7 @@ function Sheet({ run, points, preparedMapUri, onClose }: Omit<Props, "visible">)
     void bareSource.current
       ?.render()
       .then(setBareMap)
-      .catch(() => {
-        /* the animation stays out of reach rather than sending a blank */
-      });
+      .catch(() => setMapFailed(true));
   }
 
   /**
@@ -393,8 +400,11 @@ function Sheet({ run, points, preparedMapUri, onClose }: Omit<Props, "visible">)
             mapUri={showBare ? bareMap : mapUri}
             place={place}
             // Only over the bare map. Over the other one it would be a second
-            // line on top of the one already in the photograph.
-            overlay={showBare ? <TrackOverlay points={points} progress={progress} /> : null}
+            // line on top of the one already in the photograph. Gone while the
+            // file is made: the frames start from a photograph of this card,
+            // and the preview's line would be in every one of them, under the
+            // line being drawn.
+            overlay={showBare && made === null ? <TrackOverlay points={points} progress={progress} /> : null}
           />
         </View>
 
@@ -450,19 +460,37 @@ function Sheet({ run, points, preparedMapUri, onClose }: Omit<Props, "visible">)
                 <Ionicons name="arrow-up" size={19} color={colors.accentText} />
               )}
             </Pressable>
+          ) : mapFailed ? (
+            <Pressable
+              onPress={() => {
+                setMapFailed(false);
+                setMapAttempt((n) => n + 1);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={s.mapRetry}
+              hitSlop={8}
+              style={({ pressed }) => [styles.send, pressed && styles.pressed]}
+            >
+              <Ionicons name="refresh" size={19} color={colors.accentText} />
+            </Pressable>
           ) : (
             <View style={styles.send}>
               <ActivityIndicator size="small" color={colors.accentText} />
             </View>
           )}
         </View>
+        {mapFailed ? <Text style={styles.mapFailed}>{s.mapFailed}</Text> : null}
       </Pressable>
 
-      {!mapUri && <CardMapSource ref={source} points={points} onReady={renderMap} />}
+      {!mapUri && !mapFailed && (
+        <CardMapSource key={`map-${mapAttempt}`} ref={source} points={points} onReady={renderMap} />
+      )}
       {/* Drawn from the moment the sheet opens rather than when the animation
           is chosen. It takes a second or two, and asking for it on the tap is
           what made choosing the animation feel like waiting for something. */}
-      {!bareMap && <CardMapSource ref={bareSource} points={points} bare onReady={renderBareMap} />}
+      {!bareMap && !mapFailed && (
+        <CardMapSource key={`bare-${mapAttempt}`} ref={bareSource} points={points} bare onReady={renderBareMap} />
+      )}
     </Pressable>
   );
 }
@@ -498,6 +526,11 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center", backgroundColor: colors.accent,
   },
   sending: { opacity: 0.75 },
+  // On the dark backdrop, which is always dark: the light ink of the page.
+  mapFailed: {
+    width: CARD_WIDTH, color: literalColors.background.light, fontSize: 14.5,
+    fontFamily: font.regular, textAlign: "center",
+  },
   sendLabel: {
     color: colors.accentText, fontSize: 14.5, fontFamily: font.semibold,
     fontVariant: ["tabular-nums"],

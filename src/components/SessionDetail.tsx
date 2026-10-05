@@ -16,6 +16,7 @@ const sessionDetailStrings = defineStrings({
     noteBefore: "Durée estimée : les blocs en distance dépendent de ton allure réelle.",
     start: "Démarrer cette séance",
     skip: "Passer cette séance",
+    restore: "Remettre au programme",
     free: "Courir sans séance",
   },
   en: {
@@ -27,6 +28,7 @@ const sessionDetailStrings = defineStrings({
     noteBefore: "Estimated time: distance blocks depend on your actual pace.",
     start: "Start this session",
     skip: "Skip this session",
+    restore: "Put back in the plan",
     free: "Run without a session",
   },
 });
@@ -44,6 +46,8 @@ interface Props {
   onFree?: () => void;
   /** Offered where the session can be put behind you without being run. */
   onSkip?: () => void;
+  /** Offered on a session that was skipped, to undo it. */
+  onRestore?: () => void;
   onClose: () => void;
 }
 
@@ -70,7 +74,7 @@ function spans(session: Session): { label: string; from: number; to: number }[] 
  * to do into how much of this is left.
  */
 export function SessionDetail({
-  visible, session, currentIndex = null, targetSKm = null, onStart, onFree, onSkip, onClose,
+  visible, session, currentIndex = null, targetSKm = null, onStart, onFree, onSkip, onRestore, onClose,
 }: Props) {
   const s = useStrings(sessionDetailStrings);
   if (!session) return null;
@@ -167,6 +171,17 @@ export function SessionDetail({
               </Pressable>
             ) : null}
 
+            {/* A skip is one tap, so it is undone by one tap too. */}
+            {onRestore ? (
+              <Pressable
+                onPress={onRestore}
+                accessibilityRole="button"
+                style={({ pressed }) => [styles.free, pressed && styles.pressed]}
+              >
+                <Text style={styles.restoreLabel}>{s.restore}</Text>
+              </Pressable>
+            ) : null}
+
             {onFree ? (
               <Pressable
                 onPress={onFree}
@@ -242,5 +257,6 @@ const styles = StyleSheet.create({
   free: { alignItems: "center", paddingTop: 12, paddingBottom: 2 },
   freeLabel: { color: colors.muted, fontSize: 14.5, fontFamily: font.semibold },
   skipLabel: { color: colors.warning, fontSize: 14.5, fontFamily: font.semibold },
+  restoreLabel: { color: colors.accent, fontSize: 14.5, fontFamily: font.semibold },
   pressed: { opacity: 0.85 },
 });

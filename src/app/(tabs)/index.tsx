@@ -4,6 +4,7 @@ import { useCallback, useState, useRef } from "react";
 import { Alert, Pressable, SectionList, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { EmptyState } from "@/components/EmptyState";
+import { LoadError } from "@/components/LoadError";
 import { HeaderButton } from "@/components/HeaderButton";
 import { RunShape } from "@/components/RunShape";
 import { SectionHeader } from "@/components/SectionHeader";
@@ -12,16 +13,16 @@ import { Segmented } from "@/components/Segmented";
 import { SwipeToDelete } from "@/components/SwipeToDelete";
 import { TrainingCalendar } from "@/components/TrainingCalendar";
 import { deleteRun, listRuns, planSessionOfRun, type Run } from "@/lib/db";
-import { activityName, tagName } from "@/lib/activity";
+import { activityName, ofSport, tagName } from "@/lib/activity";
 import { importRunFiles } from "@/lib/files";
-import { formatDate, formatDistance, formatDuration, formatPace } from "@/lib/format";
+import { formatDate, formatDistance, formatDuration, formatPace, formatSpeed } from "@/lib/format";
 import { forgetRunInHealth } from "@/lib/health";
 import { defineStrings, intlLocale, plural, useStrings } from "@/lib/i18n";
 import { useTabBarSpace } from "@/lib/layout";
 import { kindName, sessionKind } from "@/lib/plan";
 import { byMonth, monthSummary, type MonthGroup } from "@/lib/stats";
 import { colors, font } from "@/lib/theme";
-import { distanceUnit, paceUnit } from "@/lib/units";
+import { distanceUnit, paceUnit, speedUnit } from "@/lib/units";
 import { chooseSession } from "@/lib/tracker";
 import { formatTemperature, weatherIcon } from "@/lib/weather";
 
@@ -29,6 +30,7 @@ const historyStrings = defineStrings({
   fr: {
     title: "Historique",
     summary: (count: number, km: string) => `${plural(count, "course", "courses")} · ${km} ${distanceUnit()} au total`,
+    rides: (count: number) => ` · ${plural(count, "sortie vélo", "sorties vélo")}`,
     importDone: "Import terminé",
     importFailed: "Import impossible",
     unexpectedError: "Erreur inattendue.",
@@ -63,6 +65,7 @@ const historyStrings = defineStrings({
   en: {
     title: "History",
     summary: (count: number, km: string) => `${plural(count, "run", "runs")} · ${km} ${distanceUnit()} in total`,
+    rides: (count: number) => ` · ${plural(count, "ride", "rides")}`,
     importDone: "Import complete",
     importFailed: "Import failed",
     unexpectedError: "Unexpected error.",
@@ -117,7 +120,19 @@ export default function HistoryScreen() {
   const [importing, setImporting] = useState(false);
   const [view, setView] = useState<"list" | "calendar">("list");
 
-  const reload = useCallback(() => listRuns().then(setRuns).catch(() => setRuns([])), []);
+  /**
+   * True when the history could not be read. A failed read keeps whatever
+   * list was already on screen, and is only shown when there is none: it is
+   * never mistaken for an empty history.
+   */
+  const [failed, setFailed] = useState(false);
+  const reload = useCallback(() => listRuns()
+    .then((rows) => {
+      setRuns(rows);
+      setFailed(false);
+      setReadAt(Date.now());
+    })
+    .catch(() => setFailed(true)), []);
 
   // Reload whenever the tab regains focus: a run may have just finished.
   useFocusEffect(
@@ -127,10 +142,11 @@ export default function HistoryScreen() {
         .then((rows) => {
           if (!active) return;
           setRuns(rows);
+          setFailed(false);
           setReadAt(Date.now());
         })
         .catch(() => {
-          if (active) setRuns([]);
+          if (active) setFailed(true);
         });
       return () => {
         active = false;
@@ -177,7 +193,11 @@ export default function HistoryScreen() {
     }
   }
 
-  const totalM = (runs ?? []).reduce((total, run) => total + run.distanceM, 0);
+  // Rides are listed with the runs but counted apart: the totals here are a
+  // runner's, and a ride's kilometres would inflate every one of them.
+  const onFoot = ofSport(runs ?? []);
+  const rides = (runs?.length ?? 0) - onFoot.length;
+  const totalM = onFoot.reduce((total, run) => total + run.distanceM, 0);
   const sections = byMonth(runs ?? []).map((group) => ({ ...group, data: group.runs }));
 
   /**
@@ -220,7 +240,8 @@ export default function HistoryScreen() {
           <Text style={styles.title}>{s.title}</Text>
           {runs && runs.length > 0 && (
             <Text style={styles.subtitle}>
-              {s.summary(runs.length, formatDistance(totalM))}
+              {s.summary(onFoot.length, formatDistance(totalM))}
+              {rides > 0 ? s.rides(rides) : ""}
             </Text>
           )}
         </View>
@@ -256,7 +277,7 @@ export default function HistoryScreen() {
 
       {view === "calendar" && runs && runs.length > 0 ? (
         <TrainingCalendar
-          runs={runs}
+          runs={onFoot}
           now={readAt}
           bottomSpace={tabBarSpace + 60}
           onOpenRun={(id) => router.push({ pathname: "/run/[id]", params: { id: String(id) } })}
@@ -274,7 +295,7 @@ export default function HistoryScreen() {
           runs && runs.length > 0 ? <MonthBanner runs={runs} now={readAt} /> : null
         }
         ListEmptyComponent={
-          runs === null ? null : (
+          runs === null ? (failed ? <LoadError onRetry={() => void reload()} /> : null) : (
             <EmptyState
               actions={[
                 {
@@ -304,12 +325,18 @@ export default function HistoryScreen() {
             />
           )
         }
-        renderSectionHeader={({ section }) => (
-          <SectionHeader
-            title={monthName(section.start, readAt)}
-            aside={s.monthTotal(formatDistance(section.distanceM), section.runs.length)}
-          />
-        )}
+        renderSectionHeader={({ section }) => {
+          const counted = ofSport(section.runs);
+          return (
+            <SectionHeader
+              title={monthName(section.start, readAt)}
+              aside={s.monthTotal(
+                formatDistance(counted.reduce((total, run) => total + run.distanceM, 0)),
+                counted.length,
+              )}
+            />
+          );
+        }}
         renderItem={({ item, index }) => (
           <SwipeToDelete label={item.name ?? s.thisRun} onDelete={() => void askDelete(item)}>
             <RunRow
@@ -344,8 +371,7 @@ function monthName(start: number, now: number): string {
 function MonthBanner({ runs, now }: { runs: Run[]; now: number }) {
   const s = useStrings(historyStrings);
   const router = useRouter();
-  const { current, previous } = monthSummary(runs, now);
-  const ahead = current.distanceM >= previous.distanceM;
+  const { current, previous } = monthSummary(ofSport(runs), now);
   return (
     <SummaryBanner
       label={s.thisMonth}
@@ -360,11 +386,6 @@ function MonthBanner({ runs, now }: { runs: Run[]; now: number }) {
     >
       {previous.distanceM > 0 ? (
         <BannerTag>
-          <Ionicons
-            name={ahead ? "trending-up" : "trending-down"}
-            size={16}
-            color={colors.accentText}
-          />
           <Text style={bannerText.tag}>
             {s.lastMonth(monthName(previous.start, now), formatDistance(previous.distanceM))}
           </Text>
@@ -394,11 +415,15 @@ function RunRow({ run, first, onPress }: { run: Run; first: boolean; onPress: ()
       accessibilityRole="button"
       style={({ pressed }) => [styles.row, pressed && styles.pressed]}
     >
-      <RunShape runId={run.id} />
+      <RunShape runId={run.id} track={`${run.startedAt}-${run.endedAt}`} ride={run.activity === "ride"} />
       <View style={[styles.rowBody, !first && styles.rowRule]}>
         <View style={styles.rowText}>
           <Text style={styles.name} numberOfLines={1}>{run.name ?? formatDate(run.startedAt)}</Text>
-          <Text style={styles.when} numberOfLines={1}>{formatDate(run.startedAt)}</Text>
+          {/* Without a name the date is already the title; the line under
+              it says how long instead of saying the date a second time. */}
+          <Text style={styles.when} numberOfLines={1}>
+            {run.name ? formatDate(run.startedAt) : formatDuration(run.durationS)}
+          </Text>
           {run.weather || kind || typed || raced ? (
             <View style={styles.marks}>
               {run.weather ? (
@@ -436,7 +461,12 @@ function RunRow({ run, first, onPress }: { run: Run; first: boolean; onPress: ()
             {formatDistance(run.distanceM)}
             <Text style={styles.km}> {distanceUnit()}</Text>
           </Text>
-          <Text style={styles.pace}>{formatPace(run.avgPaceSKm)} {paceUnit()}</Text>
+          {/* A ride reads in speed, as every cyclist reads it. */}
+          <Text style={styles.pace}>
+            {run.activity === "ride"
+              ? `${formatSpeed(run.durationS > 0 ? run.distanceM / run.durationS : 0)} ${speedUnit()}`
+              : `${formatPace(run.avgPaceSKm)} ${paceUnit()}`}
+          </Text>
         </View>
       </View>
     </Pressable>
@@ -475,7 +505,7 @@ const styles = StyleSheet.create({
   rowRule: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline },
   rowText: { flex: 1, gap: 2 },
   name: { color: colors.text, fontSize: 18.5, fontFamily: font.semibold, letterSpacing: -0.2 },
-  when: { color: colors.subtle, fontSize: 14 },
+  when: { color: colors.subtle, fontSize: 14, fontFamily: font.regular },
   marks: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 3 },
   mark: { flexDirection: "row", alignItems: "center", gap: 3 },
   markText: { color: colors.muted, fontSize: 13.5, fontFamily: font.medium },

@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { ChoiceSheet } from "@/components/ChoiceSheet";
 import { markScale, monthsSince, monthWeeks, runsByDay } from "@/lib/calendar";
 import type { Run } from "@/lib/db";
-import { formatDistance } from "@/lib/format";
+import { formatDate, formatDistance } from "@/lib/format";
 import { intlLocale } from "@/lib/i18n";
 import { startOfDay } from "@/lib/plan";
 import { colors, font } from "@/lib/theme";
@@ -40,8 +42,15 @@ export function TrainingCalendar({ runs, now, onOpenRun, bottomSpace }: Props) {
   const months = monthsSince(oldest, now);
   const today = startOfDay(now);
   const initials = weekdayInitials();
+  /**
+   * A day with two outings or more, being chosen from. Opening the first
+   * one alone left the others out of reach from here.
+   */
+  const [picking, setPicking] = useState<{ start: number; runIds: number[] } | null>(null);
+  const byId = new Map(runs.map((run) => [run.id, run]));
 
   return (
+    <>
     <FlatList
       data={months}
       keyExtractor={(item) => `${item.year}-${item.month}`}
@@ -70,7 +79,11 @@ export function TrainingCalendar({ runs, now, onOpenRun, bottomSpace }: Props) {
                       <Pressable
                         key={index}
                         disabled={!ran}
-                        onPress={() => ran && onOpenRun(ran.runIds[0])}
+                        onPress={() => {
+                          if (!ran) return;
+                          if (ran.runIds.length === 1) onOpenRun(ran.runIds[0]);
+                          else setPicking({ start: day.start, runIds: ran.runIds });
+                        }}
                         accessibilityRole={ran ? "button" : "text"}
                         accessibilityLabel={ran
                           ? `${day.date}, ${formatDistance(ran.distanceM)} ${distanceUnit()}`
@@ -94,6 +107,30 @@ export function TrainingCalendar({ runs, now, onOpenRun, bottomSpace }: Props) {
         );
       }}
     />
+    <ChoiceSheet
+      visible={picking !== null}
+      title={picking
+        ? new Date(picking.start).toLocaleDateString(intlLocale(), { weekday: "long", day: "numeric", month: "long" })
+        : ""}
+      choices={(picking?.runIds ?? []).flatMap((id) => {
+        const run = byId.get(id);
+        return run
+          ? [{
+            value: id,
+            label: run.name ?? formatDate(run.startedAt),
+            detail: `${new Date(run.startedAt).toLocaleTimeString(intlLocale(), { hour: "2-digit", minute: "2-digit" })}`
+              + ` · ${formatDistance(run.distanceM)} ${distanceUnit()}`,
+          }]
+          : [];
+      })}
+      selected={-1}
+      onChoose={(id) => {
+        setPicking(null);
+        onOpenRun(id);
+      }}
+      onClose={() => setPicking(null)}
+    />
+    </>
   );
 }
 

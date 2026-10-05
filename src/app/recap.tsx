@@ -6,6 +6,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-nati
 import { Button } from "@/components/Button";
 import { RecapCard, periodTitle } from "@/components/RecapCard";
 import { Segmented } from "@/components/Segmented";
+import { ofSport } from "@/lib/activity";
 import { listRuns, type Run } from "@/lib/db";
 import { defineStrings, useStrings } from "@/lib/i18n";
 import { nextPeriod, previousPeriod, recapOf, type RecapKind, type RecapPeriod } from "@/lib/recap";
@@ -52,14 +53,16 @@ export default function RecapScreen() {
     year: openedAt.getFullYear(),
     month: openedAt.getMonth(),
   }));
-  const [runs, setRuns] = useState<Run[]>([]);
+  /** Null until read: a "0 km" card shown before the runs arrive would be a lie, briefly. */
+  const [loaded, setLoaded] = useState<Run[] | null>(null);
+  const runs = loaded ?? [];
   const [sharing, setSharing] = useState(false);
   const card = useRef<View>(null);
 
   useEffect(() => {
     let active = true;
     void listRuns().then((found) => {
-      if (active) setRuns(found);
+      if (active) setLoaded(ofSport(found));
     }).catch(() => undefined);
     return () => { active = false; };
   }, []);
@@ -124,7 +127,11 @@ export default function RecapScreen() {
       </View>
 
       <View style={styles.preview}>
-        <RecapCard ref={card} recap={recap} />
+        {/* Its room is kept while the runs are read, and the card only
+            drawn once they are: nothing moves when they arrive. */}
+        <View style={loaded === null && styles.waiting}>
+          <RecapCard ref={card} recap={recap} />
+        </View>
       </View>
 
       <Button label={sharing ? s.sharing : s.share} onPress={() => void share()} disabled={sharing || recap.runs === 0} />
@@ -133,6 +140,7 @@ export default function RecapScreen() {
 }
 
 const styles = StyleSheet.create({
+  waiting: { opacity: 0 },
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: 20, gap: 16, paddingBottom: 48 },
   stepper: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },

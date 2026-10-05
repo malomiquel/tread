@@ -38,14 +38,14 @@ read once at launch.
 | Token | Light | Dark | Use |
 |---|---|---|---|
 | `background` | `#ffffff` | `#0b0b0c` | Page, sheets, opaque rows |
-| `sunken` | `#f4f4f4` | `#18181a` | Settings blocks, pressed rows |
+| `sunken` | `#f4f4f4` | `#18181a` | Settings blocks, pressed rows, icon tiles, run shapes |
 | `hairline` | `#e6e6e6` | `#2b2b2e` | Rules, card borders, inactive ticks |
 | `text` | `#101010` | `#f2f2f3` | Headings, names, figures |
 | `muted` | text at 62 % | text at 62 % | Body text, secondary figures |
 | `subtle` | text at 42 % | text at 44 % | Captions, units, group labels, chevrons |
 | `accent` | `#00348f` | `#6fa8ff` | Primary action, selection, banners, active tab |
 | `accentText` | `#ffffff` | `#04101f` | Text and icons **on** `accent` |
-| `accentSoft` | accent at 12 % | accent at 18 % | Icon tiles, chips, secondary buttons, totals |
+| `accentSoft` | accent at 12 % | accent at 18 % | Chips, a chosen filter, secondary header buttons |
 | `warning` | `#9a5b06` | `#d69a3e` | Run in progress, race-day chip, eased plan |
 | `danger` | `#b3261e` | `#f08078` | Destructive actions only |
 | `dangerSoft` | danger at 10 % | danger at 16 % | Border of a destructive button |
@@ -59,8 +59,12 @@ colour. For those only, `literalColors` gives the raw pair (`track`,
 **Rules**
 - Text on `accent` is always `accentText`, never white. In dark mode the
   accent is light, so its text is dark.
-- `accentSoft` + `accent` is the pairing for anything tinted: an icon tile, a
-  chip, a secondary header button, a total tile.
+- `accentSoft` + `accent` is the pairing for anything tinted: a chip, a chosen
+  filter, a secondary header button. Never for decoration: an icon tile, a
+  total or a past week's bar is neutral. Tinting every tile is what makes a
+  page look generated.
+- In a chart, past values are `hairline` and the one still under way is
+  `accent`.
 - Translucent white (`rgba(255,255,255,0.16–0.22)`) is only used **inside a
   blue banner**, for its tags and progress track.
 
@@ -94,6 +98,7 @@ defaults.
 | Body | 15–15.5 | regular | 0 | muted |
 | Caption, detail | 13–14.5 | regular | 0 | subtle |
 | Group label | 11.5–13 | medium/semibold, UPPERCASE | 1.0–1.4 | subtle |
+| Banner label, empty-state label | 15 | medium / semibold | 0 | accentText 80 % / muted |
 | Banner figure | 34 (+16 unit) | semibold | −0.8 | accentText |
 | Metric | 32 (22 compact, 86 large) | semibold (large: bold) | −0.9 | text |
 | Metric label | 11.5, UPPERCASE | semibold | 1.3 | subtle |
@@ -104,7 +109,7 @@ defaults.
 - Every number that can change uses `fontVariant: ["tabular-nums"]`, so digits
   don't jitter as a run ticks.
 - A unit sits beside its figure, smaller and in `subtle`: `8,42 km`.
-- Uppercase is for labels only (group labels, metric labels, banner label),
+- Uppercase is for labels only (settings group labels, metric labels),
   always with letter-spacing.
 
 ---
@@ -131,9 +136,9 @@ defaults.
 | Radius | Use |
 |---|---|
 | 6 | `Button` (a small radius reads as a control) |
-| 8 | Setting icon tile, chips |
+| 8 | Chips |
 | 12 | Action cards, record icon tile, choices |
-| 14 | Settings blocks, total tiles |
+| 14 | Settings blocks |
 | 16 | Summary banner |
 | 18 | Header buttons (pill, height 36), sheets |
 | 20 | Picker sheets over the map |
@@ -157,8 +162,9 @@ defaults.
 - **Ionicons** (`@expo/vector-icons/Ionicons`), outline style by default
   (`*-outline`). Filled only for the active state or on a blue surface.
 - Sizes: 17–19 in tiles, 20–22 in cards and tabs, 24 for primary controls.
-- An icon that stands for a thing sits in a **tile**: `accentSoft` background,
-  `accent` icon (settings 30 px / radius 8, records 40 px / radius 12).
+- An icon that stands for a thing sits in a **tile**: `sunken` background,
+  `muted` icon (records 40 px / radius 12). In a settings block, already
+  `sunken`, the icon stands bare in a 24 px column, `muted`, size 19.
 - The **run disc**: `accent` circle, white `play` nudged 2–3 px right (a
   triangle centred geometrically looks off-centre). While a run records it
   turns `warning` with `radio-button-on`. In running text, write `▶`:
@@ -174,15 +180,17 @@ defaults.
 |---|---|
 | `FloatingTabBar` | The bar: Plan · Parcours · **run disc** · Historique · Profil. Five equal slots, before the run on the left, after it on the right. |
 | `HeaderButton` | The action beside a page title. Icon + word. `primary` (filled) for the page's main action (New route); soft for secondary (Import, Settings). |
-| `SummaryBanner` + `BannerTag` | The one figure a page leads with, on blue: the month in History, the week in Profile. Tags for a comparison or an invitation. |
+| `SummaryBanner` + `BannerTag` | The one figure a page leads with, on blue: the month in History, the week in Profile. Tags for a comparison or an invitation, in words only: no flame, no trend arrow. |
 | `SectionHeader` | A block's heading: bold name left, accent total right. Can be sticky. |
 | `EmptyState` | Every empty tab: a rule, "Get started", then action cards of fixed height (one primary, blue). |
-| `SettingsGroup` + `SettingRow` | Every settings screen: rounded `sunken` block, icon tile, label, value right, chevron when it leads somewhere, footer for the one explanation. |
+| `LoadError` | A page whose data could not be read: what happened in a sentence, that nothing is lost, and "Try again". Never the empty state: a history that failed to load is not an empty history. A failed reload keeps what was already on screen. |
+| `SettingsGroup` + `SettingRow` | Every settings screen: rounded `sunken` block, bare icon, label, value right, chevron when it leads somewhere, footer for the one explanation. |
 
 ### Controls
 
 | Component | Use it for |
 |---|---|
+| `PressableScale` | Anything that is a button rather than a row: `Button`, `HeaderButton`, the empty state's cards, a pressable banner. Gives under the finger (scale 0.96, 90 ms down, 160 ms up) instead of fading. Rows in a list keep the `sunken` background. |
 | `Button` | Full-width actions in sheets and forms. `primary`, `secondary`, `danger`. Min height 50, radius 6. |
 | `HoldButton` | Steppers that repeat while held (goal, pace). |
 | `Segmented` | Two or three ways of seeing the same thing (History: list or calendar). The one showing is filled on the `sunken` track. |
@@ -203,6 +211,8 @@ defaults.
 | `ShareCard` | The picture a run leaves as. |
 | `RecapCard` | A month or a year as a picture, the run card's size, on the light accent whatever the appearance. |
 | `LineChart` | A series against distance on a run's page (altitude, pace, heart rate): line over a soft fill, the two extremes named. |
+| `RideDashboard` | The same place on a ride: the speed of the moment large, the average beside its unit, the top speed under it. No verdict and no gauge: a ride has no pace to hold. Paused, a `warning` chip says so in the room kept for it. |
+| `RunDashboard` | The run screen while recording, over the map: a verdict chip (on pace, too slow, too fast, free), the pace of the moment large, the target beside its unit, a gauge read like a speedometer (too slow left, too fast right) whose marker springs around the tolerance band, and the block under way with what is left and what comes next. Off pace, the chip, the marker and the figure turn `warning` together. |
 
 ### Sheets and dialogs
 
@@ -278,13 +288,44 @@ choice have a tick; rows that act have a switch.
 
 ### The run screen
 
-The map is the screen. Everything else floats over it in glass: the way out
-top-left, the toggles (SESSION, ROUTE, VOICE) in a column on the right, the
-panel at the bottom with the figures and the controls. Toggles show state by
-colour (`accent` on, `text` off), never by fading.
+At rest the map is the screen. Once a run records, `RunDashboard` slides in
+over it from the right: the question mid-run is "am I on pace", not "where
+am I". A `Segmented` control at the top, centred and level with the way
+out, switches between Pace and Map; the map kept following underneath.
+Every run starts on Pace. The panel stays in both views, giving
+the average rather than the current pace while the dashboard shows it large.
 
-While running, the controls are pause and stop side by side, with the **lap
-button** under them: a flat pill (height 36), flag and word, found by feel.
+At rest, the same place at the top holds a `Segmented` Run / Ride, kept
+from one outing to the next. A ride is the same screen read in speed:
+`RideDashboard` instead of `RunDashboard`, Speed / Map, `km/h` in the panel,
+no SESSION toggle (sessions and target paces are a runner's). Choosing a
+session from the plan switches back to Run.
+
+Rides are listed in History with the runs, as a "Ride" chip and a speed
+where a run shows its pace, but they count in none of a runner's figures:
+totals, month banner, week, goal, streak, records, best efforts,
+predictions, plan, widget and recap are all made of runs alone. A ride wears
+no shoes.
+
+While a run is paused, "Paused" or "Auto-paused" leads the status line in
+`warning`, whatever else the line says, and both dashboards show the same
+word in their chip. The weather keeps the right end of the status line while
+running (sky icon and degrees); at rest it has its own line, whose room is
+kept even before it answers.
+
+On the map, the screen is the map. Everything else floats over it in glass: the way out
+top-left, the toggles (SESSION, ROUTE, VOICE) in a column on the right
+— SESSION and ROUTE only before the start, since a choice made mid-run
+would change the map but not what the run follows — the
+panel at the bottom with the figures and the controls. Toggles show state by
+colour (`accent` on, `text` off) and, for the ones that open a choice, a dot
+in the corner when one is set; never by fading.
+
+While running, the controls take the panel's full width under a row of four
+figures, sized for a thumb mid-stride: **pause** in the middle, a filled
+disc of 72, the largest thing on the panel; **lap** (flag and word) and
+**finish** (stop and word, red ring and text) either side as pills of height
+56. Finish still asks before it ends the run.
 Once a lap is pressed the status line follows the lap under way, in
 `accent`, as a session's line does; a session's line wins over it. On a chosen route the
 line follows the route: distance left, the next turn within 200 m, "Off
@@ -306,6 +347,20 @@ One idea per page: what the app does → why you run → where you are → how
 often (slider) → permissions. A progress bar of four segments, a way back, a
 way to skip. "Continue" is disabled until the page is answered.
 
+### Setting up a plan
+
+The welcome's shape: one question per page — race → date → rhythm and days →
+fitness today (longest run, weekly volume) → target time and paces — then a
+**recap** of every answer as settings rows, each opening its page again, with
+the plan's size ("14 weeks · 42 sessions, then the race") and "Create the
+plan" at the end. Nothing is made before the recap.
+
+Under twenty minutes of running without stopping (down to "Never run"), the
+fitness page says so in one line: the plan starts on run-walk, a minute's
+running at a time, with no intervals and no pace. Such sessions show "by
+feel" where others show their pace, and on the run screen a walking block
+reads "Walk" rather than a verdict on the pace.
+
 ---
 
 ## Motion
@@ -320,6 +375,8 @@ way to skip. "Continue" is disabled until the page is answered.
 
 - Animate **transform**, not opacity, on anything native (maps, glass): an
   animated opacity is what left screens blank.
+- A pressed button scales to 0.96 (`PressableScale`); it never fades. A
+  pressed row turns `sunken`.
 - Tabs switch without a transition.
 - Things arrive from the edge they belong to; they don't fade in.
 

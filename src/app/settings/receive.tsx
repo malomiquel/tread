@@ -1,7 +1,8 @@
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { File, Paths } from "expo-file-system";
 import { useState } from "react";
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Linking, StyleSheet, Text, View } from "react-native";
+import { Button } from "@/components/Button";
 import { restoreTransfer } from "@/lib/db";
 import { readHandoverUrl } from "@/lib/handover";
 import { defineStrings, useStrings } from "@/lib/i18n";
@@ -30,6 +31,8 @@ const receiveStrings = defineStrings({
     cameraReason:
       "Pour lire le code affiché sur l'autre téléphone, l'app a besoin de la caméra. Elle ne s'en sert que sur cet écran, et ne garde aucune image.",
     allowCamera: "Autoriser la caméra",
+    cameraBlocked: "La caméra a été refusée. Autorise-la dans les réglages du téléphone, puis reviens ici.",
+    openSettings: "Ouvrir les réglages",
     receiving: "Réception…",
     aim: "Vise le code affiché sur l'ancien téléphone.",
   },
@@ -51,6 +54,8 @@ const receiveStrings = defineStrings({
     cameraReason:
       "To read the code shown on the other phone, the app needs the camera. It only uses it on this screen, and keeps no pictures.",
     allowCamera: "Allow camera",
+    cameraBlocked: "Camera access was turned down. Allow it in your phone's settings, then come back here.",
+    openSettings: "Open settings",
     receiving: "Receiving…",
     aim: "Scan the code shown on the old phone.",
   },
@@ -143,13 +148,16 @@ export default function ReceiveOverWifi() {
     return (
       <View style={styles.screen}>
         <Text style={styles.lede}>{s.cameraReason}</Text>
-        <Pressable
-          onPress={() => void requestPermission()}
-          accessibilityRole="button"
-          style={({ pressed }) => [styles.ask, pressed && styles.pressed]}
-        >
-          <Text style={styles.askLabel}>{s.allowCamera}</Text>
-        </Pressable>
+        {/* Once refused, the phone no longer asks: only its settings can
+            say yes, so the button goes there instead of doing nothing. */}
+        {permission.canAskAgain ? (
+          <Button label={s.allowCamera} onPress={() => void requestPermission()} />
+        ) : (
+          <>
+            <Text style={styles.lede}>{s.cameraBlocked}</Text>
+            <Button label={s.openSettings} onPress={() => void Linking.openSettings()} />
+          </>
+        )}
       </View>
     );
   }
@@ -188,10 +196,4 @@ const styles = StyleSheet.create({
     color: colors.muted, fontFamily: font.regular, fontSize: 16,
     textAlign: "center", lineHeight: 23,
   },
-  ask: {
-    paddingHorizontal: 20, paddingVertical: 12, borderRadius: 24,
-    backgroundColor: colors.accent,
-  },
-  askLabel: { color: colors.accentText, fontFamily: font.semibold, fontSize: 16 },
-  pressed: { opacity: 0.6 },
 });
