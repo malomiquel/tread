@@ -54,8 +54,21 @@ function version(fallback) {
 // goes backwards, and the count of commits only ever goes up.
 const buildNumber = git("git rev-list --count HEAD") || "1";
 
+/**
+ * iCloud is a paid team's capability: a free personal team cannot sign an
+ * app that asks for it. With TREAD_NO_ICLOUD=1 the build leaves it out, so
+ * the app still installs from Xcode; the safety copy then finds no cloud and
+ * keeps quiet, as it does for anyone signed out of iCloud.
+ */
+const withoutICloud = process.env.TREAD_NO_ICLOUD === "1";
+const ICLOUD_PLUGINS = ["react-native-cloud-storage", "./plugins/withICloudFolderName"];
+const pluginName = (plugin) => (Array.isArray(plugin) ? plugin[0] : plugin);
+
 module.exports = ({ config }) => ({
   ...config,
+  plugins: withoutICloud
+    ? (config.plugins ?? []).filter((plugin) => !ICLOUD_PLUGINS.includes(pluginName(plugin)))
+    : config.plugins,
   version: version(config.version ?? "1.0.0"),
   ios: { ...config.ios, buildNumber },
   android: { ...config.android, versionCode: Number(buildNumber) },
