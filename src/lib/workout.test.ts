@@ -175,3 +175,11 @@ test("only the VMA test comes with advice", () => {
   assert.equal(sessionAdvice(sessionById("vma-test")!).length, 4);
   assert.equal(sessionAdvice(sessionById("1000")!).length, 0);
 });
+
+test("a block's length keeps its seconds", async () => {
+  const { secondsName, stepLabel } = await import("./workout.ts");
+  assert.equal(secondsName(90), "1 min 30");
+  assert.equal(secondsName(120), "2 min");
+  assert.equal(secondsName(30), "30 s");
+  assert.ok(stepLabel({ effort: "walk", seconds: 90 }).startsWith("1 min 30 "));
+});

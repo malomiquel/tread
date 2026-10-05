@@ -64,7 +64,7 @@ export async function refreshReminders({ force = false } = {}): Promise<void> {
         name: sessionName(entry.session),
         kind: kindName(entry.kind),
         minutes: sessionMinutes(entry.session),
-        pace: formatPace(entry.targetSKm),
+        pace: entry.targetSKm === null ? null : formatPace(entry.targetSKm),
         weather: forecast === null ? null : forecastSentence(forecast),
         settled: entry.settled,
       };

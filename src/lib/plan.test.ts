@@ -5,7 +5,7 @@ import {
   loadOfWeek, pacesFrom,
   easeFactor, nextToRun, longCeilingMin, longestReachedMin, LONG_PEAK_MIN, longMinutes, normaliseDays,
   phaseOfWeek, planProgress, projectedTimeS, schedule, SLOT_DAYS, slotDates,
-  startOfDay,
+  startOfDay, firstRung, isNovice, longestRunMin, rungOfWeek, RUN_WALK,
   type Done, type PlannedSession,
 } from "./plan.ts";
 
@@ -508,4 +508,64 @@ test("a run's session is recognised whichever way it was named", async () => {
   assert.equal(sessionKind("race-half"), "race");
   assert.equal(sessionKind(null), null);
   assert.equal(sessionKind("something-else"), null);
+});
+
+// A first programme, for someone who has never run.
+
+const firstFiveK = (longestMin: number, weeks = 10, perWeek: 1 | 2 | 3 | 4 = 3) =>
+  buildPlan({ goal: "fiveK", weeks, perWeek, targetTimeS: 2100, longestMin, weeklyKm: 3 });
+
+test("someone who has never run starts on a minute's running between walks", () => {
+  const plan = firstFiveK(0);
+  const week1 = plan.filter((p) => p.week === 1);
+  assert.equal(week1.length, 3);
+  for (const planned of week1) {
+    assert.ok(planned.session.id.startsWith("runwalk-"));
+    const runs = planned.session.steps.filter((step) => step.effort === "steady");
+    assert.ok(runs.every((step) => step.seconds === 60));
+    assert.ok(planned.session.steps.some((step) => step.effort === "walk"));
+    assert.equal(planned.targetSKm, null);
+  }
+});
+
+test("a first programme holds no intervals and no threshold work", () => {
+  for (const perWeek of [1, 2, 3, 4] as const) {
+    const kinds = new Set(firstFiveK(0, 12, perWeek).map((p) => p.kind));
+    assert.ok(!kinds.has("interval") && !kinds.has("tempo"), `at ${perWeek} a week`);
+  }
+});
+
+test("a first programme asks for no pace but the race's", () => {
+  for (const planned of firstFiveK(0)) {
+    if (planned.kind === "race") assert.ok(planned.targetSKm !== null);
+    else assert.equal(planned.targetSKm, null);
+  }
+});
+
+test("the run-walk ladder climbs a rung a week and holds every fourth", () => {
+  assert.deepEqual([1, 2, 3, 4, 5].map((w) => rungOfWeek(w, 0)), [0, 1, 2, 2, 3]);
+  assert.equal(rungOfWeek(20, 0), null);
+});
+
+test("the ladder starts at half of what the runner can already run", () => {
+  assert.equal(firstRung(0), 0);
+  assert.equal(RUN_WALK[firstRung(10)].runS <= 300, true);
+  assert.ok(firstRung(10) > firstRung(5));
+});
+
+test("a beginner given time ends the ladder running twenty minutes and more", () => {
+  const plan = firstFiveK(0, 12);
+  assert.ok(longestRunMin(plan) >= 20);
+  // Never more running at once than the week before, bar the step-backs.
+  const firstRun = plan.find((p) => p.week === 1)!;
+  assert.equal(longestRunMin([firstRun]), 1);
+});
+
+test("twenty minutes without stopping is a runner, not a beginner", () => {
+  assert.equal(isNovice(19), true);
+  assert.equal(isNovice(20), false);
+  const kinds = new Set(buildPlan({
+    goal: "fiveK", weeks: 10, perWeek: 3, targetTimeS: 1800, longestMin: 30, weeklyKm: 15,
+  }).map((p) => p.kind));
+  assert.ok(kinds.has("interval"));
 });

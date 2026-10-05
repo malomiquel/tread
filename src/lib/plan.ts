@@ -35,7 +35,9 @@
 // The extension is spelled out because this is a value import, not a type
 // one: node runs these modules directly for the tests and resolves paths the
 // way the web does, without guessing at extensions.
+import { formatPace } from "./format.ts";
 import { defineStrings } from "./i18n.ts";
+import { paceUnit } from "./units.ts";
 import { eased, raceName, type Session, type Step } from "./workout.ts";
 
 /** A race a plan can be built for. */
@@ -287,6 +289,12 @@ const kindNames = defineStrings<Record<Kind, string>>({
 /** Displayed. */
 export const kindName = (kind: Kind): string => kindNames()[kind];
 
+const feelWords = defineStrings({ fr: { feel: "à ton aise" }, en: { feel: "by feel" } });
+
+/** A session's pace as shown beside it: "5'40\"/km", or "by feel" when it has none. */
+export const targetName = (targetSKm: number | null): string =>
+  targetSKm === null ? feelWords().feel : `${formatPace(targetSKm)}${paceUnit()}`;
+
 /**
  * What kind of session a run followed, from the id it was stored with.
  *
@@ -313,8 +321,12 @@ export interface PlannedSession {
   phase: Phase;
   kind: Kind;
   session: Session;
-  /** The pace to hold through the session's paced blocks, in s/km. */
-  targetSKm: number;
+  /**
+   * The pace to hold through the session's paced blocks, in s/km, or null
+   * for a session run by feel: a beginner's, where the only pace worth
+   * holding is one they can talk at.
+   */
+  targetSKm: number | null;
 }
 
 export interface PlanInput {
@@ -324,7 +336,8 @@ export interface PlanInput {
   /** The finish time the plan trains for. */
   targetTimeS: number;
   /**
-   * How long the runner's longest run is today, in minutes.
+   * How long the runner's longest run is today, in minutes. Zero for someone
+   * who has never run.
    *
    * Without it a plan can only guess, and it guesses from the race, which is
    * how a beginner ends up handed a ninety minute run in their first week.
@@ -499,6 +512,21 @@ export function longMinutes(
   return round5(week % 4 === 0 ? at(week) * 0.75 : at(week));
 }
 
+/**
+ * The longest stretch a plan has you running without stopping, in minutes,
+ * the race aside: what it actually builds to.
+ */
+export function longestRunMin(sessions: readonly PlannedSession[]): number {
+  let longest = 0;
+  for (const planned of sessions) {
+    if (planned.kind === "race") continue;
+    for (const step of planned.session.steps) {
+      if (step.effort === "steady" && step.seconds !== undefined) longest = Math.max(longest, step.seconds / 60);
+    }
+  }
+  return Math.round(longest);
+}
+
 /** What the plan will have you running at its longest, for the warning. */
 export function longestReachedMin(
   goal: Goal,
@@ -621,6 +649,134 @@ function raceSession(goal: GoalSpec, paces: Paces): Unplaced {
 }
 
 /**
+ * Under this, the runner cannot yet run for twenty minutes without stopping,
+ * and the plan starts them walking.
+ *
+ * CONVENTION: twenty minutes of continuous running is where every beginner
+ * programme hands over from run-walk to running.
+ */
+export const NOVICE_BELOW_MIN = 20;
+
+/** True when a plan starts from run-walk rather than running. */
+export const isNovice = (longestMin: number): boolean => longestMin < NOVICE_BELOW_MIN;
+
+/**
+ * The run-walk ladder, a rung a week, from a minute's running to ten.
+ *
+ * PUBLISHED in shape: it follows the NHS "Couch to 5K" programme, which
+ * takes someone who has never run to thirty minutes over nine weeks by
+ * alternating running and walking and lengthening the running. The rungs
+ * themselves are CHOSEN to fit it into one session shape per week.
+ *
+ * Someone who has never run is not unfit at running, they are unused to it:
+ * the heart and lungs manage a minute's jog on day one, the tendons and
+ * shins do not manage twenty. The walking is what lets the legs catch up.
+ */
+export const RUN_WALK: readonly { runS: number; walkS: number; times: number }[] = [
+  { runS: 60, walkS: 90, times: 8 },
+  { runS: 90, walkS: 120, times: 6 },
+  { runS: 120, walkS: 120, times: 5 },
+  { runS: 180, walkS: 90, times: 5 },
+  { runS: 300, walkS: 150, times: 3 },
+  { runS: 480, walkS: 180, times: 2 },
+  { runS: 600, walkS: 120, times: 2 },
+];
+
+/** The first continuous run once the ladder is climbed, in minutes. */
+const GRADUATE_MIN = NOVICE_BELOW_MIN;
+
+/**
+ * The rung to start on: running blocks of half what the runner can already
+ * run without stopping, so the first week is one they finish.
+ */
+export function firstRung(longestMin: number): number {
+  const half = (longestMin * 60) / 2;
+  let rung = 0;
+  RUN_WALK.forEach((step, index) => {
+    if (step.runS <= half) rung = index;
+  });
+  return rung;
+}
+
+/**
+ * The rung a week stands on, or null once the ladder is climbed. One rung a
+ * week, holding still every fourth: the step back every plan takes.
+ */
+export function rungOfWeek(week: number, longestMin: number): number | null {
+  const climbed = week - 1 - Math.floor((week - 1) / 4);
+  const held = week % 4 === 0 ? climbed - 1 : climbed;
+  const rung = firstRung(longestMin) + Math.max(0, held);
+  return rung < RUN_WALK.length ? rung : null;
+}
+
+/** Brisk walking either side, as every beginner programme opens and closes. */
+const WALK_AROUND_S = 300;
+
+function runWalkSession(rung: number): Unplaced {
+  const { runS, walkS, times } = RUN_WALK[rung];
+  return {
+    kind: "easy",
+    targetSKm: null,
+    session: {
+      id: `runwalk-${runS}-${walkS}-${times}`,
+      name: `Course-marche ${times} × ${runS / 60} min`,
+      steps: [
+        { effort: "walk", seconds: WALK_AROUND_S },
+        ...repeat(times, { effort: "steady", seconds: runS }, { effort: "walk", seconds: walkS }).slice(0, -1),
+        { effort: "walk", seconds: WALK_AROUND_S },
+      ],
+    },
+  };
+}
+
+/**
+ * A beginner's easy run once off the ladder: the twenty minutes they have
+ * just learnt to run, by feel. Not scaled down as a regular runner's is —
+ * shorter would be a step back down the ladder.
+ */
+function graduateEasy(): Unplaced {
+  return {
+    kind: "easy",
+    targetSKm: null,
+    session: {
+      id: `easy-${GRADUATE_MIN}`,
+      name: `Footing ${durationName(GRADUATE_MIN)}`,
+      steps: [{ effort: "steady", seconds: GRADUATE_MIN * 60 }],
+    },
+  };
+}
+
+/**
+ * A beginner's week. Run-walk while the ladder lasts, every session alike;
+ * then easy running and a long run growing from twenty minutes. Never a
+ * repetition nor a block at threshold: in a first programme speed comes from
+ * running more, and a first injury from running fast.
+ */
+function noviceWeek(
+  goal: GoalSpec,
+  perWeek: PerWeek,
+  week: number,
+  weeks: number,
+  graduatedAt: number | null,
+  longestMin: number,
+  raceMin: number,
+  paces: Paces,
+): Unplaced[] {
+  const rung = rungOfWeek(week, longestMin);
+  if (rung !== null || graduatedAt === null) {
+    return Array.from({ length: perWeek }, () => runWalkSession(rung ?? RUN_WALK.length - 1));
+  }
+  const long: Unplaced = {
+    ...longSession(
+      longMinutes(goal.id, week - graduatedAt + 1, weeks - graduatedAt + 1, goal.taperWeeks, GRADUATE_MIN, raceMin),
+      paces,
+    ),
+    targetSKm: null,
+  };
+  return [...Array.from({ length: perWeek - 1 }, graduateEasy), long];
+}
+
+/**
  * What an ordinary week holds, by volume.
  *
  * CHOSEN. The one-a-week arrangement in particular — a quality session every
@@ -675,6 +831,11 @@ export function buildPlan(input: PlanInput): PlannedSession[] {
   const weeks = clampWeeks(goal, input.weeks);
   const sessions: PlannedSession[] = [];
   let order = 0;
+  const novice = isNovice(input.longestMin);
+  // The first week off the ladder, for a beginner who climbs it in time.
+  const graduatedAt = novice
+    ? Array.from({ length: weeks }, (_, i) => i + 1).find((w) => rungOfWeek(w, input.longestMin) === null) ?? null
+    : null;
 
   for (let week = 1; week <= weeks; week += 1) {
     const phase = phaseOfWeek(week, weeks, goal.taperWeeks);
@@ -683,15 +844,22 @@ export function buildPlan(input: PlanInput): PlannedSession[] {
     // Race week is its own shape at any volume: a couple of short runs to
     // stay loose, then the race. At one session a week there is nothing to
     // stay loose from, so it is the race alone.
+    // A beginner stays loose the way they have been running: on the last
+    // rung they climbed, or easy by feel if they were off the ladder before
+    // race week.
+    const loosen = (): Unplaced => {
+      if (!novice) return easySession(input.longestMin, paces);
+      if (graduatedAt !== null && graduatedAt < week) return graduateEasy();
+      return runWalkSession(Math.min(rungOfWeek(week - 1, input.longestMin) ?? RUN_WALK.length - 1, RUN_WALK.length - 1));
+    };
     const body: Unplaced[] = week === weeks
       ? [
-          ...Array.from(
-            { length: Math.min(2, input.perWeek - 1) },
-            () => easySession(input.longestMin, paces),
-          ),
+          ...Array.from({ length: Math.min(2, input.perWeek - 1) }, loosen),
           raceSession(goal, paces),
         ]
-      : weekBody(
+      : novice
+        ? noviceWeek(goal, input.perWeek, week, weeks, graduatedAt, input.longestMin, input.targetTimeS / 60, paces)
+        : weekBody(
           input.perWeek, week, phase, load, paces,
           longMinutes(
             goal.id, week, weeks, goal.taperWeeks, input.longestMin, input.targetTimeS / 60,
@@ -909,7 +1077,7 @@ export function nextToRun(
   raceMs: number,
   recent: readonly Exertion[],
   todayMs: number,
-): { session: Session; order: number; at: number; kind: Kind } | null {
+): { session: Session; order: number; at: number; kind: Kind; targetSKm: number | null } | null {
   const next = nextSession(schedule(sessions, done, todayMs, raceMs, days));
   if (!next) return null;
   const factor = next.kind === "race" ? 1 : easeFactor(recent);
@@ -918,6 +1086,7 @@ export function nextToRun(
     order: next.order,
     at: next.at,
     kind: next.kind,
+    targetSKm: next.targetSKm,
   };
 }
 

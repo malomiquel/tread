@@ -33,7 +33,9 @@ export const RUNNER_FREQUENCIES: readonly RunnerFrequency[] = [1, 2, 3, 4];
 const OUTING_KM: Record<RunnerLevel, number> = { new: 3, occasional: 5, weekly: 7 };
 
 /** The longest run someone at each level can be assumed to manage, in minutes. */
-const LONGEST_MIN: Record<RunnerLevel, number> = { new: 20, occasional: 40, weekly: 60 };
+// Five for a beginner: "twenty minutes is a challenge" means the programme
+// starts on run-walk, a couple of minutes' running at a time.
+const LONGEST_MIN: Record<RunnerLevel, number> = { new: 5, occasional: 40, weekly: 60 };
 
 /**
  * Coming back is running less than you used to, whatever you used to run.

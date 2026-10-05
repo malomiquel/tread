@@ -1,7 +1,8 @@
-import { formatDistance, formatDuration, formatPace } from "./format.ts";
+import { formatDistance, formatDuration } from "./format.ts";
 import { goalAmount, measure, type WeeklyGoal } from "./goals.ts";
 import { defineStrings, intlLocale, plural } from "./i18n.ts";
-import { distanceUnit, paceUnit } from "./units.ts";
+import { targetName } from "./plan.ts";
+import { distanceUnit } from "./units.ts";
 
 /**
  * What the home-screen widget shows, written out in full by the app.
@@ -37,7 +38,7 @@ export interface WidgetInput {
   /** Metres climbed this week, for a goal that counts climb. */
   weekClimbM?: number;
   goal: WeeklyGoal | null;
-  next: { at: number; name: string; kind: string; targetSKm: number } | null;
+  next: { at: number; name: string; kind: string; targetSKm: number | null } | null;
   now: number;
 }
 
@@ -105,7 +106,7 @@ export function widgetSnapshot(input: WidgetInput): WidgetSnapshot {
       : {
         when: whenLabel(input.next.at, input.now),
         name: input.next.name,
-        detail: `${input.next.kind} · ${formatPace(input.next.targetSKm)}${paceUnit()}`,
+        detail: `${input.next.kind} · ${targetName(input.next.targetSKm)}`,
       },
     noPlan: words.noPlan,
     updatedAt: input.now,

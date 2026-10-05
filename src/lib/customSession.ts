@@ -34,7 +34,7 @@ export interface CustomSession {
   groups: DraftGroup[];
 }
 
-export const EFFORTS: readonly Effort[] = ["warmup", "fast", "recovery", "steady", "cooldown"];
+export const EFFORTS: readonly Effort[] = ["warmup", "fast", "recovery", "steady", "walk", "cooldown"];
 
 export const MAX_TIMES = 30;
 const MIN_METRES = 100;

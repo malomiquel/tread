@@ -32,8 +32,8 @@ export interface Plannable {
   kind: string;
   /** How long it is meant to take. */
   minutes: number;
-  /** The pace to hold, already formatted — `4'30"`. */
-  pace: string;
+  /** The pace to hold, already formatted — `4'30"` — or null for a session run by feel. */
+  pace: string | null;
   /** The day's weather as a sentence, or null when nothing is known. */
   weather: string | null;
   /** Already run or already passed: nothing left to remind anybody about. */
@@ -96,12 +96,14 @@ const reminderWords = defineStrings({
     tomorrow: "Demain",
     today: "Aujourd'hui",
     work: (kind: string, minutes: number, pace: string) => `${kind}, ${minutes} min, allure ${pace}${paceUnit()}`,
+    workByFeel: (kind: string, minutes: number) => `${kind}, ${minutes} min, à ton aise`,
     when: { off: "Aucun", evening: "La veille au soir", morning: "Le matin même" } as Record<ReminderWhen, string>,
   },
   en: {
     tomorrow: "Tomorrow",
     today: "Today",
     work: (kind: string, minutes: number, pace: string) => `${kind}, ${minutes} min, at ${pace}${paceUnit()}`,
+    workByFeel: (kind: string, minutes: number) => `${kind}, ${minutes} min, by feel`,
     when: { off: "Off", evening: "The evening before", morning: "That morning" },
   },
 });
@@ -109,7 +111,9 @@ const reminderWords = defineStrings({
 export function reminderText(session: Plannable, when: ReminderWhen): { title: string; body: string } {
   const words = reminderWords();
   const lead = when === "evening" ? words.tomorrow : words.today;
-  const work = words.work(session.kind, session.minutes, session.pace);
+  const work = session.pace === null
+    ? words.workByFeel(session.kind, session.minutes)
+    : words.work(session.kind, session.minutes, session.pace);
   return {
     title: `${lead} · ${session.name}`,
     body: session.weather ? `${work}\n${session.weather}` : work,

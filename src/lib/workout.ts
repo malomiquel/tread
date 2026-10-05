@@ -2,7 +2,7 @@ import { decimal, defineStrings } from "./i18n.ts";
 
 /** Structured sessions: what to run, and for how long, announced as you go. */
 
-export type Effort = "warmup" | "fast" | "recovery" | "steady" | "cooldown";
+export type Effort = "warmup" | "fast" | "recovery" | "steady" | "cooldown" | "walk";
 
 /**
  * One block of a session, measured either in distance or in time — never both.
@@ -77,6 +77,7 @@ const effortNames = defineStrings<Record<Effort, string>>({
     recovery: "récupération",
     steady: "allure",
     cooldown: "retour au calme",
+    walk: "marche",
   },
   en: {
     warmup: "warm-up",
@@ -84,6 +85,7 @@ const effortNames = defineStrings<Record<Effort, string>>({
     recovery: "recovery",
     steady: "steady",
     cooldown: "cool-down",
+    walk: "walk",
   },
 });
 
@@ -94,8 +96,20 @@ export function stepLabel(step: Step): string {
     ? step.metres >= 1000
       ? `${decimal((step.metres / 1000).toString())} km`
       : `${step.metres} m`
-    : `${Math.round((step.seconds ?? 0) / 60)} min`;
+    : secondsName(step.seconds ?? 0);
   return `${measure} ${effortName(step.effort)}`;
+}
+
+/**
+ * "3 min", "1 min 30" — displayed. The seconds are kept because a run-walk
+ * session is built of ninety second blocks, and "2 min" for one of them
+ * would be the app getting its own session wrong.
+ */
+export function secondsName(seconds: number): string {
+  const minutes = Math.floor(seconds / 60);
+  const rest = Math.round(seconds % 60);
+  if (rest === 0) return `${minutes} min`;
+  return minutes === 0 ? `${rest} s` : `${minutes} min ${String(rest).padStart(2, "0")}`;
 }
 
 /**
@@ -367,6 +381,7 @@ const sessionWords = defineStrings({
     easy: (duration: string) => `Footing ${duration}`,
     long: (duration: string) => `Sortie longue ${duration}`,
     threshold: (blocks: number, minutes: number) => `${blocks} × ${minutes} min au seuil`,
+    runWalk: (times: number, run: string) => `Course-marche ${times} × ${run}`,
     pyramid: "Pyramide 1-2-3-2-1",
     vmaTest: "Test VMA (demi-Cooper)",
     races: { fiveK: "5 km", tenK: "10 km", half: "Semi-marathon", marathon: "Marathon" },
@@ -375,6 +390,7 @@ const sessionWords = defineStrings({
     easy: (duration: string) => `Easy run ${duration}`,
     long: (duration: string) => `Long run ${duration}`,
     threshold: (blocks: number, minutes: number) => `${blocks} × ${minutes} min at threshold`,
+    runWalk: (times: number, run: string) => `Run-walk ${times} × ${run}`,
     pyramid: "Pyramid 1-2-3-2-1",
     vmaTest: "VMA test (half-Cooper)",
     races: { fiveK: "5 km", tenK: "10 km", half: "Half marathon", marathon: "Marathon" },
@@ -435,6 +451,9 @@ export function sessionName(session: Session): string {
 
   if (kind === "easy" || kind.startsWith("easy-")) return words.easy(durationName(minutesOf(paced[0])));
   if (kind === "long" || kind.startsWith("long-")) return words.long(durationName(minutesOf(paced[0])));
+  if (kind.startsWith("runwalk-") && paced.length > 0) {
+    return words.runWalk(paced.length, secondsName(paced[0].seconds ?? 0));
+  }
   if (kind === "pyramid") return words.pyramid;
   if (kind === "vma-test") return words.vmaTest;
   if ((kind === "400" || kind.startsWith("interval-")) && fast[0]?.metres !== undefined) {
