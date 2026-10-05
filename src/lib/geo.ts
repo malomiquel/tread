@@ -150,6 +150,34 @@ export function currentPace(points: TrackPoint[], nowTs: number, windowS = 30): 
   return elapsedS / (travelled / 1000);
 }
 
+/**
+ * The highest speed held over `windowS` seconds, in metres per second, or
+ * null for a track too short to have one.
+ *
+ * Over a window rather than fix to fix: a single fix a few metres out reads
+ * as a burst of speed nobody rode, and a top speed is the one figure such a
+ * fix would always win.
+ */
+export function topSpeedMs(points: TrackPoint[], windowS = 10): number | null {
+  let top: number | null = null;
+  for (const segment of segments(points)) {
+    let from = 0;
+    let travelled = 0;
+    for (let to = 1; to < segment.length; to++) {
+      travelled += distanceM(segment[to - 1], segment[to]);
+      while (from < to - 1 && (segment[to].ts - segment[from + 1].ts) / 1000 >= windowS) {
+        travelled -= distanceM(segment[from], segment[from + 1]);
+        from += 1;
+      }
+      const elapsedS = (segment[to].ts - segment[from].ts) / 1000;
+      if (elapsedS < windowS) continue;
+      const speed = travelled / elapsedS;
+      if (top === null || speed > top) top = speed;
+    }
+  }
+  return top;
+}
+
 export interface Split {
   /** 1 for the first kilometre (or mile), and so on. */
   km: number;

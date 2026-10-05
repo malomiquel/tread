@@ -40,6 +40,8 @@ const OWN_PACKAGE = "com.malomiquel.tread";
 /** Health Connect's number for a run, and for one on a treadmill. */
 const RUNNING = 56;
 const RUNNING_TREADMILL = 57;
+/** And for a ride. */
+const BIKING = 8;
 
 /** Ready once the library is there and Health Connect answers on this phone. */
 async function ready(): Promise<Api | null> {
@@ -119,7 +121,7 @@ export async function readHeartBeats(startedAt: number, endedAt: number): Promis
  * energy, so it counts in the day's totals. Returns the session's id.
  */
 export async function writeRun(
-  run: { name: string | null; startedAt: number; endedAt: number; distanceM: number },
+  run: { name: string | null; startedAt: number; endedAt: number; distanceM: number; ride: boolean },
   points: readonly TrackPoint[],
   energyKcal: number | null,
 ): Promise<string | null> {
@@ -129,7 +131,7 @@ export async function writeRun(
   try {
     const [sessionId] = await api.insertRecords([{
       recordType: "ExerciseSession",
-      exerciseType: RUNNING,
+      exerciseType: run.ride ? BIKING : RUNNING,
       title: run.name ?? undefined,
       ...range,
       ...(points.length > 1
@@ -207,7 +209,8 @@ export async function readNewSessions(anchor: string | undefined): Promise<{ wor
     do {
       const page = await api.readRecords("ExerciseSession", { timeRangeFilter: between(since, now), pageToken });
       for (const session of page.records) {
-        if (session.exerciseType !== RUNNING && session.exerciseType !== RUNNING_TREADMILL) continue;
+        const ride = session.exerciseType === BIKING;
+        if (!ride && session.exerciseType !== RUNNING && session.exerciseType !== RUNNING_TREADMILL) continue;
         const origin = session.metadata?.dataOrigin ?? "";
         const uuid = session.metadata?.id;
         if (!uuid || origin === OWN_PACKAGE) continue;
@@ -226,6 +229,7 @@ export async function readNewSessions(anchor: string | undefined): Promise<{ wor
           durationS: (endedAt - startedAt) / 1000,
           distanceM: distance > 0 ? distance : null,
           indoor: session.exerciseType === RUNNING_TREADMILL,
+          ride,
           sourceName: ORIGINS[origin] ?? origin,
           locations: (session.exerciseRoute?.route ?? []).map((location) => ({
             ts: new Date(location.time).getTime(),

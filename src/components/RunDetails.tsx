@@ -154,8 +154,8 @@ export function RunDetails({ run, onChange }: Props) {
           onPress={() => setChoosingType(true)}
         />
         {/* Nothing to say about shoes before any pair exists: the row would
-            only offer "none". */}
-        {shoes.length > 0 ? (
+            only offer "none". Nor on a ride, which wore none. */}
+        {shoes.length > 0 && run.activity !== "ride" ? (
           <SettingRow
             icon="footsteps-outline"
             label={s.shoes}
@@ -253,7 +253,8 @@ export function RunDetails({ run, onChange }: Props) {
         selected={run.activity}
         choices={ACTIVITY_TYPES.map((type) => ({ value: type, label: activityName(type) }))}
         onChoose={(activity) => {
-          onChange({ activity });
+          // Turned into a ride, it lets go of its shoes, as the database does.
+          onChange(activity === "ride" ? { activity, shoeId: null } : { activity });
           void setRunActivity(run.id, activity).catch(() => undefined);
         }}
         onClose={() => setChoosingType(false)}

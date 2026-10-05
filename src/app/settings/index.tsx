@@ -5,6 +5,7 @@ import { SettingRow } from "@/components/SettingRow";
 import { SettingsGroup } from "@/components/SettingsGroup";
 import { WeeklyGoalSheet } from "@/components/WeeklyGoalSheet";
 import { currentBuild } from "@/lib/build";
+import { ofSport } from "@/lib/activity";
 import { listRuns, listShoes } from "@/lib/db";
 import { defineStrings, useStrings } from "@/lib/i18n";
 import { LANGUAGE_NAMES } from "@/lib/language";
@@ -109,7 +110,7 @@ export default function SettingsScreen() {
       let active = true;
       void listRuns()
         .then((runs) => {
-          if (active) setSuggestedM(suggestedWeeklyGoalM(runs));
+          if (active) setSuggestedM(suggestedWeeklyGoalM(ofSport(runs)));
         })
         .catch(() => undefined);
       void listShoes()

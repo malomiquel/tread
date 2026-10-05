@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   bounds, currentPace, distanceM, elevationGainM, fastestKmS, isAcceptable,
   paceSecPerKm, regionAround, splits, totalDistanceM, type TrackPoint, elevationProfile,
-  ABSURD_SPEED_MS, fitRegion, projectPoint } from "./geo.ts";
+  ABSURD_SPEED_MS, fitRegion, projectPoint, topSpeedMs } from "./geo.ts";
 
 const at = (ts: number, lat: number, lng: number, extra: Partial<TrackPoint> = {}): TrackPoint => ({
   ts, lat, lng, alt: null, accuracy: 5, speed: null, segment: 0, ...extra,
@@ -317,4 +317,19 @@ test("north is up and east is right", () => {
   const opposite = projectPoint(region, { lat: 48.445, lng: 1.495 }, 288, 512);
   assert.ok(Math.abs(opposite.x - 288) < 1e-9);
   assert.ok(Math.abs(opposite.y - 512) < 1e-9);
+});
+
+test("top speed: held over the window, not a single jump", () => {
+  const steady = straightLine(30, 1, 8);
+  const top = topSpeedMs(steady)!;
+  assert.ok(Math.abs(top - 8) < 0.05, `got ${top}`);
+  // One fix thrown 40 m ahead and back again lifts a ten second window by
+  // far less than it would lift a single step.
+  const jumped = steady.map((point, i) => (i === 15 ? { ...point, lat: point.lat + 40 * DEG_PER_M } : point));
+  assert.ok(topSpeedMs(jumped)! < 16, `got ${topSpeedMs(jumped)}`);
+});
+
+test("top speed: none for a track shorter than the window", () => {
+  assert.equal(topSpeedMs(straightLine(5, 1, 8)), null);
+  assert.equal(topSpeedMs([]), null);
 });

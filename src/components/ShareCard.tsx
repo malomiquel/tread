@@ -6,11 +6,11 @@ import type { Run } from "@/lib/db";
 import { stepsFrom } from "@/lib/cadence";
 import { fitRegion, regionAround, type MapRegion, type TrackPoint } from "@/lib/geo";
 import {
-  formatCount, formatDate, formatDistance, formatDuration, formatElevation, formatPace,
+  formatCount, formatDate, formatDistance, formatDuration, formatElevation, formatPace, formatSpeed,
 } from "@/lib/format";
 import { defineStrings, useStrings } from "@/lib/i18n";
 import { font } from "@/lib/theme";
-import { distanceUnit, elevationUnit, paceUnit } from "@/lib/units";
+import { distanceUnit, elevationUnit, paceUnit, speedUnit } from "@/lib/units";
 import { formatTemperature, weatherIcon } from "@/lib/weather";
 
 /**
@@ -64,8 +64,8 @@ const INK_SOFT = "rgba(255, 255, 255, 0.66)";
 const INK_FAINT = "rgba(255, 255, 255, 0.46)";
 
 const cardStrings = defineStrings({
-  fr: { time: "TEMPS", pace: "ALLURE", elevation: "DÉNIVELÉ", steps: "PAS" },
-  en: { time: "TIME", pace: "PACE", elevation: "ELEVATION", steps: "STEPS" },
+  fr: { time: "TEMPS", pace: "ALLURE", speed: "VITESSE", elevation: "DÉNIVELÉ", steps: "PAS" },
+  en: { time: "TIME", pace: "PACE", speed: "SPEED", elevation: "ELEVATION", steps: "STEPS" },
 });
 
 interface Props {
@@ -205,7 +205,15 @@ export const ShareCard = forwardRef<View, Props>(function ShareCard(
 
         <View style={styles.stats}>
           <Stat value={formatDuration(run.durationS)} label={s.time} />
-          <Stat value={formatPace(run.avgPaceSKm)} unit={paceUnit()} label={s.pace} />
+          {run.activity === "ride" ? (
+            <Stat
+              value={formatSpeed(run.durationS > 0 ? run.distanceM / run.durationS : 0)}
+              unit={speedUnit()}
+              label={s.speed}
+            />
+          ) : (
+            <Stat value={formatPace(run.avgPaceSKm)} unit={paceUnit()} label={s.pace} />
+          )}
           {elevation !== null && elevation > 0 ? (
             <Stat value={formatElevation(elevation)} unit={elevationUnit()} label={s.elevation} />
           ) : null}

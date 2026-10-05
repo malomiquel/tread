@@ -68,9 +68,20 @@ const runNames = defineStrings({
   },
 });
 
-export function autoName(ts: number): string {
+const rideNames = defineStrings({
+  fr: {
+    night: "Vélo de nuit", morning: "Vélo du matin", lunch: "Vélo du midi",
+    afternoon: "Vélo de l'après-midi", evening: "Vélo du soir",
+  },
+  en: {
+    night: "Night ride", morning: "Morning ride", lunch: "Lunch ride",
+    afternoon: "Afternoon ride", evening: "Evening ride",
+  },
+});
+
+export function autoName(ts: number, ride = false): string {
   const hour = new Date(ts).getHours();
-  const names = runNames();
+  const names = ride ? rideNames() : runNames();
   if (hour < 5) return names.night;
   if (hour < 11) return names.morning;
   if (hour < 14) return names.lunch;

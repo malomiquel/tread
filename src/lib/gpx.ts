@@ -7,6 +7,8 @@ import { segments, type TrackPoint } from "./geo.ts";
 export interface GpxRun {
   name: string | null;
   startedAt: number;
+  /** What it was, so a ride goes back out as a ride: absent reads as a run. */
+  activity?: string;
 }
 
 const escapeXml = (text: string): string =>
@@ -24,7 +26,7 @@ const iso = (ts: number): string => new Date(ts).toISOString();
  * straight line drawn through wherever you happened to walk.
  */
 export function toGpx(run: GpxRun, points: TrackPoint[]): string {
-  const name = escapeXml(run.name ?? "Run");
+  const name = escapeXml(run.name ?? (run.activity === "ride" ? "Ride" : "Run"));
   const tracks = segments(points)
     .map((track) => {
       const fixes = track
@@ -45,7 +47,7 @@ export function toGpx(run: GpxRun, points: TrackPoint[]): string {
   </metadata>
   <trk>
     <name>${name}</name>
-    <type>running</type>
+    <type>${run.activity === "ride" ? "cycling" : "running"}</type>
 ${tracks}
   </trk>
 </gpx>
@@ -65,7 +67,7 @@ ${tracks}
  * Each <trkseg> becomes a segment, which is how a pause survives the round
  * trip out of the app and back in.
  */
-export function parseGpx(xml: string): { name: string | null; points: TrackPoint[] } {
+export function parseGpx(xml: string): { name: string | null; points: TrackPoint[]; ride: boolean } {
   const points: TrackPoint[] = [];
   let segment = 0;
 
@@ -117,7 +119,18 @@ export function parseGpx(xml: string): { name: string | null; points: TrackPoint
         .replace(/&quot;/g, '"').replace(/&amp;/g, "&").trim() || null
     : null;
 
-  return { name, points };
+  return { name, points, ride: isRide(xml) };
+}
+
+/**
+ * Whether the file says it is a ride. Every app spells it its own way —
+ * "cycling" here, "road_biking" from Garmin, "Ride" or "1" from Strava —
+ * so the track's type is matched loosely, and anything unsaid is a run.
+ */
+function isRide(xml: string): boolean {
+  const type = /<trk>[\s\S]*?<type>([^<]+)<\/type>/i.exec(xml)?.[1]?.trim().toLowerCase();
+  if (!type) return false;
+  return type === "1" || /cycl|bik|ride|velo|vélo/.test(type);
 }
 
 /**

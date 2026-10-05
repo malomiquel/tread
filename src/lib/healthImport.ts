@@ -23,6 +23,8 @@ export interface HealthWorkout {
   distanceM: number | null;
   /** On a treadmill or indoors. */
   indoor: boolean;
+  /** A ride rather than a run. */
+  ride: boolean;
   /** The app or device that wrote it: "Apple Watch", "Garmin Connect". */
   sourceName: string;
   locations: { ts: number; lat: number; lng: number; alt: number | null; accuracy: number | null; speed: number | null }[];
@@ -51,6 +53,8 @@ export function toImportedRun(workout: HealthWorkout): ImportedRun {
   // Health's own total first: a watch measures distance on the wrist as well
   // as by GPS, and indoors it has no track at all.
   const distanceM = workout.distanceM ?? totalDistanceM(points);
+  // A ride keeps none of a runner's measures, as one recorded here does not.
+  const ride = workout.ride;
   return {
     startedAt: workout.startedAt,
     endedAt: workout.endedAt,
@@ -58,9 +62,9 @@ export function toImportedRun(workout: HealthWorkout): ImportedRun {
     durationS: Math.round(workout.durationS),
     avgPaceSKm: paceSecPerKm(distanceM, workout.durationS),
     elevationGainM: elevationGainM(points),
-    fastestKmS: fastestKmS(points),
-    bestEfforts: bestEfforts(points),
-    activity: workout.indoor ? "treadmill" : "run",
+    fastestKmS: ride ? null : fastestKmS(points),
+    bestEfforts: ride ? {} : bestEfforts(points),
+    activity: ride ? "ride" : workout.indoor ? "treadmill" : "run",
     points,
   };
 }

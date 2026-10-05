@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { readSport, type Sport } from "./activity";
 import { deleteSettings, readSettings, writeSetting } from "./db";
 import { goalFromSettings, readGoalKind, type GoalKind, type WeeklyGoal } from "./goals";
 import { applyLanguage, readLanguageChoice, type LanguageChoice } from "./language";
@@ -79,12 +80,18 @@ export interface Settings {
    * tab opens on its usual page, and the form is a tap away like for anyone.
    */
   raceSetupOffered: boolean;
+  /**
+   * What the next outing recorded will be: a run or a ride. Kept from one
+   * outing to the next, since most people do the same thing tomorrow.
+   */
+  sport: Sport;
 }
 
 const DEFAULTS: Settings = {
   voice: true, targetPaceSKm: null, weeklyGoalM: null, goalKind: "distance", weeklyGoalS: null,
   weeklyGoalClimbM: null, reminder: "off", routeId: null,
   welcomed: false, language: "auto", runner: null, raceSetupOffered: false, autoPause: false, healthImport: false, units: "auto", privacyRadiusM: DEFAULT_PRIVACY_RADIUS,
+  sport: "running",
 };
 
 /**
@@ -120,6 +127,7 @@ export async function loadSettings(): Promise<void> {
       healthImport: stored.healthImport === "true",
       units: readUnitChoice(stored.units),
       privacyRadiusM: readPrivacyRadius(stored.privacyRadiusM),
+      sport: readSport(stored.sport),
     });
   } catch {
     // Unreadable settings are not worth failing a launch over.
@@ -194,6 +202,11 @@ export async function toggleAutoPause(): Promise<void> {
 /** Speak the kilometres, or stop speaking them. */
 export async function toggleVoice(): Promise<void> {
   await store({ ...current, voice: !current.voice }, "voice", String(!current.voice));
+}
+
+/** Record runs or rides from now on. */
+export async function setSport(sport: Sport): Promise<void> {
+  await store({ ...current, sport }, "sport", sport);
 }
 
 /** Set the pace to hold, or null to run free. */

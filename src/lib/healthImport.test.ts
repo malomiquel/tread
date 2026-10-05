@@ -11,7 +11,7 @@ const locations = Array.from({ length: 21 }, (_, i) => ({
 test("a watch's workout becomes a run with its track and figures", () => {
   const run = toImportedRun({
     uuid: "A", startedAt: START, endedAt: START + 600_000, durationS: 600, distanceM: 2010,
-    indoor: false, sourceName: "Apple Watch", locations,
+    indoor: false, ride: false, sourceName: "Apple Watch", locations,
   });
   assert.equal(run.distanceM, 2010);
   assert.equal(run.durationS, 600);
@@ -24,11 +24,22 @@ test("a watch's workout becomes a run with its track and figures", () => {
 test("a treadmill workout has no track and keeps Health's distance", () => {
   const run = toImportedRun({
     uuid: "B", startedAt: START, endedAt: START + 1_800_000, durationS: 1800, distanceM: 5000,
-    indoor: true, sourceName: "Apple Watch", locations: [],
+    indoor: true, ride: false, sourceName: "Apple Watch", locations: [],
   });
   assert.equal(run.activity, "treadmill");
   assert.equal(run.points.length, 0);
   assert.equal(run.avgPaceSKm, 360);
+});
+
+test("a ride from the watch comes in as a ride, without a runner's measures", () => {
+  const ride = toImportedRun({
+    uuid: "C", startedAt: START, endedAt: START + 600_000, durationS: 600, distanceM: 2010,
+    indoor: false, ride: true, sourceName: "Apple Watch", locations,
+  });
+  assert.equal(ride.activity, "ride");
+  assert.equal(ride.fastestKmS, null);
+  assert.deepEqual(ride.bestEfforts, {});
+  assert.equal(ride.points.length, 21);
 });
 
 test("the same outing on the phone and the watch is kept once", () => {

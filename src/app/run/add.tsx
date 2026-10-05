@@ -7,15 +7,15 @@ import { HoldButton } from "@/components/HoldButton";
 import { Metric } from "@/components/Metric";
 import { SettingRow } from "@/components/SettingRow";
 import { SettingsGroup } from "@/components/SettingsGroup";
-import { ACTIVITY_ICONS, ACTIVITY_TYPES, activityName, type ActivityType } from "@/lib/activity";
+import { ACTIVITY_ICONS, ACTIVITY_TYPES, activityName, sportOf, type ActivityType, type Sport } from "@/lib/activity";
 import { addManualRun } from "@/lib/db";
-import { autoName, formatDistance, formatDuration, formatPace } from "@/lib/format";
+import { autoName, formatDistance, formatDuration, formatPace, formatSpeed } from "@/lib/format";
 import { paceSecPerKm } from "@/lib/geo";
 import { defineStrings, intlLocale, useStrings } from "@/lib/i18n";
 import { refreshHomeWidget } from "@/lib/homeWidget";
 import { startOfDay } from "@/lib/plan";
 import { colors, font } from "@/lib/theme";
-import { distanceUnit, paceUnit, unitLengthM } from "@/lib/units";
+import { distanceUnit, paceUnit, speedUnit, unitLengthM } from "@/lib/units";
 
 const strings = defineStrings({
   fr: {
@@ -43,9 +43,10 @@ const strings = defineStrings({
     footer: "Pour une sortie sur tapis ou sans téléphone. Sans tracé, elle n'a ni carte ni fractionnés, mais compte dans tes totaux et ton objectif.",
     time: "Temps",
     pace: "Allure",
-    save: "Ajouter la course",
+    speed: "Vitesse",
+    save: { running: "Ajouter la course", cycling: "Ajouter la sortie" } as Record<Sport, string>,
     saveFailed: "Ajout impossible",
-    tryAgain: "La course n'a pas pu être ajoutée. Réessaie.",
+    tryAgain: "La sortie n'a pas pu être ajoutée. Réessaie.",
   },
   en: {
     when: "When",
@@ -72,9 +73,10 @@ const strings = defineStrings({
     footer: "For a treadmill run or one without your phone. With no track it has no map or splits, but it counts in your totals and your goal.",
     time: "Time",
     pace: "Pace",
-    save: "Add the run",
+    speed: "Speed",
+    save: { running: "Add the run", cycling: "Add the ride" },
     saveFailed: "Couldn't add",
-    tryAgain: "The run couldn't be added. Try again.",
+    tryAgain: "The outing couldn't be added. Try again.",
   },
 });
 
@@ -238,7 +240,7 @@ export default function AddRunScreen() {
         <TextInput
           value={name}
           onChangeText={setName}
-          placeholder={autoName(startedAt)}
+          placeholder={autoName(startedAt, activity === "ride")}
           placeholderTextColor={colors.subtle}
           style={styles.input}
           maxLength={60}
@@ -249,11 +251,15 @@ export default function AddRunScreen() {
       <View style={styles.result}>
         <Metric label={s.distance} value={formatDistance(distanceM)} unit={distanceUnit()} />
         <Metric label={s.time} value={formatDuration(durationS)} />
-        <Metric label={s.pace} value={formatPace(paceSecPerKm(distanceM, durationS))} unit={paceUnit()} />
+        {activity === "ride" ? (
+          <Metric label={s.speed} value={formatSpeed(durationS > 0 ? distanceM / durationS : 0)} unit={speedUnit()} />
+        ) : (
+          <Metric label={s.pace} value={formatPace(paceSecPerKm(distanceM, durationS))} unit={paceUnit()} />
+        )}
       </View>
 
       <View style={styles.actions}>
-        <Button label={s.save} onPress={() => void save()} disabled={saving} />
+        <Button label={s.save[sportOf(activity)]} onPress={() => void save()} disabled={saving} />
       </View>
 
       <ChoiceSheet

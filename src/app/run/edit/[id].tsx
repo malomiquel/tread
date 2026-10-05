@@ -8,13 +8,13 @@ import { RunMap } from "@/components/RunMap";
 import { SettingRow } from "@/components/SettingRow";
 import { SettingsGroup } from "@/components/SettingsGroup";
 import { readRun, rewriteRun, type Run } from "@/lib/db";
-import { formatDistance, formatDuration, formatPace } from "@/lib/format";
+import { formatDistance, formatDuration, formatPace, formatSpeed } from "@/lib/format";
 import type { TrackPoint } from "@/lib/geo";
 import { forgetRunInHealth, syncRunToHealth } from "@/lib/health";
 import { defineStrings, useStrings } from "@/lib/i18n";
 import { editRun, maxCutS } from "@/lib/runEdit";
 import { colors, font } from "@/lib/theme";
-import { distanceUnit, paceUnit, unitLengthM } from "@/lib/units";
+import { distanceUnit, paceUnit, speedUnit, unitLengthM } from "@/lib/units";
 
 const strings = defineStrings({
   fr: {
@@ -30,14 +30,15 @@ const strings = defineStrings({
     distance: "Distance",
     time: "Temps",
     pace: "Allure",
+    speed: "Vitesse",
     correct: "Corriger la distance",
     correctFooter: "Si le GPS s'est trompé : la distance et l'allure prennent ta valeur, les fractionnés et les records restent ceux du tracé.",
     shorter: "Distance plus courte",
     longer: "Distance plus longue",
     save: "Enregistrer",
     saveFailed: "Enregistrement impossible",
-    tryAgain: "La course n'a pas pu être modifiée. Réessaie.",
-    notFound: "Course introuvable.",
+    tryAgain: "La sortie n'a pas pu être modifiée. Réessaie.",
+    notFound: "Sortie introuvable.",
   },
   en: {
     cut: "Cut",
@@ -52,14 +53,15 @@ const strings = defineStrings({
     distance: "Distance",
     time: "Time",
     pace: "Pace",
+    speed: "Speed",
     correct: "Correct the distance",
     correctFooter: "If the GPS got it wrong: distance and pace take your figure, splits and records stay the track's.",
     shorter: "Shorter distance",
     longer: "Longer distance",
     save: "Save",
     saveFailed: "Couldn't save",
-    tryAgain: "The run couldn't be edited. Try again.",
-    notFound: "Run not found.",
+    tryAgain: "The outing couldn't be edited. Try again.",
+    notFound: "Outing not found.",
   },
 });
 
@@ -218,7 +220,15 @@ export default function EditRunScreen() {
       <View style={styles.result}>
         <Metric label={s.distance} value={formatDistance(edited.distanceM)} unit={distanceUnit()} />
         <Metric label={s.time} value={formatDuration(edited.durationS)} />
-        <Metric label={s.pace} value={formatPace(edited.avgPaceSKm)} unit={paceUnit()} />
+        {run.activity === "ride" ? (
+          <Metric
+            label={s.speed}
+            value={formatSpeed(edited.durationS > 0 ? edited.distanceM / edited.durationS : 0)}
+            unit={speedUnit()}
+          />
+        ) : (
+          <Metric label={s.pace} value={formatPace(edited.avgPaceSKm)} unit={paceUnit()} />
+        )}
       </View>
 
       <View style={styles.actions}>

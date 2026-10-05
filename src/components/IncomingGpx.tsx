@@ -98,8 +98,8 @@ export function IncomingGpx() {
     void (async () => {
       const file = new File(`file://${encodeURI(path)}`);
       try {
-        const { name, points } = parseGpx(await file.text());
-        const id = await importRun(name, points);
+        const { name, points, ride } = parseGpx(await file.text());
+        const id = await importRun(name, points, ride ? "ride" : "run");
         if (id === null) {
           router.replace("/");
           Alert.alert(incomingStrings().nothingTitle, incomingStrings().nothingMessage);

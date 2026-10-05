@@ -166,3 +166,22 @@ test("a route's file is named after it, and survives any file system", () => {
   assert.equal(routeGpxFileName("Sortie d'été · 10 km"), "sortie-d-ete-10-km.gpx");
   assert.equal(routeGpxFileName("···"), "parcours.gpx");
 });
+
+test("gpx: a ride goes out as cycling and comes back as a ride", () => {
+  const points = [at(Date.UTC(2026, 8, 21, 7), 48.85, 2.35), at(Date.UTC(2026, 8, 21, 7, 0, 5), 48.86, 2.35)];
+  const xml = toGpx({ ...run, activity: "ride" }, points);
+  assert.ok(xml.includes("<type>cycling</type>"));
+  assert.equal(parseGpx(xml).ride, true);
+  assert.equal(parseGpx(toGpx(run, points)).ride, false);
+});
+
+test("gpx: rides named the way other apps name them", () => {
+  const typed = (type: string) => `<gpx><trk><name>x</name><type>${type}</type><trkseg>`
+    + '<trkpt lat="48.85" lon="2.35"><time>2026-09-21T07:00:00Z</time></trkpt></trkseg></trk></gpx>';
+  for (const type of ["cycling", "road_biking", "Ride", "1", "VTT vélo"]) {
+    assert.equal(parseGpx(typed(type)).ride, true, type);
+  }
+  for (const type of ["running", "9", "trail_running", "hiking"]) {
+    assert.equal(parseGpx(typed(type)).ride, false, type);
+  }
+});

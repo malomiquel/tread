@@ -34,10 +34,10 @@ async function pickGpx(): Promise<DocumentPicker.DocumentPickerAsset[] | null> {
 
 const fileWords = defineStrings({
   fr: {
-    runsAdded: (n: number) => `${n} course${n > 1 ? "s" : ""} ajoutée${n > 1 ? "s" : ""}`,
+    runsAdded: (n: number) => `${n} sortie${n > 1 ? "s" : ""} ajoutée${n > 1 ? "s" : ""}`,
     known: (n: number) => `${n} déjà connue${n > 1 ? "s" : ""}`,
     unreadable: (n: number) => `${n} illisible${n > 1 ? "s" : ""}`,
-    noRuns: "Aucune course dans ces fichiers.",
+    noRuns: "Aucune sortie dans ces fichiers.",
     routesAdded: (n: number) => `${n} parcours ajouté${n > 1 ? "s" : ""}`,
     empty: (n: number) => `${n} fichier${n > 1 ? "s" : ""} sans tracé`,
     noRoutes: "Aucun tracé dans ces fichiers.",
@@ -45,10 +45,10 @@ const fileWords = defineStrings({
     exported: (n: number) => `${n} course${n > 1 ? "s" : ""} exportée${n > 1 ? "s" : ""}`,
   },
   en: {
-    runsAdded: (n: number) => `${n} run${n === 1 ? "" : "s"} added`,
+    runsAdded: (n: number) => `${n} outing${n === 1 ? "" : "s"} added`,
     known: (n: number) => `${n} already here`,
     unreadable: (n: number) => `${n} unreadable`,
-    noRuns: "No runs in these files.",
+    noRuns: "No outings in these files.",
     routesAdded: (n: number) => `${n} route${n === 1 ? "" : "s"} added`,
     empty: (n: number) => `${n} file${n === 1 ? "" : "s"} without a track`,
     noRoutes: "No tracks in these files.",
@@ -70,8 +70,8 @@ export async function importRunFiles(): Promise<string | null> {
   let unreadable = 0;
   for (const asset of assets) {
     try {
-      const { name, points } = parseGpx(await new File(asset.uri).text());
-      const id = await importRun(name, points);
+      const { name, points, ride } = parseGpx(await new File(asset.uri).text());
+      const id = await importRun(name, points, ride ? "ride" : "run");
       if (id === null) known += 1;
       else added += 1;
     } catch {

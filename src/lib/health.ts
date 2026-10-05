@@ -1,6 +1,7 @@
 import { Platform, TurboModuleRegistry } from "react-native";
 import { readRun, setHealthUuid, type Run } from "./db";
-import { estimateActiveEnergyKcal } from "./energy";
+import { outingEnergyKcal } from "./energy";
+import type { ActivityType } from "./activity";
 import { maxHeartRateFor, summarise, type Beat, type Heart } from "./heart";
 import { segments, totalDistanceM, type TrackPoint } from "./geo";
 import type { HealthWorkout } from "./healthImport";
@@ -14,6 +15,7 @@ type Api = typeof import("@kingstinct/react-native-healthkit");
 type Types = typeof import("@kingstinct/react-native-healthkit/types");
 
 const DISTANCE = "HKQuantityTypeIdentifierDistanceWalkingRunning";
+const DISTANCE_CYCLING = "HKQuantityTypeIdentifierDistanceCycling";
 const ENERGY = "HKQuantityTypeIdentifierActiveEnergyBurned";
 const BODY_MASS = "HKQuantityTypeIdentifierBodyMass";
 const HEART_RATE = "HKQuantityTypeIdentifierHeartRate";
@@ -87,7 +89,7 @@ export const healthStoreName = (): string => storeNames()[Platform.OS === "andro
  */
 function permissions(types: Types) {
   return {
-    toShare: [types.WorkoutTypeIdentifier, types.WorkoutRouteTypeIdentifier, DISTANCE, ENERGY],
+    toShare: [types.WorkoutTypeIdentifier, types.WorkoutRouteTypeIdentifier, DISTANCE, DISTANCE_CYCLING, ENERGY],
     // Workouts and their routes are read as well as written: the runs a
     // watch recorded are brought in when the runner asks for them.
     toRead: [BODY_MASS, HEART_RATE, DATE_OF_BIRTH, types.WorkoutTypeIdentifier, types.WorkoutRouteTypeIdentifier],
@@ -230,8 +232,10 @@ function ceiling(api: Api, at: number): number | null {
  * the day's distance graph flat for that quarter of an hour, not draw a block
  * across it.
  */
-function quantitiesFor(points: TrackPoint[], weightKg: number | null) {
+function quantitiesFor(points: TrackPoint[], weightKg: number | null, activity: ActivityType) {
   const samples = [];
+  // Health keeps a ride's distance apart from the day's walking and running.
+  const quantityType = activity === "ride" ? DISTANCE_CYCLING : DISTANCE;
 
   for (const segment of segments(points)) {
     const distance = totalDistanceM(segment);
@@ -239,9 +243,10 @@ function quantitiesFor(points: TrackPoint[], weightKg: number | null) {
 
     const startDate = new Date(segment[0].ts);
     const endDate = new Date(segment[segment.length - 1].ts);
-    samples.push({ startDate, endDate, quantityType: DISTANCE, quantity: distance, unit: "m" } as const);
+    samples.push({ startDate, endDate, quantityType, quantity: distance, unit: "m" } as const);
 
-    const energy = weightKg === null ? null : estimateActiveEnergyKcal(distance, weightKg);
+    const seconds = (segment[segment.length - 1].ts - segment[0].ts) / 1000;
+    const energy = weightKg === null ? null : outingEnergyKcal(activity, distance, seconds, weightKg);
     if (energy !== null) {
       samples.push({ startDate, endDate, quantityType: ENERGY, quantity: energy, unit: "kcal" } as const);
     }
@@ -288,16 +293,21 @@ export async function syncRunToHealth(runId: number): Promise<string | null> {
 
   try {
     const weight = await bodyMassKg(health.api);
-    const energy = estimateActiveEnergyKcal(run.distanceM, weight ?? Number.NaN);
+    const energy = outingEnergyKcal(run.activity, run.distanceM, run.durationS, weight ?? Number.NaN);
 
-    const workout = await health.api.saveWorkoutSample(
-      health.types.WorkoutActivityType.running,
-      quantitiesFor(points, weight),
+    const save = (quantities: ReturnType<typeof quantitiesFor>) => health.api.saveWorkoutSample(
+      run.activity === "ride" ? health.types.WorkoutActivityType.cycling : health.types.WorkoutActivityType.running,
+      quantities,
       new Date(run.startedAt),
       new Date(endedAt),
       { distance: run.distanceM, ...(energy === null ? {} : { energyBurned: energy }) },
       { HKWorkoutBrandName: "Tread" },
     );
+    // Somebody who allowed Health before rides existed has never been asked
+    // about cycling distance, and a sample of it is refused. The workout is
+    // still worth saving without its samples.
+    const workout = await save(quantitiesFor(points, weight, run.activity))
+      .catch((cause: unknown) => (run.activity === "ride" ? save([]) : Promise.reject(cause)));
 
     // The route is a bonus, not the point: a workout that saved without its
     // trace is still a run in Health, so a refusal here is not a failure.
@@ -351,7 +361,7 @@ function inSeconds(quantity: { quantity: number; unit: string }): number {
 }
 
 /**
- * The running workouts other apps wrote to Health since `anchor`, with their
+ * The runs and rides other apps wrote to Health since `anchor`, with their
  * tracks, and the anchor to ask from next time. Null where Health is absent
  * or will not answer.
  *
@@ -363,37 +373,71 @@ export async function readNewWorkouts(anchor: string | undefined): Promise<{ wor
   const health = healthKit();
   if (!health) return null;
   try {
-    const answer = await health.api.queryWorkoutSamplesWithAnchor({
-      limit: 0,
-      anchor,
-      filter: { workoutActivityType: health.types.WorkoutActivityType.running },
-    });
+    // One anchor per kind of workout, since each is its own query. Kept
+    // together in one setting; a bare one is from before rides, and is the
+    // running one.
+    const held = readAnchors(anchor);
+    const kinds = [
+      { ride: false, key: "running", type: health.types.WorkoutActivityType.running },
+      { ride: true, key: "cycling", type: health.types.WorkoutActivityType.cycling },
+    ] as const;
     const workouts: HealthWorkout[] = [];
-    for (const workout of answer.workouts) {
-      if (workout.sourceRevision.source.bundleIdentifier === OWN_BUNDLE) continue;
-      const routes = await workout.getWorkoutRoutes().catch(() => []);
-      workouts.push({
-        uuid: workout.uuid,
-        startedAt: workout.startDate.getTime(),
-        endedAt: workout.endDate.getTime(),
-        durationS: inSeconds(workout.duration),
-        distanceM: inMetres(workout.totalDistance),
-        indoor: workout.metadata?.HKMetadataKeyIndoorWorkout === true,
-        sourceName: workout.sourceRevision.source.name,
-        locations: routes.flatMap((route) => route.locations).map((location) => ({
-          ts: location.date.getTime(),
-          lat: location.latitude,
-          lng: location.longitude,
-          alt: location.verticalAccuracy < 0 ? null : location.altitude,
-          accuracy: location.horizontalAccuracy < 0 ? null : location.horizontalAccuracy,
-          speed: location.speed < 0 ? null : location.speed,
-        })),
+    const next: Record<string, string> = {};
+    for (const kind of kinds) {
+      const answer = await health.api.queryWorkoutSamplesWithAnchor({
+        limit: 0,
+        anchor: held[kind.key],
+        filter: { workoutActivityType: kind.type },
       });
+      next[kind.key] = answer.newAnchor;
+      workouts.push(...await workoutsOf(answer.workouts, kind.ride));
     }
-    return { workouts, anchor: answer.newAnchor };
+    return { workouts, anchor: JSON.stringify(next) };
   } catch {
     return null;
   }
+}
+
+/** The stored anchors by kind of workout. */
+function readAnchors(raw: string | undefined): Record<string, string | undefined> {
+  if (!raw) return {};
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed && typeof parsed === "object") return parsed as Record<string, string | undefined>;
+  } catch {
+    /* not json: an anchor from before rides */
+  }
+  return { running: raw };
+}
+
+type Sample = Awaited<ReturnType<Api["queryWorkoutSamplesWithAnchor"]>>["workouts"][number];
+
+/** Health's workouts, other apps' only, turned into what an import needs. */
+async function workoutsOf(found: readonly Sample[], ride: boolean): Promise<HealthWorkout[]> {
+  const workouts: HealthWorkout[] = [];
+  for (const workout of found) {
+    if (workout.sourceRevision.source.bundleIdentifier === OWN_BUNDLE) continue;
+    const routes = await workout.getWorkoutRoutes().catch(() => []);
+    workouts.push({
+      uuid: workout.uuid,
+      startedAt: workout.startDate.getTime(),
+      endedAt: workout.endDate.getTime(),
+      durationS: inSeconds(workout.duration),
+      distanceM: inMetres(workout.totalDistance),
+      indoor: workout.metadata?.HKMetadataKeyIndoorWorkout === true,
+      ride,
+      sourceName: workout.sourceRevision.source.name,
+      locations: routes.flatMap((route) => route.locations).map((location) => ({
+        ts: location.date.getTime(),
+        lat: location.latitude,
+        lng: location.longitude,
+        alt: location.verticalAccuracy < 0 ? null : location.altitude,
+        accuracy: location.horizontalAccuracy < 0 ? null : location.horizontalAccuracy,
+        speed: location.speed < 0 ? null : location.speed,
+      })),
+    });
+  }
+  return workouts;
 }
 
 /** The Android side of syncRunToHealth: the same run, written to Health Connect. */
@@ -404,8 +448,11 @@ async function syncRunToHealthConnect(runId: number): Promise<string | null> {
   const { run, points } = stored;
   if (run.healthUuid) return run.healthUuid;
   const weight = await readWeightKg();
-  const energy = weight === null ? null : estimateActiveEnergyKcal(run.distanceM, weight);
-  const id = await writeRun({ name: run.name, startedAt: run.startedAt, endedAt, distanceM: run.distanceM }, points, energy);
+  const energy = weight === null ? null : outingEnergyKcal(run.activity, run.distanceM, run.durationS, weight);
+  const id = await writeRun(
+    { name: run.name, startedAt: run.startedAt, endedAt, distanceM: run.distanceM, ride: run.activity === "ride" },
+    points, energy,
+  );
   if (id) await setHealthUuid(run.id, id);
   return id;
 }
