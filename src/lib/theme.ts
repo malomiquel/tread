@@ -88,6 +88,9 @@ export const literalColors = {
   // strip across the top of every pushed screen.
   background: { light: "#ffffff", dark: "#0b0b0c" },
   text: { light: "#101010", dark: "#f2f2f3" },
+  // For colours animated between states, which have to be read as values.
+  warning: { light: "#9a5b06", dark: "#d69a3e" },
+  sunken: { light: "#f4f4f4", dark: "#18181a" },
 } as const;
 
 /**

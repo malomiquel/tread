@@ -1,5 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { ActivityIndicator, Pressable, StyleSheet, Text } from "react-native";
+import { ActivityIndicator, StyleSheet, Text } from "react-native";
+import { PressableScale } from "@/components/PressableScale";
 import { colors, font } from "@/lib/theme";
 
 type Icon = React.ComponentProps<typeof Ionicons>["name"];
@@ -25,18 +26,18 @@ interface Props {
 export function HeaderButton({ icon, label, onPress, primary = false, busy = false, accessibilityLabel }: Props) {
   const tint = primary ? colors.accentText : colors.accent;
   return (
-    <Pressable
+    <PressableScale
       onPress={onPress}
       disabled={busy}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityState={{ busy }}
       hitSlop={8}
-      style={({ pressed }) => [styles.button, primary && styles.primary, pressed && styles.pressed]}
+      style={[styles.button, primary && styles.primary]}
     >
       {busy ? <ActivityIndicator size="small" color={tint} /> : <Ionicons name={icon} size={18} color={tint} />}
       <Text style={[styles.label, { color: tint }]}>{label}</Text>
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -47,6 +48,5 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accentSoft,
   },
   primary: { backgroundColor: colors.accent },
-  pressed: { opacity: 0.6 },
   label: { fontSize: 15.5, fontFamily: font.semibold },
 });

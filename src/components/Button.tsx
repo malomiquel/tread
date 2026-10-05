@@ -1,4 +1,5 @@
-import { Pressable, StyleSheet, Text, type StyleProp, type ViewStyle } from "react-native";
+import { StyleSheet, Text, type StyleProp, type ViewStyle } from "react-native";
+import { PressableScale } from "@/components/PressableScale";
 import { colors, font } from "@/lib/theme";
 
 type Variant = "primary" | "secondary" | "danger";
@@ -17,18 +18,12 @@ interface Props {
  */
 export function Button({ label, onPress, variant = "primary", disabled, style }: Props) {
   return (
-    <Pressable
+    <PressableScale
       onPress={onPress}
       disabled={disabled}
       accessibilityRole="button"
       accessibilityState={{ disabled: Boolean(disabled) }}
-      style={({ pressed }) => [
-        styles.base,
-        styles[variant],
-        pressed && styles.pressed,
-        disabled && styles.disabled,
-        style,
-      ]}
+      style={[styles.base, styles[variant], disabled && styles.disabled, style]}
     >
       <Text
         style={[
@@ -39,7 +34,7 @@ export function Button({ label, onPress, variant = "primary", disabled, style }:
       >
         {label}
       </Text>
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -55,7 +50,6 @@ const styles = StyleSheet.create({
   primary: { backgroundColor: colors.accent },
   secondary: { backgroundColor: colors.background, borderWidth: 1, borderColor: colors.hairline },
   danger: { backgroundColor: colors.background, borderWidth: 1, borderColor: colors.dangerSoft },
-  pressed: { opacity: 0.6 },
   disabled: { opacity: 0.35 },
   label: { color: colors.text, fontSize: 18, fontFamily: font.semibold, letterSpacing: 0.3 },
   labelPrimary: { color: colors.accentText, fontFamily: font.bold },

@@ -47,7 +47,7 @@ export function SettingRow({
     <>
       {icon ? (
         <View style={styles.icon}>
-          <Ionicons name={icon} size={17} color={colors.accent} />
+          <Ionicons name={icon} size={19} color={colors.muted} />
         </View>
       ) : null}
       <View style={styles.text}>
@@ -82,10 +82,9 @@ export function SettingRow({
 
 const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 11, minHeight: 50 },
-  icon: {
-    width: 30, height: 30, borderRadius: 8,
-    alignItems: "center", justifyContent: "center", backgroundColor: colors.accentSoft,
-  },
+  // A bare glyph in a fixed column: a tinted tile on every row turned a list
+  // of settings into a grid of blue stickers.
+  icon: { width: 24, alignItems: "center", justifyContent: "center" },
   rowCentred: { justifyContent: "center" },
   pressed: { opacity: 0.6 },
   text: { flex: 1, gap: 1 },

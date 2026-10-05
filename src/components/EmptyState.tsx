@@ -1,5 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { PressableScale } from "@/components/PressableScale";
 import { RunButtonText } from "@/components/RunButtonText";
 import { defineStrings, useStrings } from "@/lib/i18n";
 import { colors, font } from "@/lib/theme";
@@ -46,15 +47,13 @@ export function EmptyState({ actions, note }: Props) {
       <Text style={styles.label}>{s.start}</Text>
       <View style={styles.actions}>
         {actions.map((action) => (
-          <Pressable
+          <PressableScale
             key={action.title}
             onPress={action.onPress}
             disabled={action.busy}
             accessibilityRole="button"
             accessibilityState={{ busy: Boolean(action.busy) }}
-            style={({ pressed }) => [
-              styles.card, action.primary && styles.cardPrimary, pressed && styles.pressed,
-            ]}
+            style={[styles.card, action.primary && styles.cardPrimary]}
           >
             {action.busy ? (
               <ActivityIndicator color={action.primary ? colors.accentText : colors.accent} />
@@ -70,7 +69,7 @@ export function EmptyState({ actions, note }: Props) {
               </Text>
             </View>
             {action.primary ? null : <Ionicons name="chevron-forward" size={18} color={colors.subtle} />}
-          </Pressable>
+          </PressableScale>
         ))}
       </View>
       {note ? <RunButtonText style={styles.note}>{note}</RunButtonText> : null}
@@ -87,10 +86,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: GUTTER, paddingTop: 18,
     borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline,
   },
-  label: {
-    color: colors.subtle, fontSize: 12.5, fontFamily: font.semibold,
-    letterSpacing: 1.3, textTransform: "uppercase",
-  },
+  label: { color: colors.muted, fontSize: 15, fontFamily: font.semibold },
   actions: { marginTop: 10, gap: 12 },
   card: {
     flexDirection: "row", alignItems: "center", gap: 14,
@@ -98,7 +94,6 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline,
   },
   cardPrimary: { backgroundColor: colors.accent, borderColor: colors.accent },
-  pressed: { opacity: 0.85 },
   body: { flex: 1, gap: 3 },
   title: { color: colors.text, fontSize: 21, fontFamily: font.bold, letterSpacing: -0.3 },
   onPrimary: { color: colors.accentText },

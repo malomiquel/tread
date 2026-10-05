@@ -1,4 +1,5 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import { PressableScale } from "@/components/PressableScale";
 import { colors, font } from "@/lib/theme";
 
 interface Props {
@@ -38,14 +39,14 @@ export function SummaryBanner({
 
   if (!onPress) return <View style={styles.banner}>{body}</View>;
   return (
-    <Pressable
+    <PressableScale
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
-      style={({ pressed }) => [styles.banner, pressed && styles.pressed]}
+      style={styles.banner}
     >
       {body}
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -68,11 +69,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 20, marginBottom: 4, paddingHorizontal: 16, paddingVertical: 13, gap: 1,
     borderRadius: 16, backgroundColor: colors.accent,
   },
-  pressed: { opacity: 0.9 },
-  label: {
-    color: colors.accentText, opacity: 0.75, fontSize: 11.5,
-    fontFamily: font.semibold, letterSpacing: 1.2, textTransform: "uppercase",
-  },
+  label: { color: colors.accentText, opacity: 0.8, fontSize: 15, fontFamily: font.medium },
   value: {
     color: colors.accentText, fontSize: 34, fontFamily: font.semibold,
     letterSpacing: -0.8, fontVariant: ["tabular-nums"], lineHeight: 39,
