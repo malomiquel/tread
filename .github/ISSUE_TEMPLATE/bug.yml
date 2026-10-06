@@ -1,0 +1,81 @@
+name: Bug
+description: Something does not work as it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time. Tread keeps everything on the phone, so a
+        bug report is the only way we hear about one: the more precise, the
+        sooner it is fixed. Please leave out anything personal — a run's
+        track shows where you live.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open …
+        2. Tap …
+        3. See …
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: How often
+      options:
+        - Every time
+        - Sometimes
+        - Once
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where
+      multiple: true
+      options:
+        - Recording a run or a ride
+        - History or a run's page
+        - Plan
+        - Routes
+        - Profile
+        - Settings, backup or transfer
+        - Apple Health or Health Connect
+        - Lock screen or widget
+        - Somewhere else
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      description: Settings › About shows it, with the commit it was built from.
+      placeholder: 1.12.4 (abc1234)
+    validations:
+      required: true
+  - type: input
+    id: phone
+    attributes:
+      label: Phone and system
+      placeholder: iPhone 13, iOS 27.0
+    validations:
+      required: true
+  - type: dropdown
+    id: settings
+    attributes:
+      label: Language and units
+      multiple: true
+      options:
+        - French
+        - English
+        - Kilometres
+        - Miles
+  - type: textarea
+    id: more
+    attributes:
+      label: Screenshots or anything else
+      description: A screenshot or a screen recording helps most. Crop out the map if it shows your home.

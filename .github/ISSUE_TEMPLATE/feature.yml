@@ -1,0 +1,42 @@
+name: Idea
+description: Something Tread could do, or do better.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before writing, a look at the roadmap (ROADMAP.md, and the milestones)
+        and its "Not doing" list helps: some ideas are planned already, and
+        some are left out on purpose because they would break the promise that
+        the app needs nothing from you and nobody watches.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What you are trying to do
+      description: The run, the moment, the need. Not the button yet.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where in the app
+      multiple: true
+      options:
+        - Recording a run or a ride
+        - History and a run's page
+        - Training plan
+        - Routes and maps
+        - Profile and records
+        - Voice and buzzes during a run
+        - Health, watch, heart rate
+        - Backup, transfer, import, export
+  - type: checkboxes
+    id: promise
+    attributes:
+      label: The promise
+      options:
+        - label: This works without an account and without sending my runs anywhere.

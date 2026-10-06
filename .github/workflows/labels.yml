@@ -1,0 +1,34 @@
+# The repository's labels, kept in .github/labels.json rather than clicked
+# together in the web interface: a label added or recoloured goes through a
+# commit like everything else, and a fresh fork gets the same set.
+#
+# Created or updated, never deleted: a label removed from the file stays on
+# GitHub until somebody removes it there, so no issue loses a label because a
+# line went missing.
+name: Labels
+
+on:
+  push:
+    branches: [master]
+    paths: [".github/labels.json"]
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  sync:
+    name: Sync labels
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create or update each label
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          jq -c '.[]' .github/labels.json | while read -r label; do
+            gh label create "$(jq -r .name <<<"$label")" \
+              --color "$(jq -r .color <<<"$label")" \
+              --description "$(jq -r .description <<<"$label")" \
+              --force
+          done

@@ -1,0 +1,24 @@
+[
+  { "name": "bug", "color": "d73a4a", "description": "Something does not work as it should" },
+  { "name": "enhancement", "color": "a2eeef", "description": "A new feature or an improvement to one" },
+  { "name": "documentation", "color": "0075ca", "description": "README, DESIGN, ROADMAP, RELEASE and the like" },
+  { "name": "accessibility", "color": "f143ab", "description": "VoiceOver, TalkBack, large text, contrast, touch targets" },
+
+  { "name": "area: tracker", "color": "1d4ed8", "description": "Recording a run or a ride: GPS, pause, laps, the run screen" },
+  { "name": "area: plan", "color": "1d4ed8", "description": "Training plans, sessions, paces, the weekly goal" },
+  { "name": "area: health", "color": "1d4ed8", "description": "Apple Health, Health Connect, heart rate, energy" },
+  { "name": "area: privacy", "color": "1d4ed8", "description": "What leaves the phone, and what never does" },
+  { "name": "area: data", "color": "1d4ed8", "description": "Backup, safety copy, transfer, import and export" },
+  { "name": "area: ui", "color": "1d4ed8", "description": "Screens, components and the design system" },
+  { "name": "area: voice", "color": "1d4ed8", "description": "Spoken announcements and buzzes during a run" },
+  { "name": "area: cycling", "color": "1d4ed8", "description": "Rides, and what sets them apart from runs" },
+  { "name": "area: maps", "color": "1d4ed8", "description": "Maps, routes, routing and guidance" },
+  { "name": "area: release", "color": "1d4ed8", "description": "Stores, builds, pricing, legal" },
+  { "name": "area: quality", "color": "1d4ed8", "description": "Tests, device passes, the beta" },
+
+  { "name": "needs device", "color": "fbca04", "description": "Can only be checked on a real phone" },
+  { "name": "native rebuild", "color": "fbca04", "description": "Needs a new native build, not just a JavaScript reload" },
+  { "name": "needs paid account", "color": "e99695", "description": "Waits on a paid Apple, Google or service account" },
+  { "name": "pro", "color": "5319e7", "description": "Planned for Tread Pro" },
+  { "name": "promise", "color": "0e8a16", "description": "Keeps the privacy promise: nothing lost, nothing leaked" }
+]

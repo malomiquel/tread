@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Roadmap
+    url: https://github.com/malomiquel/tread/blob/master/ROADMAP.md
+    about: What is done, what is planned, in which order, and what is left out on purpose.
+  - name: Milestones
+    url: https://github.com/malomiquel/tread/milestones
+    about: The same plan, as issues grouped by stage.

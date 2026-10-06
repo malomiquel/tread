@@ -1,12 +1,17 @@
 # Tread roadmap
 
 What has been done, and what is left before the app can be sold, in the
-order that serves one promise. Tick a box when it is done; add a line when
-something new comes up.
+order that serves one promise.
 
-- `[x]` done and verified in code (typecheck, lint, unit tests, bundle)
-- `[ ]` to do
-- Items marked **📱** are written but still need checking on a real phone.
+- **Done** is kept here, by area. `[x]` means done and verified in code
+  (typecheck, lint, unit tests, bundle); **📱** marks what still needs
+  checking on a real phone.
+- **To do** lives on GitHub: one [issue](https://github.com/malomiquel/tread/issues)
+  per item, grouped by stage in [milestones](https://github.com/malomiquel/tread/milestones),
+  labelled by area (`area: plan`, `area: privacy`…) and by what it waits on
+  (`needs device`, `native rebuild`, `needs paid account`, `pro`). The list
+  below names each stage and links to it. When something is finished, its
+  issue is closed and a line is added under Done.
 
 ---
 
@@ -53,7 +58,11 @@ promise is listed at the end, under "Not doing".
 - [x] Auto-pause (opt-in): pauses after 10 s standing still, resumes on
   setting off, announced by voice and haptics
 - [x] Pace drift, splits and spoken markers follow the chosen unit
-- [x] **Cycling**: Run / Ride on the run screen, remembered; a ride reads in
+- [x] **Pace dashboard while running** ([#39](https://github.com/malomiquel/tread/issues/39)):
+  a verdict chip, the pace of the moment large, a gauge read like a
+  speedometer, the block under way; Pace / Map at the top; a pause shown on
+  the status line and the dashboard; the weather while running
+- [x] **Cycling** ([#37](https://github.com/malomiquel/tread/issues/37)): Run / Ride on the run screen, remembered; a ride reads in
   speed (dashboard, panel, its page, splits, chart, share card), says its
   distance and speed every 5 km, has no session, cadence or best efforts,
   wears no shoes, and counts in none of a runner's totals or records; route
@@ -71,6 +80,11 @@ promise is listed at the end, under "Not doing".
 - [x] Plan setup in steps (race, date, rhythm and days, fitness today, target
   time) with a recap of every answer before the plan is made, each line
   opening its step again
+- [x] **Beginners start on run-walk** ([#38](https://github.com/malomiquel/tread/issues/38)):
+  under twenty minutes of running without stopping, the plan starts from a
+  minute's running at a time on the couch to 5K ladder, by feel, no pace
+- [x] A skipped session can be put back in the plan; plan dates through the
+  locale; a past race says how long ago it was
 
 ### Profile
 - [x] Built from the same parts as History: week banner with goal, sections,
@@ -114,7 +128,15 @@ promise is listed at the end, under "Not doing".
 ### Quality
 - [x] Pace rounding fixed (4'59"6 showed as 4'00")
 - [x] `DESIGN.md` design system, loaded by `CLAUDE.md` in every session
-- [x] 396 unit tests; typecheck, lint, expo-doctor 21/21, iOS bundle
+- [x] 417 unit tests; typecheck, lint, expo-doctor 21/21, iOS bundle
+- [x] **UX review of every screen** ([#40](https://github.com/malomiquel/tread/issues/40)):
+  a double tap no longer starts two runs, a failed save keeps the run and
+  finish retryable, a short run can be kept going; a failed read shows
+  `LoadError` ("Try again") instead of an empty page; a drifted database is
+  repaired at launch; editors guard unsaved changes; a just-finished run
+  closes with Done; the welcome keeps its answers and has a way back
+- [x] GitHub: issues, milestones and labels (`.github/labels.json`, synced
+  by a workflow), issue forms and a pull request template
 
 ### Earlier work
 - [x] Weather before/after runs, forecasts on plan sessions, on the share card
@@ -207,113 +229,26 @@ promise is listed at the end, under "Not doing".
 
 ## To do, in order
 
-### 1. Keep the promise: nothing lost, nothing leaked
-A private app that loses your history with your phone is not trusted twice,
-and one that sends your position to others is not private.
-- [x] **Automatic backup** without a Tread account, through the phone's own
-  backup: iOS keeps everything in Documents (iCloud and computer backups);
-  Android rules keep the database and route pictures in the Google backup
-  (under its 25 MB cap, past which it would keep nothing) and the photos too
-  on a direct phone-to-phone transfer; the database is checkpointed each time
-  the app goes to the background; Settings › Data says where the copy is 📱
-- [x] **Safety copy in the runner's own cloud** 📱: the "Switch phones" file
-  written by the app after every run, on leaving the app and at launch, only
-  when something changed — to iCloud Drive › Tread on iPhone, to a folder the
-  runner picks once (Google Drive…) on Android; the 7 newest kept; Settings ›
-  Data shows how fresh it is, makes one now, brings the newest back (merged,
-  nothing duplicated); an empty app finding a copy offers it back once (a
-  reinstall, a new iPhone). No Tread account, no server. The iCloud side
-  needs the paid Apple account to run on a phone (see RELEASE.md)
-- [x] **Automatic import of watch runs** from Apple Health 📱: Settings ›
-  Data › "Runs from your watch" (off until asked, asks Health for workouts);
-  running workouts other apps wrote (Apple Watch, Garmin through Health…),
-  with their track, read by anchor at launch and on each return to the app;
-  the app's own copies skipped, a run recorded by the phone at the same time
-  kept once; indoor workouts become treadmill runs; "Imported from Apple
-  Health · Apple Watch" on the run; editing or deleting it never touches the
-  watch's workout; migration 24
-- [x] **Health Connect** on Android 📱: the same jobs as Apple Health through
-  one module — runs written with their route, distance and energy; weight and
-  heart rate read back; runs from other apps (Samsung Health, Garmin, Google
-  Fit, Fitbit…) imported by "Runs from your watch"; the store named per
-  platform everywhere; Android 8 (API 26) minimum
-- [ ] **Coarse positions to third parties**: weather and routing requests
-  sent with coordinates rounded to about a kilometre, never a doorstep
-- [ ] **App Store privacy label "Data Not Collected"**, checked against every
-  request the app makes; no analytics or crash SDK (crashes through Apple's
-  opt-in reports only)
-- [ ] Privacy policy hosted at a public URL, written in plain words: what
-  stays on the phone (everything) and the few requests that leave it
-- [ ] Open-Meteo commercial subscription → `TREAD_WEATHER_URL` / `TREAD_WEATHER_KEY`
-- [ ] Own routing server (OSRM or a provider) → `TREAD_ROUTING_URL`
+Each stage is a milestone on GitHub; each item, an issue in it. Open ones
+first, in the order below.
 
-### 2. The coach worth paying for
-The reason to pay is a plan that fits the runner, not more charts.
-- [ ] **Weather-aware plan**: offer to move a session when heavy rain is due
-- [ ] **Custom voice cues**: every X minutes or X km, heart rate, time left
-  in the session
-- [ ] **Training load** from heart rate: relative effort per run, fitness and
-  freshness over weeks, feeding the plan's easing
-- [ ] Offer to update the weekly goal when the runner profile changes
-- [ ] Target-pace stepper in miles: step per mile rather than 5 s/km
-- [ ] "Fastest kilometre" record in miles: now covered by best efforts (1
-  mile); drop or rename the old record
-
-### 3. Prove it before scaling it
-- [ ] Full pass on device, light and dark: welcome, slider, History, Profile,
-  Settings, empty tabs, English, miles 📱
-- [ ] Auto-pause outdoors: stops at a light, resumes on setting off, no false
-  pauses in a tunnel or under trees 📱
-- [ ] Native rebuild for the Live Activity unit fields, the translated
-  permission texts (`locales/`) and `expo-localization` 📱
-- [ ] Large text (iOS Dynamic Type): check fixed heights (empty-state cards,
-  rows); cap `maxFontSizeMultiplier` where it breaks
-- [ ] End-to-end tests (Maestro) for the main flows: welcome, start → finish
-  a run, create a plan; add `testID`s
-- [ ] **TestFlight beta with 20–30 runners** (friends, a club): ask "how
-  would you feel if Tread disappeared tomorrow?" — aim for 40 % "very
-  disappointed" before paying for launch; retention read from TestFlight and
-  App Store Connect's opt-in figures, never from our own tracking
-
-### 4. Launch and price
-- [ ] **Tread Pro**: the core free (recording, history, simple routes); plans,
-  guidance and ghost, heatmap, recaps, custom sessions and predictions in Pro.
-  Annual subscription around 19,99 €/year with a free trial, or a one-time
-  "pay once, keep it" price — decide from the beta. StoreKit / Play Billing
-  directly (expo-iap) rather than a third party that would see every purchase
-- [ ] Store listings in French and English, led by the positioning line
-- [ ] Screenshots with realistic runs, in both languages, light and dark
-- [ ] Terms of use / legal notice; trader status (EU DSA) and a business
-  (micro-entreprise to start, a company to sell under another name)
-- [ ] Support mailbox → `TREAD_SUPPORT_EMAIL`
-- [x] Release setup in the repository: `eas.json`, `npm run release:ios` /
-  `release:android` (local EAS builds, versions from git), export compliance
-  declared, [RELEASE.md](RELEASE.md) with the steps and the TestFlight texts
-- [ ] App Store Connect and Play Console setup, TestFlight / internal testing
-  (accounts to pay for, then RELEASE.md)
-- [ ] First tagged release built with the production configuration
-
-### 5. Later: deepen, once people pay
-- [ ] **End-to-end encrypted backup**, if testers ask to move between iPhone
-  and Android or to use several devices: encrypted on the phone with a key
-  only the runner holds (a recovery phrase), stored as unreadable blobs
-  (S3 / Cloudflare R2), so the server knows nothing and holds no health data
-  in the clear; a lost phrase cannot be recovered, by anyone. A Pro feature
-  that keeps the promise. Never a central database in the clear with accounts
-- [ ] **Watch app**: Apple Watch first, then Wear OS
-- [ ] **Live heart rate** from a Bluetooth chest strap, with zone alerts
-- [ ] **Offline maps** for routes without signal
-- [ ] **Treadmill mode**: no GPS, distance from the pedometer, corrected at
-  the end
-- [ ] **Siri Shortcuts / App Intents**: "Start a run in Tread"
-- [ ] **Safety**: share your live position with one person you choose, for
-  the length of a run, directly and only then; alert after a long unexpected
-  stop
-- [ ] **Cadence chart**: needs steps recorded minute by minute during the run
-- [ ] Live Activity labels in the app's chosen language, not the phone's
-- [ ] Live Activity in speed on a ride (needs a native rebuild: it shows a pace)
-- [ ] Ride totals of their own: a week, a month and records for cycling
-- [ ] More languages (the `{ fr, en }` tables are ready to take a third)
+1. **[Keep the promise](https://github.com/malomiquel/tread/milestone/1)**:
+   nothing lost, nothing leaked. A private app that loses your history with
+   your phone is not trusted twice, and one that sends your position to
+   others is not private. Backup, the safety copy in the runner's own cloud
+   and the Health imports are done; left: the privacy label and policy, and
+   the weather and routing services of our own.
+2. **[The coach worth paying for](https://github.com/malomiquel/tread/milestone/2)**:
+   the reason to pay is a plan that fits the runner, not more charts.
+   Weather-aware plan, custom voice cues, training load from heart rate.
+3. **[Prove it before scaling it](https://github.com/malomiquel/tread/milestone/3)**:
+   every main flow checked on a phone, end-to-end tests, then a TestFlight
+   beta with 20 to 30 runners.
+4. **[Launch and price](https://github.com/malomiquel/tread/milestone/4)**:
+   Tread Pro, store listings, legal, the first production release.
+5. **[Later](https://github.com/malomiquel/tread/milestone/5)**: deepen,
+   once people pay. Encrypted backup, watch app, live heart rate, offline
+   maps, ride totals of their own.
 
 ---
 
