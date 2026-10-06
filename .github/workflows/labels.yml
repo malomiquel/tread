@@ -9,7 +9,7 @@ name: Labels
 
 on:
   push:
-    branches: [master]
+    branches: [main]
     paths: [".github/labels.json"]
   workflow_dispatch:
 
