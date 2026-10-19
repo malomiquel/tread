@@ -13,6 +13,7 @@ import { radiusLabel } from "@/lib/privacy";
 import { reminderName } from "@/lib/reminders";
 import { runnerWords } from "@/lib/runner";
 import { unitChoiceWords } from "@/lib/unitChoice";
+import { appearanceWords } from "@/lib/appearance";
 import { forgetWelcome, toggleAutoPause, toggleVoice, useSettings, weeklyGoal } from "@/lib/settings";
 import { goalAmount } from "@/lib/goals";
 import { suggestedWeeklyGoalM } from "@/lib/stats";
@@ -35,6 +36,7 @@ const settingsStrings = defineStrings({
     app: "Application",
     language: "Langue",
     units: "Unités",
+    appearance: "Apparence",
     languageAuto: "Automatique",
     sharing: "Partage",
     hideEnds: "Masquer départ et arrivée",
@@ -63,6 +65,7 @@ const settingsStrings = defineStrings({
     app: "App",
     language: "Language",
     units: "Units",
+    appearance: "Appearance",
     languageAuto: "Automatic",
     sharing: "Sharing",
     hideEnds: "Hide start and finish",
@@ -199,6 +202,12 @@ export default function SettingsScreen() {
           label={s.units}
           value={unitChoiceWords().names[settings.units]}
           onPress={() => router.push("/settings/units")}
+        />
+        <SettingRow
+          icon="contrast-outline"
+          label={s.appearance}
+          value={appearanceWords().names[settings.appearance]}
+          onPress={() => router.push("/settings/appearance")}
         />
       </SettingsGroup>
 

@@ -49,6 +49,7 @@ const layoutStrings = defineStrings({
     language: "Langue",
     runner: "Mon profil de coureur",
     units: "Unités",
+    appearance: "Apparence",
     sharing: "Partage",
     shoes: "Chaussures",
     data: "Données",
@@ -83,6 +84,7 @@ const layoutStrings = defineStrings({
     language: "Language",
     runner: "My runner profile",
     units: "Units",
+    appearance: "Appearance",
     sharing: "Sharing",
     shoes: "Shoes",
     data: "Data",
@@ -304,6 +306,10 @@ export default function RootLayout() {
           <Stack.Screen
             name="settings/units"
             options={{ title: s.units, headerBackTitle: s.settings }}
+          />
+          <Stack.Screen
+            name="settings/appearance"
+            options={{ title: s.appearance, headerBackTitle: s.settings }}
           />
           <Stack.Screen
             name="settings/sharing"

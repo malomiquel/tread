@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { readSport, type Sport } from "./activity";
+import { applyAppearance, readAppearanceChoice, type AppearanceChoice } from "./appearance";
 import { deleteSettings, readSettings, writeSetting } from "./db";
 import { goalFromSettings, readGoalKind, type GoalKind, type WeeklyGoal } from "./goals";
 import { applyLanguage, readLanguageChoice, type LanguageChoice } from "./language";
@@ -70,6 +71,8 @@ export interface Settings {
   healthImport: boolean;
   /** Kilometres or miles, or whatever the phone's region uses. */
   units: UnitChoice;
+  /** Light or dark, or whatever the phone is set to. */
+  appearance: AppearanceChoice;
   /** How much of a shared track is hidden around its start and finish, in metres. */
   privacyRadiusM: PrivacyRadius;
   /** What the runner said about themselves in the welcome, or null if skipped. */
@@ -90,7 +93,7 @@ export interface Settings {
 const DEFAULTS: Settings = {
   voice: true, targetPaceSKm: null, weeklyGoalM: null, goalKind: "distance", weeklyGoalS: null,
   weeklyGoalClimbM: null, reminder: "off", routeId: null,
-  welcomed: false, language: "auto", runner: null, raceSetupOffered: false, autoPause: false, healthImport: false, units: "auto", privacyRadiusM: DEFAULT_PRIVACY_RADIUS,
+  welcomed: false, language: "auto", runner: null, raceSetupOffered: false, autoPause: false, healthImport: false, units: "auto", appearance: "auto", privacyRadiusM: DEFAULT_PRIVACY_RADIUS,
   sport: "running",
 };
 
@@ -126,6 +129,7 @@ export async function loadSettings(): Promise<void> {
       autoPause: stored.autoPause === "true",
       healthImport: stored.healthImport === "true",
       units: readUnitChoice(stored.units),
+      appearance: readAppearanceChoice(stored.appearance),
       privacyRadiusM: readPrivacyRadius(stored.privacyRadiusM),
       sport: readSport(stored.sport),
     });
@@ -135,6 +139,7 @@ export async function loadSettings(): Promise<void> {
   }
   applyLanguage(current.language);
   applyUnits(current.units);
+  applyAppearance(current.appearance);
 }
 
 export const getSettings = (): Settings => current;
@@ -188,6 +193,12 @@ export async function setPrivacyRadius(radius: PrivacyRadius): Promise<void> {
 export async function setUnitChoice(choice: UnitChoice): Promise<void> {
   applyUnits(choice);
   await store({ ...current, units: choice }, "units", choice);
+}
+
+/** Draw light or dark, or follow the phone. Takes effect at once. */
+export async function setAppearanceChoice(choice: AppearanceChoice): Promise<void> {
+  applyAppearance(choice);
+  await store({ ...current, appearance: choice }, "appearance", choice);
 }
 
 /** Pause by itself at a stop, or only when asked. */
