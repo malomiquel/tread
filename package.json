@@ -64,6 +64,7 @@
     "@types/upng-js": "^2.1.5",
     "eslint": "^9.0.0",
     "eslint-config-expo": "~57.0.2",
+    "patch-package": "^8.0.1",
     "typescript": "~6.0.3"
   },
   "scripts": {
@@ -75,7 +76,8 @@
     "test": "node --experimental-strip-types --test src/lib/*.test.ts",
     "typecheck": "tsc --noEmit",
     "release:ios": "eas build --platform ios --profile production --local --output dist/tread.ipa && eas submit --platform ios --profile production --path dist/tread.ipa",
-    "release:android": "eas build --platform android --profile production --local --output dist/tread.aab && eas submit --platform android --profile production --path dist/tread.aab"
+    "release:android": "eas build --platform android --profile production --local --output dist/tread.aab && eas submit --platform android --profile production --path dist/tread.aab",
+    "postinstall": "patch-package"
   },
   "private": true
 }
