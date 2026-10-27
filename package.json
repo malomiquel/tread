@@ -75,8 +75,8 @@
     "lint": "expo lint",
     "test": "node --experimental-strip-types --test src/lib/*.test.ts",
     "typecheck": "tsc --noEmit",
-    "release:ios": "eas build --platform ios --profile production --local --output dist/tread.ipa && eas submit --platform ios --profile production --path dist/tread.ipa",
-    "release:android": "eas build --platform android --profile production --local --output dist/tread.aab && eas submit --platform android --profile production --path dist/tread.aab",
+    "release:ios": "npx eas-cli build --platform ios --profile production --local --output dist/tread.ipa && npx eas-cli submit --platform ios --profile production --path dist/tread.ipa",
+    "release:android": "npx eas-cli build --platform android --profile production --local --output dist/tread.aab && npx eas-cli submit --platform android --profile production --path dist/tread.aab",
     "postinstall": "patch-package",
     "install:ios": "TREAD_NO_ICLOUD=1 EXPO_USE_PRECOMPILED_MODULES=0 sh -c \"expo prebuild --platform ios --clean && expo run:ios --configuration Release --device 00008110-000459523492401E\""
   },
