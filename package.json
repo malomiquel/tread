@@ -81,5 +81,6 @@
     "install:ios": "TREAD_NO_ICLOUD=1 EXPO_USE_PRECOMPILED_MODULES=0 sh -c \"expo prebuild --platform ios --clean && expo run:ios --configuration Release --device 00008110-000459523492401E\"",
     "deploy:ios": "./scripts/deploy-ios.sh"
   },
+  "packageManager": "pnpm@10.33.0",
   "private": true
 }

@@ -10,8 +10,8 @@ moves to a new phone in one file. Expo SDK 57, React Native, TypeScript.
 ## Trying it in Expo Go
 
 ```bash
-npm install
-npm start
+pnpm install
+pnpm start
 ```
 
 Scan the QR code. The run itself works — GPS, map, database, programme,
@@ -48,8 +48,8 @@ a release, for when you only want to try something.
 ## Checking it without a device
 
 ```bash
-npm test          # every pure library, no phone involved
-npm run typecheck
+pnpm test          # every pure library, no phone involved
+pnpm run typecheck
 npx expo lint
 npx expo-doctor
 ```

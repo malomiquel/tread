@@ -36,10 +36,11 @@ jobs:
           # line exists to prevent.
           fetch-depth: 0
 
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
+          cache: pnpm
 
       - uses: actions/setup-java@v4
         with:
@@ -47,19 +48,19 @@ jobs:
           java-version: 17
 
       - name: Dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       # Before building rather than after. A failed build tells you something
       # is wrong; a green build of code that does not typecheck tells you
       # nothing at all.
       - name: Checks
         run: |
-          npm run typecheck
-          npm run lint
-          npm test
+          pnpm run typecheck
+          pnpm run lint
+          pnpm test
 
       - name: Generate the Android project
-        # --no-install because npm ci has already done it, and prebuild would
+        # --no-install because the install step has already done it, and prebuild would
         # otherwise install everything a second time.
         run: npx expo prebuild --platform android --no-install
 
