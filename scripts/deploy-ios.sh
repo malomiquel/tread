@@ -46,6 +46,7 @@ xcodebuild -workspace ios/Tread.xcworkspace -scheme Tread -configuration Release
       /main\.jsbundle:[0-9]+:[0-9]+: warning:/ { skip = 2; next }
       /Run script build phase .* will be run during every build/ { next }
       /not stripping binary because it is signed/ { next }
+      /libtool: warning: .* has no symbols/ { next }
       { print }
     '
 
