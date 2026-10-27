@@ -61,7 +61,7 @@ struct HomeSummary: Codable {
   )
 }
 
-private func readSummary() -> HomeSummary? {
+func readSummary() -> HomeSummary? {
   guard
     let text = UserDefaults(suiteName: appGroup)?.string(forKey: summaryKey),
     let data = text.data(using: .utf8)

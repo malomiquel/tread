@@ -217,9 +217,9 @@ defaults.
 ### Home screen
 
 - `TreadHome` (medium/small): the week and the next session, written by the app.
-- `TreadStart` (small): the run disc and the word "Run" on a neutral page, in
-  the same cobalt. One tap opens `tread://record?start=1`, which begins the
-  run at once, after the usual location check.
+- `TreadStart` (small/medium): the same week as `TreadHome`, with a "Run" pill
+  filled in `accent` at the foot. A tap anywhere opens `tread://record?start=1`,
+  which begins the run at once, after the usual location check.
 
 ### Sheets and dialogs
 
