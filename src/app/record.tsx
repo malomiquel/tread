@@ -1,7 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import * as Haptics from "expo-haptics";
 import { useKeepAwake } from "expo-keep-awake";
-import { useFocusEffect, useIsFocused, useRouter } from "expo-router";
+import { useFocusEffect, useIsFocused, useLocalSearchParams, useRouter } from "expo-router";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useCallback, useEffect, useState } from "react";
 import { Alert, Linking, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
@@ -295,6 +295,7 @@ function RoundButton({
 export default function RecordScreen() {
   const tracker = useTracker();
   const router = useRouter();
+  const { start: autostart } = useLocalSearchParams<{ start?: string }>();
   const { coords, granted } = useInitialLocation();
   // Asked of the sky as soon as the screen knows where it is. Null until it
   // answers, and null for good when it cannot: the line is then simply absent
@@ -700,6 +701,23 @@ export default function RecordScreen() {
         : [{ text: s.ok }],
     );
   }
+
+  // The home-screen widget opens this screen with `start=1`: begin at once,
+  // once, then drop the parameter so coming back here does not start again.
+  // Nothing happens when a run is already under way.
+  useEffect(() => {
+    if (autostart !== "1") return;
+    router.setParams({ start: undefined });
+    // Deferred a tick: `begin` sets state at once, and the screen has to have
+    // painted before an alert it may raise has anything to sit over.
+    // Not cleared on cleanup: dropping the parameter above re-runs this effect,
+    // and that would cancel the start it is meant to make.
+    setTimeout(() => {
+      if (tracker.status === "idle") void begin();
+    }, 0);
+    // Only the arrival of the parameter matters, not later changes of state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autostart]);
 
   function askFinish() {
     if (tooShort) {

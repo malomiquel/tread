@@ -214,6 +214,13 @@ defaults.
 | `RideDashboard` | The same place on a ride: the speed of the moment large, the average beside its unit, the top speed under it. No verdict and no gauge: a ride has no pace to hold. Paused, a `warning` chip says so in the room kept for it. |
 | `RunDashboard` | The run screen while recording, over the map: a verdict chip (on pace, too slow, too fast, free), the pace of the moment large, the target beside its unit, a gauge read like a speedometer (too slow left, too fast right) whose marker springs around the tolerance band, and the block under way with what is left and what comes next. Off pace, the chip, the marker and the figure turn `warning` together. |
 
+### Home screen
+
+- `TreadHome` (medium/small): the week and the next session, written by the app.
+- `TreadStart` (small): the run disc and the word "Run" on a neutral page, in
+  the same cobalt. One tap opens `tread://record?start=1`, which begins the
+  run at once, after the usual location check.
+
 ### Sheets and dialogs
 
 - `ChoiceSheet`: one answer out of a short list (a run's pair of shoes, its

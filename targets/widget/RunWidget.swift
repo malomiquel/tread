@@ -183,5 +183,6 @@ struct TreadWidgets: WidgetBundle {
   var body: some Widget {
     RunLiveActivity()
     HomeWidget()
+    StartWidget()
   }
 }
