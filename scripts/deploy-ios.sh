@@ -19,8 +19,17 @@ export TREAD_NO_ICLOUD=1
 export EXPO_USE_PRECOMPILED_MODULES=0
 
 [ -d node_modules ] || pnpm install
-# The workspace only exists once the pods are installed: its absence means an incomplete native project.
-[ -d ios/Tread.xcworkspace ] || npx expo prebuild -p ios
+# The native project is generated, so it goes stale: a new widget file, a changed
+# app.json or a new dependency is not in it until prebuild runs again. The marker
+# records when it last did; anything it is older than sends the project back
+# through a clean prebuild. A missing workspace means an incomplete project.
+MARKER=ios/.prebuilt
+if [ ! -d ios/Tread.xcworkspace ] || [ ! -f "$MARKER" ] \
+  || [ -n "$(find targets app.json app.config.js package.json patches -newer "$MARKER" -print -quit 2>/dev/null)" ]; then
+  echo "› Generating the native project"
+  npx expo prebuild -p ios --clean
+  touch "$MARKER"
+fi
 
 echo "› Release build for $DEVICE_ID"
 xcodebuild -workspace ios/Tread.xcworkspace -scheme Tread -configuration Release \
