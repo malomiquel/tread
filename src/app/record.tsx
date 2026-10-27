@@ -713,10 +713,12 @@ export default function RecordScreen() {
     // Not cleared on cleanup: dropping the parameter above re-runs this effect,
     // and that would cancel the start it is meant to make.
     // The widget says "Run": the outing is a run whatever the Run / Ride
-    // switch was left on, and the sport is saved before the start reads it.
+    // switch was left on. The setting is in memory the moment it is called,
+    // which is all the start reads, so the write to the database is not waited for.
     setTimeout(() => {
       if (tracker.status !== "idle") return;
-      void setSport("running").then(begin);
+      void setSport("running");
+      void begin();
     }, 0);
     // Only the arrival of the parameter matters, not later changes of state.
     // eslint-disable-next-line react-hooks/exhaustive-deps
