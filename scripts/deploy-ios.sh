@@ -32,10 +32,22 @@ if [ ! -d ios/Tread.xcworkspace ] || [ ! -f "$MARKER" ] \
 fi
 
 echo "› Release build for $DEVICE_ID"
+# What is left once compiler warnings are off comes from the pods and from Hermes
+# reading the bundle (a global such as _WORKLET "not declared", three lines each),
+# and from build phases that cannot say when they have nothing to do. None is ours.
+# awk rather than grep -v: grep exits 1 when it prints nothing, which pipefail
+# would turn into a failed build.
 xcodebuild -workspace ios/Tread.xcworkspace -scheme Tread -configuration Release \
   -destination "id=$DEVICE_ID" -derivedDataPath ios/build -allowProvisioningUpdates -quiet \
   DEVELOPMENT_TEAM="$TEAM_ID" CODE_SIGN_STYLE=Automatic \
-  GCC_WARN_INHIBIT_ALL_WARNINGS=YES SWIFT_SUPPRESS_WARNINGS=YES
+  GCC_WARN_INHIBIT_ALL_WARNINGS=YES SWIFT_SUPPRESS_WARNINGS=YES 2>&1 \
+  | awk '
+      skip > 0 { skip--; next }
+      /main\.jsbundle:[0-9]+:[0-9]+: warning:/ { skip = 2; next }
+      /Run script build phase .* will be run during every build/ { next }
+      /not stripping binary because it is signed/ { next }
+      { print }
+    '
 
 echo "› Installing"
 xcrun devicectl device install app --device "$DEVICE_ID" ios/build/Build/Products/Release-iphoneos/Tread.app
