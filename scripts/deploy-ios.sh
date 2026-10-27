@@ -34,7 +34,8 @@ fi
 echo "› Release build for $DEVICE_ID"
 xcodebuild -workspace ios/Tread.xcworkspace -scheme Tread -configuration Release \
   -destination "id=$DEVICE_ID" -derivedDataPath ios/build -allowProvisioningUpdates -quiet \
-  DEVELOPMENT_TEAM="$TEAM_ID" CODE_SIGN_STYLE=Automatic
+  DEVELOPMENT_TEAM="$TEAM_ID" CODE_SIGN_STYLE=Automatic \
+  GCC_WARN_INHIBIT_ALL_WARNINGS=YES SWIFT_SUPPRESS_WARNINGS=YES
 
 echo "› Installing"
 xcrun devicectl device install app --device "$DEVICE_ID" ios/build/Build/Products/Release-iphoneos/Tread.app
