@@ -11,7 +11,7 @@ moves to a new phone in one file. Expo SDK 57, React Native, TypeScript.
 
 ```bash
 npm install
-npx expo start
+npm start
 ```
 
 Scan the QR code. The run itself works — GPS, map, database, programme,
