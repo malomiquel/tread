@@ -183,6 +183,7 @@ defaults.
 | `SummaryBanner` + `BannerTag` | The one figure a page leads with, on blue: the month in History, the week in Profile. Tags for a comparison or an invitation, in words only: no flame, no trend arrow. |
 | `SectionHeader` | A block's heading: bold name left, accent total right. Can be sticky. |
 | `EmptyState` | Every empty tab: a rule, "Get started", then action cards of fixed height (one primary, blue). |
+| `NoMatch` | A list narrowed to nothing: one sentence saying so, and "Show all". Never the empty state: a filter that matches nothing is not an empty list. |
 | `LoadError` | A page whose data could not be read: what happened in a sentence, that nothing is lost, and "Try again". Never the empty state: a history that failed to load is not an empty history. A failed reload keeps what was already on screen. |
 | `SettingsGroup` + `SettingRow` | Every settings screen: rounded `sunken` block, bare icon, label, value right, chevron when it leads somewhere, footer for the one explanation. |
 
@@ -193,6 +194,7 @@ defaults.
 | `PressableScale` | Anything that is a button rather than a row: `Button`, `HeaderButton`, the empty state's cards, a pressable banner. Gives under the finger (scale 0.96, 90 ms down, 160 ms up) instead of fading. Rows in a list keep the `sunken` background. |
 | `Button` | Full-width actions in sheets and forms. `primary`, `secondary`, `danger`. Min height 50, radius 6. |
 | `HoldButton` | Steppers that repeat while held (goal, pace). |
+| `Chip` + `ChipRow` | The row under a list's title: the sort (always tinted, opens a `ChoiceSheet`) and filters (neutral with a hairline, `accentSoft` + `accent` when on). Height 36, radius 8; the row scrolls sideways from the gutter. |
 | `Segmented` | Two or three ways of seeing the same thing (History: list or calendar). The one showing is filled on the `sunken` track. |
 | `StepSlider` | A choice among a few ordered stops (1–4 runs a week). Snaps, ticks with a haptic, works with VoiceOver. |
 | `DropdownMenu` | A round ⋯ button whose menu drops just under it: the actions on the thing a page shows. |
@@ -265,7 +267,13 @@ Section heading                     aside
   and a row of chips under the title, shown once there are two items: the
   sort first, tinted, opening a `ChoiceSheet`; then filters that tint when on.
   "3 of 12" appears while narrowed; an empty result says so and offers "Show
-  all".
+  all" (`NoMatch`).
+- History gets the same row, without the search: one `Chip` per type of
+  outing it holds (Run, Trail, Treadmill, Walk, Hike, Ride), shown once it
+  holds two types. One type at a time; tapping the chosen one again shows
+  everything. It narrows the list and the calendar alike; the month banner
+  stays the runner's month. Month totals add up the runs shown, or the rides
+  when the filter is Ride.
 - **A tab is an overview, not an archive.** A list longer than a few rows
   gets its own page: the tab shows its headline in one `RecordRow` with a
   chevron (Profile: Records → longest run, Best efforts → 5K, Predicted

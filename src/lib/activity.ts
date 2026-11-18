@@ -100,3 +100,19 @@ export const SPORT_ICONS: Record<Sport, string> = {
   running: "walk-outline",
   cycling: "bicycle-outline",
 };
+
+/**
+ * The types a history can be narrowed to: those it holds, in the order they
+ * are offered. The chosen one stays even once its last outing is gone, so a
+ * filter can always be switched off where it was switched on.
+ */
+export function heldTypes(runs: readonly { activity: ActivityType }[], chosen: ActivityType | null): ActivityType[] {
+  const held = new Set(runs.map((run) => run.activity));
+  return ACTIVITY_TYPES.filter((type) => held.has(type) || type === chosen);
+}
+
+/**
+ * The sport whose figures a narrowed history adds up: a runner's, unless
+ * the outings shown are rides alone, which then keep figures of their own.
+ */
+export const countedSport = (chosen: ActivityType | null): Sport => (chosen ? sportOf(chosen) : "running");

@@ -2,13 +2,15 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useFocusEffect, useRouter, useScrollToTop } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import {
-  Alert, FlatList, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, useColorScheme, View,
+  Alert, FlatList, Image, Pressable, StyleSheet, Text, TextInput, useColorScheme, View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Polyline } from "react-native-svg";
+import { Chip, ChipRow } from "@/components/Chip";
 import { ChoiceSheet } from "@/components/ChoiceSheet";
 import { EmptyState } from "@/components/EmptyState";
 import { HeaderButton } from "@/components/HeaderButton";
+import { NoMatch } from "@/components/NoMatch";
 import { RunButtonText } from "@/components/RunButtonText";
 import { SwipeToDelete } from "@/components/SwipeToDelete";
 import { RouteSnapshot, type RouteSnapshotHandle } from "@/components/RouteSnapshot";
@@ -56,7 +58,6 @@ const routesStrings = defineStrings({
     sort: "Trier",
     sortBy: (name: string) => `Trier : ${name}`,
     noMatch: "Aucun parcours ne correspond.",
-    showAll: "Tout afficher",
     count: (shown: number, total: number) => `${shown} sur ${total}`,
   },
   en: {
@@ -88,7 +89,6 @@ const routesStrings = defineStrings({
     sort: "Sort",
     sortBy: (name: string) => `Sort: ${name}`,
     noMatch: "No route matches.",
-    showAll: "Show all",
     count: (shown: number, total: number) => `${shown} of ${total}`,
   },
 });
@@ -314,31 +314,24 @@ export default function RoutesScreen() {
                 </Pressable>
               ) : null}
             </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-              <Pressable
-                onPress={() => setChoosingSort(true)}
-                accessibilityRole="button"
+            <ChipRow>
+              <Chip
+                label={sortName(sort)}
+                on
+                icon="swap-vertical"
+                role="button"
                 accessibilityLabel={s.sortBy(sortName(sort))}
-                style={({ pressed }) => [styles.chip, styles.sortChip, pressed && styles.pressed]}
-              >
-                <Ionicons name="swap-vertical" size={15} color={colors.accent} />
-                <Text style={[styles.chipText, styles.chipTextOn]}>{sortName(sort)}</Text>
-              </Pressable>
-              {ROUTE_FILTERS.map((filter) => {
-                const on = filters.includes(filter);
-                return (
-                  <Pressable
-                    key={filter}
-                    onPress={() => toggle(filter)}
-                    accessibilityRole="checkbox"
-                    accessibilityState={{ checked: on }}
-                    style={({ pressed }) => [styles.chip, on && styles.chipOn, pressed && styles.pressed]}
-                  >
-                    <Text style={[styles.chipText, on && styles.chipTextOn]}>{filterName(filter)}</Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
+                onPress={() => setChoosingSort(true)}
+              />
+              {ROUTE_FILTERS.map((filter) => (
+                <Chip
+                  key={filter}
+                  label={filterName(filter)}
+                  on={filters.includes(filter)}
+                  onPress={() => toggle(filter)}
+                />
+              ))}
+            </ChipRow>
             {narrowed ? <Text style={styles.count}>{s.count(shown.length, all.length)}</Text> : null}
           </View>
         ) : null}
@@ -352,12 +345,7 @@ export default function RoutesScreen() {
           contentContainerStyle={{ paddingBottom: tabBarSpace + 60 }}
           ListEmptyComponent={
             routes === null ? null : all.length > 0 ? (
-              <View style={styles.noMatch}>
-                <Text style={styles.noMatchText}>{s.noMatch}</Text>
-                <Pressable onPress={showAll} accessibilityRole="button" hitSlop={8}>
-                  <Text style={styles.showAll}>{s.showAll}</Text>
-                </Pressable>
-              </View>
+              <NoMatch message={s.noMatch} onShowAll={showAll} />
             ) : (
               <EmptyState
                 actions={[
@@ -464,20 +452,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12, height: 40, borderRadius: 10, backgroundColor: colors.sunken,
   },
   searchInput: { flex: 1, color: colors.text, fontSize: 16, fontFamily: font.regular, paddingVertical: 0 },
-  chips: { gap: 8, paddingHorizontal: GUTTER },
-  chip: {
-    flexDirection: "row", alignItems: "center", gap: 5,
-    paddingHorizontal: 12, height: 36, borderRadius: 8,
-    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline,
-  },
-  sortChip: { backgroundColor: colors.accentSoft, borderColor: colors.accentSoft },
-  chipOn: { backgroundColor: colors.accentSoft, borderColor: colors.accentSoft },
-  chipText: { color: colors.muted, fontSize: 14.5, fontFamily: font.medium },
-  chipTextOn: { color: colors.accent, fontFamily: font.semibold },
   count: { color: colors.subtle, fontSize: 13.5, fontFamily: font.regular, marginHorizontal: GUTTER },
-  noMatch: { alignItems: "center", gap: 8, paddingTop: 40, paddingHorizontal: GUTTER },
-  noMatchText: { color: colors.muted, fontSize: 15.5, fontFamily: font.regular },
-  showAll: { color: colors.accent, fontSize: 15.5, fontFamily: font.semibold },
 
   // The same plain list the history uses, separated by rules rather than by
   // cards: two lists of the same kind of thing should not be set differently.

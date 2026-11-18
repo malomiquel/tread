@@ -3,9 +3,11 @@ import { useFocusEffect, useRouter, useScrollToTop } from "expo-router";
 import { useCallback, useState, useRef } from "react";
 import { Alert, Pressable, SectionList, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Chip, ChipRow } from "@/components/Chip";
 import { EmptyState } from "@/components/EmptyState";
 import { LoadError } from "@/components/LoadError";
 import { HeaderButton } from "@/components/HeaderButton";
+import { NoMatch } from "@/components/NoMatch";
 import { RunShape } from "@/components/RunShape";
 import { SectionHeader } from "@/components/SectionHeader";
 import { BannerTag, bannerText, SummaryBanner } from "@/components/SummaryBanner";
@@ -13,7 +15,7 @@ import { Segmented } from "@/components/Segmented";
 import { SwipeToDelete } from "@/components/SwipeToDelete";
 import { TrainingCalendar } from "@/components/TrainingCalendar";
 import { deleteRun, listRuns, planSessionOfRun, type Run } from "@/lib/db";
-import { activityName, ofSport, tagName } from "@/lib/activity";
+import { activityName, countedSport, heldTypes, ofSport, tagName, type ActivityType } from "@/lib/activity";
 import { importRunFiles } from "@/lib/files";
 import { formatDate, formatDistance, formatDuration, formatPace, formatSpeed } from "@/lib/format";
 import { forgetRunInHealth } from "@/lib/health";
@@ -61,6 +63,7 @@ const historyStrings = defineStrings({
     nothingYet: "Pas encore de course ce mois-ci",
     lastMonth: (month: string, km: string) => `${month} : ${km} ${distanceUnit()}`,
     monthTotal: (km: string, count: number) => `${km} ${distanceUnit()} · ${count}`,
+    noMatch: (type: string) => `Aucune sortie « ${type} » pour l'instant.`,
   },
   en: {
     title: "History",
@@ -96,6 +99,7 @@ const historyStrings = defineStrings({
     nothingYet: "No runs this month yet",
     lastMonth: (month: string, km: string) => `${month}: ${km} ${distanceUnit()}`,
     monthTotal: (km: string, count: number) => `${km} ${distanceUnit()} · ${count}`,
+    noMatch: (type: string) => `No “${type}” outings yet.`,
   },
 });
 
@@ -119,6 +123,8 @@ export default function HistoryScreen() {
   const tabBarSpace = useTabBarSpace();
   const [importing, setImporting] = useState(false);
   const [view, setView] = useState<"list" | "calendar">("list");
+  /** The one type of outing shown, or every type. */
+  const [only, setOnly] = useState<ActivityType | null>(null);
 
   /**
    * True when the history could not be read. A failed read keeps whatever
@@ -198,7 +204,14 @@ export default function HistoryScreen() {
   const onFoot = ofSport(runs ?? []);
   const rides = (runs?.length ?? 0) - onFoot.length;
   const totalM = onFoot.reduce((total, run) => total + run.distanceM, 0);
-  const sections = byMonth(runs ?? []).map((group) => ({ ...group, data: group.runs }));
+
+  // One type at a time; a history of one type has nothing to filter.
+  const chipTypes = heldTypes(runs ?? [], only);
+  const filterable = chipTypes.length > 1;
+  const shown = only ? (runs ?? []).filter((run) => run.activity === only) : runs ?? [];
+  const counted = countedSport(only);
+  const noMatch = only !== null && shown.length === 0;
+  const sections = byMonth(shown).map((group) => ({ ...group, data: group.runs }));
 
   /**
    * Arm the deletion, and find out what else it would take with it.
@@ -264,6 +277,23 @@ export default function HistoryScreen() {
         ) : null}
       </View>
 
+      {/* Which outings, under the title as on the routes: one type at a
+          time, tapped again to show them all. */}
+      {filterable ? (
+        <View style={styles.chips}>
+          <ChipRow>
+            {chipTypes.map((type) => (
+              <Chip
+                key={type}
+                label={activityName(type)}
+                on={only === type}
+                onPress={() => setOnly((current) => (current === type ? null : type))}
+              />
+            ))}
+          </ChipRow>
+        </View>
+      ) : null}
+
       {/* Two ways of reading the same history: what was run, or when. */}
       {runs && runs.length > 0 ? (
         <View style={styles.views}>
@@ -276,12 +306,14 @@ export default function HistoryScreen() {
       ) : null}
 
       {view === "calendar" && runs && runs.length > 0 ? (
+        noMatch ? <NoMatch message={s.noMatch(activityName(only))} onShowAll={() => setOnly(null)} /> : (
         <TrainingCalendar
-          runs={onFoot}
+          runs={ofSport(shown, counted)}
           now={readAt}
           bottomSpace={tabBarSpace + 60}
           onOpenRun={(id) => router.push({ pathname: "/run/[id]", params: { id: String(id) } })}
         />
+        )
       ) : (
       <SectionList
         ref={list}
@@ -295,7 +327,9 @@ export default function HistoryScreen() {
           runs && runs.length > 0 ? <MonthBanner runs={runs} now={readAt} /> : null
         }
         ListEmptyComponent={
-          runs === null ? (failed ? <LoadError onRetry={() => void reload()} /> : null) : (
+          runs === null ? (failed ? <LoadError onRetry={() => void reload()} /> : null) : noMatch ? (
+            <NoMatch message={s.noMatch(activityName(only))} onShowAll={() => setOnly(null)} />
+          ) : (
             <EmptyState
               actions={[
                 {
@@ -326,13 +360,13 @@ export default function HistoryScreen() {
           )
         }
         renderSectionHeader={({ section }) => {
-          const counted = ofSport(section.runs);
+          const summed = ofSport(section.runs, counted);
           return (
             <SectionHeader
               title={monthName(section.start, readAt)}
               aside={s.monthTotal(
-                formatDistance(counted.reduce((total, run) => total + run.distanceM, 0)),
-                counted.length,
+                formatDistance(summed.reduce((total, run) => total + run.distanceM, 0)),
+                summed.length,
               )}
             />
           );
@@ -484,6 +518,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: GUTTER, paddingTop: 10, paddingBottom: 14,
   },
   headerText: { flex: 1 },
+  chips: { paddingBottom: 10 },
   views: { paddingHorizontal: GUTTER, paddingBottom: 10 },
   title: { color: colors.text, fontSize: 32, fontFamily: font.bold, letterSpacing: -0.6 },
   subtitle: { color: colors.subtle, fontFamily: font.regular, fontSize: 15, marginTop: 3 },

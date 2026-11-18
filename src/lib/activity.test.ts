@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  activityName, ofSport, parseTags, readActivity, readSport, recordedActivity, sportOf, tagName, toggleTag,
+  activityName, countedSport, heldTypes, ofSport, parseTags, readActivity, readSport, recordedActivity, sportOf, tagName, toggleTag,
 } from "./activity.ts";
 
 test("an unknown or missing type is a run", () => {
@@ -41,4 +41,17 @@ test("rides are kept apart from runs", () => {
   assert.equal(readSport("cycling"), "cycling");
   assert.equal(readSport("swimming"), "running");
   assert.equal(readSport(undefined), "running");
+});
+
+test("a history offers the types it holds, and keeps the chosen one", () => {
+  const outings = [{ activity: "ride" as const }, { activity: "run" as const }, { activity: "ride" as const }];
+  assert.deepEqual(heldTypes(outings, null), ["run", "ride"]);
+  assert.deepEqual(heldTypes(outings, "hike"), ["run", "hike", "ride"]);
+  assert.deepEqual(heldTypes([], null), []);
+});
+
+test("rides alone are summed as rides, anything else as running", () => {
+  assert.equal(countedSport(null), "running");
+  assert.equal(countedSport("trail"), "running");
+  assert.equal(countedSport("ride"), "cycling");
 });
