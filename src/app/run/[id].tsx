@@ -583,7 +583,7 @@ export default function RunDetailScreen() {
     try {
       const file = new File(Paths.cache, gpxFileName(run));
       file.create({ overwrite: true });
-      file.write(toGpx(run, points));
+      file.writeSync(toGpx(run, points));
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(file.uri, { mimeType: "application/gpx+xml", UTI: "com.topografix.gpx" });
       } else {

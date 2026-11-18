@@ -33,7 +33,7 @@ const tabStrings = defineStrings({
  * from its own edge, translated rather than faded — which touches no opacity
  * and cannot strand a screen at zero.
  */
-export const unstable_settings = { initialRouteName: "plan" };
+export const unstable_settings = { anchor: "plan" };
 
 export default function TabsLayout() {
   const s = useStrings(tabStrings);
@@ -49,6 +49,8 @@ export default function TabsLayout() {
        * below them is still speaking the old one.
        */
       key={`${language}-${units}`}
+      // Back returns to the anchor (Plan), which tabs only do under "initialRoute".
+      backBehavior="initialRoute"
       /*
        * The bar has nothing left to hide from. Running used to be a tab that
        * hid it; it is a page over the tabs now, so the bar is simply not on

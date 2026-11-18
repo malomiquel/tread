@@ -86,7 +86,7 @@ async function writeCopy(target: CopyTarget, name: string, base64: string): Prom
     const api = cloud();
     if (!api) throw new Error("iCloud unavailable");
     const staged = new File(Paths.cache, name);
-    staged.write(base64, { encoding: "base64" });
+    staged.writeSync(base64, { encoding: "base64" });
     try {
       await api.CloudStorage.uploadFile(`/${name}`, localPath(staged), { mimeType: "application/zip" }, api.CloudStorageScope.Documents);
     } finally {
@@ -95,7 +95,7 @@ async function writeCopy(target: CopyTarget, name: string, base64: string): Prom
     return;
   }
   if (target.kind === "folder") {
-    new Directory(target.uri).createFile(name, "application/zip").write(base64, { encoding: "base64" });
+    new Directory(target.uri).createFile(name, "application/zip").writeSync(base64, { encoding: "base64" });
   }
 }
 

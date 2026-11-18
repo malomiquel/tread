@@ -120,6 +120,9 @@
       "expo-sharing",
       "@bacons/apple-targets",
       "expo-font",
+      "expo-image",
+      "expo-status-bar",
+      "expo-web-browser",
       [
         "expo-build-properties",
         {
@@ -161,7 +164,6 @@
           ]
         }
       ],
-      "./plugins/withSceneLifecycle",
       "./plugins/withBackupRules",
       "react-native-health-connect",
       "./plugins/withICloudFolderName",

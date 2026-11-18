@@ -50,7 +50,7 @@ const tabBarStrings = defineStrings({
 const SLIDE = { duration: 240, easing: Easing.out(Easing.cubic) };
 
 export function FloatingTabBar({
-  state, descriptors, navigation,
+  state, descriptors, emitter, navigateToTab,
 }: TabBarProps) {
   const s = useStrings(tabBarStrings);
   const bottom = useTabBarBottom();
@@ -141,21 +141,21 @@ export function FloatingTabBar({
       typeof options.tabBarLabel === "string" ? options.tabBarLabel : (options.title ?? route.name);
 
     const onPress = () => {
-      const event = navigation.emit({ type: "tabPress", target: route.key, canPreventDefault: true });
+      const event = emitter.emit({ type: "tabPress", target: route.key, canPreventDefault: true });
       if (focused || event.defaultPrevented) return;
       // The selection tick rather than an impact: this is the same gesture as
       // turning a picker, and it belongs to the same family. It fires only
       // where the navigation does — a tap on the section already open changes
       // nothing, and a buzz answering it would be claiming otherwise.
       void Haptics.selectionAsync().catch(() => undefined);
-      navigation.navigate(route.name);
+      navigateToTab(route.key);
     };
 
     return (
       <Pressable
         key={route.key}
         onPress={onPress}
-        onLongPress={() => navigation.emit({ type: "tabLongPress", target: route.key })}
+        onLongPress={() => emitter.emit({ type: "tabLongPress", target: route.key })}
         accessibilityRole="button"
         accessibilityState={{ selected: focused }}
         accessibilityLabel={options.tabBarAccessibilityLabel ?? label}

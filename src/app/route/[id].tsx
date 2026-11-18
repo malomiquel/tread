@@ -331,7 +331,7 @@ export default function RouteBuilder() {
       const called = name?.trim() || autoRouteName(Date.now());
       const file = new File(Paths.cache, routeGpxFileName(called));
       file.create({ overwrite: true });
-      file.write(routeToGpx(called, drawnLine(route)));
+      file.writeSync(routeToGpx(called, drawnLine(route)));
 
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(file.uri, {

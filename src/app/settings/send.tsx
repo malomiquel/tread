@@ -105,7 +105,7 @@ function Sender({ onRestart }: { onRestart: () => void }) {
           async (name) => {
             const file = new File(new Directory(Paths.cache, FOLDER), name);
             file.create({ overwrite: true });
-            file.write(packed, { encoding: "base64" });
+            file.writeSync(packed, { encoding: "base64" });
           },
           async () => handoverDir(),
         );

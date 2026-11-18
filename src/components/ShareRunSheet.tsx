@@ -336,7 +336,7 @@ function Sheet({ run, points, preparedMapUri, onClose }: Omit<Props, "visible">)
 
     const file = new File(Paths.cache, gifFileName(run.name, run.startedAt));
     file.create({ overwrite: true });
-    file.write(gif.finish());
+    file.writeSync(gif.finish());
     return file.uri;
   }
 

@@ -135,7 +135,7 @@ export default function TransferSettings() {
 
       const file = new File(Paths.cache, transferFileName());
       file.create({ overwrite: true });
-      file.write(await packTransfer(everything), { encoding: "base64" });
+      file.writeSync(await packTransfer(everything), { encoding: "base64" });
 
       if (!(await Sharing.isAvailableAsync())) {
         Alert.alert(s.shareUnavailableTitle, s.shareUnavailableMessage);

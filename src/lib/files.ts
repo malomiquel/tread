@@ -148,7 +148,7 @@ export async function exportRunArchive(): Promise<string | null> {
 
   const file = new File(Paths.cache, archiveFileName());
   file.create({ overwrite: true });
-  file.write(await buildArchive(loaded), { encoding: "base64" });
+  file.writeSync(await buildArchive(loaded), { encoding: "base64" });
 
   if (!(await Sharing.isAvailableAsync())) {
     throw new Error(fileWords().noShare);
