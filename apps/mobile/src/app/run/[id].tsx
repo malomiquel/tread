@@ -17,9 +17,12 @@ import { DropdownMenu, type MenuItem } from "@/components/DropdownMenu";
 import { RunDetails } from "@/components/RunDetails";
 import { canShareImage, ShareRunSheet } from "@/components/ShareRunSheet";
 import { exertionName, type Exertion } from "@tread/core/plan";
-import { deleteRun, effortRecords, readRoute, readRun, routeRecords, type RouteRecord, renameRun, type Run, setRunExertion, setRunHeart, planSessionOfRun,
+import { deleteRun, effortRecords, listRuns, readRoute, readRun, routeRecords, type RouteRecord, renameRun, type Run, setRunExertion, setRunHeart, planSessionOfRun,
   saveRunAsRoute,
 } from "@/lib/db";
+import { RunCard } from "@/components/RunCard";
+import { cardsOf } from "@tread/core/card";
+import { viewShot } from "@/lib/viewShot";
 import { placeName } from "@/lib/location";
 import { autoRouteName, routeFromLine, runLine } from "@tread/core/route";
 import {
@@ -106,6 +109,9 @@ const runStrings = defineStrings({
     routeBehind: (gap: string) => `+${gap} sur ton record`,
     record: "Record",
     splits: "Fractionnés",
+    card: "Carte",
+    shareCard: "Partager la carte",
+    cardImageFailed: "Image impossible",
     vma: "VMA estimée",
     vmaDetail: "La vitesse que tes allures de fractionné prennent pour base.",
     laps: "Tours",
@@ -190,6 +196,9 @@ const runStrings = defineStrings({
     routeBehind: (gap: string) => `+${gap} on your best`,
     record: "Record",
     splits: "Splits",
+    card: "Card",
+    shareCard: "Share the card",
+    cardImageFailed: "Couldn't make the image",
     vma: "Estimated MAS",
     vmaDetail: "Maximal aerobic speed: what interval paces are set from.",
     laps: "Laps",
@@ -341,6 +350,10 @@ export default function RunDetailScreen() {
   // Energy needs a weight, and the app keeps none of its own.
   const [weightKg, setWeightKg] = useState<number | null>(null);
   const cardMapSource = useRef<CardMapHandle>(null);
+  /** Every run, since a card is dealt against the ones before it. */
+  const [history, setHistory] = useState<Run[] | null>(null);
+  const runCard = useRef<View>(null);
+  const [sharingCard, setSharingCard] = useState(false);
 
   // Asked once, so the warning before deleting can say what else goes with it.
   useEffect(() => {
@@ -420,6 +433,11 @@ export default function RunDetailScreen() {
   // returns here with different figures.
   useFocusEffect(useCallback(() => {
     let active = true;
+    void listRuns()
+      .then((runs) => {
+        if (active) setHistory(runs);
+      })
+      .catch(() => undefined);
     void effortRecords()
       .then((records) => {
         if (active) setRecordHolders(Object.fromEntries(records.map((record) => [record.key, record.run.id])));
@@ -652,6 +670,30 @@ export default function RunDetailScreen() {
       setData({ run: { ...run, name: next }, points });
     } catch {
       Alert.alert(s.renameFailedTitle, s.renameFailed);
+    }
+  }
+
+  // Dealt from the whole history with this page's copy of the run in it, so
+  // a tag or a feel changed here changes the card at once.
+  const card = history === null
+    ? null
+    : cardsOf([...history.filter((other) => other.id !== run.id), { ...run, weather }]).get(run.id) ?? null;
+
+  async function shareCard() {
+    const shot = viewShot();
+    if (!shot || !runCard.current || sharingCard) return;
+    setSharingCard(true);
+    try {
+      const uri = await shot.captureRef(runCard.current, { format: "png", quality: 1, result: "tmpfile" });
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, { mimeType: "image/png", UTI: "public.png" });
+      } else {
+        Alert.alert(s.shareUnavailable, s.shareUnavailableBody);
+      }
+    } catch (cause) {
+      Alert.alert(s.cardImageFailed, cause instanceof Error ? cause.message : s.unexpectedError);
+    } finally {
+      setSharingCard(false);
     }
   }
 
@@ -999,6 +1041,23 @@ export default function RunDetailScreen() {
 
       {/* The run's section of the page: what the runner says about it. */}
       <RunDetails run={run} onChange={(patch) => setData({ ...data, run: { ...run, ...patch } })} />
+
+      {/* What the run leaves in the collection. Under the details, since the
+          tags and the feel said there are part of what deals it. */}
+      {card ? (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{s.card}</Text>
+          <RunCard ref={runCard} card={card} run={run} privacyRadiusM={privacyRadiusM} />
+          {viewShot() ? (
+            <Button
+              label={s.shareCard}
+              variant="secondary"
+              disabled={sharingCard}
+              onPress={() => void shareCard()}
+            />
+          ) : null}
+        </View>
+      ) : null}
 
       {run.blocks.length > 0 && (
         <View style={styles.section}>

@@ -38,7 +38,7 @@ export function readPrivacyRadius(raw: string | undefined): PrivacyRadius {
  * radius at all comes back empty: nothing of it can be drawn without drawing
  * the place it was meant to hide.
  */
-export function hideEnds(points: readonly TrackPoint[], radiusM: number): TrackPoint[] {
+export function hideEnds<T extends Pick<TrackPoint, "lat" | "lng">>(points: readonly T[], radiusM: number): T[] {
   if (radiusM <= 0 || points.length === 0) return [...points];
   const start = points[0];
   const finish = points[points.length - 1];

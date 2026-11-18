@@ -215,6 +215,7 @@ defaults.
 | `RunMap`, `TrackOverlay` | The map and the track drawn on it. |
 | `ShareCard` | The picture a run leaves as. |
 | `RecapCard` | A month or a year as a picture, the run card's size, on the light accent whatever the appearance. |
+| `RunCard` | The card a run leaves in the collection (`@tread/core/card`): number and rarity in words, the outline with its ends hidden, name, four stats from 1 to 99, traits in words. Light palette whatever the appearance, since it is shared as is. Rarity is the frame and the word, never colour alone: hairline, `text` rule, `accent` rule, then the whole card on `accent`. No gold, no glow. |
 | `LineChart` | A series against distance on a run's page (altitude, pace, heart rate): line over a soft fill, the two extremes named. |
 | `RideDashboard` | The same place on a ride: the speed of the moment large, the average beside its unit, the top speed under it. No verdict and no gauge: a ride has no pace to hold. Paused, a `warning` chip says so in the room kept for it. |
 | `RunDashboard` | The run screen while recording, over the map: a verdict chip (on pace, too slow, too fast, free), the pace of the moment large, the target beside its unit, a gauge read like a speedometer (too slow left, too fast right) whose marker springs around the tolerance band, and the block under way with what is left and what comes next. Off pace, the chip, the marker and the figure turn `warning` together. |
@@ -283,7 +284,11 @@ Section heading                     aside
   gets its own page: the tab shows its headline in one `RecordRow` with a
   chevron (Profile: Records → longest run, Best efforts → 5K, Predicted
   times → 10K), and the page shows the rest. Profile reads, top to bottom:
-  week banner, progress, performance, all time.
+  week banner, progress, performance, all time. All time ends on two rows
+  leading elsewhere: the map of every run, and the Collection, whose page
+  lists the rarest cards, then each set as a `SectionHeader` ("4 / 7") over
+  its slots in `RecordRow`s: a tick and the run that filled it, or an empty
+  circle and, in words, what would fill it. No slot asks for a speed.
 
 ### An empty tab
 

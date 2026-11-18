@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { StyleSheet, useColorScheme, View } from "react-native";
 import Svg, { Polyline } from "react-native-svg";
 import { runShape } from "@/lib/db";
+import { hideEnds } from "@tread/core/privacy";
 import { thumbnail } from "@tread/core/route";
 import { colors, literalColors } from "@/lib/theme";
 
@@ -23,6 +24,13 @@ interface Props {
   /** A ride, shown by a bicycle while it has no shape to draw. */
   ride?: boolean;
   size?: number;
+  /** Metres trimmed from each end, for a shape that is going to be shared. */
+  hideEndsM?: number;
+  /**
+   * Fixed colours, for a shape drawn on a picture rather than on the page:
+   * a picture has no dark mode.
+   */
+  tint?: { tile: string; line: string; icon: string };
 }
 
 /**
@@ -33,10 +41,10 @@ interface Props {
  * with no GPS points, or one still loading, shows a running figure instead of
  * an empty square.
  */
-export function RunShape({ runId, track, ride = false, size = 56 }: Props) {
+export function RunShape({ runId, track, ride = false, size = 56, hideEndsM = 0, tint }: Props) {
   const scheme = useColorScheme() === "dark" ? "dark" : "light";
   const inner = size - 12;
-  const key = `${runId}:${track}`;
+  const key = `${runId}:${track}:${size}:${hideEndsM}`;
   const [loaded, setLoaded] = useState<{ key: string; shape: { x: number; y: number }[] } | null>(null);
   const cached = shapes.get(key);
   const shape = cached ?? (loaded?.key === key ? loaded.shape : null);
@@ -46,21 +54,27 @@ export function RunShape({ runId, track, ride = false, size = 56 }: Props) {
     let active = true;
     void runShape(runId)
       .then((points) => {
-        const drawn = thumbnail(points, inner, 3);
+        const drawn = thumbnail(hideEnds(points, hideEndsM), inner, 3);
         shapes.set(key, drawn);
         if (active) setLoaded({ key, shape: drawn });
       })
       .catch(() => undefined);
     return () => { active = false; };
-  }, [key, runId, inner]);
+  }, [key, runId, inner, hideEndsM]);
 
   return (
-    <View style={[styles.tile, { width: size, height: size, borderRadius: size * 0.28 }]}>
+    <View
+      style={[
+        styles.tile,
+        { width: size, height: size, borderRadius: Math.min(size * 0.28, 16) },
+        tint && { backgroundColor: tint.tile },
+      ]}
+    >
       {shape && shape.length > 1 ? (
         <Svg width={inner} height={inner}>
           <Polyline
             points={shape.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(" ")}
-            stroke={literalColors.track[scheme]}
+            stroke={tint?.line ?? literalColors.track[scheme]}
             strokeWidth={2.4}
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -68,7 +82,7 @@ export function RunShape({ runId, track, ride = false, size = 56 }: Props) {
           />
         </Svg>
       ) : (
-        <Ionicons name={ride ? "bicycle" : "walk"} size={size * 0.42} color={colors.subtle} />
+        <Ionicons name={ride ? "bicycle" : "walk"} size={Math.min(size * 0.42, 40)} color={tint?.icon ?? colors.subtle} />
       )}
     </View>
   );

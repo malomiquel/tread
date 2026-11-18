@@ -41,6 +41,7 @@ const layoutStrings = defineStrings({
     editRun: "Modifier la course",
     addRun: "Ajouter une course",
     heatmap: "Toutes tes courses",
+    collection: "Collection",
     recap: "Récap",
     method: "Méthode",
     settings: "Réglages",
@@ -76,6 +77,7 @@ const layoutStrings = defineStrings({
     editRun: "Edit run",
     addRun: "Add a run",
     heatmap: "All your runs",
+    collection: "Collection",
     recap: "Recap",
     method: "Method",
     settings: "Settings",
@@ -278,6 +280,7 @@ export default function RootLayout() {
           <Stack.Screen name="run/edit/[id]" options={{ title: s.editRun, headerBackTitle: s.run }} />
           <Stack.Screen name="run/add" options={{ title: s.addRun, headerBackTitle: s.back }} />
           <Stack.Screen name="heatmap" options={{ title: s.heatmap, headerBackTitle: s.profile }} />
+          <Stack.Screen name="collection" options={{ title: s.collection, headerBackTitle: s.profile }} />
           <Stack.Screen name="recap" options={{ title: s.recap, headerBackTitle: s.back }} />
           <Stack.Screen name="plan-method" options={{ title: s.method, headerBackTitle: s.back }} />
           {/* One screen for both: drawing a route and changing one are the same
