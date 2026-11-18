@@ -63,17 +63,18 @@ jobs:
         # --no-install because the install step has already done it, and prebuild would
         # otherwise install everything a second time.
         run: npx expo prebuild --platform android --no-install
+        working-directory: apps/mobile
 
       - name: Build the APK
         run: ./gradlew assembleRelease --no-daemon
-        working-directory: android
+        working-directory: apps/mobile/android
 
       - name: Name the file
         id: apk
         run: |
-          version=$(node -p "require('./app.config.js')({ config: {} }).version ?? '0.0.0'")
+          version=$(node -p "require('./apps/mobile/app.config.js')({ config: {} }).version ?? '0.0.0'")
           name="tread-${version}.apk"
-          mv android/app/build/outputs/apk/release/app-release.apk "$name"
+          mv apps/mobile/android/app/build/outputs/apk/release/app-release.apk "$name"
           echo "name=$name" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
 

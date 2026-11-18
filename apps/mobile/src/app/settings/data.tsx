@@ -1,0 +1,327 @@
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useState } from "react";
+import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Switch, Text } from "react-native";
+import { SettingRow } from "@/components/SettingRow";
+import { SettingsGroup } from "@/components/SettingsGroup";
+import { exportRunArchive, importRouteFiles, importRunFiles } from "@/lib/files";
+import { healthAvailable, healthStoreName } from "@/lib/health";
+import { enableHealthImport } from "@/lib/healthSync";
+import { chooseCopyFolder, copyState, makeCopy, restoreNewestCopy, type CopyState } from "@/lib/safetyCopy";
+import { timeAgo } from "@/lib/stats";
+import { useSettings } from "@/lib/settings";
+import { defineStrings, plural, useStrings } from "@tread/core/i18n";
+import { colors, font } from "@/lib/theme";
+
+type Job = "runs" | "routes" | "export";
+
+const dataStrings = defineStrings({
+  fr: {
+    nothingToExport: "Rien à exporter",
+    noRunsYet: "Aucune course enregistrée pour l'instant.",
+    failed: "Opération impossible",
+    unexpected: "Erreur inattendue.",
+    lede:
+      "Tes courses et tes parcours sont enregistrés sur ce téléphone, sans compte ni serveur Tread.",
+    backupIos:
+      "Ils font partie de la sauvegarde iCloud de ton iPhone, si elle est activée : sur un nouvel iPhone, restaure-la et tout revient. Supprimer l'app, elle, les efface.",
+    backupAndroid:
+      "Ils font partie de la sauvegarde Google de ton téléphone, si elle est activée, sauf les photos des courses, qui ne passent que d'un téléphone à l'autre. Supprimer l'app les efface.",
+    copyTitle: "Copie de sécurité",
+    icloud: "iCloud Drive",
+    folder: "Dossier de copie",
+    chooseFolder: "Choisir",
+    changeFolder: "Changer de dossier",
+    noICloud: "Connecte-toi à iCloud et active iCloud Drive dans les réglages de l'iPhone",
+    none: "Aucune",
+    copyNow: "Faire une copie maintenant",
+    copied: "Copie faite",
+    copyFailed: "La copie n'a pas pu être écrite. Réessaie dans un instant.",
+    restore: "Récupérer la dernière copie",
+    restoreTitle: "Récupérer la dernière copie ?",
+    restoreMessage: "Les courses qui manquent ici sont ajoutées ; celles déjà là ne bougent pas.",
+    restoreConfirm: "Récupérer",
+    cancel: "Annuler",
+    restored: "Copie récupérée",
+    noCopy: "Aucune copie à récupérer pour l'instant.",
+    restoreFailed: "La copie existe, mais elle n'a pas pu être lue. Vérifie ta connexion, puis réessaie.",
+    copyFooterIos:
+      "Après chaque course et quand tu quittes l'app, Tread écrit une copie de tout dans ton iCloud Drive, dossier Tread : courses, parcours, programme, réglages. Les 7 dernières sont gardées. Pas de compte Tread : c'est ton iCloud. Les photos n'y sont pas.",
+    copyFooterAndroid:
+      "Choisis un dossier une fois, dans Google Drive par exemple : Tread y écrit une copie de tout après chaque course et quand tu quittes l'app, et garde les 7 dernières. Pas de compte Tread. Après une réinstallation, récupère-la avec Changer de téléphone › Recevoir. Les photos n'y sont pas.",
+    import: "Importer",
+    watch: "Courses de ta montre",
+    watchDetail: (store: string) => `Ramène les courses qu'une montre ou une autre app a enregistrées dans ${store}`,
+    watchFooter: (store: string) => `Lu sur ce téléphone, dans ${store} : rien ne passe par internet. Les nouvelles courses arrivent à chaque ouverture de l'app.`,
+    watchDone: (count: number, store: string) => (count === 0
+      ? `Aucune nouvelle course dans ${store} pour l'instant.`
+      : `${plural(count, "course importée", "courses importées")} depuis ${store}.`),
+    watchTitle: "Courses de ta montre",
+    watchUnavailable: (store: string) => `${store} n'a pas répondu. Vérifie que l'app y a accès dans les réglages du téléphone.`,
+    runs: "Des courses",
+    runsDetail: "Fichiers GPX exportés de Strava, Garmin, d'une montre ou de Tread",
+    routes: "Des parcours",
+    routesDetail: "Fichiers GPX d'un planificateur d'itinéraire ou d'un ami",
+    importDone: "Import terminé",
+    export: "Exporter",
+    allRuns: "Toutes mes courses",
+    allRunsDetail: "Une archive de fichiers GPX, lisible par n'importe quelle app de course",
+    exportReady: "Export prêt",
+    transfer: "Changer de téléphone",
+    transferDetail: "Tout emporter d'un coup : courses, parcours, programme et réglages",
+  },
+  en: {
+    nothingToExport: "Nothing to export",
+    noRunsYet: "No runs recorded yet.",
+    failed: "Something went wrong",
+    unexpected: "Unexpected error.",
+    lede:
+      "Your runs and routes are stored on this phone, with no account and no Tread server.",
+    backupIos:
+      "They are part of your iPhone's iCloud backup, if it is on: restore it on a new iPhone and everything comes back. Deleting the app erases them.",
+    backupAndroid:
+      "They are part of your phone's Google backup, if it is on, except run photos, which only travel phone to phone. Deleting the app erases them.",
+    copyTitle: "Safety copy",
+    icloud: "iCloud Drive",
+    folder: "Copy folder",
+    chooseFolder: "Choose",
+    changeFolder: "Change folder",
+    noICloud: "Sign in to iCloud and turn on iCloud Drive in the iPhone's settings",
+    none: "None",
+    copyNow: "Make a copy now",
+    copied: "Copy made",
+    copyFailed: "The copy couldn't be written. Try again in a moment.",
+    restore: "Bring back the latest copy",
+    restoreTitle: "Bring back the latest copy?",
+    restoreMessage: "Runs missing here are added; the ones already here stay as they are.",
+    restoreConfirm: "Bring back",
+    cancel: "Cancel",
+    restored: "Copy restored",
+    noCopy: "No copy to bring back yet.",
+    restoreFailed: "The copy is there, but it couldn't be read. Check your connection, then try again.",
+    copyFooterIos:
+      "After every run and when you leave the app, Tread writes a copy of everything to your iCloud Drive, in a Tread folder: runs, routes, plan, settings. The last 7 are kept. No Tread account: it is your iCloud. Photos are not included.",
+    copyFooterAndroid:
+      "Pick a folder once, in Google Drive for instance: Tread writes a copy of everything there after every run and when you leave the app, and keeps the last 7. No Tread account. After a reinstall, bring it back with Switch phones › Receive. Photos are not included.",
+    import: "Import",
+    watch: "Runs from your watch",
+    watchDetail: (store: string) => `Brings in the runs a watch or another app wrote to ${store}`,
+    watchFooter: (store: string) => `Read on this phone, from ${store}: nothing goes over the internet. New runs arrive each time the app opens.`,
+    watchDone: (count: number, store: string) => (count === 0
+      ? `No new runs in ${store} yet.`
+      : `${plural(count, "run", "runs")} imported from ${store}.`),
+    watchTitle: "Runs from your watch",
+    watchUnavailable: (store: string) => `${store} didn't answer. Check that the app has access in your phone's settings.`,
+    runs: "Runs",
+    runsDetail: "GPX files exported from Strava, Garmin, a watch or Tread",
+    routes: "Routes",
+    routesDetail: "GPX files from a route planner or a friend",
+    importDone: "Import complete",
+    export: "Export",
+    allRuns: "All my runs",
+    allRunsDetail: "An archive of GPX files that any running app can read",
+    exportReady: "Export ready",
+    transfer: "Switch phones",
+    transferDetail: "Bring everything over at once: runs, routes, plan and settings",
+  },
+});
+
+/**
+ * Everything that goes in or out as a file.
+ *
+ * These were icons in the headers of the history and the routes, without a
+ * word beside them: an arrow pointing down that meant "import" to whoever
+ * drew it and "download" to everybody else. Here each one says what it does,
+ * and where the data lives is said once, plainly, above them.
+ */
+export default function DataSettings() {
+  const settings = useSettings();
+  const router = useRouter();
+  const [busy, setBusy] = useState<Job | null>(null);
+  const [copy, setCopy] = useState<CopyState | null>(null);
+  const [copying, setCopying] = useState(false);
+  /** While the newest copy is downloaded and merged, which can take a while. */
+  const [restoring, setRestoring] = useState(false);
+  const [importingHealth, setImportingHealth] = useState(false);
+
+  const readCopy = useCallback(() => {
+    void copyState().then(setCopy).catch(() => undefined);
+  }, []);
+  useFocusEffect(readCopy);
+
+  const copyNow = async () => {
+    setCopying(true);
+    const made = await makeCopy(true);
+    setCopying(false);
+    readCopy();
+    Alert.alert(made ? s.copied : s.failed, made ? undefined : s.copyFailed);
+  };
+
+  const bringBack = () => {
+    Alert.alert(s.restoreTitle, s.restoreMessage, [
+      { text: s.cancel, style: "cancel" },
+      {
+        text: s.restoreConfirm,
+        onPress: () => {
+          setRestoring(true);
+          restoreNewestCopy()
+            .then((summary) => Alert.alert(summary ? s.restored : s.restoreTitle, summary ?? s.noCopy))
+            .catch(() => Alert.alert(s.failed, s.restoreFailed))
+            .finally(() => {
+              setRestoring(false);
+              readCopy();
+            });
+        },
+      },
+    ]);
+  };
+  const s = useStrings(dataStrings);
+
+  async function run(job: Job, title: string, task: () => Promise<string | null>) {
+    if (busy) return;
+    setBusy(job);
+    try {
+      const summary = await task();
+      if (summary !== null) Alert.alert(title, summary);
+      else if (job === "export") Alert.alert(s.nothingToExport, s.noRunsYet);
+    } catch (cause) {
+      Alert.alert(s.failed, cause instanceof Error ? cause.message : s.unexpected);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const spinner = (job: Job) =>
+    busy === job ? <ActivityIndicator size="small" color={colors.accent} /> : undefined;
+
+  return (
+    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+      <Text style={styles.lede}>{`${s.lede} ${Platform.OS === "ios" ? s.backupIos : s.backupAndroid}`}</Text>
+
+      {/* The copy that makes "nothing lost" true: the runner's own cloud,
+          written by the app itself, with how fresh it is in plain sight. */}
+      <SettingsGroup title={s.copyTitle} footer={Platform.OS === "ios" ? s.copyFooterIos : s.copyFooterAndroid}>
+        {copy === null ? null : Platform.OS === "ios" ? (
+          <SettingRow
+            icon={copy.target.kind === "icloud" ? "cloud-done-outline" : "cloud-offline-outline"}
+            label={s.icloud}
+            detail={copy.target.kind === "none" ? s.noICloud : undefined}
+            value={copy.lastAt ? timeAgo(copy.lastAt) : s.none}
+          />
+        ) : (
+          <SettingRow
+            icon={copy.target.kind === "folder" ? "cloud-done-outline" : "folder-open-outline"}
+            label={s.folder}
+            value={copy.target.kind === "folder" ? (copy.lastAt ? timeAgo(copy.lastAt) : s.none) : s.chooseFolder}
+            onPress={() => void chooseCopyFolder().then((uri) => {
+              if (uri) void makeCopy(true).then(readCopy);
+            })}
+          />
+        )}
+        {copy !== null && copy.target.kind !== "none" ? (
+          <SettingRow
+            icon="refresh-outline"
+            label={s.copyNow}
+            right={copying ? <ActivityIndicator size="small" color={colors.accent} /> : undefined}
+            onPress={copying ? undefined : () => void copyNow()}
+          />
+        ) : null}
+        {copy !== null && copy.lastAt !== null ? (
+          <SettingRow
+            icon="arrow-undo-outline"
+            label={s.restore}
+            right={restoring ? <ActivityIndicator size="small" color={colors.accent} /> : undefined}
+            onPress={restoring ? undefined : bringBack}
+          />
+        ) : null}
+        {Platform.OS === "android" && copy?.target.kind === "folder" ? (
+          <SettingRow
+            icon="folder-open-outline"
+            label={s.changeFolder}
+            onPress={() => void chooseCopyFolder().then((uri) => {
+              if (uri) void makeCopy(true).then(readCopy);
+            })}
+          />
+        ) : null}
+      </SettingsGroup>
+
+      {/* The one import that keeps itself going: Health is on the same phone. */}
+      {healthAvailable() ? (
+        <SettingsGroup footer={s.watchFooter(healthStoreName())}>
+          <SettingRow
+            icon="watch-outline"
+            label={s.watch}
+            detail={s.watchDetail(healthStoreName())}
+            right={
+              <Switch
+                value={settings.healthImport}
+                // Held still through the first import, which can take a while
+                // on a long history: a second flick would start it twice.
+                disabled={importingHealth}
+                onValueChange={(on) => {
+                  setImportingHealth(true);
+                  enableHealthImport(on)
+                    .then((count) => {
+                      if (!on) return;
+                      if (count === null) Alert.alert(s.watchTitle, s.watchUnavailable(healthStoreName()));
+                      else Alert.alert(s.watchTitle, s.watchDone(count, healthStoreName()));
+                    })
+                    .catch(() => Alert.alert(s.failed, s.unexpected))
+                    .finally(() => setImportingHealth(false));
+                }}
+                trackColor={{ true: colors.accent, false: colors.hairline }}
+                accessibilityLabel={s.watch}
+              />
+            }
+          />
+        </SettingsGroup>
+      ) : null}
+
+      <SettingsGroup title={s.import}>
+        <SettingRow
+          icon="walk-outline"
+          label={s.runs}
+          detail={s.runsDetail}
+          right={spinner("runs")}
+          onPress={() => void run("runs", s.importDone, importRunFiles)}
+        />
+        <SettingRow
+          icon="map-outline"
+          label={s.routes}
+          detail={s.routesDetail}
+          right={spinner("routes")}
+          onPress={() => void run("routes", s.importDone, importRouteFiles)}
+        />
+      </SettingsGroup>
+
+      <SettingsGroup title={s.export}>
+        <SettingRow
+          icon="share-outline"
+          label={s.allRuns}
+          detail={s.allRunsDetail}
+          right={spinner("export")}
+          onPress={() => void run("export", s.exportReady, exportRunArchive)}
+        />
+      </SettingsGroup>
+
+      <SettingsGroup>
+        <SettingRow
+          icon="phone-portrait-outline"
+          label={s.transfer}
+          detail={s.transferDetail}
+          onPress={() => router.push("/settings/transfer")}
+        />
+      </SettingsGroup>
+    </ScrollView>
+  );
+}
+
+const GUTTER = 20;
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colors.background },
+  content: { paddingBottom: 40 },
+  lede: {
+    color: colors.muted, fontSize: 15, fontFamily: font.regular, lineHeight: 21,
+    paddingHorizontal: GUTTER, paddingTop: 16,
+  },
+});

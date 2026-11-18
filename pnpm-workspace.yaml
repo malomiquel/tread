@@ -1,0 +1,7 @@
+packages:
+  - apps/*
+  - packages/*
+
+# Metro and the native build both expect one flat node_modules at the root
+# (pod install and gradle resolve packages by walking up from the app).
+nodeLinker: hoisted

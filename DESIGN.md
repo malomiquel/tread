@@ -3,9 +3,12 @@
 How Tread looks, and why. Every value here is the one in the code; when they
 disagree, the code is right and this file is out of date.
 
-- Tokens: `src/lib/theme.ts`, `src/lib/layout.ts`
-- Strings: `src/lib/i18n.ts` (see [Language](#language))
-- Components: `src/components/`
+- Colours: `packages/core/src/palette.ts`, the one source. The phone reads
+  them through `apps/mobile/src/lib/theme.ts`; the web app and the landing
+  page as CSS variables (`paletteCss()`, `accentSoft` → `--accent-soft`)
+- Other tokens: `apps/mobile/src/lib/theme.ts`, `apps/mobile/src/lib/layout.ts`
+- Strings: `packages/core/src/i18n.ts` (see [Language](#language))
+- Components: `apps/mobile/src/components/`
 
 ---
 
@@ -437,6 +440,16 @@ on does nothing and buzzes nothing.
 - Units are metric: km, m, /km, km/h, °.
 
 ---
+
+## On the web
+
+The web app (`apps/web`) and the landing page (`apps/landing`) are built for
+a large screen, not from the phone's components, but in the same language:
+the palette's CSS variables, Barlow Condensed, the type scale above, a 20 px
+gutter, the same radii (6 for a button, 12 for a card, 16 for the banner,
+18 for a header pill) and hairline rules rather than shadows. A pressed
+button scales to 0.96. Both serve every word from a `defineStrings` table,
+and the landing page ships no JavaScript.
 
 ## Accessibility
 

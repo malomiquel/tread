@@ -5,7 +5,27 @@ pace, elevation gain, your route on a map, per-kilometre splits, personal
 records, the weather you ran in, routes drawn before they are run, and local
 history. A finished run draws
 itself back on its map and leaves as a picture, a GIF or a GPX; the whole app
-moves to a new phone in one file. Expo SDK 57, React Native, TypeScript.
+moves to a new phone in one file. Expo SDK 58, React Native, TypeScript.
+
+The same outings can be opened in a browser: the web app reads GPX files and
+the app's archive without sending them anywhere. A landing page says what
+the app is.
+
+## Layout
+
+A pnpm monorepo — see [ARCHITECTURE.md](ARCHITECTURE.md) for why it is cut
+this way.
+
+- `apps/mobile`: the Expo app
+- `apps/web`: the web app (Next.js, port 3020)
+- `apps/landing`: the landing page (Astro, port 3021)
+- `packages/core`: what they share — the maths of a run, GPX, units, i18n,
+  colours
+
+```bash
+pnpm web           # http://localhost:3020
+pnpm landing       # http://localhost:3021
+```
 
 ## Trying it in Expo Go
 
@@ -60,26 +80,28 @@ pipeline that eventually disagrees with you.
 
 ## Architecture
 
+`core/` is `packages/core/src`, `mobile/` is `apps/mobile/src`.
+
 ```
-src/lib/geo.ts        distance, filtering, pace, splits, elevation   pure, tested
-src/lib/tracker.ts    the tracker: GPS, pauses, flushing to disk     external store
-src/lib/db.ts         local SQLite, migrations, crash recovery
-src/lib/location.ts   initial fix and one-off recentring
-src/lib/format.ts     duration, pace, distance for display
-src/lib/weather.ts    conditions now, at a run's hour, days ahead     pure, tested
-src/lib/heart.ts      heart rate: weighted average, peak, zones       pure, tested
-src/lib/replay.ts     drawing a finished run back at its own pace     pure, tested
-src/lib/route.ts      routes drawn before they are run               pure, tested
-src/lib/gif.ts        frames in, one animated GIF out                 pure, tested
-src/lib/raster.ts     drawing a line into pixels, by hand            pure, tested
-src/lib/reminders.ts  when a planned session is announced             pure, tested
-src/lib/transfer.ts   the whole app as one file, for a new phone      pure, tested
-src/lib/handover.ts   the same, served over the wifi to a QR scan     pure, tested
-src/lib/stats.ts      weeks, records, the weekly goal                 pure, tested
-src/app/(tabs)/       Plan, History, Routes, Profile
-src/app/run/[id]      one run in detail
-src/app/settings/     settings, one page per subject
-src/components/       RunMap, Metric, Button
+core/geo.ts             distance, filtering, pace, splits, elevation   pure, tested
+mobile/lib/tracker.ts   the tracker: GPS, pauses, flushing to disk     external store
+mobile/lib/db.ts        local SQLite, migrations, crash recovery
+mobile/lib/location.ts  initial fix and one-off recentring
+core/format.ts          duration, pace, distance for display
+mobile/lib/weather.ts   conditions now, at a run's hour, days ahead     pure, tested
+core/heart.ts           heart rate: weighted average, peak, zones       pure, tested
+core/replay.ts          drawing a finished run back at its own pace     pure, tested
+core/route.ts           routes drawn before they are run               pure, tested
+core/gif.ts             frames in, one animated GIF out                 pure, tested
+core/raster.ts          drawing a line into pixels, by hand            pure, tested
+core/reminders.ts       when a planned session is announced             pure, tested
+mobile/lib/transfer.ts  the whole app as one file, for a new phone      pure, tested
+core/handover.ts        the same, served over the wifi to a QR scan     pure, tested
+mobile/lib/stats.ts     weeks, records, the weekly goal                 pure, tested
+mobile/app/(tabs)/      Plan, History, Routes, Profile
+mobile/app/run/[id]     one run in detail
+mobile/app/settings/    settings, one page per subject
+mobile/components/      RunMap, Metric, Button
 ```
 
 ## Decisions that matter

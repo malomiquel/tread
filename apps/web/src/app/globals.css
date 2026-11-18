@@ -1,0 +1,69 @@
+/* Colours come from @tread/core/palette, injected by the layout as CSS variables. */
+:root { --gutter: 20px; }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--background);
+  color: var(--text);
+  font-family: var(--font-barlow), system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.35;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; text-decoration: none; }
+.num { font-variant-numeric: tabular-nums; }
+
+.page { max-width: 1040px; margin: 0 auto; padding: 0 var(--gutter); }
+
+/* Header */
+.top { display: flex; align-items: center; justify-content: space-between; padding: 18px 0 14px; }
+.brand { font-weight: 800; font-size: 26px; letter-spacing: -0.6px; }
+.brand span { color: var(--accent); }
+
+/* Buttons: radius 6 for full actions, 18 for header pills, as on the phone. */
+.button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 50px; padding: 0 22px; border-radius: 6px; border: 0; cursor: pointer;
+  font: inherit; font-size: 18px; font-weight: 600; letter-spacing: 0.3px;
+  transition: transform 90ms ease-out;
+}
+.button:active { transform: scale(0.96); transition-duration: 160ms; }
+.button.primary { background: var(--accent); color: var(--accent-text); font-weight: 700; }
+.button.secondary { background: var(--sunken); color: var(--text); }
+.pill {
+  display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px;
+  border-radius: 18px; border: 0; cursor: pointer; font: inherit; font-size: 16px; font-weight: 600;
+  background: var(--accent-soft); color: var(--accent);
+}
+.pill.primary { background: var(--accent); color: var(--accent-text); }
+
+/* App */
+.title { font-size: 32px; font-weight: 700; letter-spacing: -0.6px; margin: 10px 0 2px; }
+.subtitle { font-size: 15px; color: var(--subtle); margin: 0 0 14px; min-height: 20px; }
+.banner { background: var(--accent); color: var(--accent-text); border-radius: 16px; padding: 18px 20px; margin-bottom: 8px; }
+.banner .label { color: var(--accent-text); opacity: 0.8; font-size: 15px; letter-spacing: 0; text-transform: none; font-weight: 500; }
+.banner .figure { font-size: 34px; font-weight: 600; letter-spacing: -0.8px; }
+.banner .figure small { font-size: 16px; margin-left: 4px; }
+.banner .detail { opacity: 0.8; font-size: 15px; }
+.section-head { display: flex; justify-content: space-between; align-items: baseline; padding: 20px 0 8px; }
+.section-head h2 { font-size: 21px; letter-spacing: -0.3px; margin: 0; }
+.section-head .aside { color: var(--accent); font-weight: 600; font-size: 15px; }
+.rows { list-style: none; margin: 0; padding: 0; }
+.row { display: flex; align-items: center; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--hairline); }
+.row:last-child { border-bottom: 0; }
+.tile { width: 48px; height: 48px; border-radius: 12px; background: var(--sunken); flex: none; display: grid; place-items: center; }
+.row .name { font-size: 18.5px; font-weight: 600; letter-spacing: -0.2px; }
+.row .detail { font-size: 14px; color: var(--subtle); }
+.row .figures { margin-left: auto; text-align: right; }
+.row .figures strong { font-size: 18.5px; font-weight: 600; }
+.unit { color: var(--subtle); font-size: 0.8em; margin-left: 3px; }
+.chip { font-size: 12px; font-weight: 600; color: var(--accent); background: var(--accent-soft); border-radius: 8px; padding: 2px 8px; margin-left: 6px; vertical-align: 2px; }
+.drop { border: 1.5px dashed var(--hairline); border-radius: 12px; padding: 28px 20px; text-align: center; color: var(--muted); }
+.drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.empty-rule { border-top: 1px solid var(--hairline); margin: 4px 0 16px; }
+.action-card { display: flex; gap: 14px; align-items: center; width: 100%; text-align: left; border: 0; border-radius: 12px; padding: 16px; cursor: pointer; font: inherit; background: var(--accent); color: var(--accent-text); min-height: 86px; }
+.action-card h3 { margin: 0 0 2px; font-size: 21px; letter-spacing: -0.3px; }
+.action-card p { margin: 0; opacity: 0.8; font-size: 15px; min-height: 2.7em; }
+.note { color: var(--subtle); font-size: 14.5px; margin: 14px 0 0; }
+.error { color: var(--danger); font-size: 15px; }

@@ -1,0 +1,77 @@
+---
+import "@fontsource/barlow-condensed/400.css";
+import "@fontsource/barlow-condensed/500.css";
+import "@fontsource/barlow-condensed/600.css";
+import "@fontsource/barlow-condensed/700.css";
+import "@fontsource/barlow-condensed/800.css";
+import "@fontsource/barlow-condensed/800-italic.css";
+import "@fontsource/barlow-condensed/900-italic.css";
+import type { Language } from "@tread/core/i18n";
+import { palette, paletteCss } from "@tread/core/palette";
+import { getAbsoluteLocaleUrl } from "astro:i18n";
+
+interface Props {
+  language: Language;
+  title: string;
+  description: string;
+}
+
+const { language, title, description } = Astro.props;
+// The landing page wears both appearances at once, in bands: night (the
+// palette's dark page) and day (its light one), cobalt between them.
+const bands = `:root { --ink: ${palette.background.dark}; --ink-raised: ${palette.sunken.dark}; --ink-rule: ${palette.hairline.dark}; --chalk: ${palette.text.dark}; --chalk-muted: ${palette.muted.dark}; --chalk-subtle: ${palette.subtle.dark}; --paper: ${palette.background.light}; --paper-sunken: ${palette.sunken.light}; --paper-rule: ${palette.hairline.light}; --graphite: ${palette.text.light}; --graphite-muted: ${palette.muted.light}; --cobalt: ${palette.accent.light}; --signal: ${palette.accent.dark}; --on-signal: ${palette.accentText.dark}; --amber: ${palette.warning.dark}; }`;
+const canonical = getAbsoluteLocaleUrl(language, "");
+const alternates = { fr: getAbsoluteLocaleUrl("fr", ""), en: getAbsoluteLocaleUrl("en", "") };
+const structured = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "Tread",
+  applicationCategory: "SportsApplication",
+  operatingSystem: "iOS, Android, Web",
+  description,
+  inLanguage: language,
+  offers: { "@type": "Offer", price: "0", priceCurrency: "EUR" },
+};
+---
+
+<!doctype html>
+<html lang={language}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <link rel="alternate" hreflang="fr" href={alternates.fr} />
+    <link rel="alternate" hreflang="en" href={alternates.en} />
+    <link rel="alternate" hreflang="x-default" href={alternates.fr} />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="sitemap" href="/sitemap-index.xml" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:locale" content={language === "fr" ? "fr_FR" : "en_GB"} />
+    <meta name="theme-color" content={palette.background.dark} />
+    <script type="application/ld+json" set:html={JSON.stringify(structured)} />
+    <style is:inline set:html={`${paletteCss()}\n${bands}`} />
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>
+
+<style is:global>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--ink);
+    color: var(--chalk);
+    font-family: "Barlow Condensed", system-ui, sans-serif;
+    font-size: 16px;
+    line-height: 1.35;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; text-decoration: none; }
+  ::selection { background: var(--signal); color: var(--on-signal); }
+</style>

@@ -1,0 +1,301 @@
+import { decimal, defineStrings, speechLocale } from "@tread/core/i18n";
+import { getUnitSystem, METRES_PER_MILE, toPaceUnits, toSpeedUnits } from "@tread/core/units";
+import * as Speech from "expo-speech";
+import { Platform, Vibration } from "react-native";
+
+/**
+ * How long one buzz of the vibration motor lasts.
+ *
+ * iOS decides this and will not be told otherwise, so it is the one number
+ * here that is observed rather than chosen. Android is given the same figure
+ * so that a pattern feels the same on both.
+ */
+const BUZZ_MS = 400;
+
+/**
+ * Interval between the start of one buzz and the next.
+ *
+ * It has to clear BUZZ_MS with room to spare. Buzzes were spaced 420ms for a
+ * 400ms buzz, and the system ignores a trigger arriving while the motor is
+ * already running, so every pattern quietly lost one: three read as two, two
+ * read as one. The silence between is what makes them countable.
+ */
+const GAP_MS = 650;
+
+/**
+ * A pattern of motor buzzes.
+ *
+ * Everything the app says while running goes through the vibration motor
+ * rather than the Taptic Engine. Feedback generators are the language of the
+ * interface — a button answering a finger that is already on the glass — and
+ * they are far too polite for a phone strapped to an arm or buried in a
+ * pocket. The motor is what the system itself uses for a call.
+ *
+ * The cost is that the motor has exactly one texture and one length on iOS,
+ * so nothing here can be made softer or longer. Count and spacing are the
+ * only two things left to say something with.
+ */
+function buzz(times: number, gapMs = 0): void {
+  // A pattern already playing makes the module drop whatever arrives next, so
+  // a kilometre landing on a change of block would silently swallow one of
+  // the two. Clearing the flag first means the newer event always wins.
+  Vibration.cancel();
+  if (times <= 1) {
+    Vibration.vibrate(BUZZ_MS);
+    return;
+  }
+
+  // The same array means two different things: iOS reads it as the delays
+  // between buzzes, Android as alternating silence and buzz. One shape cannot
+  // satisfy both, so each is built the way its platform will read it.
+  if (Platform.OS === "ios") {
+    Vibration.vibrate([0, ...Array<number>(times - 1).fill(gapMs)]);
+    return;
+  }
+  const pattern = [0];
+  for (let i = 0; i < times; i += 1) {
+    pattern.push(BUZZ_MS);
+    if (i < times - 1) pattern.push(Math.max(gapMs - BUZZ_MS, 0));
+  }
+  Vibration.vibrate(pattern);
+}
+
+/**
+ * Kilometre feedback, spoken and felt.
+ *
+ * This is the one feature that matters most while actually running, because
+ * you cannot read a screen mid-stride. A vibration tells you a kilometre has
+ * gone by, and the voice gives you its time without you lifting the phone.
+ */
+/** What the voice says, written to be heard rather than read. */
+const spokenWords = defineStrings({
+  fr: {
+    kilometre: (km: number, minutes: number, seconds: number) => `${
+      getUnitSystem() === "metric" ? "Kilomètre" : "Mile"} ${km}. ${
+      minutes > 0
+        ? `${minutes} minute${minutes > 1 ? "s" : ""} ${seconds > 0 ? `${seconds}` : ""}`
+        : `${seconds} secondes`}`,
+    sessionDone: "Séance terminée",
+    autoPaused: "Pause automatique",
+    autoResumed: "Reprise",
+    drift: (seconds: number, slow: boolean) =>
+      `${seconds} seconde${seconds > 1 ? "s" : ""} ${slow ? "trop lent" : "trop rapide"}`,
+    ghost: (seconds: number, ahead: boolean) =>
+      `${seconds} seconde${seconds > 1 ? "s" : ""} ${ahead ? "d'avance" : "de retard"} sur ton record`,
+    ghostLevel: "À égalité avec ton record",
+    turn: (direction: string, distance: string) => `Dans ${distance}, ${direction}`,
+    pace: (pace: string) => `à ${pace} au ${getUnitSystem() === "metric" ? "kilomètre" : "mile"}`,
+    offRoute: "Tu as quitté le parcours",
+    backOnRoute: "De retour sur le parcours",
+    routeDone: "Parcours terminé",
+    feet: (feet: number) => `${feet} pieds`,
+    lap: (number: number, distance: string, minutes: number, seconds: number) => `Tour ${number}. ${distance}, ${
+      minutes > 0
+        ? `${minutes} minute${minutes > 1 ? "s" : ""}${seconds > 0 ? ` ${seconds}` : ""}`
+        : `${seconds} secondes`}`,
+    metres: (metres: number) => `${metres} mètres`,
+    kilometres: (km: string) => `${km} kilomètres`,
+    miles: (miles: string) => `${miles} miles`,
+    rideSplit: (distance: number, speed: string) => `${
+      getUnitSystem() === "metric" ? "Kilomètre" : "Mile"} ${distance}. ${speed} ${
+      getUnitSystem() === "metric" ? "kilomètres heure" : "miles par heure"}`,
+  },
+  en: {
+    kilometre: (km: number, minutes: number, seconds: number) => `${
+      getUnitSystem() === "metric" ? "Kilometre" : "Mile"} ${km}. ${
+      minutes > 0
+        ? `${minutes} minute${minutes > 1 ? "s" : ""}${seconds > 0 ? ` ${seconds}` : ""}`
+        : `${seconds} seconds`}`,
+    sessionDone: "Session complete",
+    autoPaused: "Auto-paused",
+    autoResumed: "Resumed",
+    drift: (seconds: number, slow: boolean) =>
+      `${seconds} second${seconds > 1 ? "s" : ""} ${slow ? "too slow" : "too fast"}`,
+    ghost: (seconds: number, ahead: boolean) =>
+      `${seconds} second${seconds > 1 ? "s" : ""} ${ahead ? "ahead of" : "behind"} your best`,
+    ghostLevel: "Level with your best",
+    turn: (direction: string, distance: string) => `In ${distance}, ${direction}`,
+    pace: (pace: string) => `at ${pace} per ${getUnitSystem() === "metric" ? "kilometre" : "mile"}`,
+    offRoute: "You have left the route",
+    backOnRoute: "Back on the route",
+    routeDone: "Route complete",
+    feet: (feet: number) => `${feet} feet`,
+    lap: (number: number, distance: string, minutes: number, seconds: number) => `Lap ${number}. ${distance}, ${
+      minutes > 0
+        ? `${minutes} minute${minutes > 1 ? "s" : ""}${seconds > 0 ? ` ${seconds}` : ""}`
+        : `${seconds} seconds`}`,
+    metres: (metres: number) => `${metres} metres`,
+    kilometres: (km: string) => `${km} kilometres`,
+    miles: (miles: string) => `${miles} miles`,
+    rideSplit: (distance: number, speed: string) => `${
+      getUnitSystem() === "metric" ? "Kilometre" : "Mile"} ${distance}. ${speed} ${
+      getUnitSystem() === "metric" ? "kilometres per hour" : "miles per hour"}`,
+  },
+});
+
+/**
+ * The run paused or resumed by itself. Always felt, spoken when the voice is
+ * on: a watch that stops counting without a word is a watch that seems
+ * broken the first time it happens.
+ */
+export function announceAutoPause(paused: boolean, spoken: boolean): void {
+  buzz(paused ? 2 : 1, GAP_MS);
+  if (!spoken) return;
+  const words = spokenWords();
+  Speech.speak(paused ? words.autoPaused : words.autoResumed, { language: speechLocale(), rate: 1 });
+}
+
+export function announceKilometre(km: number, splitS: number, spoken: boolean, ghostGapS: number | null = null): void {
+  // The buzz fires whatever happens: it is the part that works with headphones
+  // out, music playing, or the phone deep in a pocket.
+  //
+  // One buzz, alone. It is the only single in the set, so it needs no counting
+  // to recognise: the silence straight after it is what names it.
+  buzz(1);
+  if (!spoken) return;
+
+  const minutes = Math.floor(splitS / 60);
+  const seconds = Math.round(splitS % 60);
+  const words = spokenWords();
+  // Against the record on this route, when there is one: the one figure a
+  // ghost exists to give, and the kilometre is the moment it is asked for.
+  const gap = ghostGapS === null ? null : Math.round(ghostGapS);
+  const ghost = gap === null ? "" : gap === 0 ? `. ${words.ghostLevel}` : `. ${words.ghost(Math.abs(gap), gap > 0)}`;
+  Speech.speak(`${words.kilometre(km, minutes, seconds)}${ghost}`, { language: speechLocale(), rate: 1 });
+}
+
+/**
+ * A ride's milestone, spoken and felt: the distance reached and the speed
+ * held since the last one. A cyclist reads speed, not minutes per kilometre,
+ * and passes a kilometre too often for each one to be worth a word.
+ */
+export function announceRideSplit(distance: number, speedMs: number, spoken: boolean, ghostGapS: number | null = null): void {
+  buzz(1);
+  if (!spoken) return;
+  const words = spokenWords();
+  const gap = ghostGapS === null ? null : Math.round(ghostGapS);
+  const ghost = gap === null ? "" : gap === 0 ? `. ${words.ghostLevel}` : `. ${words.ghost(Math.abs(gap), gap > 0)}`;
+  const speed = decimal(toSpeedUnits(speedMs).toFixed(1));
+  Speech.speak(`${words.rideSplit(distance, speed)}${ghost}`, { language: speechLocale(), rate: 1 });
+}
+
+/**
+ * The next block of a structured session, spoken as the last one ends.
+ *
+ * This is what makes a session runnable at all: intervals are precisely the
+ * moment you cannot look at a phone, because you are either flat out or
+ * bent over recovering. The buzz marks the change, the voice says what the
+ * change is.
+ */
+export function announceStep(label: string | null, spoken: boolean, paceSKm: number | null = null): void {
+  // Two for a change of block, three for the end of the session. The count
+  // rises with how final the thing is, not with how urgently it must be acted
+  // on: a block change is one of many and comes back in a few minutes, the
+  // end comes once and closes everything.
+  if (label) buzz(2, GAP_MS);
+  else buzz(3, GAP_MS);
+  if (!spoken) return;
+  const words = spokenWords();
+  // The pace goes with the block it belongs to: said once, as the block
+  // starts, which is when a runner settles into it.
+  const pace = label !== null && paceSKm !== null ? `, ${words.pace(spokenPace(paceSKm))}` : "";
+  Speech.speak(label === null ? words.sessionDone : `${label}${pace}`, { language: speechLocale(), rate: 1 });
+}
+
+/** A pace as it is said: "4 minutes 35" per kilometre, or per mile. */
+function spokenPace(secPerKm: number): string {
+  const whole = Math.round(toPaceUnits(secPerKm));
+  const minutes = Math.floor(whole / 60);
+  const seconds = whole % 60;
+  return `${minutes} minute${minutes > 1 ? "s" : ""}${seconds > 0 ? ` ${seconds}` : ""}`;
+}
+
+/**
+ * How far off the target pace you are, said out loud.
+ *
+ * Only the gap, never the pace itself: mid-effort, "twelve seconds too slow"
+ * is an instruction you can act on, while "five minutes forty-two a
+ * kilometre" is arithmetic you have to do first.
+ */
+export function announcePace(driftS: number, spoken: boolean): void {
+  // No buzz here, and the only one of the four without one.
+  //
+  // The motor has three things left to say — one, two or three — and all
+  // three are spoken for. A fourth would have to be longer than the end of a
+  // session, which is absurd for the smallest signal of the set, and giving
+  // this one buzz would make it indistinguishable from a kilometre.
+  //
+  // It costs nothing, because a buzz was never enough here anyway: it can say
+  // that you have drifted but not which way, so it sends you to the screen
+  // instead of saving you the trip. The other three are complete without a
+  // word; this one is the voice or it is nothing.
+  if (!spoken) return;
+  const seconds = Math.abs(driftS);
+  Speech.speak(spokenWords().drift(seconds, driftS > 0), { language: speechLocale(), rate: 1 });
+}
+
+/** Silence any pending speech, on finishing or discarding a run. */
+export function stopSpeaking(): void {
+  void Speech.stop().catch(() => undefined);
+}
+
+/** A lap's distance as it is said: metres on a track, kilometres or miles beyond. */
+function spokenDistance(metres: number): string {
+  const words = spokenWords();
+  if (getUnitSystem() === "imperial") return words.miles(decimal((metres / METRES_PER_MILE).toFixed(2)));
+  if (metres < 1000) return words.metres(Math.round(metres / 10) * 10);
+  return words.kilometres(decimal((metres / 1000).toFixed(2)));
+}
+
+/**
+ * The lap just closed, said out loud.
+ *
+ * No buzz: the runner's own finger marked it, and the button answers that
+ * press on its own. The voice gives what the press was for — the lap's
+ * distance and time — without looking down in the middle of a repetition.
+ */
+export function announceLap(number: number, distanceM: number, durationS: number, spoken: boolean): void {
+  if (!spoken) return;
+  // Rounded once, before splitting: 59.6 s is "1 minute", not "0 minutes 60".
+  const whole = Math.round(durationS);
+  const minutes = Math.floor(whole / 60);
+  const seconds = whole % 60;
+  Speech.stop();
+  Speech.speak(spokenWords().lap(number, spokenDistance(distanceM), minutes, seconds), {
+    language: speechLocale(), rate: 1,
+  });
+}
+
+/** A short distance ahead, as it is said: tens of metres, or fifties of feet. */
+function spokenAhead(metres: number): string {
+  const words = spokenWords();
+  if (getUnitSystem() === "imperial") return words.feet(Math.max(50, Math.round(metres / 0.3048 / 50) * 50));
+  return words.metres(Math.max(10, Math.round(metres / 10) * 10));
+}
+
+/**
+ * The next turn of the route, said shortly before it. Voice only: a buzz
+ * cannot say which way, and every count the motor has is already taken.
+ */
+export function announceTurn(direction: string, inM: number, spoken: boolean): void {
+  if (!spoken) return;
+  Speech.speak(spokenWords().turn(direction, spokenAhead(inM)), { language: speechLocale(), rate: 1 });
+}
+
+/**
+ * Leaving the route, or finding it again. Felt as well as heard when leaving,
+ * since a wrong turn is worth knowing about with the voice off: two buzzes,
+ * the pattern that already means "something changed, look".
+ */
+export function announceOffRoute(off: boolean, spoken: boolean): void {
+  if (off) buzz(2, GAP_MS);
+  if (!spoken) return;
+  const words = spokenWords();
+  Speech.speak(off ? words.offRoute : words.backOnRoute, { language: speechLocale(), rate: 1 });
+}
+
+/** The end of the route reached. */
+export function announceRouteDone(spoken: boolean): void {
+  if (!spoken) return;
+  Speech.speak(spokenWords().routeDone, { language: speechLocale(), rate: 1 });
+}

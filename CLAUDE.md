@@ -36,7 +36,7 @@ En français **et** en anglais, parce que ça s'affiche :
 - noms de séances, d'unités, de mesures visibles
 
 Aucun texte affiché n'est écrit en dur. Il vit dans une table
-`defineStrings({ fr, en })` (`src/lib/i18n.ts`), déclarée à côté du code qui
+`defineStrings({ fr, en })` (`packages/core/src/i18n.ts`, importé en `@tread/core/i18n`), déclarée à côté du code qui
 l'affiche, et se lit avec `useStrings(table)` dans un composant ou `table()`
 ailleurs. Le français est écrit d'abord, l'anglais le suit clé pour clé — le
 typage refuse une table à laquelle il manque une langue. Les nombres passent

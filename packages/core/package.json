@@ -1,0 +1,28 @@
+{
+  "name": "@tread/core",
+  "version": "1.0.0",
+  "private": true,
+  "description": "What Tread knows without a phone: the maths of a run, GPX, plans, records and the two languages.",
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "test": "node --experimental-strip-types --test src/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "gifenc": "^1.0.3",
+    "jszip": "^3.10.2",
+    "upng-js": "^2.1.0"
+  },
+  "peerDependencies": {
+    "react": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "~19.3.0",
+    "@types/upng-js": "^2.1.5",
+    "typescript": "~6.0.3"
+  }
+}
