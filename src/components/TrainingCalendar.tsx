@@ -4,13 +4,26 @@ import { ChoiceSheet } from "@/components/ChoiceSheet";
 import { markScale, monthsSince, monthWeeks, runsByDay } from "@/lib/calendar";
 import type { Run } from "@/lib/db";
 import { formatDate, formatDistance } from "@/lib/format";
-import { intlLocale } from "@/lib/i18n";
+import { defineStrings, intlLocale, plural, useStrings } from "@/lib/i18n";
 import { startOfDay } from "@/lib/plan";
 import { colors, font } from "@/lib/theme";
 import { distanceUnit } from "@/lib/units";
 
+const calendarStrings = defineStrings({
+  fr: { aside: (count: number) => plural(count, "sortie vélo", "sorties vélo") },
+  en: { aside: (count: number) => plural(count, "ride", "rides") },
+});
+
 interface Props {
+  /** The outings the marks are sized by and the weeks add up. */
   runs: Run[];
+  /**
+   * Outings shown but not counted: the rides, while every type is shown.
+   * Each day holding one gets a ring of fixed size, and no week total
+   * includes them, so the calendar shows everything done while its figures
+   * stay a runner's.
+   */
+  aside?: Run[];
   /** The moment "today" is measured from. */
   now: number;
   onOpenRun: (id: number) => void;
@@ -35,10 +48,12 @@ function monthTitle(year: number, month: number): string {
  * The history as a calendar: every month back to the first run, each day a
  * dot sized by what was run, each week's total at the end of its row.
  */
-export function TrainingCalendar({ runs, now, onOpenRun, bottomSpace }: Props) {
+export function TrainingCalendar({ runs, aside = [], now, onOpenRun, bottomSpace }: Props) {
+  const s = useStrings(calendarStrings);
   const days = runsByDay(runs);
+  const asideDays = runsByDay(aside);
   const longest = Math.max(0, ...[...days.values()].map((day) => day.distanceM));
-  const oldest = runs.reduce((first, run) => Math.min(first, run.startedAt), now);
+  const oldest = [...runs, ...aside].reduce((first, run) => Math.min(first, run.startedAt), now);
   const months = monthsSince(oldest, now);
   const today = startOfDay(now);
   const initials = weekdayInitials();
@@ -47,7 +62,7 @@ export function TrainingCalendar({ runs, now, onOpenRun, bottomSpace }: Props) {
    * one alone left the others out of reach from here.
    */
   const [picking, setPicking] = useState<{ start: number; runIds: number[] } | null>(null);
-  const byId = new Map(runs.map((run) => [run.id, run]));
+  const byId = new Map([...runs, ...aside].map((run) => [run.id, run]));
 
   return (
     <>
@@ -74,22 +89,28 @@ export function TrainingCalendar({ runs, now, onOpenRun, bottomSpace }: Props) {
                   {week.days.map((day, index) => {
                     if (!day) return <View key={index} style={styles.cell} />;
                     const ran = days.get(day.start);
+                    const other = asideDays.get(day.start);
                     const size = ran ? markScale(ran.distanceM, longest) * CELL : 0;
+                    const runIds = [...(ran?.runIds ?? []), ...(other?.runIds ?? [])]
+                      .sort((a, b) => (byId.get(a)?.startedAt ?? 0) - (byId.get(b)?.startedAt ?? 0));
+                    const label = [
+                      ran ? `${formatDistance(ran.distanceM)} ${distanceUnit()}` : null,
+                      other ? s.aside(other.runIds.length) : null,
+                    ].filter(Boolean).join(", ");
                     return (
                       <Pressable
                         key={index}
-                        disabled={!ran}
+                        disabled={runIds.length === 0}
                         onPress={() => {
-                          if (!ran) return;
-                          if (ran.runIds.length === 1) onOpenRun(ran.runIds[0]);
-                          else setPicking({ start: day.start, runIds: ran.runIds });
+                          if (runIds.length === 0) return;
+                          if (runIds.length === 1) onOpenRun(runIds[0]);
+                          else setPicking({ start: day.start, runIds });
                         }}
-                        accessibilityRole={ran ? "button" : "text"}
-                        accessibilityLabel={ran
-                          ? `${day.date}, ${formatDistance(ran.distanceM)} ${distanceUnit()}`
-                          : String(day.date)}
+                        accessibilityRole={runIds.length > 0 ? "button" : "text"}
+                        accessibilityLabel={label ? `${day.date}, ${label}` : String(day.date)}
                         style={[styles.cell, day.start === today && styles.today]}
                       >
+                        {other ? <View style={styles.ring} /> : null}
                         {ran ? (
                           <View style={[styles.mark, { width: size, height: size, borderRadius: size / 2 }]} />
                         ) : null}
@@ -145,6 +166,11 @@ const styles = StyleSheet.create({
   cell: { flex: 1, height: CELL + 4, alignItems: "center", justifyContent: "center" },
   today: { borderRadius: 8, borderWidth: 1.5, borderColor: colors.accent },
   mark: { position: "absolute", backgroundColor: colors.accentSoft },
+  // Fixed size: a ride's kilometres are not a runner's, so they size nothing.
+  ring: {
+    position: "absolute", width: CELL - 6, height: CELL - 6, borderRadius: (CELL - 6) / 2,
+    borderWidth: 1.5, borderColor: colors.accent,
+  },
   date: { color: colors.muted, fontSize: 13.5, fontFamily: font.medium, fontVariant: ["tabular-nums"] },
   dateOnMark: { color: colors.accent, fontFamily: font.semibold },
   total: {

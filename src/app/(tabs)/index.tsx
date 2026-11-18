@@ -3,7 +3,8 @@ import { useFocusEffect, useRouter, useScrollToTop } from "expo-router";
 import { useCallback, useState, useRef } from "react";
 import { Alert, Pressable, SectionList, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Chip, ChipRow } from "@/components/Chip";
+import { Chip } from "@/components/Chip";
+import { ChoiceSheet } from "@/components/ChoiceSheet";
 import { EmptyState } from "@/components/EmptyState";
 import { LoadError } from "@/components/LoadError";
 import { HeaderButton } from "@/components/HeaderButton";
@@ -15,7 +16,7 @@ import { Segmented } from "@/components/Segmented";
 import { SwipeToDelete } from "@/components/SwipeToDelete";
 import { TrainingCalendar } from "@/components/TrainingCalendar";
 import { deleteRun, listRuns, planSessionOfRun, type Run } from "@/lib/db";
-import { activityName, countedSport, heldTypes, ofSport, tagName, type ActivityType } from "@/lib/activity";
+import { activityName, countedSport, heldTypes, ofSport, sportOf, tagName, type ActivityType } from "@/lib/activity";
 import { importRunFiles } from "@/lib/files";
 import { formatDate, formatDistance, formatDuration, formatPace, formatSpeed } from "@/lib/format";
 import { forgetRunInHealth } from "@/lib/health";
@@ -64,6 +65,10 @@ const historyStrings = defineStrings({
     lastMonth: (month: string, km: string) => `${month} : ${km} ${distanceUnit()}`,
     monthTotal: (km: string, count: number) => `${km} ${distanceUnit()} · ${count}`,
     noMatch: (type: string) => `Aucune sortie « ${type} » pour l'instant.`,
+    allOutings: "Toutes les sorties",
+    whichOutings: "Quelles sorties",
+    showing: (name: string) => `Sorties affichées : ${name}`,
+    outings: (count: number) => plural(count, "sortie", "sorties"),
   },
   en: {
     title: "History",
@@ -100,6 +105,10 @@ const historyStrings = defineStrings({
     lastMonth: (month: string, km: string) => `${month}: ${km} ${distanceUnit()}`,
     monthTotal: (km: string, count: number) => `${km} ${distanceUnit()} · ${count}`,
     noMatch: (type: string) => `No “${type}” outings yet.`,
+    allOutings: "All outings",
+    whichOutings: "Which outings",
+    showing: (name: string) => `Outings shown: ${name}`,
+    outings: (count: number) => plural(count, "outing", "outings"),
   },
 });
 
@@ -125,6 +134,7 @@ export default function HistoryScreen() {
   const [view, setView] = useState<"list" | "calendar">("list");
   /** The one type of outing shown, or every type. */
   const [only, setOnly] = useState<ActivityType | null>(null);
+  const [choosingType, setChoosingType] = useState(false);
 
   /**
    * True when the history could not be read. A failed read keeps whatever
@@ -277,27 +287,24 @@ export default function HistoryScreen() {
         ) : null}
       </View>
 
-      {/* Which outings, under the title as on the routes: one type at a
-          time, tapped again to show them all. */}
-      {filterable ? (
-        <View style={styles.chips}>
-          <ChipRow>
-            {chipTypes.map((type) => (
-              <Chip
-                key={type}
-                label={activityName(type)}
-                on={only === type}
-                onPress={() => setOnly((current) => (current === type ? null : type))}
-              />
-            ))}
-          </ChipRow>
-        </View>
-      ) : null}
-
-      {/* Two ways of reading the same history: what was run, or when. */}
+      {/* One row of controls under the title: which outings on the left,
+          as one chip that opens a choice, and how to read them on the
+          right. Two stacked rows of controls read as two toolbars. */}
       {runs && runs.length > 0 ? (
-        <View style={styles.views}>
+        <View style={styles.toolbar}>
+          {filterable ? (
+            <Chip
+              label={only ? activityName(only) : s.allOutings}
+              on={only !== null}
+              menu
+              role="button"
+              accessibilityLabel={s.showing(only ? activityName(only) : s.allOutings)}
+              onPress={() => setChoosingType(true)}
+            />
+          ) : null}
+          <View style={styles.toolbarGap} />
           <Segmented
+            compact
             options={[{ value: "list", label: s.list }, { value: "calendar", label: s.calendar }]}
             value={view}
             onChange={setView}
@@ -305,10 +312,28 @@ export default function HistoryScreen() {
         </View>
       ) : null}
 
+      <ChoiceSheet<ActivityType | null>
+        visible={choosingType}
+        title={s.whichOutings}
+        selected={only}
+        choices={[
+          { value: null, label: s.allOutings, detail: s.outings(runs?.length ?? 0) },
+          ...chipTypes.map((type) => ({
+            value: type,
+            label: activityName(type),
+            detail: s.outings((runs ?? []).filter((run) => run.activity === type).length),
+          })),
+        ]}
+        onChoose={setOnly}
+        onClose={() => setChoosingType(false)}
+      />
+
       {view === "calendar" && runs && runs.length > 0 ? (
         noMatch ? <NoMatch message={s.noMatch(activityName(only))} onShowAll={() => setOnly(null)} /> : (
         <TrainingCalendar
           runs={ofSport(shown, counted)}
+          // Every type shown: the rides appear too, as rings that count in no total.
+          aside={only === null ? shown.filter((run) => sportOf(run.activity) !== counted) : undefined}
           now={readAt}
           bottomSpace={tabBarSpace + 60}
           onOpenRun={(id) => router.push({ pathname: "/run/[id]", params: { id: String(id) } })}
@@ -518,8 +543,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: GUTTER, paddingTop: 10, paddingBottom: 14,
   },
   headerText: { flex: 1 },
-  chips: { paddingBottom: 10 },
-  views: { paddingHorizontal: GUTTER, paddingBottom: 10 },
+  toolbar: { flexDirection: "row", alignItems: "center", paddingHorizontal: GUTTER, paddingBottom: 12 },
+  toolbarGap: { flex: 1 },
   title: { color: colors.text, fontSize: 32, fontFamily: font.bold, letterSpacing: -0.6 },
   subtitle: { color: colors.subtle, fontFamily: font.regular, fontSize: 15, marginTop: 3 },
 

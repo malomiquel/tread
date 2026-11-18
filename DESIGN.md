@@ -194,8 +194,8 @@ defaults.
 | `PressableScale` | Anything that is a button rather than a row: `Button`, `HeaderButton`, the empty state's cards, a pressable banner. Gives under the finger (scale 0.96, 90 ms down, 160 ms up) instead of fading. Rows in a list keep the `sunken` background. |
 | `Button` | Full-width actions in sheets and forms. `primary`, `secondary`, `danger`. Min height 50, radius 6. |
 | `HoldButton` | Steppers that repeat while held (goal, pace). |
-| `Chip` + `ChipRow` | The row under a list's title: the sort (always tinted, opens a `ChoiceSheet`) and filters (neutral with a hairline, `accentSoft` + `accent` when on). Height 36, radius 8; the row scrolls sideways from the gutter. |
-| `Segmented` | Two or three ways of seeing the same thing (History: list or calendar). The one showing is filled on the `sunken` track. |
+| `Chip` + `ChipRow` | The row under a list's title: the sort (always tinted, opens a `ChoiceSheet`) and filters (neutral with a hairline, `accentSoft` + `accent` when on). Height 36, radius 8; the row scrolls sideways from the gutter. A chip that opens a choice (`menu`) ends in a chevron. |
+| `Segmented` | Two or three ways of seeing the same thing (History: list or calendar). The one showing is filled on the `sunken` track. `compact`: as wide as its words and 36 high, to share a row with a chip. |
 | `StepSlider` | A choice among a few ordered stops (1–4 runs a week). Snaps, ticks with a haptic, works with VoiceOver. |
 | `DropdownMenu` | A round ⋯ button whose menu drops just under it: the actions on the thing a page shows. |
 | `SwipeToDelete` | Deleting a row in a list. Never the only way: the item's own page has a delete too. |
@@ -207,7 +207,7 @@ defaults.
 |---|---|
 | `RecordRow` | A figure worth keeping: tile, name and detail, figure right. With `onPress` it leads somewhere and ends in a chevron (Profile's Performance block, the performance pages). |
 | `Metric` | A labelled figure: label uppercase above, value, unit. `compact` over the map, `large` for the run's distance. |
-| `TrainingCalendar` | The history as months of Monday-first weeks: a dot per day sized by distance, today outlined, each week's total at the end of its row. |
+| `TrainingCalendar` | The history as months of Monday-first weeks: a dot per day sized by distance, today outlined, each week's total at the end of its row. With every type shown, a day with a ride gets an `accent` ring of fixed size: the ride is there, but it sizes no dot and counts in no week. |
 | `RunShape` | A run's outline in a tile, from a 60-point sample, cached. |
 | `RunMap`, `TrackOverlay` | The map and the track drawn on it. |
 | `ShareCard` | The picture a run leaves as. |
@@ -268,12 +268,14 @@ Section heading                     aside
   sort first, tinted, opening a `ChoiceSheet`; then filters that tint when on.
   "3 of 12" appears while narrowed; an empty result says so and offers "Show
   all" (`NoMatch`).
-- History gets the same row, without the search: one `Chip` per type of
-  outing it holds (Run, Trail, Treadmill, Walk, Hike, Ride), shown once it
-  holds two types. One type at a time; tapping the chosen one again shows
-  everything. It narrows the list and the calendar alike; the month banner
-  stays the runner's month. Month totals add up the runs shown, or the rides
-  when the filter is Ride.
+- History has one row of controls under the title, never two: on the left
+  a single `menu` chip, "All outings", that opens a `ChoiceSheet` of the
+  types it holds (Run, Trail, Treadmill, Walk, Hike, Ride) with a count
+  each, shown once it holds two types and tinted while narrowed; on the
+  right a `compact` `Segmented`, List / Calendar. One type at a time. It
+  narrows the list and the calendar alike; the month banner stays the
+  runner's month. Month totals add up the runs shown, or the rides when the
+  filter is Ride.
 - **A tab is an overview, not an archive.** A list longer than a few rows
   gets its own page: the tab shows its headline in one `RecordRow` with a
   chevron (Profile: Records → longest run, Best efforts → 5K, Predicted

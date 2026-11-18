@@ -13,6 +13,8 @@ interface Props {
   accessibilityLabel?: string;
   /** "checkbox" for a filter that switches on and off, "button" for one that opens a choice. */
   role?: "checkbox" | "button";
+  /** A chevron after the word: the chip opens a choice rather than switching. */
+  menu?: boolean;
 }
 
 /**
@@ -22,7 +24,7 @@ interface Props {
  * width follows the word and the height never changes, so switching one on
  * moves nothing below it.
  */
-export function Chip({ label, on = false, icon, onPress, accessibilityLabel, role = "checkbox" }: Props) {
+export function Chip({ label, on = false, icon, onPress, accessibilityLabel, role = "checkbox", menu = false }: Props) {
   return (
     <Pressable
       onPress={() => {
@@ -36,6 +38,7 @@ export function Chip({ label, on = false, icon, onPress, accessibilityLabel, rol
     >
       {icon ? <Ionicons name={icon} size={15} color={on ? colors.accent : colors.muted} /> : null}
       <Text style={[styles.text, on && styles.textOn]}>{label}</Text>
+      {menu ? <Ionicons name="chevron-down" size={14} color={on ? colors.accent : colors.subtle} /> : null}
     </Pressable>
   );
 }
