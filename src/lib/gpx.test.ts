@@ -48,9 +48,22 @@ test("gpx: a hostile name cannot break the document", () => {
 });
 
 test("file name: sortable, lowercase, no awkward characters", () => {
-  assert.equal(gpxFileName(run), "tread-2026-09-21-07-30-morning-run.gpx");
-  assert.equal(gpxFileName({ name: null, startedAt: 0 }), "tread-1970-01-01-00-00-run.gpx");
-  assert.equal(gpxFileName({ name: "Côte d'Azur !!", startedAt: 0 }), "tread-1970-01-01-00-00-c-te-d-azur.gpx");
+  // Built in local time, so the expectations hold in any time zone.
+  const morning = new Date(2026, 8, 21, 7, 30).getTime();
+  const epoch = new Date(1970, 0, 1, 0, 0).getTime();
+  assert.equal(gpxFileName({ name: "Morning run", startedAt: morning }), "tread-2026-09-21-07-30-morning-run.gpx");
+  assert.equal(gpxFileName({ name: null, startedAt: epoch }), "tread-1970-01-01-00-00-run.gpx");
+  assert.equal(gpxFileName({ name: "Côte d'Azur !!", startedAt: epoch }), "tread-1970-01-01-00-00-cote-d-azur.gpx");
+});
+
+test("file name: accents are dropped, not turned into dashes", () => {
+  const nine = new Date(2026, 10, 17, 9, 0).getTime();
+  assert.equal(gpxFileName({ name: "Sortie vélo", startedAt: nine }), "tread-2026-11-17-09-00-sortie-velo.gpx");
+});
+
+test("file name: the time is the local one the run's page shows", () => {
+  const nine = new Date(2026, 10, 17, 9, 0).getTime();
+  assert.ok(gpxFileName({ name: null, startedAt: nine }).startsWith("tread-2026-11-17-09-00-"));
 });
 
 test("parseGpx reads back what toGpx wrote", () => {

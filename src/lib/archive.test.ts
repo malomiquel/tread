@@ -8,6 +8,7 @@ const at = (ts: number, lat: number, lng: number): TrackPoint => ({
   ts, lat, lng, alt: 100, accuracy: 5, speed: 3, segment: 0,
 });
 
+// Local times: file names carry the hour the run's page shows.
 const sample = (name: string | null, startedAt: number) => ({
   run: { name, startedAt },
   points: [at(startedAt, 48.85, 2.35), at(startedAt + 1000, 48.86, 2.35)],
@@ -15,8 +16,8 @@ const sample = (name: string | null, startedAt: number) => ({
 
 test("archive: one entry per run, and it reads back", async () => {
   const base64 = await buildArchive([
-    sample("Course matinale", Date.UTC(2026, 8, 21, 7, 30)),
-    sample("Course du soir", Date.UTC(2026, 8, 22, 19, 0)),
+    sample("Course matinale", new Date(2026, 8, 21, 7, 30).getTime()),
+    sample("Course du soir", new Date(2026, 8, 22, 19, 0).getTime()),
   ]);
   const zip = await JSZip.loadAsync(base64, { base64: true });
   const names = Object.keys(zip.files).sort();
@@ -28,7 +29,7 @@ test("archive: one entry per run, and it reads back", async () => {
 });
 
 test("archive: each entry is the run's own valid GPX", async () => {
-  const base64 = await buildArchive([sample("Course matinale", Date.UTC(2026, 8, 21, 7, 30))]);
+  const base64 = await buildArchive([sample("Course matinale", new Date(2026, 8, 21, 7, 30).getTime())]);
   const zip = await JSZip.loadAsync(base64, { base64: true });
   const xml = await zip.files["tread-2026-09-21-07-30-course-matinale.gpx"].async("string");
   assert.ok(xml.startsWith('<?xml version="1.0" encoding="UTF-8"?>'));
@@ -37,7 +38,7 @@ test("archive: each entry is the run's own valid GPX", async () => {
 });
 
 test("archive: two identical names on the same minute do not overwrite each other", async () => {
-  const when = Date.UTC(2026, 8, 21, 7, 30);
+  const when = new Date(2026, 8, 21, 7, 30).getTime();
   const base64 = await buildArchive([sample("Course", when), sample("Course", when)]);
   const zip = await JSZip.loadAsync(base64, { base64: true });
   assert.equal(Object.keys(zip.files).length, 2, "a zip silently keeps only the last of a duplicate path");
@@ -58,5 +59,5 @@ test("archive: compression is worth having on repetitive XML", async () => {
 });
 
 test("archive file name is dated so backups sort", () => {
-  assert.equal(archiveFileName(Date.UTC(2026, 8, 21, 12, 0)), "tread-courses-2026-09-21.zip");
+  assert.equal(archiveFileName(new Date(2026, 8, 21, 12, 0).getTime()), "tread-courses-2026-09-21.zip");
 });

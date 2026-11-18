@@ -168,14 +168,22 @@ ${points}
 }
 
 /** File name for a shared route: named after it, safe on every file system. */
-export function routeGpxFileName(name: string): string {
-  const slug = name
+/**
+ * A name as it can sit in a file name: lowercase, accents dropped rather
+ * than turned into dashes ("vélo" is "velo", not "v-lo"), anything else
+ * between words a single dash.
+ */
+function fileSlug(name: string): string {
+  return name
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
-  return `${slug || "parcours"}.gpx`;
+}
+
+export function routeGpxFileName(name: string): string {
+  return `${fileSlug(name) || "parcours"}.gpx`;
 }
 
 /**
@@ -220,7 +228,10 @@ function gpxName(xml: string): string | null {
 
 /** File name for an exported run: sortable, and safe on every file system. */
 export function gpxFileName(run: GpxRun): string {
-  const date = new Date(run.startedAt).toISOString().slice(0, 16).replace(/[:T]/g, "-");
-  const slug = (run.name ?? "run").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-  return `tread-${date}-${slug || "run"}.gpx`;
+  // Local time, as the run's page shows it: a run started at 09:00 in Paris
+  // is not filed under 08-00.
+  const at = new Date(run.startedAt);
+  const two = (n: number) => String(n).padStart(2, "0");
+  const date = `${at.getFullYear()}-${two(at.getMonth() + 1)}-${two(at.getDate())}-${two(at.getHours())}-${two(at.getMinutes())}`;
+  return `tread-${date}-${fileSlug(run.name ?? "run") || "run"}.gpx`;
 }
