@@ -2,6 +2,8 @@
 import type { Language } from "@tread/core/i18n";
 import { getRelativeLocaleUrl } from "astro:i18n";
 import Base from "../layouts/Base.astro";
+import Showcase from "./Showcase.astro";
+import Specs from "./Specs.astro";
 import { strings } from "../strings.ts";
 
 interface Props {
@@ -17,8 +19,13 @@ const distance = language === "fr" ? "8,42" : "8.42";
 // One loop of a run, drawn by hand: the shape that circles the phone.
 const track =
   "M120 470 C 60 400, 70 300, 150 260 S 260 250, 300 180 S 380 60, 470 90 S 600 170, 560 270 S 470 330, 500 400 S 600 470, 520 540 S 330 600, 240 560 S 170 520, 120 470 Z";
-const ticker = [...s.ticker, ...s.ticker];
-const widths = [72, 64, 81, 58, 100];
+const show = s.showcases;
+// A session's blocks, by effort: the warm-up, then work and rest in turn.
+const blocks = [38, 92, 30, 92, 30, 92];
+// Fourteen weeks of volume: building, a lighter week every fourth, the taper, the race.
+const weeks = [34, 40, 46, 36, 50, 56, 62, 48, 66, 72, 78, 60, 44, 100];
+// A hilly outing's profile, for the grade-adjusted pace.
+const profile = "M0 170 C 60 168, 90 150, 140 120 S 220 40, 280 50 S 360 140, 420 130 S 520 60, 600 70";
 // Each headline letter gets its place in the order it is typed.
 let letter = 0;
 const heroLines = s.heroLines.map((line) => [...line].map((char) => ({ char, index: letter++ })));
@@ -76,70 +83,83 @@ const heroLines = s.heroLines.map((line) => [...line].map((char) => ({ char, ind
         </div>
       </div>
 
-      <div class="specs">
-        {s.specs.map((spec) => (
-          <div class="spec">
-            <b>{spec.value}<small>{spec.unit}</small></b>
-            <span>{spec.label}</span>
-          </div>
-        ))}
-        <a href={webUrl} class="spec-action">
-          <span class="round" aria-hidden="true">→</span>
-          {s.specsAction}
-        </a>
+      <div class="hero-specs">
+        <Specs specs={s.specs} tone="dark" action={{ href: webUrl, label: s.specsAction }} />
       </div>
     </section>
 
-    <div class="ticker" aria-hidden="true">
-      <div class="ticker-run">
-        {ticker.map((item) => <span>{item}<em>●</em></span>)}
-      </div>
-    </div>
-
-    <section class="splits">
-      <div class="splits-head">
-        <p class="kicker dark">{s.splitsKicker}</p>
-        <h2>{s.splitsTitle}</h2>
-      </div>
-      <ol>
-        {s.splits.map((split, index) => (
-          <li class="split" style={`--w: ${widths[index]}%`}>
-            <span class="km">KM {String(index + 1).padStart(2, "0")}</span>
-            <div class="split-copy">
-              <h3>{split.title}</h3>
-              <p>{split.text}</p>
+    <Showcase tone="plain" layout="stacked" kicker={show.voice.kicker} title={show.voice.title} text={show.voice.text}>
+      <div class="voice">
+        <div class="bubble">
+          <span class="wave">{Array.from({ length: 14 }, (_, index) => <i style={`--d: ${index}`}></i>)}</span>
+          <p>{show.voice.say}</p>
+        </div>
+        <div class="blocks">
+          {blocks.map((height, index) => (
+            <div class={`blk${index === 3 ? " now" : ""}${index < 3 ? " done" : ""}`} style={`--h: ${height}%`}>
+              <span>{show.voice.blockLabels[index]}</span>
             </div>
-            <span class="split-figure">{split.figure}</span>
-            <span class={`split-bar${index === s.splits.length - 1 ? " now" : ""}`}></span>
-          </li>
-        ))}
-      </ol>
-    </section>
-
-    <section class="rival">
-      <p class="kicker">{s.ghostKicker}</p>
-      <div class="rival-grid">
-        <h2>{s.ghostTitle.map((line, index) => <span class={index === 2 ? "accent" : ""}>{line}</span>)}</h2>
-        <div class="rival-side">
-          <div class="lane" aria-hidden="true">
-            <div class="lane-track">
-              <span class="lane-runner record"><em>{s.ghostRecord}</em></span>
-              <span class="lane-runner you"><em>{s.ghostYou}</em></span>
-            </div>
-            <div class="gap"><b>{s.ghostGap}</b><span>{s.ghostGapLabel}</span></div>
-          </div>
-          <p>{s.ghostText}</p>
+          ))}
         </div>
       </div>
-    </section>
+    </Showcase>
 
-    <section class="more">
-      <p class="kicker dark">{s.moreKicker}</p>
-      <h2>{s.moreTitle}</h2>
-      <div class="bento">
-        {s.more.map((item, index) => (
-          <article class={`tile tile-${index}`}>
-            <span class="tag">{item.tag}</span>
+    <Showcase tone="ink" layout="banner" kicker={show.ghost.kicker} title={show.ghost.title} text={show.ghost.text}>
+      <div class="race">
+        <div class="lane-track">
+          <span class="runner-pip record"><em>{show.ghost.record}</em></span>
+          <span class="runner-pip you"><em>{show.ghost.you}</em></span>
+        </div>
+        <div class="race-gap">−12<small>s</small></div>
+      </div>
+    </Showcase>
+
+    <Showcase tone="cobalt" kicker={show.plan.kicker} title={show.plan.title} text={show.plan.text} specs={show.plan.specs}>
+      <div class="weeks">
+        {weeks.map((height, index) => (
+          <div class={`wk${index === weeks.length - 1 ? " race-day" : ""}`} style={`--h: ${height}%; --i: ${index}`}>
+            {index === weeks.length - 1 && <span>{show.plan.race}</span>}
+          </div>
+        ))}
+      </div>
+    </Showcase>
+
+    <Showcase tone="paper" kicker={show.grade.kicker} title={show.grade.title} text={show.grade.text} reverse>
+      <div class="grade">
+        <svg viewBox="0 0 600 200" preserveAspectRatio="none" class="profile">
+          <path d={`${profile} L 600 200 L 0 200 Z`} class="profile-fill" />
+          <path d={profile} class="profile-line" pathLength="1" />
+        </svg>
+        <div class="chip-pace real"><span>{show.grade.real}</span><b>5'31"</b></div>
+        <div class="chip-pace flat"><span>{show.grade.flat}</span><b>5'08"</b></div>
+      </div>
+    </Showcase>
+
+    <section class="extras">
+      <p class="kicker dark">{s.extrasKicker}</p>
+      <div class="extras-grid">
+        {s.extras.map((item) => (
+          <article class={`extra ${item.key}`}>
+            <div class="mini" aria-hidden="true">
+              {item.key === "heatmap" && (
+                <svg viewBox="0 0 200 140">
+                  {[0, 1, 2, 3, 4, 5].map((index) => (
+                    <path d={`M${10 + index * 4} ${120 - index * 3} C 50 ${90 - index * 6}, 70 ${30 + index * 5}, 110 ${40 + index * 2} S ${170 - index * 3} ${100 - index * 4}, 190 ${30 + index * 6}`} />
+                  ))}
+                  <path d="M20 30 C 60 50, 120 20, 180 60" />
+                  <path d="M20 30 C 60 50, 120 20, 180 60" />
+                </svg>
+              )}
+              {item.key === "gif" && (
+                <svg viewBox="0 0 200 140"><path d="M40 110 C 20 70, 60 30, 100 40 S 170 40, 160 80 S 90 130, 40 110 Z" pathLength="1" class="loop" /><circle cx="40" cy="110" r="10" class="mask" /></svg>
+              )}
+              {item.key === "island" && (
+                <div class="pill-island"><span class="dot"></span><b>24:18</b><span class="sep"></span><b>4,82<small>km</small></b><b>5'02"</b></div>
+              )}
+              {item.key === "shoes" && (
+                <div class="ring"><b>412<small>/ 700 km</small></b></div>
+              )}
+            </div>
             <h3>{item.title}</h3>
             <p>{item.text}</p>
           </article>
@@ -243,82 +263,78 @@ const heroLines = s.heroLines.map((line) => [...line].map((char) => ({ char, ind
   .figures b { font-size: 24px; font-weight: 600; letter-spacing: -0.5px; }
   .figures small { font-size: 13px; color: var(--chalk-subtle); margin-left: 3px; font-weight: 500; }
 
-  /* The run's spec sheet, in glass along the foot of the hero */
-  .specs {
-    grid-column: 1 / -1; grid-row: 5; position: relative; z-index: 3; margin-top: 28px;
-    display: grid; grid-template-columns: repeat(4, 1fr) auto; align-items: center;
-    border-radius: 20px; padding: 14px 14px 14px 26px;
-    background: rgba(4, 16, 31, 0.32); backdrop-filter: blur(18px) saturate(1.4);
-    border: 1px solid rgba(255, 255, 255, 0.16);
-    animation: rise 800ms 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
-  }
-  .spec { display: flex; flex-direction: column; gap: 2px; padding: 6px 20px 6px 0; margin-right: 20px; border-right: 1px solid rgba(255, 255, 255, 0.16); font-variant-numeric: tabular-nums; }
-  .spec b { font-size: clamp(26px, 2.6vw, 40px); font-weight: 700; letter-spacing: -0.6px; line-height: 1; }
-  .spec small { font-size: 0.45em; font-weight: 500; opacity: 0.7; margin-left: 4px; letter-spacing: 0; }
-  .spec span { font-size: 11.5px; font-weight: 600; letter-spacing: 1.3px; text-transform: uppercase; opacity: 0.65; }
-  .spec-action { display: inline-flex; align-items: center; gap: 12px; padding: 0 18px 0 6px; font-weight: 600; font-size: 17px; white-space: nowrap; transition: transform 90ms ease-out; }
-  .round { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; background: #fff; color: var(--cobalt); font-size: 22px; transition: transform 200ms ease; }
-  .spec-action:hover .round { transform: rotate(-45deg); }
+  .hero-specs { grid-column: 1 / -1; grid-row: 5; margin-top: 28px; position: relative; z-index: 3; animation: rise 800ms 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 
-  /* Ticker */
-  .ticker { overflow: hidden; padding: 10px 0; }
-  .ticker-run { display: flex; width: max-content; animation: slide 40s linear infinite; }
-  .ticker span { display: inline-flex; align-items: center; gap: 28px; padding: 14px 0 14px 28px; white-space: nowrap; font-weight: 700; font-size: clamp(26px, 3vw, 44px); letter-spacing: -0.5px; color: var(--graphite); }
-  .ticker em { font-style: normal; font-size: 0.4em; color: var(--cobalt); }
+  /* Voice: what is said, and where it falls in the session */
+  .voice { width: min(100%, 980px); display: grid; gap: 28px; justify-items: center; }
+  .bubble { display: flex; align-items: center; gap: 16px; padding: 18px 22px; border-radius: 20px; background: var(--paper); box-shadow: 0 30px 60px -30px rgba(0, 20, 60, 0.35); }
+  .bubble p { margin: 0; font-size: clamp(18px, 1.7vw, 22px); font-weight: 600; letter-spacing: -0.2px; }
+  .wave { display: flex; align-items: center; gap: 3px; height: 34px; flex: none; }
+  .wave i { width: 3px; height: 100%; border-radius: 2px; background: var(--cobalt); animation: speak 1.1s calc(var(--d) * -90ms) ease-in-out infinite; }
+  .blocks { width: 100%; display: flex; align-items: flex-end; gap: clamp(6px, 1vw, 14px); height: clamp(200px, 24vw, 300px); }
+  .blk { flex: 1; height: var(--h); border-radius: 10px; background: var(--paper-rule); display: flex; align-items: flex-end; justify-content: center; padding-bottom: 10px; }
+  .blk span { font-size: 12px; font-weight: 600; letter-spacing: 0.8px; text-transform: uppercase; color: var(--graphite-muted); }
+  .blk.done { background: color-mix(in srgb, var(--cobalt) 22%, var(--paper-rule)); }
+  .blk.now { background: var(--cobalt); box-shadow: 0 0 0 4px color-mix(in srgb, var(--cobalt) 25%, transparent); }
+  .blk.now span { color: #fff; }
 
-  /* Splits */
-  .splits { padding: clamp(56px, 9vw, 120px) var(--edge); }
-  .splits-head { display: grid; gap: 4px; margin-bottom: 40px; }
-  h2 { margin: 0; font-weight: 700; letter-spacing: -0.03em; line-height: 0.9; }
-  .splits h2 { font-size: clamp(44px, 6.4vw, 104px); max-width: 14ch; }
-  ol { list-style: none; margin: 0; padding: 0; border-top: 2px solid var(--graphite); }
-  .split { position: relative; display: grid; grid-template-columns: 110px 1fr auto; align-items: center; gap: 24px; padding: 26px 0 30px; border-bottom: 1px solid var(--paper-rule); }
-  .km { font-size: 14px; font-weight: 600; letter-spacing: 1.6px; color: var(--graphite-muted); font-variant-numeric: tabular-nums; }
-  .split h3 { margin: 0 0 4px; font-size: clamp(24px, 2.4vw, 32px); font-weight: 700; letter-spacing: -0.3px; }
-  .split p { margin: 0; max-width: 54ch; color: var(--graphite-muted); font-size: 16.5px; }
-  .split-figure { font-size: clamp(36px, 5vw, 76px); font-weight: 700; letter-spacing: -1.5px; font-variant-numeric: tabular-nums; transition: color 200ms ease; }
-  .split-bar { position: absolute; left: 134px; bottom: 12px; height: 4px; width: calc(var(--w) * 0.8); max-width: calc(100% - 134px); border-radius: 2px; background: var(--paper-rule); }
-  .split-bar.now { background: var(--cobalt); }
-  .split:hover .split-figure { color: var(--cobalt); }
-
-  /* The ghost, on a night panel */
-  .rival { margin: 0 var(--inset); border-radius: 28px; background: var(--ink); color: var(--chalk); padding: clamp(64px, 10vw, 128px) var(--edge); }
-  .rival .kicker { margin-top: 0; }
-  .rival-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 56px; align-items: center; }
-  .rival h2 { font-size: clamp(52px, 7.4vw, 124px); }
-  .rival h2 span { display: block; }
-  .rival h2 .accent { color: var(--signal); }
-  .rival-side { display: grid; gap: 28px; }
-  .rival-side p { margin: 0; font-size: clamp(18px, 1.5vw, 21px); color: var(--chalk-muted); max-width: 44ch; }
-  .lane { padding: 26px 22px 22px; border-radius: 20px; background: var(--ink-raised); border: 1px solid var(--ink-rule); }
+  /* Ghost: two runners, one lane */
+  .race { width: 100%; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: clamp(20px, 4vw, 56px); padding: 34px clamp(20px, 3vw, 40px); border-radius: 24px; background: var(--ink-raised); border: 1px solid var(--ink-rule); }
   .lane-track {
-    position: relative; height: 96px; margin: 0 8px;
+    position: relative; height: 120px; margin: 0 10px;
     background: linear-gradient(90deg, var(--ink-rule) 0 0) center / 100% 2px no-repeat,
-      repeating-linear-gradient(90deg, var(--ink-rule) 0 1px, transparent 1px 10%) center / 100% 14px no-repeat;
+      repeating-linear-gradient(90deg, var(--ink-rule) 0 1px, transparent 1px 10%) center / 100% 16px no-repeat;
   }
-  .lane-runner { position: absolute; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; animation: race 7s cubic-bezier(0.45, 0, 0.55, 1) infinite; }
-  .lane-runner em { position: absolute; left: 50%; translate: -50% 0; white-space: nowrap; font-style: normal; font-size: 12px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; }
-  .lane-runner.record { border: 2px dashed var(--chalk-subtle); --lead: 0%; }
-  .lane-runner.record em { top: 28px; color: var(--chalk-subtle); }
-  .lane-runner.you { background: var(--signal); box-shadow: 0 0 22px var(--signal); --lead: 9%; }
-  .lane-runner.you em { bottom: 28px; color: var(--signal); }
-  .gap { display: flex; align-items: baseline; gap: 8px; margin-top: 18px; font-variant-numeric: tabular-nums; }
-  .gap b { font-size: 56px; font-weight: 700; color: var(--signal); letter-spacing: -1px; }
-  .gap span { color: var(--chalk-muted); font-size: 16px; }
+  .runner-pip { position: absolute; top: 50%; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%; animation: race 7s cubic-bezier(0.45, 0, 0.55, 1) infinite; }
+  .runner-pip em { position: absolute; left: 50%; translate: -50% 0; white-space: nowrap; font-style: normal; font-size: 12px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; }
+  .runner-pip.record { border: 2px dashed var(--chalk-subtle); --lead: 0%; }
+  .runner-pip.record em { top: 34px; color: var(--chalk-subtle); }
+  .runner-pip.you { background: var(--signal); box-shadow: 0 0 26px var(--signal); --lead: 9%; }
+  .runner-pip.you em { bottom: 34px; color: var(--signal); }
+  .race-gap { font-size: clamp(64px, 9vw, 150px); font-weight: 700; letter-spacing: -0.04em; line-height: 0.9; color: var(--signal); font-variant-numeric: tabular-nums; }
+  .race-gap small { font-size: 0.35em; margin-left: 6px; color: var(--chalk-muted); letter-spacing: 0; }
 
-  /* The rest, as tiles */
-  .more { padding: clamp(64px, 10vw, 128px) var(--edge); }
-  .more h2 { font-size: clamp(44px, 6vw, 96px); max-width: 16ch; margin: 0 0 40px; }
-  .bento { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
-  .tile { grid-column: span 2; display: flex; flex-direction: column; gap: 8px; min-height: 240px; padding: 24px; border-radius: 20px; background: var(--paper-sunken); transition: transform 200ms ease; }
-  .tile:hover { transform: translateY(-4px); }
-  .tile-0, .tile-1 { grid-column: span 3; }
-  .tile-0 { background: var(--cobalt); color: #fff; }
-  .tile-0 p { color: rgba(255, 255, 255, 0.8); }
-  .tag { align-self: flex-start; margin-bottom: auto; padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: var(--cobalt); background: color-mix(in srgb, var(--cobalt) 10%, transparent); }
-  .tile-0 .tag { color: #fff; background: rgba(255, 255, 255, 0.18); }
-  .tile h3 { margin: 28px 0 0; font-size: clamp(26px, 2.4vw, 34px); font-weight: 700; letter-spacing: -0.5px; line-height: 0.95; }
-  .tile p { margin: 0; color: var(--graphite-muted); font-size: 16px; }
+  /* Plan: fourteen weeks rising to the race */
+  .weeks { width: 100%; max-width: 520px; height: clamp(240px, 26vw, 360px); display: flex; align-items: flex-end; gap: 6px; }
+  .wk { position: relative; flex: 1; height: var(--h); border-radius: 8px 8px 4px 4px; background: rgba(255, 255, 255, 0.24); transform-origin: bottom; animation: build 700ms calc(var(--i) * 50ms) cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  .wk.race-day { background: #fff; }
+  .wk span { position: absolute; bottom: calc(100% + 10px); left: 50%; translate: -50% 0; white-space: nowrap; font-size: 13px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; padding: 4px 10px; border-radius: 8px; background: #fff; color: var(--cobalt); }
+
+  /* Grade: a hilly profile, two readings of the same effort */
+  .grade { position: relative; width: 100%; max-width: 540px; aspect-ratio: 3 / 2; border-radius: 24px; background: var(--paper); box-shadow: 0 30px 60px -30px rgba(0, 20, 60, 0.3); overflow: hidden; }
+  .profile { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 62%; }
+  .profile-fill { fill: color-mix(in srgb, var(--cobalt) 12%, transparent); }
+  .profile-line { fill: none; stroke: var(--cobalt); stroke-width: 3; vector-effect: non-scaling-stroke; stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw 2s 300ms ease forwards; }
+  .chip-pace { position: absolute; display: flex; flex-direction: column; padding: 10px 14px; border-radius: 14px; font-variant-numeric: tabular-nums; }
+  .chip-pace span { font-size: 11px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; opacity: 0.7; }
+  .chip-pace b { font-size: clamp(28px, 3vw, 40px); font-weight: 700; letter-spacing: -0.8px; line-height: 1; }
+  .chip-pace.real { left: 7%; top: 9%; background: var(--paper-sunken); color: var(--graphite); }
+  .chip-pace.flat { right: 7%; top: 9%; background: var(--cobalt); color: #fff; }
+
+  /* Extras: four small panels, same language */
+  .extras { padding: clamp(40px, 6vw, 72px) calc(var(--inset) + var(--edge) - 12px) clamp(24px, 4vw, 48px); }
+  .extras .kicker { margin: 0 0 18px; }
+  .extras-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .extra { display: flex; flex-direction: column; border-radius: 24px; padding: 18px 18px 24px; background: var(--paper-sunken); transition: transform 200ms ease; }
+  .extra:hover { transform: translateY(-4px); }
+  .extra.island, .extra.gif { background: var(--ink); color: var(--chalk); }
+  .extra h3 { margin: 18px 6px 4px; font-size: clamp(22px, 2vw, 28px); font-weight: 700; letter-spacing: -0.4px; line-height: 1; }
+  .extra p { margin: 0 6px; font-size: 15.5px; color: var(--graphite-muted); }
+  .extra.island p, .extra.gif p { color: var(--chalk-muted); }
+  .mini { aspect-ratio: 4 / 3; border-radius: 16px; display: grid; place-items: center; overflow: hidden; background: var(--paper); }
+  .extra.island .mini, .extra.gif .mini { background: var(--ink-raised); }
+  .mini svg { width: 86%; height: 86%; }
+  .heatmap path { fill: none; stroke: var(--cobalt); stroke-width: 4; stroke-linecap: round; opacity: 0.22; }
+  .loop { fill: none; stroke: var(--signal); stroke-width: 5; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1; animation: replay 3.6s ease-in-out infinite; }
+  .mask { fill: var(--ink-raised); stroke: var(--ink-rule); stroke-width: 2; stroke-dasharray: 4 4; }
+  .pill-island { display: flex; align-items: center; gap: 12px; padding: 12px 18px; border-radius: 999px; background: #000; color: #fff; font-variant-numeric: tabular-nums; }
+  .pill-island b { font-size: 17px; font-weight: 600; }
+  .pill-island small { font-size: 11px; opacity: 0.6; margin-left: 2px; }
+  .pill-island .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--signal); animation: pulse 1.6s ease-in-out infinite; }
+  .pill-island .sep { width: 1px; height: 16px; background: rgba(255, 255, 255, 0.2); }
+  .ring { width: 62%; aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center; background: radial-gradient(closest-side, var(--paper) 78%, transparent 79% 100%), conic-gradient(var(--cobalt) 0 59%, var(--paper-rule) 59% 100%); }
+  .ring b { display: flex; flex-direction: column; align-items: center; font-size: 30px; font-weight: 700; letter-spacing: -0.6px; font-variant-numeric: tabular-nums; }
+  .ring small { font-size: 12px; font-weight: 600; letter-spacing: 1px; color: var(--graphite-muted); }
 
   /* The last word, on cobalt */
   .final {
@@ -334,7 +350,7 @@ const heroLines = s.heroLines.map((line) => [...line].map((char) => ({ char, ind
   .foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 28px var(--edge) 40px; color: var(--graphite-muted); font-size: 14px; }
 
   @supports (animation-timeline: view()) {
-    .split, .rival h2 span, .tile, .final h2 { animation: arrive linear both; animation-timeline: view(); animation-range: entry 0% entry 60%; }
+    .final h2, .extra { animation: arrive linear both; animation-timeline: view(); animation-range: entry 0% entry 60%; }
   }
 
   @keyframes type { from { transform: translateY(0.4em); clip-path: inset(0 0 100% 0); } to { transform: none; clip-path: inset(-20% -20% -20% -20%); } }
@@ -346,23 +362,24 @@ const heroLines = s.heroLines.map((line) => [...line].map((char) => ({ char, ind
   @keyframes sway { 0%, 100% { left: 44%; } 50% { left: 56%; } }
   @keyframes slide { to { transform: translateX(-50%); } }
   @keyframes race { 0% { left: var(--lead); } 85%, 100% { left: calc(82% + var(--lead)); } }
+  @keyframes speak { 0%, 100% { transform: scaleY(0.25); } 50% { transform: scaleY(1); } }
+  @keyframes build { from { transform: scaleY(0); } }
+  @keyframes replay { 0% { stroke-dashoffset: 1; } 70%, 100% { stroke-dashoffset: 0; } }
+  @keyframes pulse { 50% { opacity: 0.3; } }
 
   @media (max-width: 960px) {
     .hero { grid-template-columns: 1fr; grid-template-rows: none; min-height: auto; }
     .stage { grid-column: 1; grid-row: auto; max-width: 380px; margin-top: 24px; }
-    .specs { grid-row: auto; grid-template-columns: 1fr 1fr; gap: 14px 0; padding: 18px; }
-    .spec { border-right: 0; margin-right: 0; }
-    .spec-action { grid-column: 1 / -1; padding: 6px 0 0; }
-    .rival-grid { grid-template-columns: 1fr; gap: 36px; }
-    .bento { grid-template-columns: 1fr; }
-    .tile, .tile-0, .tile-1 { grid-column: auto; min-height: 0; }
-    .split { grid-template-columns: 1fr auto; gap: 8px 16px; }
-    .km { grid-column: 1 / -1; }
-    .split-bar { left: 0; max-width: 100%; }
+    .hero-specs { grid-row: auto; }
+    .extras-grid { grid-template-columns: 1fr 1fr; }
+    .race { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 560px) {
+    .extras-grid { grid-template-columns: 1fr; }
   }
 
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition: none !important; }
-    .track-line { stroke-dashoffset: 0; }
+    .track-line, .profile-line, .loop { stroke-dashoffset: 0; }
   }
 </style>

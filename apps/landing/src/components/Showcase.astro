@@ -1,0 +1,92 @@
+---
+/**
+ * One feature, in the landing page's language: a two-tone headline, a
+ * sentence, one object staged, and the figures in glass when they help.
+ *
+ * The language is shared, the composition is not. `layout` picks how the
+ * parts sit, `tone` the ground:
+ * - split: copy and object side by side (`reverse` swaps them)
+ * - stacked: the headline centred above, the object wide below
+ * - banner: the object across the top, headline and sentence under it
+ * - plain tone: no panel, straight on the page; the others are panels
+ */
+import Specs from "./Specs.astro";
+
+interface Props {
+  tone: "plain" | "paper" | "ink" | "cobalt";
+  layout?: "split" | "stacked" | "banner";
+  kicker: string;
+  title: string[];
+  text: string;
+  specs?: { value: string; unit: string; label: string }[];
+  reverse?: boolean;
+}
+
+const { tone, layout = "split", kicker, title, text, specs, reverse = false } = Astro.props;
+---
+
+<section class={`panel ${tone} ${layout}${reverse ? " reverse" : ""}`}>
+  <p class="kicker">{kicker}</p>
+  <h2>{title.map((line, index) => <span class={index === title.length - 1 ? "second" : ""}>{line}</span>)}</h2>
+  <p class="text">{text}</p>
+  <div class="stage" aria-hidden="true"><slot /></div>
+  {specs && <div class="foot"><Specs specs={specs} tone={tone === "paper" || tone === "plain" ? "light" : "dark"} /></div>}
+</section>
+
+<style>
+  .panel {
+    position: relative; overflow: hidden; margin: var(--inset); border-radius: 28px;
+    padding: clamp(40px, 6vw, 80px) var(--edge) var(--edge);
+    display: grid; column-gap: 48px; align-items: center;
+  }
+  .plain { border-radius: 0; margin: 0; padding-block: clamp(72px, 10vw, 136px); background: var(--paper); color: var(--graphite); --second: var(--cobalt); --text: var(--graphite-muted); }
+  .paper { background: var(--paper-sunken); color: var(--graphite); --second: var(--cobalt); --text: var(--graphite-muted); }
+  .ink { background: var(--ink); color: var(--chalk); --second: var(--signal); --text: var(--chalk-muted); }
+  .cobalt {
+    color: #fff; --second: var(--signal); --text: rgba(255, 255, 255, 0.82);
+    background: radial-gradient(90% 80% at 75% 55%, color-mix(in srgb, var(--signal) 50%, transparent), transparent 60%), var(--cobalt);
+  }
+
+  /* split: copy one side, object the other */
+  .split { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "kicker stage" "title stage" "text stage" "foot foot"; }
+  .split.reverse { grid-template-areas: "stage kicker" "stage title" "stage text" "foot foot"; }
+  .split .stage { min-height: clamp(280px, 34vw, 460px); }
+  .split .kicker { align-self: end; }
+  .split .text { align-self: start; }
+  .split .foot { margin-top: 36px; }
+
+  /* stacked: headline centred, object wide underneath */
+  .stacked { grid-template-columns: 1fr; grid-template-areas: "kicker" "title" "text" "stage" "foot"; justify-items: center; text-align: center; }
+  .stacked .text { max-width: 46ch; }
+  .stacked .stage { width: 100%; margin-top: clamp(32px, 5vw, 64px); }
+  .stacked .foot { width: 100%; margin-top: 24px; }
+
+  /* banner: object across the top, headline left and sentence right beneath it */
+  .banner { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); grid-template-areas: "stage stage" "kicker kicker" "title text" "foot foot"; align-items: end; }
+  .banner .stage { margin-bottom: clamp(32px, 5vw, 64px); }
+  .banner .text { margin: 0 0 8px; }
+  .banner .foot { margin-top: 36px; }
+
+  .kicker { grid-area: kicker; margin: 0 0 14px; font-size: 13px; font-weight: 600; letter-spacing: 2.4px; text-transform: uppercase; opacity: 0.65; }
+  h2 { grid-area: title; margin: 0; font-weight: 700; font-size: clamp(48px, 6.4vw, 112px); line-height: 0.88; letter-spacing: -0.035em; }
+  h2 span { display: block; }
+  h2 .second { color: var(--second); }
+  .text { grid-area: text; margin: 22px 0 0; max-width: 40ch; font-size: clamp(18px, 1.5vw, 21px); line-height: 1.35; color: var(--text); }
+  .stage { grid-area: stage; position: relative; display: grid; place-items: center; }
+  .foot { grid-area: foot; }
+
+  @supports (animation-timeline: view()) {
+    h2 span, .stage { animation: arrive linear both; animation-timeline: view(); animation-range: entry 5% entry 70%; }
+  }
+  @keyframes arrive { from { transform: translateY(48px); } to { transform: none; } }
+
+  @media (max-width: 960px) {
+    .split, .split.reverse, .banner { grid-template-columns: 1fr; grid-template-areas: "kicker" "title" "text" "stage" "foot"; }
+    .banner { grid-template-areas: "stage" "kicker" "title" "text" "foot"; }
+    .banner .text { margin-top: 18px; }
+    .split .stage { margin-top: 32px; min-height: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    h2 span, .stage { animation: none !important; }
+  }
+</style>

@@ -1,0 +1,59 @@
+---
+/** The glass bar of figures that closes every panel: the hero's, and each showcase's. */
+interface Spec {
+  value: string;
+  unit: string;
+  label: string;
+}
+
+interface Props {
+  specs: Spec[];
+  tone: "light" | "dark";
+  action?: { href: string; label: string };
+}
+
+const { specs, tone, action } = Astro.props;
+---
+
+<div class={`specs ${tone}`}>
+  {specs.map((spec) => (
+    <div class="spec">
+      <b>{spec.value}{spec.unit && <small>{spec.unit}</small>}</b>
+      <span>{spec.label}</span>
+    </div>
+  ))}
+  {action && (
+    <a href={action.href} class="action">
+      <span class="round" aria-hidden="true">→</span>
+      {action.label}
+    </a>
+  )}
+</div>
+
+<style>
+  .specs {
+    position: relative; z-index: 3; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; align-items: center;
+    border-radius: 20px; padding: 14px 26px; font-variant-numeric: tabular-nums;
+    backdrop-filter: blur(18px) saturate(1.4);
+  }
+  .specs:has(.action) { grid-template-columns: repeat(4, 1fr) auto; grid-auto-flow: row; padding-right: 14px; }
+  .specs.dark { background: rgba(4, 16, 31, 0.32); border: 1px solid rgba(255, 255, 255, 0.16); color: #fff; --rule: rgba(255, 255, 255, 0.16); }
+  .specs.light { background: rgba(255, 255, 255, 0.6); border: 1px solid var(--paper-rule); color: var(--graphite); --rule: var(--paper-rule); }
+  .spec { display: flex; flex-direction: column; gap: 2px; padding: 6px 20px 6px 0; margin-right: 20px; border-right: 1px solid var(--rule); }
+  .spec:last-of-type { border-right: 0; }
+  .specs:has(.action) .spec:last-of-type { border-right: 1px solid var(--rule); }
+  .spec b { font-size: clamp(26px, 2.6vw, 40px); font-weight: 700; letter-spacing: -0.6px; line-height: 1; white-space: nowrap; }
+  .spec small { font-size: 0.45em; font-weight: 500; opacity: 0.7; margin-left: 4px; letter-spacing: 0; }
+  .spec span { font-size: 11.5px; font-weight: 600; letter-spacing: 1.3px; text-transform: uppercase; opacity: 0.65; }
+  .action { display: inline-flex; align-items: center; gap: 12px; padding: 0 18px 0 6px; font-weight: 600; font-size: 17px; white-space: nowrap; transition: transform 90ms ease-out; }
+  .action:active { transform: scale(0.96); transition-duration: 160ms; }
+  .round { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; background: #fff; color: var(--cobalt); font-size: 22px; transition: transform 200ms ease; }
+  .specs.light .round { background: var(--cobalt); color: #fff; }
+  .action:hover .round { transform: rotate(-45deg); }
+
+  @media (max-width: 960px) {
+    .specs, .specs:has(.action) { grid-auto-flow: row; grid-template-columns: 1fr 1fr; gap: 14px 0; padding: 18px; }
+    .spec, .specs:has(.action) .spec:last-of-type { border-right: 0; margin-right: 0; }
+    .action { grid-column: 1 / -1; padding: 6px 0 0; }
+  }
+</style>

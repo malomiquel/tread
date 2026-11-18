@@ -451,6 +451,13 @@ gutter, the same radii (6 for a button, 12 for a card, 16 for the banner,
 button scales to 0.96. Both serve every word from a `defineStrings` table,
 and the landing page ships no JavaScript.
 
+The landing page shares a language, not a layout. Every section uses the
+same parts — a two-tone headline (the second line in the accent), one
+object staged, panels of radius 28 set 12 px in from the window, glass for
+figures (`Specs`, radius 20) — but each composes them its own way through
+`Showcase`: side by side, stacked and centred, or the object across the top.
+Grounds alternate between the page itself, day `sunken`, night and cobalt.
+
 ## Accessibility
 
 - Every icon-only control has an `accessibilityLabel`; every custom control
