@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRef, useState } from "react";
-import { Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Modal, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { colors, floatingShadow, font } from "@/lib/theme";
 
@@ -45,6 +45,28 @@ export function DropdownMenu({ items, accessibilityLabel }: Props) {
   };
   const close = () => setAt(null);
 
+  /**
+   * The row's action, held until the menu has finished leaving the screen.
+   *
+   * Run in the same frame as the close, anything that presents a screen of
+   * its own (the share sheet of a GPX export) is asked to appear while the
+   * menu's modal is still on top. iOS then refuses it without a word, and
+   * the share never settles: nothing opens, and the export stays "under
+   * way" for good. iOS says when the modal is gone; Android has no such
+   * conflict, so it runs at once.
+   */
+  const pending = useRef<(() => void) | null>(null);
+  const choose = (action: () => void) => {
+    if (Platform.OS === "ios") pending.current = action;
+    close();
+    if (Platform.OS !== "ios") action();
+  };
+  const dismissed = () => {
+    const action = pending.current;
+    pending.current = null;
+    action?.();
+  };
+
   return (
     <>
       <View ref={anchor} collapsable={false}>
@@ -60,7 +82,7 @@ export function DropdownMenu({ items, accessibilityLabel }: Props) {
         </Pressable>
       </View>
 
-      <Modal visible={at !== null} transparent animationType="none" onRequestClose={close}>
+      <Modal visible={at !== null} transparent animationType="none" onRequestClose={close} onDismiss={dismissed}>
         <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel={accessibilityLabel}>
           {at ? (
             <Animated.View
@@ -73,10 +95,7 @@ export function DropdownMenu({ items, accessibilityLabel }: Props) {
                 {items.map((item, index) => (
                   <Pressable
                     key={item.key}
-                    onPress={() => {
-                      close();
-                      item.onPress();
-                    }}
+                    onPress={() => choose(item.onPress)}
                     accessibilityRole="menuitem"
                     style={({ pressed }) => [
                       styles.row,
