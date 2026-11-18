@@ -52,7 +52,7 @@ const structured = {
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonical} />
     <meta property="og:locale" content={language === "fr" ? "fr_FR" : "en_GB"} />
-    <meta name="theme-color" content={palette.background.dark} />
+    <meta name="theme-color" content={palette.accent.light} />
     <script type="application/ld+json" set:html={JSON.stringify(structured)} />
     <style is:inline set:html={`${paletteCss()}\n${bands}`} />
   </head>
@@ -65,8 +65,8 @@ const structured = {
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
   body {
-    background: var(--ink);
-    color: var(--chalk);
+    background: var(--paper);
+    color: var(--graphite);
     font-family: "Barlow Condensed", system-ui, sans-serif;
     font-size: 16px;
     line-height: 1.35;
