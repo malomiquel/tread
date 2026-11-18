@@ -23,9 +23,11 @@ export EXPO_USE_PRECOMPILED_MODULES=0
 # app.json or a new dependency is not in it until prebuild runs again. The marker
 # records when it last did; anything it is older than sends the project back
 # through a clean prebuild. A missing workspace means an incomplete project.
+# A fresh install counts too (pnpm rewrites node_modules/.modules.yaml): pod install
+# copies files into node_modules (expo-sqlite's sqlite3.c/.h), which a reinstall wipes.
 MARKER=ios/.prebuilt
 if [ ! -d ios/Tread.xcworkspace ] || [ ! -f "$MARKER" ] \
-  || [ -n "$(find targets app.json app.config.js package.json patches -newer "$MARKER" -print -quit 2>/dev/null)" ]; then
+  || [ -n "$(find targets app.json app.config.js package.json patches node_modules/.modules.yaml -newer "$MARKER" -print -quit 2>/dev/null)" ]; then
   echo "› Generating the native project"
   npx expo prebuild -p ios --clean
   touch "$MARKER"
