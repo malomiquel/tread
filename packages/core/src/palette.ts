@@ -21,6 +21,16 @@ export const palette = {
   dangerSoft: { light: "rgba(179, 38, 30, 0.10)", dark: "rgba(240, 128, 120, 0.16)" },
   track: { light: "#00348f", dark: "#6fa8ff" },
   scrim: { light: "rgba(16, 16, 16, 0.4)", dark: "rgba(0, 0, 0, 0.6)" },
+  /**
+   * The stage: the cobalt a page's lead figure stands on, the same in both
+   * appearances, as on the landing page. Text on it is `onStage`, its light
+   * the `stageGlow`, and figures sit on it in `glass`.
+   */
+  stage: { light: "#00348f", dark: "#00348f" },
+  stageGlow: { light: "#6fa8ff", dark: "#6fa8ff" },
+  onStage: { light: "#ffffff", dark: "#ffffff" },
+  glass: { light: "rgba(4, 16, 31, 0.32)", dark: "rgba(4, 16, 31, 0.32)" },
+  glassRule: { light: "rgba(255, 255, 255, 0.16)", dark: "rgba(255, 255, 255, 0.16)" },
 } as const;
 
 export type ColorToken = keyof typeof palette;

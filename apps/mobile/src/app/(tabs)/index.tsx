@@ -545,7 +545,7 @@ const styles = StyleSheet.create({
   headerText: { flex: 1 },
   toolbar: { flexDirection: "row", alignItems: "center", paddingHorizontal: GUTTER, paddingBottom: 12 },
   toolbarGap: { flex: 1 },
-  title: { color: colors.text, fontSize: 32, fontFamily: font.bold, letterSpacing: -0.6 },
+  title: { color: colors.text, fontSize: 38, fontFamily: font.bold, letterSpacing: -1.2, lineHeight: 42 },
   subtitle: { color: colors.subtle, fontFamily: font.regular, fontSize: 15, marginTop: 3 },
 
 

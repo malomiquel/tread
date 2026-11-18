@@ -1,4 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { Panel, PANEL_INSET, PANEL_PADDING } from "@/components/Panel";
+import { LinearGradient } from "expo-linear-gradient";
+import { palette } from "@tread/core/palette";
 import { useFocusEffect, useRouter, useScrollToTop } from "expo-router";
 import { useCallback, useState, useRef } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -142,7 +145,7 @@ const ICONS: Record<string, React.ComponentProps<typeof Ionicons>["name"]> = {
 function ForecastLine({ forecast }: { forecast: Forecast }) {
   return (
     <View style={styles.forecast}>
-      <Ionicons name={weatherIcon(forecast.code, true)} size={14} color={colors.accentText} />
+      <Ionicons name={weatherIcon(forecast.code, true)} size={14} color={colors.onStage} />
       <Text style={styles.forecastText} numberOfLines={1}>{forecastLine(forecast)}</Text>
     </View>
   );
@@ -509,6 +512,14 @@ export default function PlanScreen() {
               accessibilityRole="button"
               style={({ pressed }) => [styles.next, pressed && styles.pressed]}
             >
+              {/* The plan's lead, on the same stage as the profile's week. */}
+              <LinearGradient
+                colors={[palette.stageGlow.light, palette.stage.light, palette.stage.light]}
+                locations={[0, 0.6, 1]}
+                start={{ x: 1.1, y: -0.3 }}
+                end={{ x: 0.2, y: 1 }}
+                style={StyleSheet.absoluteFill}
+              />
               <View style={styles.nextBody}>
                 <Text style={styles.nextLabel}>
                   {next.at <= today ? s.dueNow : s.nextOn(dayName(next.at))}
@@ -519,7 +530,9 @@ export default function PlanScreen() {
                 </Text>
                 {nextForecast ? <ForecastLine forecast={nextForecast} /> : null}
               </View>
-              <Ionicons name="play" size={20} color={colors.accentText} />
+              <View style={styles.nextPlay}>
+                <Ionicons name="play" size={18} color={colors.stage} style={styles.nextPlayIcon} />
+              </View>
             </Pressable>
           ) : (
             <Text style={styles.finished}>
@@ -534,6 +547,7 @@ export default function PlanScreen() {
                 <Text style={styles.weekTitle}>
                   {s.weekTitle(week, phaseName(entries[0].phase))}
                 </Text>
+                <Panel>
                 {entries.map((entry) => (
                   <SessionRow
                     key={entry.order}
@@ -543,6 +557,7 @@ export default function PlanScreen() {
                     onPress={open}
                   />
                 ))}
+                </Panel>
               </View>
             );
           })}
@@ -580,7 +595,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: GUTTER, paddingTop: 10,
   },
   title: {
-    flex: 1, color: colors.text, fontSize: 32, fontFamily: font.bold, letterSpacing: -0.6,
+    flex: 1, color: colors.text, fontSize: 38, fontFamily: font.bold, letterSpacing: -1.2, lineHeight: 42,
   },
 
   // The same room under the heading as every other tab leaves above its
@@ -607,21 +622,27 @@ const styles = StyleSheet.create({
   },
   next: {
     flexDirection: "row", alignItems: "center", gap: 12,
-    marginHorizontal: GUTTER, marginTop: 18,
-    backgroundColor: colors.accent, borderRadius: 12, padding: 16,
+    marginHorizontal: PANEL_INSET, marginTop: 18, overflow: "hidden",
+    backgroundColor: colors.stage, borderRadius: 20, paddingVertical: 14, paddingLeft: 16, paddingRight: 14,
   },
+  nextPlay: {
+    width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center",
+    backgroundColor: colors.onStage,
+  },
+  // A triangle centred geometrically looks off-centre: nudged right.
+  nextPlayIcon: { marginLeft: 3 },
   nextBody: { flex: 1, gap: 1 },
   nextLabel: {
-    color: colors.accentText, opacity: 0.75, fontSize: 12,
+    color: colors.onStage, opacity: 0.75, fontSize: 11,
     fontFamily: font.semibold, letterSpacing: 1.2, textTransform: "uppercase",
   },
-  nextName: { color: colors.accentText, fontSize: 21, fontFamily: font.bold, letterSpacing: -0.3 },
-  nextDetail: { color: colors.accentText, opacity: 0.8, fontSize: 13.5, fontFamily: font.regular },
+  nextName: { color: colors.onStage, fontSize: 22, fontFamily: font.bold, letterSpacing: -0.5 },
+  nextDetail: { color: colors.onStage, opacity: 0.8, fontSize: 13.5, fontFamily: font.regular },
   // Set apart from the line above it, because it is the one thing in the card
   // that is not about the session itself.
   forecast: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 5 },
   forecastText: {
-    color: colors.accentText, opacity: 0.8, fontSize: 13.5,
+    color: colors.onStage, opacity: 0.8, fontSize: 13.5,
     fontFamily: font.medium, flexShrink: 1,
   },
   finished: {
@@ -629,21 +650,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: GUTTER, marginTop: 20, lineHeight: 22,
   },
 
-  week: {
-    marginTop: 22, paddingTop: 14,
-    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline,
-  },
+  week: { marginTop: 22 },
   weekTitle: {
     color: colors.subtle, fontSize: 13, fontFamily: font.semibold,
     letterSpacing: 1.4, textTransform: "uppercase",
-    paddingHorizontal: GUTTER, marginBottom: 4,
+    paddingHorizontal: GUTTER, marginBottom: 8,
   },
 
   row: {
     flexDirection: "row", alignItems: "center", gap: 12,
-    paddingHorizontal: GUTTER, paddingVertical: 10,
+    paddingHorizontal: PANEL_PADDING + 6, paddingVertical: 10,
   },
-  rowToday: { backgroundColor: colors.sunken },
+  rowToday: { backgroundColor: colors.background },
   mark: {
     width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center",
     backgroundColor: colors.accentSoft,

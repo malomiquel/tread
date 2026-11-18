@@ -20,10 +20,13 @@ disagree, the code is right and this file is out of date.
 2. **One shape per idea.** A banner, a section heading, an empty page, a
    settings block: each exists once, as a component, and every screen uses it.
    Two screens that look alike must be built from the same parts.
-3. **Colour marks what matters.** The page is neutral. Blue marks what is
-   yours, what is active and what to do next. Blue is never decoration.
-4. **Quiet type.** One bold heading per block at most. Figures are semibold,
-   running text is regular. If everything is bold, nothing is.
+3. **One stage per page.** The page is neutral, its lead figure is not: it
+   stands on the cobalt stage (`SummaryBanner`), very large, with the
+   figures that go with it in glass, as the landing page stages the phone.
+   Elsewhere blue still marks what is yours, active or next, never decoration.
+4. **Loud figures, quiet words.** Headings and figures are bold and tight,
+   the way the landing page sets them; running text stays regular and
+   muted. Blocks of a page sit in rounded panels (`Panel`), not on rules.
 5. **Nothing moves by itself.** Heights are reserved: a sentence that might
    wrap takes two lines' room whether it needs them or not, so switching tabs
    never shifts content.
@@ -54,6 +57,10 @@ read once at launch.
 | `dangerSoft` | danger at 10 % | danger at 16 % | Border of a destructive button |
 | `track` | = accent | = accent | The GPS line on every map |
 | `scrim` | black at 40 % | black at 60 % | Behind sheets and dialogs |
+| `stage` | `#00348f` | `#00348f` | The lead figure's panel, as on the landing page |
+| `stageGlow` | `#6fa8ff` | `#6fa8ff` | The light on the stage, a unit beside the lead figure |
+| `onStage` | `#ffffff` | `#ffffff` | Text and icons on the stage |
+| `glass`, `glassRule` | ink at 32 %, white at 16 % | same | Figures set on the stage, and their rules |
 
 **Literal colours.** Native navigation bars and SVG cannot read a dynamic
 colour. For those only, `literalColors` gives the raw pair (`track`,
@@ -68,8 +75,10 @@ colour. For those only, `literalColors` gives the raw pair (`track`,
   page look generated.
 - In a chart, past values are `hairline` and the one still under way is
   `accent`.
-- Translucent white (`rgba(255,255,255,0.16–0.22)`) is only used **inside a
-  blue banner**, for its tags and progress track.
+- Translucent white (`rgba(255,255,255,0.16–0.22)`) and `glass` are only
+  used **on the stage**, for its tags, progress track and figures.
+- The stage is the one place where blue fills a surface. A page has at most
+  one; while a run records, the screen has none.
 
 ---
 
@@ -91,9 +100,9 @@ defaults.
 
 | Role | Size | Face | Tracking | Colour |
 |---|---|---|---|---|
-| Page title | 32 | bold | −0.6 | text |
+| Page title | 38 | bold | −1.2 | text |
 | Page subtitle | 15 | regular | 0 | subtle |
-| Section heading | 21 | bold | −0.3 | text |
+| Section heading | 24 | bold | −0.6 | text |
 | Section aside (total) | 15 | semibold | 0 | accent |
 | Card title | 21 | bold | −0.3 | text / accentText |
 | Row name | 18.5 | semibold | −0.2 | text |
@@ -102,7 +111,7 @@ defaults.
 | Caption, detail | 13–14.5 | regular | 0 | subtle |
 | Group label | 11.5–13 | medium/semibold, UPPERCASE | 1.0–1.4 | subtle |
 | Banner label, empty-state label | 15 | medium / semibold | 0 | accentText 80 % / muted |
-| Banner figure | 34 (+16 unit) | semibold | −0.8 | accentText |
+| Banner figure | 38 (+17 unit in `stageGlow`) | bold | −1.1 | onStage |
 | Metric | 32 (22 compact, 86 large) | semibold (large: bold) | −0.9 | text |
 | Metric label | 11.5, UPPERCASE | semibold | 1.3 | subtle |
 | Button | 18 | semibold (primary: bold) | 0.3 | — |
@@ -122,7 +131,7 @@ defaults.
 | Constant | Value | Where |
 |---|---|---|
 | Gutter | **20** | Horizontal margin of every page |
-| Settings inset | 16 outer + 14 inner | `SettingsGroup` |
+| Panel inset | 12 outer, content on the 20 gutter | `Panel`, `SettingsGroup`, `SummaryBanner` |
 | `TAB_BAR_HEIGHT` | 62 | Floating tab bar |
 | `CONTROL_SIZE` | 42 | Round controls over the map |
 | `CONTROLS_TOP` | 60 | Map controls from the top |
@@ -141,7 +150,7 @@ defaults.
 | 6 | `Button` (a small radius reads as a control) |
 | 8 | Chips |
 | 12 | Action cards, record icon tile, choices |
-| 14 | Settings blocks |
+| 20 | Panels, settings blocks, the summary banner |
 | 16 | Summary banner |
 | 18 | Header buttons (pill, height 36), sheets |
 | 20 | Picker sheets over the map |
@@ -149,8 +158,9 @@ defaults.
 
 ### Elevation
 
-- **Nothing on the page floats.** Sections are separated by hairline rules,
-  not shadows.
+- **Nothing on the page floats.** Sections are rounded `sunken` panels set
+  12 points in from the edge (radius 20), separated by space, never by
+  shadows. Rows inside a panel keep their hairlines.
 - `floatingShadow` exists only for what floats over a map: map controls, the
   run panel, picker sheets, the slider thumb.
 - **Glass** (`GlassPanel`) is for surfaces over live content: the tab bar,
@@ -183,7 +193,9 @@ defaults.
 |---|---|
 | `FloatingTabBar` | The bar: Plan · Parcours · **run disc** · Historique · Profil. Five equal slots, before the run on the left, after it on the right. |
 | `HeaderButton` | The action beside a page title. Icon + word. `primary` (filled) for the page's main action (New route); soft for secondary (Import, Settings). |
-| `SummaryBanner` + `BannerTag` | The one figure a page leads with, on blue: the month in History, the week in Profile. Tags for a comparison or an invitation, in words only: no flame, no trend arrow. |
+| `SummaryBanner` + `BannerTag` | The one figure a page leads with, on the cobalt stage (the same in both appearances, lit from the top right): compact: label in capitals, the figure at 38, and on the same row, at its right, the figures that go with it, small (`figures`); a goal's track under them, 3 high. The month in History, the week in Profile. Tags for a comparison or an invitation, in words only: no flame, no trend arrow. |
+| `Panel` | A block of a page: `sunken`, radius 20, 12 in from the edge. Its content keeps the page's 20-point gutter (`PANEL_PADDING` inside). Rows on it pass `onPanel`. |
+| `Figures` | A row of figures split by rules, two to a row past two: value bold, unit small, label in capitals. `stage` on the stage (a rule above, no ground), `glass` with a glass ground, `page` on a panel. |
 | `SectionHeader` | A block's heading: bold name left, accent total right. Can be sticky. |
 | `EmptyState` | Every empty tab: a rule, "Get started", then action cards of fixed height (one primary, blue). |
 | `NoMatch` | A list narrowed to nothing: one sentence saying so, and "Show all". Never the empty state: a filter that matches nothing is not an empty list. |

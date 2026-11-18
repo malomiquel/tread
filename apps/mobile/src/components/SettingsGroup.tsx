@@ -1,5 +1,6 @@
 import { Children, Fragment, isValidElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
+import { PANEL_INSET, PANEL_PADDING } from "@/components/Panel";
 import { colors, font } from "@/lib/theme";
 
 interface Props {
@@ -43,15 +44,17 @@ export function SettingsGroup({ title, footer, children }: Props) {
 }
 
 const styles = StyleSheet.create({
-  group: { marginTop: 22, paddingHorizontal: 16 },
+  // Set like every other panel of the app: 12 in from the edge, radius 20, its
+  // labels and rows on the page's 20-point gutter.
+  group: { marginTop: 22, paddingHorizontal: PANEL_INSET },
   title: {
-    color: colors.subtle, fontSize: 12.5, fontFamily: font.medium,
-    letterSpacing: 1, textTransform: "uppercase", marginHorizontal: 4, marginBottom: 7,
+    color: colors.subtle, fontSize: 12, fontFamily: font.semibold,
+    letterSpacing: 1.4, textTransform: "uppercase", marginHorizontal: PANEL_PADDING, marginBottom: 8,
   },
-  block: { borderRadius: 14, paddingHorizontal: 14, backgroundColor: colors.sunken },
+  block: { borderRadius: 20, paddingHorizontal: 14, backgroundColor: colors.sunken },
   rule: { height: StyleSheet.hairlineWidth, backgroundColor: colors.hairline },
   footer: {
     color: colors.subtle, fontSize: 13, fontFamily: font.regular, lineHeight: 18,
-    marginHorizontal: 4, marginTop: 7,
+    marginHorizontal: PANEL_PADDING, marginTop: 8,
   },
 });

@@ -3,13 +3,16 @@ import { useCallback, useState, useRef } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { EmptyState } from "@/components/EmptyState";
+import { Figures } from "@/components/Figures";
+import { Panel, PANEL_PADDING } from "@/components/Panel";
 import { LoadError } from "@/components/LoadError";
 import { HeaderButton } from "@/components/HeaderButton";
 import { RecordRow } from "@/components/RecordRow";
 import { SectionHeader } from "@/components/SectionHeader";
-import { BannerTag, bannerText, SummaryBanner } from "@/components/SummaryBanner";
+import { BannerTag, bannerGoal, bannerText, SummaryBanner } from "@/components/SummaryBanner";
 import { WeeklyGoalSheet } from "@/components/WeeklyGoalSheet";
 import { ofSport } from "@tread/core/activity";
+import { cardsOf, isComplete, setsOf } from "@tread/core/card";
 import { effortRecords, listRuns, personalRecords, type EffortRecord, type PersonalRecords, type Run } from "@/lib/db";
 import { effortName } from "@tread/core/efforts";
 import { formatDistance, formatDuration, formatElevation } from "@tread/core/format";
@@ -55,6 +58,9 @@ const profileStrings = defineStrings({
     recap: (year: number) => `Récap ${year} à partager`,
     recapDetail: "Ton année en une image",
     heatmapDetail: "Les rues que tu cours le plus ressortent",
+    collection: "Collection",
+    collectionDetail: (cards: number, complete: number, sets: number) =>
+      `${plural(cards, "carte", "cartes")} · ${complete} série${complete > 1 ? "s" : ""} complète${complete > 1 ? "s" : ""} sur ${sets}`,
     thisYear: (year: number) => `En ${year}`,
     yearAside: "à la même date l'an dernier",
     yearDistance: "Distance",
@@ -95,6 +101,9 @@ const profileStrings = defineStrings({
     recap: (year: number) => `${year} recap to share`,
     recapDetail: "Your year in one picture",
     heatmapDetail: "The streets you run most stand out",
+    collection: "Collection",
+    collectionDetail: (cards: number, complete: number, sets: number) =>
+      `${plural(cards, "card", "cards")} · ${complete} of ${sets} sets complete`,
     thisYear: (year: number) => `In ${year}`,
     yearAside: "against last year to date",
     yearDistance: "Distance",
@@ -245,6 +254,9 @@ export default function ProfileScreen() {
   const weekly = weeklyGoal(settings);
   const streak = weekStreak(runs, weekly, readAt);
   const ytd = yearToDate(runs, readAt);
+  // The album's headline: how many cards, how many sets are whole.
+  const cards = cardsOf(runs);
+  const sets = setsOf(runs, cards);
   // Projected with the weekly volume the plans use, so a race time here and
   // the pace a programme hands out come from the same runner.
   const predictions = predictRaces(effortSamples(runs), readAt, weeklyVolumeKm(runs, readAt));
@@ -322,14 +334,17 @@ export default function ProfileScreen() {
               label={s.thisWeek}
               value={formatDistance(current.distanceM)}
               unit={distanceUnit()}
-              detail={`${s.runs(current.runs)} · ${formatDuration(current.durationS)}`}
+              figures={[
+                { value: String(current.runs), label: s.totalRuns },
+                { value: formatDuration(current.durationS), label: s.time },
+              ]}
               onPress={() => setSettingGoal(true)}
               accessibilityLabel={goal ? s.goalEdit(goalText) : s.goalSet}
             >
               {goal ? (
                 <View style={styles.goal}>
-                  <View style={styles.goalBar}>
-                    <View style={[styles.goalFill, { width: `${goal.share * 100}%` }]} />
+                  <View style={bannerGoal.track}>
+                    <View style={[bannerGoal.fill, { width: `${goal.share * 100}%` }]} />
                   </View>
                   <Text style={bannerText.soft}>
                     {goal.reached || weekly === null
@@ -361,6 +376,7 @@ export default function ProfileScreen() {
             <SectionHeader title={s.progress} aside={s.lastWeeks(WEEKS_SHOWN)} />
             {/* Read out as one sentence: a column of bars is invisible to
                 anybody listening rather than looking. */}
+            <Panel>
             <View
               style={styles.chart}
               accessible
@@ -383,12 +399,15 @@ export default function ProfileScreen() {
                 </View>
               ))}
             </View>
+            </Panel>
 
             <SectionHeader title={s.performance} />
+            <Panel>
             {records.longest ? (
               <RecordRow
                 first
                 icon="trophy-outline"
+                onPanel
                 label={titles.records}
                 detail={s.longest}
                 value={`${formatDistance(records.longest.distanceM)} ${distanceUnit()}`}
@@ -399,6 +418,7 @@ export default function ProfileScreen() {
               <RecordRow
                 first={!records.longest}
                 icon="stopwatch-outline"
+                onPanel
                 label={titles.efforts}
                 detail={effortName(effort.key)}
                 value={formatDuration(Math.round(effort.seconds))}
@@ -409,18 +429,21 @@ export default function ProfileScreen() {
               <RecordRow
                 first={!records.longest && !effort}
                 icon="flag-outline"
+                onPanel
                 label={titles.predictions}
                 detail={s.predicted(goalName(prediction.goal))}
                 value={formatDuration(Math.round(prediction.timeS))}
                 onPress={() => open("predictions")}
               />
             ) : null}
+            </Panel>
 
             {/* This year against the same point of last year: the question a
                 runner asks in the autumn, and the only fair way to ask it. */}
             {ytd.thisYear.runs > 0 ? (
               <>
                 <SectionHeader title={s.thisYear(ytd.year)} aside={ytd.lastYear.runs > 0 ? s.yearAside : undefined} />
+                <Panel>
                 <View style={styles.totals}>
                   <Total
                     label={s.yearDistance}
@@ -439,36 +462,51 @@ export default function ProfileScreen() {
                     compare={ytd.lastYear.runs > 0 ? s.lastYear(String(ytd.lastYear.runs)) : undefined}
                   />
                 </View>
-                <View style={styles.heatmap}>
-                  <RecordRow
-                    first
+                <RecordRow
+                    first={false}
+                    onPanel
                     icon="share-outline"
                     label={s.recap(ytd.year)}
                     detail={s.recapDetail}
                     value=""
                     onPress={() => router.push({ pathname: "/recap", params: { kind: "year" } })}
                   />
-                </View>
+                </Panel>
               </>
             ) : null}
 
             <SectionHeader title={s.allTime} />
-            <View style={styles.totals}>
-              <Total label={s.totalRuns} value={String(records.totalRuns)} />
-              <Total label={s.distance} value={formatDistance(records.totalDistanceM)} unit={distanceUnit()} />
-              <Total label={s.time} value={formatDuration(records.totalDurationS)} />
-              <Total label={s.elevation} value={formatElevation(records.totalElevationM)} unit={elevationUnit()} />
-            </View>
-            <View style={styles.heatmap}>
+            <Panel>
+              <View style={styles.figures}>
+                <Figures
+                  tone="page"
+                  figures={[
+                    { value: String(records.totalRuns), label: s.totalRuns },
+                    { value: formatDistance(records.totalDistanceM), unit: distanceUnit(), label: s.distance },
+                    { value: formatDuration(records.totalDurationS), label: s.time },
+                    { value: formatElevation(records.totalElevationM), unit: elevationUnit(), label: s.elevation },
+                  ]}
+                />
+              </View>
               <RecordRow
-                first
+                first={false}
+                onPanel
                 icon="map-outline"
                 label={s.heatmap}
                 detail={s.heatmapDetail}
                 value=""
                 onPress={() => router.push("/heatmap")}
               />
-            </View>
+              <RecordRow
+                first={false}
+                onPanel
+                icon="albums-outline"
+                label={s.collection}
+                detail={s.collectionDetail(cards.size, sets.filter(isComplete).length, sets.length)}
+                value=""
+                onPress={() => router.push("/collection")}
+              />
+            </Panel>
           </>
         )}
       </ScrollView>
@@ -496,45 +534,40 @@ const styles = StyleSheet.create({
     paddingHorizontal: GUTTER, paddingTop: 10, paddingBottom: 14,
   },
   headText: { flex: 1 },
-  title: { color: colors.text, fontSize: 32, fontFamily: font.bold, letterSpacing: -0.6 },
+  title: { color: colors.text, fontSize: 38, fontFamily: font.bold, letterSpacing: -1.2, lineHeight: 42 },
   subtitle: { color: colors.subtle, fontFamily: font.regular, fontSize: 15, marginTop: 3 },
 
-  goal: { gap: 5, marginTop: 8 },
+  goal: { gap: 4, marginTop: 8 },
   tags: { flexDirection: "row", flexWrap: "wrap", columnGap: 6 },
-  goalBar: {
-    height: 5, borderRadius: 2.5, overflow: "hidden",
-    backgroundColor: "rgba(255, 255, 255, 0.22)",
-  },
-  goalFill: { height: 5, borderRadius: 2.5, backgroundColor: colors.accentText },
 
   chart: {
-    flexDirection: "row", alignItems: "flex-end", gap: 8, height: 110,
-    paddingHorizontal: GUTTER, paddingTop: 4,
+    flexDirection: "row", alignItems: "flex-end", gap: 8, height: 120,
+    paddingHorizontal: PANEL_PADDING + 6, paddingTop: 12, paddingBottom: 8,
   },
   column: { flex: 1, alignItems: "center", gap: 6 },
   barArea: { flex: 1, width: "100%", justifyContent: "flex-end" },
   // Past weeks in grey, this one in blue: the colour marks the week that is
   // still yours to change, not every bar.
-  bar: { width: "100%", borderRadius: 3, backgroundColor: colors.hairline },
+  bar: { width: "100%", borderRadius: 5, backgroundColor: colors.hairline },
   barCurrent: { backgroundColor: colors.accent },
   weekLabel: { color: colors.subtle, fontFamily: font.regular, fontSize: 13, fontVariant: ["tabular-nums"] },
   weekLabelCurrent: { color: colors.accent, fontFamily: font.semibold },
 
-  heatmap: { marginTop: 10 },
+  figures: { paddingHorizontal: PANEL_PADDING - 8, paddingVertical: 10 },
   // Figures set on the page in two columns, rows split by a rule, like a
   // results sheet. They used to be four tinted boxes, which is the shape of
   // every dashboard and of no runner's logbook.
-  totals: { flexDirection: "row", flexWrap: "wrap", columnGap: 20, paddingHorizontal: GUTTER },
-  total: {
-    flexBasis: "40%", flexGrow: 1, gap: 1, paddingVertical: 12,
-    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline,
-  },
+  totals: { flexDirection: "row", flexWrap: "wrap", columnGap: 20, paddingHorizontal: PANEL_PADDING + 8, paddingVertical: 8 },
+  total: { flexBasis: "40%", flexGrow: 1, gap: 1, paddingVertical: 4 },
   totalValue: {
-    color: colors.text, fontSize: 26, fontFamily: font.semibold,
-    letterSpacing: -0.6, fontVariant: ["tabular-nums"],
+    color: colors.text, fontSize: 22, fontFamily: font.semibold,
+    letterSpacing: -0.4, fontVariant: ["tabular-nums"],
   },
   totalUnit: { color: colors.subtle, fontSize: 15, fontFamily: font.semibold, letterSpacing: 0 },
-  totalLabel: { color: colors.muted, fontSize: 14, fontFamily: font.medium },
+  totalLabel: {
+    color: colors.subtle, fontSize: 11.5, fontFamily: font.semibold, letterSpacing: 1.3,
+    textTransform: "uppercase",
+  },
   totalChange: { color: colors.accent, fontFamily: font.semibold },
   totalCompare: { color: colors.subtle, fontSize: 13, fontFamily: font.regular },
 });
