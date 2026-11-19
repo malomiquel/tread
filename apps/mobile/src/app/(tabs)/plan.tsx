@@ -11,6 +11,9 @@ import { EmptyState } from "@/components/EmptyState";
 import { HeaderButton } from "@/components/HeaderButton";
 import { LoadError } from "@/components/LoadError";
 import { SessionDetail } from "@/components/SessionDetail";
+import { CampaignMap } from "@/components/CampaignMap";
+import { Segmented } from "@/components/Segmented";
+import { campaignOf, campaignWords } from "@tread/core/campaign";
 import {
   activePlan, createPlan, deletePlan, markPlanSessionDone, unmarkPlanSessionDone, planDone, recentExertions,
   type StoredPlan,
@@ -81,6 +84,7 @@ const planStrings = defineStrings({
     weekTitle: (week: number, phase: string) => `Semaine ${week} · ${phase}`,
     finished: "Le programme est terminé. Il ne reste plus qu'à courir.",
     abandonPlan: "Abandonner le programme",
+    views: { sessions: "Séances", campaign: "Campagne" } as Record<PlanView, string>,
   },
   en: {
     skippedLabel: (name: string) => `${name}, skipped`,
@@ -116,8 +120,12 @@ const planStrings = defineStrings({
     weekTitle: (week: number, phase: string) => `Week ${week} · ${phase}`,
     finished: "The plan is complete. All that's left is to run.",
     abandonPlan: "Abandon the training plan",
+    views: { sessions: "Sessions", campaign: "Campaign" },
   },
 });
+
+/** The sessions week by week, or the same plan read as a campaign. */
+type PlanView = "sessions" | "campaign";
 
 /** Passed over without being run. */
 const isSkipped = (entry: ScheduledSession): boolean => entry.settled && entry.runId === null;
@@ -243,6 +251,8 @@ export default function PlanScreen() {
   const [viewing, setViewing] = useState<ScheduledSession | null>(null);
   /** The programme form, opened from the page shown when there is none. */
   const [settingUp, setSettingUp] = useState(false);
+  const [view, setView] = useState<PlanView>("sessions");
+  const c = useStrings(campaignWords);
   const settings = useSettings();
   /*
    * Somebody who said in the welcome that they came to prepare a race lands
@@ -472,6 +482,7 @@ export default function PlanScreen() {
   // calendar week it landed in: what a runner is doing is week nine of a plan,
   // whatever the sliding has done to the dates.
   const weeks = [...new Set(scheduled.map((entry) => entry.week))].sort((a, b) => a - b);
+  const campaign = campaignOf(scheduled);
 
   return (
     <SafeAreaView style={styles.screen} edges={["top"]}>
@@ -540,7 +551,27 @@ export default function PlanScreen() {
             </Text>
           )}
 
-          {weeks.map((week) => {
+          {/* Where the runner stands in the campaign, said under the next
+              session whichever way the plan is read. */}
+          {campaign.current ? (
+            <Text style={styles.chapterLine}>
+              {`${c.chapter(campaign.current.index, campaign.current.phase)} · ${c.guardians(campaign.current.guardiansWon, campaign.current.guardians)}`}
+            </Text>
+          ) : null}
+
+          <View style={styles.views}>
+            <Segmented
+              options={(["sessions", "campaign"] as const).map((value) => ({ value, label: s.views[value] }))}
+              value={view}
+              onChange={setView}
+            />
+          </View>
+
+          {view === "campaign" ? (
+            <CampaignMap campaign={campaign} scheduled={scheduled} onOpen={open} />
+          ) : null}
+
+          {view === "sessions" && weeks.map((week) => {
             const entries = scheduled.filter((entry) => entry.week === week);
             return (
               <View key={week} style={styles.week}>
@@ -651,6 +682,11 @@ const styles = StyleSheet.create({
   },
 
   week: { marginTop: 22 },
+  chapterLine: {
+    color: colors.accent, fontFamily: font.semibold, fontSize: 14.5,
+    paddingHorizontal: GUTTER, marginTop: 14,
+  },
+  views: { paddingHorizontal: GUTTER, marginTop: 16 },
   weekTitle: {
     color: colors.subtle, fontSize: 13, fontFamily: font.semibold,
     letterSpacing: 1.4, textTransform: "uppercase",

@@ -20,7 +20,10 @@ import { exertionName, type Exertion } from "@tread/core/plan";
 import { deleteRun, effortRecords, listRuns, readRoute, readRun, routeRecords, type RouteRecord, renameRun, type Run, setRunExertion, setRunHeart, planSessionOfRun,
   saveRunAsRoute,
 } from "@/lib/db";
-import { RunCard } from "@/components/RunCard";
+import { CardBack, RunCard } from "@/components/RunCard";
+import { PressableScale } from "@/components/PressableScale";
+import { TiltCard } from "@/components/TiltCard";
+import { cardHref } from "@/lib/cardStage";
 import { cardsOf } from "@tread/core/card";
 import { viewShot } from "@/lib/viewShot";
 import { placeName } from "@/lib/location";
@@ -110,6 +113,10 @@ const runStrings = defineStrings({
     record: "Record",
     splits: "Fractionnés",
     card: "Carte",
+    cardWaiting: "Ta carte t'attend",
+    cardTurn: "Touche pour la retourner",
+    cardSeen: "Ta carte",
+    cardAgain: "Touche pour la revoir",
     shareCard: "Partager la carte",
     cardImageFailed: "Image impossible",
     vma: "VMA estimée",
@@ -197,6 +204,10 @@ const runStrings = defineStrings({
     record: "Record",
     splits: "Splits",
     card: "Card",
+    cardWaiting: "Your card is waiting",
+    cardTurn: "Tap to turn it over",
+    cardSeen: "Your card",
+    cardAgain: "Tap to see it again",
     shareCard: "Share the card",
     cardImageFailed: "Couldn't make the image",
     vma: "Estimated MAS",
@@ -316,7 +327,7 @@ export default function RunDetailScreen() {
   const s = useStrings(runStrings);
   // undefined while loading, null when not found.
   const [data, setData] = useState<Loaded | null | undefined>(undefined);
-  const { privacyRadiusM } = useSettings();
+  const { privacyRadiusM, cardsSeenThrough } = useSettings();
   /** Which run holds the record over each distance, to mark this one's. */
   const [recordHolders, setRecordHolders] = useState<Record<string, number>>({});
   const [beats, setBeats] = useState<Beat[]>([]);
@@ -795,6 +806,28 @@ export default function RunDetailScreen() {
         <DropdownMenu items={actions} accessibilityLabel={s.actions[sport]} />
       </View>
 
+      {/* Straight off a run, its card waits face down at the top of the page:
+          the one thing here that was not there before the run. */}
+      {from !== undefined && card ? (
+        <PressableScale
+          onPress={() => router.push(cardHref([{ kind: "run", runId: run.id }], { seenThrough: run.id }))}
+          accessibilityRole="button"
+          style={styles.cardPrompt}
+        >
+          <View style={styles.cardPromptText}>
+            <Text style={styles.cardPromptLabel}>
+              {cardsSeenThrough !== null && cardsSeenThrough >= run.id ? s.cardSeen : s.cardWaiting}
+            </Text>
+            <Text style={styles.cardPromptTitle}>
+              {cardsSeenThrough !== null && cardsSeenThrough >= run.id ? s.cardAgain : s.cardTurn}
+            </Text>
+          </View>
+          <View style={styles.cardPromptBack}>
+            <CardBack small />
+          </View>
+        </PressableScale>
+      ) : null}
+
       <View style={styles.section}>
         <Metric label={s.distance} value={formatDistance(run.distanceM)} unit={distanceUnit()} large />
         <View style={styles.row}>
@@ -1047,7 +1080,10 @@ export default function RunDetailScreen() {
       {card ? (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{s.card}</Text>
-          <RunCard ref={runCard} card={card} run={run} privacyRadiusM={privacyRadiusM} />
+          {/* A rare card leans with the phone, the finish it earned. */}
+          <TiltCard enabled={card.rarity === "rare" || card.rarity === "exceptional"}>
+            <RunCard ref={runCard} card={card} run={run} privacyRadiusM={privacyRadiusM} />
+          </TiltCard>
           {viewShot() ? (
             <Button
               label={s.shareCard}
@@ -1245,6 +1281,22 @@ const styles = StyleSheet.create({
     flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background,
   },
 
+  cardPrompt: {
+    flexDirection: "row", alignItems: "center", gap: 14, overflow: "hidden",
+    marginHorizontal: 12, marginTop: 4, marginBottom: 8, borderRadius: 20,
+    backgroundColor: colors.stage, paddingVertical: 14, paddingLeft: 16, paddingRight: 16,
+  },
+  cardPromptText: { flex: 1, gap: 2 },
+  cardPromptLabel: {
+    color: colors.onStage, opacity: 0.75, fontSize: 11.5, fontFamily: font.semibold,
+    letterSpacing: 1.3, textTransform: "uppercase",
+  },
+  cardPromptTitle: { color: colors.onStage, fontSize: 21, fontFamily: font.bold, letterSpacing: -0.3 },
+  // A card back in miniature, its frame against the stage.
+  cardPromptBack: {
+    width: 46, height: 64, borderRadius: 8, overflow: "hidden", borderWidth: 1, borderColor: colors.glassRule,
+    transform: [{ rotate: "-6deg" }],
+  },
   heading: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8,
     paddingHorizontal: GUTTER, paddingTop: 4, paddingBottom: 13,

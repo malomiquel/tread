@@ -1,6 +1,7 @@
 import { forwardRef } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { RunShape } from "@/components/RunShape";
+import { Depth } from "@/components/TiltCard";
 import { STAT_KEYS, cardWords, type Card, type Rarity } from "@tread/core/card";
 import { autoName, formatDate, formatDistance, formatDuration } from "@tread/core/format";
 import { useStrings } from "@tread/core/i18n";
@@ -44,14 +45,17 @@ export const RunCard = forwardRef<View, {
         <Text style={[styles.corner, { color: look.strong }]}>{words.rarity[card.rarity]}</Text>
       </View>
 
-      <RunShape
-        runId={run.id}
-        track={`${run.startedAt}-${run.endedAt}`}
-        ride={ride}
-        size={RUN_CARD_WIDTH - 2 * PADDING}
-        hideEndsM={privacyRadiusM}
-        tint={{ tile: look.tile, line: look.line, icon: look.soft }}
-      />
+      {/* Lifted off the paper when the card is held and tilted. */}
+      <Depth>
+        <RunShape
+          runId={run.id}
+          track={`${run.startedAt}-${run.endedAt}`}
+          ride={ride}
+          size={RUN_CARD_WIDTH - 2 * PADDING}
+          hideEndsM={privacyRadiusM}
+          tint={{ tile: look.tile, line: look.line, icon: look.soft }}
+        />
+      </Depth>
 
       <View style={styles.title}>
         <Text style={[styles.name, { color: look.ink }]} numberOfLines={1}>
@@ -87,7 +91,7 @@ export const RunCard = forwardRef<View, {
 
 const PADDING = 16;
 
-interface Look {
+export interface Look {
   page: string;
   frame: string;
   frameWidth: number;
@@ -110,6 +114,39 @@ const plain: Look = {
   tile: light("sunken"), line: light("track"),
   ink: light("text"), strong: light("muted"), soft: light("subtle"), rule: light("hairline"),
 };
+
+/** How a card of each rarity is drawn, for every card that wears one. */
+export const cardLook = (rarity: Rarity | "legendary"): Look => (rarity === "legendary" ? LEGENDARY : LOOKS[rarity]);
+
+/**
+ * A race card: on the stage, and set apart from an exceptional card by a
+ * second frame inside the first (see `CardInnerFrame`) and by its word.
+ */
+const LEGENDARY: Look = {
+  page: light("stage"), frame: light("stage"), frameWidth: 2.5,
+  tile: light("background"), line: light("track"),
+  ink: light("onStage"), strong: light("onStage"), soft: ON_BLUE_SOFT, rule: ON_BLUE_RULE,
+};
+
+/**
+ * The back of every card: the stage, a second frame, the name of the app
+ * and the card's number. What a card shows before it is turned over.
+ * Laid over the face it hides, so both are the same size.
+ */
+export function CardBack({ number, small = false }: { number?: string; small?: boolean }) {
+  return (
+    <View style={[styles.back, small && styles.backSmall]}>
+      {small ? null : <CardInnerFrame />}
+      <Text style={[styles.backBrand, small && styles.backBrandSmall]}>TREAD</Text>
+      {number ? <Text style={styles.backNumber}>{number}</Text> : null}
+    </View>
+  );
+}
+
+/** The second frame a legendary card wears, inset from its edge. */
+export function CardInnerFrame({ radius = 12 }: { radius?: number }) {
+  return <View pointerEvents="none" style={[styles.innerFrame, { borderRadius: radius }]} />;
+}
 
 const LOOKS: Record<Rarity, Look> = {
   common: plain,
@@ -146,4 +183,19 @@ const styles = StyleSheet.create({
   statValue: { fontSize: 22, fontFamily: font.semibold, letterSpacing: -0.5, fontVariant: ["tabular-nums"] },
   traits: { fontSize: 15, fontFamily: font.medium, lineHeight: 20, minHeight: 40 },
   note: { fontFamily: font.regular },
+  back: {
+    position: "absolute", top: 0, right: 0, bottom: 0, left: 0, borderRadius: 16, backgroundColor: light("stage"),
+    alignItems: "center", justifyContent: "center", gap: 6,
+  },
+  backSmall: { borderRadius: 8 },
+  backBrand: { color: light("onStage"), fontSize: 44, fontFamily: font.extrabold, letterSpacing: 6 },
+  backBrandSmall: { fontSize: 11, letterSpacing: 1.5 },
+  backNumber: {
+    color: ON_BLUE_SOFT, fontSize: 13, fontFamily: font.semibold, letterSpacing: 1.3,
+    textTransform: "uppercase", fontVariant: ["tabular-nums"],
+  },
+  innerFrame: {
+    position: "absolute", top: 5, left: 5, right: 5, bottom: 5,
+    borderWidth: 1, borderColor: ON_BLUE_RULE,
+  },
 });

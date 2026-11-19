@@ -88,13 +88,24 @@ export interface Settings {
    * outing to the next, since most people do the same thing tomorrow.
    */
   sport: Sport;
+  /**
+   * The runs whose cards make up the duel deck, in the order they play.
+   * Run ids rather than cards: a card is dealt again whenever its history
+   * changes, and a deck should follow it.
+   */
+  duelDeck: number[];
+  /**
+   * The newest run whose card has been revealed, or null before the
+   * collection was ever opened. Cards of later runs wait to be turned over.
+   */
+  cardsSeenThrough: number | null;
 }
 
 const DEFAULTS: Settings = {
   voice: true, targetPaceSKm: null, weeklyGoalM: null, goalKind: "distance", weeklyGoalS: null,
   weeklyGoalClimbM: null, reminder: "off", routeId: null,
   welcomed: false, language: "auto", runner: null, raceSetupOffered: false, autoPause: false, healthImport: false, units: "auto", appearance: "auto", privacyRadiusM: DEFAULT_PRIVACY_RADIUS,
-  sport: "running",
+  sport: "running", duelDeck: [], cardsSeenThrough: null,
 };
 
 /**
@@ -132,6 +143,8 @@ export async function loadSettings(): Promise<void> {
       appearance: readAppearanceChoice(stored.appearance),
       privacyRadiusM: readPrivacyRadius(stored.privacyRadiusM),
       sport: readSport(stored.sport),
+      duelDeck: readIds(stored.duelDeck),
+      cardsSeenThrough: readId(stored.cardsSeenThrough),
     });
   } catch {
     // Unreadable settings are not worth failing a launch over.
@@ -182,6 +195,23 @@ function readId(raw: string | undefined): number | null {
   if (!raw || raw === "null") return null;
   const id = Number(raw);
   return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+/** Stored run ids, comma separated; anything unreadable is left out. */
+function readIds(raw: string | undefined): number[] {
+  if (!raw) return [];
+  return raw.split(",").map((part) => readId(part)).filter((id): id is number => id !== null);
+}
+
+/** Keep these runs' cards as the duel deck, in this order. */
+export async function setDuelDeck(runIds: readonly number[]): Promise<void> {
+  await store({ ...current, duelDeck: [...runIds] }, "duelDeck", runIds.join(","));
+}
+
+/** Every card up to this run has been turned over. Never moves backwards. */
+export async function markCardsSeen(runId: number): Promise<void> {
+  if (current.cardsSeenThrough !== null && current.cardsSeenThrough >= runId) return;
+  await store({ ...current, cardsSeenThrough: runId }, "cardsSeenThrough", String(runId));
 }
 
 /** Hide this much of a shared track around its start and finish. */

@@ -12,7 +12,10 @@ import { SectionHeader } from "@/components/SectionHeader";
 import { BannerTag, bannerGoal, bannerText, SummaryBanner } from "@/components/SummaryBanner";
 import { WeeklyGoalSheet } from "@/components/WeeklyGoalSheet";
 import { ofSport } from "@tread/core/activity";
-import { cardsOf, isComplete, setsOf } from "@tread/core/card";
+import { isComplete } from "@tread/core/card";
+import { MiniCardRow } from "@/components/MiniCard";
+import { dealAlbum, unseenCards } from "@/lib/album";
+import { cardHref } from "@/lib/cardStage";
 import { effortRecords, listRuns, personalRecords, type EffortRecord, type PersonalRecords, type Run } from "@/lib/db";
 import { effortName } from "@tread/core/efforts";
 import { formatDistance, formatDuration, formatElevation } from "@tread/core/format";
@@ -61,6 +64,12 @@ const profileStrings = defineStrings({
     collection: "Collection",
     collectionDetail: (cards: number, complete: number, sets: number) =>
       `${plural(cards, "carte", "cartes")} · ${complete} série${complete > 1 ? "s" : ""} complète${complete > 1 ? "s" : ""} sur ${sets}`,
+    collectionAll: "Toute la collection",
+    toTurn: (count: number) => `${plural(count, "carte", "cartes")} à retourner`,
+    toTurnFirst: "Tes courses passées ont leurs cartes",
+    toTurnDetail: "Touche pour les retourner",
+    duel: "Défier un ami",
+    duelDetail: "Cinq cartes contre les siennes",
     thisYear: (year: number) => `En ${year}`,
     yearAside: "à la même date l'an dernier",
     yearDistance: "Distance",
@@ -104,6 +113,12 @@ const profileStrings = defineStrings({
     collection: "Collection",
     collectionDetail: (cards: number, complete: number, sets: number) =>
       `${plural(cards, "card", "cards")} · ${complete} of ${sets} sets complete`,
+    collectionAll: "The whole collection",
+    toTurn: (count: number) => `${plural(count, "card", "cards")} to turn over`,
+    toTurnFirst: "Your past runs have their cards",
+    toTurnDetail: "Tap to turn them over",
+    duel: "Challenge a friend",
+    duelDetail: "Five cards against theirs",
     thisYear: (year: number) => `In ${year}`,
     yearAside: "against last year to date",
     yearDistance: "Distance",
@@ -254,9 +269,10 @@ export default function ProfileScreen() {
   const weekly = weeklyGoal(settings);
   const streak = weekStreak(runs, weekly, readAt);
   const ytd = yearToDate(runs, readAt);
-  // The album's headline: how many cards, how many sets are whole.
-  const cards = cardsOf(runs);
-  const sets = setsOf(runs, cards);
+  // The album, the page's second block: the newest cards, what is still to
+  // turn over, and the way into the rest.
+  const album = dealAlbum(runs, weekly);
+  const unseen = unseenCards(album, settings.cardsSeenThrough);
   // Projected with the weekly volume the plans use, so a race time here and
   // the pace a programme hands out come from the same runner.
   const predictions = predictRaces(effortSamples(runs), readAt, weeklyVolumeKm(runs, readAt));
@@ -372,6 +388,49 @@ export default function ProfileScreen() {
                 </View>
               ) : null}
             </SummaryBanner>
+
+            {/* The collection, straight under the week: every run leaves a
+                card, and the newest are the first thing worth seeing. */}
+            <SectionHeader title={s.collection} aside={String(album.newest.length)} />
+            <MiniCardRow
+              cards={album.newest.slice(0, 10)}
+              byId={album.byId}
+              onOpen={(card) => router.push(cardHref([{ kind: "run", runId: card.runId }]))}
+            />
+            <Panel style={styles.collectionPanel}>
+              {unseen.cards.length > 0 ? (
+                <RecordRow
+                  first
+                  onPanel
+                  icon="sparkles-outline"
+                  label={unseen.first ? s.toTurnFirst : s.toTurn(unseen.cards.length)}
+                  detail={s.toTurnDetail}
+                  value=""
+                  onPress={() => router.push(cardHref(
+                    unseen.cards.map((card) => ({ kind: "run", runId: card.runId })),
+                    { seenThrough: unseen.through },
+                  ))}
+                />
+              ) : null}
+              <RecordRow
+                first={unseen.cards.length === 0}
+                onPanel
+                icon="albums-outline"
+                label={s.collectionAll}
+                detail={s.collectionDetail(album.newest.length, album.sets.filter(isComplete).length, album.sets.length)}
+                value=""
+                onPress={() => router.push("/collection")}
+              />
+              <RecordRow
+                first={false}
+                onPanel
+                icon="flash-outline"
+                label={s.duel}
+                detail={s.duelDetail}
+                value=""
+                onPress={() => router.push("/duel")}
+              />
+            </Panel>
 
             <SectionHeader title={s.progress} aside={s.lastWeeks(WEEKS_SHOWN)} />
             {/* Read out as one sentence: a column of bars is invisible to
@@ -497,15 +556,6 @@ export default function ProfileScreen() {
                 value=""
                 onPress={() => router.push("/heatmap")}
               />
-              <RecordRow
-                first={false}
-                onPanel
-                icon="albums-outline"
-                label={s.collection}
-                detail={s.collectionDetail(cards.size, sets.filter(isComplete).length, sets.length)}
-                value=""
-                onPress={() => router.push("/collection")}
-              />
             </Panel>
           </>
         )}
@@ -538,6 +588,7 @@ const styles = StyleSheet.create({
   subtitle: { color: colors.subtle, fontFamily: font.regular, fontSize: 15, marginTop: 3 },
 
   goal: { gap: 4, marginTop: 8 },
+  collectionPanel: { marginTop: 12 },
   tags: { flexDirection: "row", flexWrap: "wrap", columnGap: 6 },
 
   chart: {

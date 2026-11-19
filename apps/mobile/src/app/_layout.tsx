@@ -43,6 +43,7 @@ const layoutStrings = defineStrings({
     addRun: "Ajouter une course",
     heatmap: "Toutes tes courses",
     collection: "Collection",
+    duel: "Duel",
     recap: "Récap",
     method: "Méthode",
     settings: "Réglages",
@@ -80,6 +81,7 @@ const layoutStrings = defineStrings({
     addRun: "Add a run",
     heatmap: "All your runs",
     collection: "Collection",
+    duel: "Duel",
     recap: "Recap",
     method: "Method",
     settings: "Settings",
@@ -286,7 +288,13 @@ export default function RootLayout() {
           <Stack.Screen name="run/edit/[id]" options={{ title: s.editRun, headerBackTitle: s.run }} />
           <Stack.Screen name="run/add" options={{ title: s.addRun, headerBackTitle: s.back }} />
           <Stack.Screen name="heatmap" options={{ title: s.heatmap, headerBackTitle: s.profile }} />
-          <Stack.Screen name="collection" options={{ title: s.collection, headerBackTitle: s.profile }} />
+          <Stack.Screen name="collection" options={{ title: s.collection, headerBackTitle: s.back }} />
+          {/* Cards are turned over and held on a stage of their own, over
+              whatever opened it, and closed back onto it. */}
+          <Stack.Screen name="card" options={{ headerShown: false, presentation: "fullScreenModal" }} />
+          {/* Opened from the collection, or from a friend's link
+              (tread://duel?d=…), which lands here by its path. */}
+          <Stack.Screen name="duel" options={{ title: s.duel, headerBackTitle: s.back }} />
           <Stack.Screen name="recap" options={{ title: s.recap, headerBackTitle: s.back }} />
           <Stack.Screen name="plan-method" options={{ title: s.method, headerBackTitle: s.back }} />
           {/* One screen for both: drawing a route and changing one are the same

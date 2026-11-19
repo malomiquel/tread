@@ -23,6 +23,7 @@ import { forgetRunInHealth } from "@/lib/health";
 import { defineStrings, intlLocale, plural, useStrings } from "@tread/core/i18n";
 import { useTabBarSpace } from "@/lib/layout";
 import { kindName, sessionKind } from "@tread/core/plan";
+import { cardsOf, type Rarity } from "@tread/core/card";
 import { byMonth, monthSummary, type MonthGroup } from "@tread/core/stats";
 import { colors, font } from "@/lib/theme";
 import { distanceUnit, paceUnit, speedUnit } from "@tread/core/units";
@@ -31,6 +32,7 @@ import { formatTemperature, weatherIcon } from "@/lib/weather";
 
 const historyStrings = defineStrings({
   fr: {
+    cardChip: { rare: "Carte rare", exceptional: "Carte exceptionnelle" } as Record<"rare" | "exceptional", string>,
     title: "Historique",
     summary: (count: number, km: string) => `${plural(count, "course", "courses")} · ${km} ${distanceUnit()} au total`,
     rides: (count: number) => ` · ${plural(count, "sortie vélo", "sorties vélo")}`,
@@ -71,6 +73,7 @@ const historyStrings = defineStrings({
     outings: (count: number) => plural(count, "sortie", "sorties"),
   },
   en: {
+    cardChip: { rare: "Rare card", exceptional: "Exceptional card" },
     title: "History",
     summary: (count: number, km: string) => `${plural(count, "run", "runs")} · ${km} ${distanceUnit()} in total`,
     rides: (count: number) => ` · ${plural(count, "ride", "rides")}`,
@@ -222,6 +225,8 @@ export default function HistoryScreen() {
   const counted = countedSport(only);
   const noMatch = only !== null && shown.length === 0;
   const sections = byMonth(shown).map((group) => ({ ...group, data: group.runs }));
+  // Each run's card, so the ones worth keeping stand out in the list.
+  const cards = cardsOf(runs ?? []);
 
   /**
    * Arm the deletion, and find out what else it would take with it.
@@ -401,6 +406,7 @@ export default function HistoryScreen() {
             <RunRow
               run={item}
               first={index === 0}
+              rarity={cards.get(item.id)?.rarity ?? null}
               onPress={() => router.push({ pathname: "/run/[id]", params: { id: String(item.id) } })}
             />
           </SwipeToDelete>
@@ -462,8 +468,16 @@ function MonthBanner({ runs, now }: { runs: Run[]; now: number }) {
  * the name as small marks of colour, there only when there is something to
  * say.
  */
-function RunRow({ run, first, onPress }: { run: Run; first: boolean; onPress: () => void }) {
+function RunRow({ run, first, rarity, onPress }: {
+  run: Run;
+  first: boolean;
+  /** The run's card: said in the row once it is rare or better. */
+  rarity: Rarity | null;
+  onPress: () => void;
+}) {
+  const s = useStrings(historyStrings);
   const kind = sessionKind(run.sessionId);
+  const prized = rarity === "rare" || rarity === "exceptional" ? rarity : null;
   // What sets this outing apart, as marks: the type when it is not a plain
   // run, and a race tag, which is the one worth spotting in a long list.
   const typed = run.activity !== "run" ? activityName(run.activity) : null;
@@ -483,7 +497,7 @@ function RunRow({ run, first, onPress }: { run: Run; first: boolean; onPress: ()
           <Text style={styles.when} numberOfLines={1}>
             {run.name ? formatDate(run.startedAt) : formatDuration(run.durationS)}
           </Text>
-          {run.weather || kind || typed || raced ? (
+          {run.weather || kind || typed || raced || prized ? (
             <View style={styles.marks}>
               {run.weather ? (
                 <View style={styles.mark}>
@@ -510,6 +524,15 @@ function RunRow({ run, first, onPress }: { run: Run; first: boolean; onPress: ()
               {raced ? (
                 <View style={[styles.chip, styles.chipRace]}>
                   <Text style={[styles.chipText, styles.chipRaceText]}>{raced}</Text>
+                </View>
+              ) : null}
+              {/* The card, in words: filled for an exceptional one, as its
+                  frame is on the card itself. */}
+              {prized ? (
+                <View style={[styles.chip, prized === "exceptional" && styles.chipCard]}>
+                  <Text style={[styles.chipText, prized === "exceptional" && styles.chipCardText]}>
+                    {s.cardChip[prized]}
+                  </Text>
                 </View>
               ) : null}
             </View>
@@ -576,6 +599,8 @@ const styles = StyleSheet.create({
   chipText: { color: colors.accent, fontSize: 12.5, fontFamily: font.semibold },
   chipRace: { backgroundColor: colors.warning },
   chipRaceText: { color: colors.accentText },
+  chipCard: { backgroundColor: colors.accent },
+  chipCardText: { color: colors.accentText },
   figures: { alignItems: "flex-end", gap: 1 },
   distance: {
     color: colors.text, fontSize: 27, fontFamily: font.semibold,
