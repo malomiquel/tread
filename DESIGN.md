@@ -468,6 +468,19 @@ gutter, the same radii (6 for a button, 12 for a card, 16 for the banner,
 button scales to 0.96. Both serve every word from a `defineStrings` table,
 and the landing page ships no JavaScript.
 
+The web app is the phone's tabs laid out for a large screen, built from its
+own components (`apps/web/src/components`) with the phone's names:
+`SummaryBanner` (the cobalt stage, one per page), `Figures`, `SectionHeader`,
+`EmptyState`, `NoMatch`, `RecordRow`, `ChoiceMenu` (a chip that opens a
+list), `Segmented`, `RunShape`, `LineChart`, `TrackMap`. Blocks sit in
+rounded `sunken` panels (`.panel`, radius 20). The four tabs (Plan,
+Routes, History, Profile) sit in the header on a large screen and float in a
+glass bar at the foot, as on the phone, below 720 px; Settings is a header
+pill. An outing's page puts the map and its charts in a wide column and the
+details, zones, splits and laps beside it, stacked at a phone's width. The
+account pages (sign in, sign up, password) are one centred column of 400.
+Every action has a word; a form keeps what was typed when it fails.
+
 The landing page shares a language, not a layout. Every section uses the
 same parts — a two-tone headline (the second line in the accent), one
 object staged, panels of radius 28 set 12 px in from the window, glass for

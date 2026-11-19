@@ -1,0 +1,129 @@
+import "server-only";
+import { prisma } from "@tread/db";
+import { readActivity } from "@tread/core/activity";
+import type { BestEfforts } from "@tread/core/efforts";
+import type { TrackPoint } from "@tread/core/geo";
+import type { Heart } from "@tread/core/heart";
+import type { LapMark } from "@tread/core/laps";
+import type { Exertion } from "@tread/core/plan";
+import type { RoutePoint } from "@tread/core/route";
+import type { TransferPlan } from "@tread/core/transfer";
+import type { Weather } from "@tread/core/weather";
+import type { RanBlock } from "@tread/core/workout";
+import type {
+  OutingDetail, OutingFigures, OutingRow, PlanData, Preferences, RouteRow, ShoeRow,
+} from "@/lib/types";
+
+/**
+ * Every read the pages make, always narrowed to the signed-in person.
+ *
+ * The user id comes from the session, never from the URL: an outing id typed
+ * by hand that belongs to somebody else reads as one that does not exist.
+ */
+
+const rowFields = {
+  id: true, startedAt: true, activity: true, name: true, distanceM: true, durationS: true,
+  avgPaceSKm: true, elevationGainM: true, shape: true,
+} as const;
+
+type RowRecord = {
+  id: string; startedAt: Date; activity: string; name: string | null; distanceM: number; durationS: number;
+  avgPaceSKm: number | null; elevationGainM: number | null; shape: unknown;
+};
+
+const toRow = (outing: RowRecord): OutingRow => ({
+  id: outing.id,
+  startedAt: outing.startedAt.getTime(),
+  activity: readActivity(outing.activity),
+  name: outing.name,
+  distanceM: outing.distanceM,
+  durationS: outing.durationS,
+  avgPaceSKm: outing.avgPaceSKm,
+  elevationGainM: outing.elevationGainM,
+  shape: Array.isArray(outing.shape) ? (outing.shape as [number, number][]) : [],
+});
+
+/** Every outing, newest first, without tracks. */
+export async function outingRows(userId: string): Promise<OutingRow[]> {
+  const outings = await prisma.outing.findMany({ where: { userId }, orderBy: { startedAt: "desc" }, select: rowFields });
+  return outings.map(toRow);
+}
+
+/** Every outing with what the profile adds up. */
+export async function outingFigures(userId: string): Promise<OutingFigures[]> {
+  const outings = await prisma.outing.findMany({
+    where: { userId },
+    orderBy: { startedAt: "desc" },
+    select: { ...rowFields, efforts: true, shoeRef: true },
+  });
+  return outings.map((outing) => ({
+    ...toRow(outing),
+    efforts: (outing.efforts as BestEfforts | null) ?? null,
+    shoeRef: outing.shoeRef,
+  }));
+}
+
+export async function outingDetail(userId: string, id: string): Promise<OutingDetail | null> {
+  const outing = await prisma.outing.findFirst({ where: { id, userId }, include: { track: true } });
+  if (!outing) return null;
+  const shoe = outing.shoeRef !== null
+    ? await prisma.shoe.findUnique({ where: { userId_ref: { userId, ref: outing.shoeRef } }, select: { name: true } })
+    : null;
+  return {
+    ...toRow(outing),
+    endedAt: outing.endedAt?.getTime() ?? null,
+    fastestKmS: outing.fastestKmS,
+    cadenceSpm: outing.cadenceSpm,
+    exertion: (outing.exertion as Exertion | null) ?? null,
+    sessionId: outing.sessionId,
+    shoeName: shoe?.name ?? null,
+    tags: outing.tags,
+    note: outing.note,
+    blocks: (outing.blocks as unknown as RanBlock[]) ?? [],
+    laps: (outing.laps as unknown as LapMark[]) ?? [],
+    weather: (outing.weather as unknown as Weather | null) ?? null,
+    heart: (outing.heart as unknown as Heart | null) ?? null,
+    points: (outing.track?.points as unknown as TrackPoint[]) ?? [],
+  };
+}
+
+const joinLegs = (legs: unknown, waypoints: unknown): RoutePoint[] => {
+  const joined = Array.isArray(legs) ? (legs as RoutePoint[][]).flat() : [];
+  return joined.length > 1 ? joined : Array.isArray(waypoints) ? (waypoints as RoutePoint[]) : [];
+};
+
+export async function routeRows(userId: string): Promise<RouteRow[]> {
+  const routes = await prisma.route.findMany({ where: { userId }, orderBy: { createdAt: "desc" } });
+  return routes.map((route) => ({
+    id: route.id, name: route.name, createdAt: route.createdAt.getTime(), place: route.place,
+    line: joinLegs(route.legs, route.waypoints),
+  }));
+}
+
+export async function routeById(userId: string, id: string): Promise<RouteRow | null> {
+  const route = await prisma.route.findFirst({ where: { id, userId } });
+  return route
+    ? { id: route.id, name: route.name, createdAt: route.createdAt.getTime(), place: route.place, line: joinLegs(route.legs, route.waypoints) }
+    : null;
+}
+
+export async function shoeRows(userId: string): Promise<ShoeRow[]> {
+  const shoes = await prisma.shoe.findMany({ where: { userId }, orderBy: { addedAt: "desc" } });
+  return shoes.map((shoe) => ({
+    ref: shoe.ref, name: shoe.name, addedAt: shoe.addedAt.getTime(), startM: shoe.startM, limitM: shoe.limitM,
+    retired: shoe.retired, isDefault: shoe.isDefault,
+  }));
+}
+
+export async function planOf(userId: string): Promise<PlanData | null> {
+  const plan = await prisma.plan.findUnique({ where: { userId } });
+  return plan ? (plan.data as unknown as TransferPlan) : null;
+}
+
+export async function preferencesOf(userId: string): Promise<Preferences> {
+  const found = await prisma.preferences.findUnique({ where: { userId } });
+  return {
+    settings: (found?.settings as Record<string, string> | undefined) ?? {},
+    syncedAt: found?.syncedAt?.getTime() ?? null,
+  };
+}
