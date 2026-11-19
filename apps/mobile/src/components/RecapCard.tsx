@@ -3,7 +3,7 @@ import { Image, StyleSheet, Text, View } from "react-native";
 import { CARD_HEIGHT, CARD_WIDTH } from "@/components/ShareCard";
 import { formatDistance, formatDuration, formatElevation } from "@tread/core/format";
 import { defineStrings, intlLocale, plural, useStrings } from "@tread/core/i18n";
-import { changePercent, type Recap } from "@/lib/recap";
+import { changePercent, type Recap } from "@tread/core/recap";
 import { font, literalColors } from "@/lib/theme";
 import { distanceUnit, elevationUnit } from "@tread/core/units";
 

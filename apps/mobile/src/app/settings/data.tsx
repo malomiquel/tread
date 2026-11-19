@@ -7,7 +7,7 @@ import { exportRunArchive, importRouteFiles, importRunFiles } from "@/lib/files"
 import { healthAvailable, healthStoreName } from "@/lib/health";
 import { enableHealthImport } from "@/lib/healthSync";
 import { chooseCopyFolder, copyState, makeCopy, restoreNewestCopy, type CopyState } from "@/lib/safetyCopy";
-import { timeAgo } from "@/lib/stats";
+import { timeAgo } from "@tread/core/stats";
 import { useSettings } from "@/lib/settings";
 import { defineStrings, plural, useStrings } from "@tread/core/i18n";
 import { colors, font } from "@/lib/theme";

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { formatEnergy, formatSpeed } from "@tread/core/format";
+import { formatEnergy, formatSpeed } from "./format.ts";
 import {
   byMonth, monthSummary,
   goalProgress, suggestedWeeklyGoalM, timeAgo, weeklyVolumeKm, weekStart, weekStreak, weekTotals, yearToDate,

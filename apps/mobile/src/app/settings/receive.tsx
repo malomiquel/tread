@@ -10,7 +10,7 @@ import { refreshReminders } from "@/lib/planReminders";
 import { loadCustomSessions } from "@/lib/sessionLibrary";
 import { loadSettings } from "@/lib/settings";
 import { colors, font } from "@/lib/theme";
-import { describeTransfer, restoredSummary, unpackTransfer, type Transfer } from "@/lib/transfer";
+import { describeTransfer, restoredSummary, unpackTransfer, type Transfer } from "@tread/core/transfer";
 
 const receiveStrings = defineStrings({
   fr: {

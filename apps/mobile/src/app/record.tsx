@@ -29,7 +29,7 @@ import { turnName } from "@tread/core/guidance";
 import { drawnLine, type RoutePoint } from "@tread/core/route";
 import { measure } from "@tread/core/goals";
 import { setSport, toggleVoice, useSettings, weeklyGoal } from "@/lib/settings";
-import { goalProgress, weekTotals } from "@/lib/stats";
+import { goalProgress, weekTotals } from "@tread/core/stats";
 import { colors, floatingShadow, font } from "@/lib/theme";
 import { distanceUnit, elevationUnit, paceUnit, speedUnit } from "@tread/core/units";
 import {

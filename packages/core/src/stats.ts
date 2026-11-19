@@ -1,6 +1,16 @@
-import { defineStrings } from "@tread/core/i18n";
-import type { Run } from "./db";
-import { measure, type WeeklyGoal } from "@tread/core/goals";
+import { defineStrings } from "./i18n.ts";
+import { measure, type WeeklyGoal } from "./goals.ts";
+
+/**
+ * What these totals read of a run. The phone's `Run` and the server's
+ * outings both have it, so the sums are written once.
+ */
+export interface RunFigures {
+  startedAt: number;
+  distanceM: number;
+  durationS: number;
+  elevationGainM: number | null;
+}
 
 /** Monday, midnight, of the week containing that instant. */
 export function weekStart(ts: number): number {
@@ -19,7 +29,7 @@ export interface WeekTotals {
 }
 
 /** Totals for the week containing `reference`, defaulting to the current one. */
-export function weekTotals(runs: Run[], reference = Date.now()): WeekTotals {
+export function weekTotals(runs: readonly RunFigures[], reference = Date.now()): WeekTotals {
   const start = weekStart(reference);
   return runs
     .filter((run) => run.startedAt >= start)
@@ -82,7 +92,7 @@ export function timeAgo(ts: number, now = Date.now()): string {
  * The current week is left out: it is almost always partial, and a Monday
  * reading would say the habit had collapsed.
  */
-export function weeklyVolumeKm(runs: Run[], nowMs = Date.now(), weeks = 8): number | null {
+export function weeklyVolumeKm(runs: readonly RunFigures[], nowMs = Date.now(), weeks = 8): number | null {
   if (weeks < 1) return null;
   const thisWeek = weekStart(nowMs);
   const from = thisWeek - weeks * 7 * 86_400_000;
@@ -130,18 +140,18 @@ export function goalProgress(distanceM: number, goalM: number | null): GoalProgr
  * do rather than from what a table says they should: a first goal that is a
  * stranger's number is the one that gets dismissed.
  */
-export function suggestedWeeklyGoalM(runs: Run[], nowMs = Date.now()): number {
+export function suggestedWeeklyGoalM(runs: readonly RunFigures[], nowMs = Date.now()): number {
   const average = weeklyVolumeKm(runs, nowMs) ?? 0;
   return Math.max(5, Math.round(average / 5) * 5) * 1000;
 }
 
 /** The runs of one calendar month, with what they add up to. */
-export interface MonthGroup {
+export interface MonthGroup<R extends RunFigures = RunFigures> {
   /** "2026-09": sortable, and stable as a list key. */
   key: string;
   /** Midnight on the first of the month, local time. */
   start: number;
-  runs: Run[];
+  runs: R[];
   distanceM: number;
   durationS: number;
 }
@@ -158,8 +168,8 @@ const monthKey = (ts: number): string => {
  * A history is read in months — "how did September go" — and a plain list
  * of a hundred rows gives no place to stop and take stock.
  */
-export function byMonth(runs: Run[]): MonthGroup[] {
-  const groups = new Map<string, MonthGroup>();
+export function byMonth<R extends RunFigures>(runs: readonly R[]): MonthGroup<R>[] {
+  const groups = new Map<string, MonthGroup<R>>();
   for (const run of runs) {
     const key = monthKey(run.startedAt);
     let group = groups.get(key);
@@ -187,7 +197,7 @@ export interface MonthSummary {
   previous: { distanceM: number; start: number };
 }
 
-export function monthSummary(runs: Run[], now = Date.now()): MonthSummary {
+export function monthSummary(runs: readonly RunFigures[], now = Date.now()): MonthSummary {
   const today = new Date(now);
   const start = new Date(today.getFullYear(), today.getMonth(), 1).getTime();
   const previousStart = new Date(today.getFullYear(), today.getMonth() - 1, 1).getTime();
@@ -229,7 +239,7 @@ const DAY_MS = 86_400_000;
  * The week under way never breaks a streak: on a Tuesday it has barely
  * begun. It adds to it once it counts.
  */
-export function weekStreak(runs: readonly Run[], goal: WeeklyGoal | null, now = Date.now()): Streak {
+export function weekStreak(runs: readonly RunFigures[], goal: WeeklyGoal | null, now = Date.now()): Streak {
   const kind = goal !== null ? "goal" : "active";
   const totals = new Map<number, number>();
   for (const run of runs) {
@@ -279,7 +289,7 @@ export interface YearToDate {
  * Up to the same day, not the whole of last year: in September, a year that
  * is not over against one that is would always be losing.
  */
-export function yearToDate(runs: readonly Run[], now = Date.now()): YearToDate {
+export function yearToDate(runs: readonly RunFigures[], now = Date.now()): YearToDate {
   const today = new Date(now);
   const year = today.getFullYear();
   const thisStart = new Date(year, 0, 1).getTime();

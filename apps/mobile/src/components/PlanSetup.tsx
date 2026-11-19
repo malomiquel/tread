@@ -19,7 +19,7 @@ import {
 import {
   startingLongestMin, startingVolumeKm, suggestedRace, type RunnerProfile,
 } from "@tread/core/runner";
-import { weeklyVolumeKm } from "@/lib/stats";
+import { weeklyVolumeKm } from "@tread/core/stats";
 import { colors, font } from "@/lib/theme";
 import { distanceUnit, paceUnit } from "@tread/core/units";
 

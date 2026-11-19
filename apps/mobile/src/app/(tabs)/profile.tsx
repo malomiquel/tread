@@ -25,7 +25,7 @@ import { effortSamples, predictRaces } from "@tread/core/predictions";
 import { goalAmount, measure } from "@tread/core/goals";
 import {
   goalProgress, suggestedWeeklyGoalM, weeklyVolumeKm, weekStart, weekStreak, weekTotals, yearToDate,
-} from "@/lib/stats";
+} from "@tread/core/stats";
 import { colors, font } from "@/lib/theme";
 import { distanceUnit, elevationUnit } from "@tread/core/units";
 import { chooseSession } from "@/lib/tracker";

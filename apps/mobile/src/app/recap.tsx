@@ -9,7 +9,7 @@ import { Segmented } from "@/components/Segmented";
 import { ofSport } from "@tread/core/activity";
 import { listRuns, type Run } from "@/lib/db";
 import { defineStrings, useStrings } from "@tread/core/i18n";
-import { nextPeriod, previousPeriod, recapOf, type RecapKind, type RecapPeriod } from "@/lib/recap";
+import { nextPeriod, previousPeriod, recapOf, type RecapKind, type RecapPeriod } from "@tread/core/recap";
 import { colors, font } from "@/lib/theme";
 import { viewShot } from "@/lib/viewShot";
 

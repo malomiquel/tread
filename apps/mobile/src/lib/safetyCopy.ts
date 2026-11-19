@@ -5,7 +5,7 @@ import { dataSummary, everythingForTransfer, listRuns, readSettings, restoreTran
 import { refreshReminders } from "./planReminders";
 import { loadCustomSessions } from "./sessionLibrary";
 import { loadSettings } from "./settings";
-import { packTransfer, restoredSummary, unpackTransfer, type Transfer } from "./transfer";
+import { packTransfer, restoredSummary, unpackTransfer, type Transfer } from "@tread/core/transfer";
 
 /**
  * Where the safety copy goes, and the writing and reading of it.

@@ -23,7 +23,7 @@ import { forgetRunInHealth } from "@/lib/health";
 import { defineStrings, intlLocale, plural, useStrings } from "@tread/core/i18n";
 import { useTabBarSpace } from "@/lib/layout";
 import { kindName, sessionKind } from "@tread/core/plan";
-import { byMonth, monthSummary, type MonthGroup } from "@/lib/stats";
+import { byMonth, monthSummary, type MonthGroup } from "@tread/core/stats";
 import { colors, font } from "@/lib/theme";
 import { distanceUnit, paceUnit, speedUnit } from "@tread/core/units";
 import { chooseSession } from "@/lib/tracker";
@@ -122,7 +122,7 @@ export default function HistoryScreen() {
    * having nothing to do.
    */
   const s = useStrings(historyStrings);
-  const list = useRef<SectionList<Run, MonthGroup>>(null);
+  const list = useRef<SectionList<Run, MonthGroup<Run>>>(null);
   useScrollToTop(list);
 
   const [runs, setRuns] = useState<Run[] | null>(null);

@@ -4,7 +4,7 @@ import { ofSport } from "@tread/core/activity";
 import { activePlan, listRuns, planDone, recentExertions } from "./db";
 import { easeFactor, kindName, nextSession, schedule, startOfDay } from "@tread/core/plan";
 import { weeklyGoal } from "./settings";
-import { weekTotals } from "./stats";
+import { weekTotals } from "@tread/core/stats";
 import { widgetSnapshot, type WidgetSnapshot } from "@tread/core/widgetSnapshot";
 import { eased, sessionName } from "@tread/core/workout";
 

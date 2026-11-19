@@ -1,13 +1,13 @@
 import JSZip from "jszip";
-import type { TrackPoint } from "@tread/core/geo";
-import type { Heart } from "@tread/core/heart";
-import { parseGroups, type DraftGroup } from "@tread/core/customSession";
-import { parseLaps, type LapMark } from "@tread/core/laps";
-import type { Exertion, Goal, PerWeek, PlannedSession } from "@tread/core/plan";
-import { defineStrings, intlLocale } from "@tread/core/i18n";
-import type { RoutePoint } from "@tread/core/route";
-import type { Weather } from "./weather";
-import { currentEffort, currentSession, currentSessionId, type RanBlock } from "@tread/core/workout";
+import type { TrackPoint } from "./geo.ts";
+import type { Heart } from "./heart.ts";
+import { parseGroups, type DraftGroup } from "./customSession.ts";
+import { parseLaps, type LapMark } from "./laps.ts";
+import type { Exertion, Goal, PerWeek, PlannedSession } from "./plan.ts";
+import { defineStrings, intlLocale } from "./i18n.ts";
+import type { RoutePoint } from "./route.ts";
+import type { Weather } from "./weather.ts";
+import { currentEffort, currentSession, currentSessionId, type RanBlock } from "./workout.ts";
 
 /**
  * Moving everything to another phone.
@@ -256,7 +256,8 @@ function readRoutes(routes: unknown): TransferRoute[] {
 // The Health anchor marks what this phone's Health has already given; another
 // phone's Health has its own history.
 // The safety copy's folder and its last write belong to this phone as well.
-const LOCAL_SETTINGS = new Set(["routeId", "healthAnchor", "backupFolder", "backupLast", "backupRestoreOffered"]);
+// So do the account's last sync and the deletions waiting for it: another phone has sent nothing yet.
+const LOCAL_SETTINGS = new Set(["routeId", "healthAnchor", "backupFolder", "backupLast", "backupRestoreOffered", "accountSync", "accountDeleted"]);
 
 function readSettingsBag(settings: unknown): Record<string, string> {
   if (!settings || typeof settings !== "object") return {};

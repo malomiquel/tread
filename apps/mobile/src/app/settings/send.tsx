@@ -10,7 +10,7 @@ import {
 } from "@tread/core/handover";
 import { defineStrings, useStrings } from "@tread/core/i18n";
 import { colors, font, literalColors } from "@/lib/theme";
-import { packTransfer } from "@/lib/transfer";
+import { packTransfer } from "@tread/core/transfer";
 
 const sendStrings = defineStrings({
   fr: {

@@ -12,7 +12,7 @@ import { inSentence, performanceTitles, readSection } from "@tread/core/performa
 import { goalName } from "@tread/core/plan";
 import { effortSamples, predictRaces } from "@tread/core/predictions";
 import { useSettings, weeklyGoal } from "@/lib/settings";
-import { weeklyVolumeKm, weekStreak } from "@/lib/stats";
+import { weeklyVolumeKm, weekStreak } from "@tread/core/stats";
 import { colors, font } from "@/lib/theme";
 import { distanceUnit, elevationUnit, paceUnit } from "@tread/core/units";
 

@@ -1,3 +1,5 @@
+import { measureTrack } from "@tread/core/measure";
+import { PENDING_DELETIONS_KEY, withPending } from "@tread/core/sync";
 import { File } from "expo-file-system";
 import { openDatabaseSync, type SQLiteDatabase } from "expo-sqlite";
 import { Platform } from "react-native";
@@ -19,7 +21,7 @@ import { parseRoute, routeDistanceM, type Route, type StoredRoute } from "@tread
 import {
   TRANSFER_FORMAT, TRANSFER_VERSION, type Restored, type Transfer, type TransferRun, type TransferSession,
   type TransferShoe,
-} from "./transfer";
+} from "@tread/core/transfer";
 import { parseWeather, type Weather } from "./weather";
 import { currentEffort, currentSession, currentSessionId, type RanBlock } from "@tread/core/workout";
 
@@ -615,7 +617,7 @@ export async function dataSummary(): Promise<Record<string, number | null>> {
     planDone: await one("SELECT COUNT(*) AS v FROM plan_done"),
     sessions: await one("SELECT TOTAL(LENGTH(name || groups_json)) AS v FROM custom_sessions"),
     shoes: await one("SELECT TOTAL(LENGTH(name) + start_m + limit_m + retired + is_default) AS v FROM shoes"),
-    settings: await one("SELECT TOTAL(LENGTH(key || value)) AS v FROM settings WHERE key NOT LIKE 'backup%' AND key != 'healthAnchor'"),
+    settings: await one("SELECT TOTAL(LENGTH(key || value)) AS v FROM settings WHERE key NOT LIKE 'backup%' AND key NOT IN ('healthAnchor', 'accountSync')"),
   };
 }
 
@@ -1327,22 +1329,20 @@ export async function importRun(
   );
   if (existing) return null;
 
+  const measured = measureTrack(name, points, activity);
+  if (!measured) return null;
   const id = await createRun(startedAt, activity);
   await insertPoints(id, points);
 
   const riding = activity === "ride";
-  const distance = totalDistanceM(points);
-  const duration = segments(points)
-    .reduce((total, s) => total + (s[s.length - 1].ts - s[0].ts) / 1000, 0);
-
   await finishRun(id, {
-    endedAt: points[points.length - 1].ts,
-    distanceM: distance,
-    durationS: Math.round(duration),
-    avgPaceSKm: paceSecPerKm(distance, duration),
-    name: name ?? autoName(startedAt, riding),
-    elevationGainM: elevationGainM(points),
-    fastestKmS: riding ? null : fastestKmS(points),
+    endedAt: measured.endedAt,
+    distanceM: measured.distanceM,
+    durationS: measured.durationS,
+    avgPaceSKm: measured.avgPaceSKm,
+    name: measured.name,
+    elevationGainM: measured.elevationGainM,
+    fastestKmS: measured.fastestKmS,
     // An empty set, so the background pass never looks for a ride's 5K.
     bestEfforts: riding ? {} : undefined,
   });
@@ -1470,7 +1470,9 @@ export async function readRun(id: number): Promise<{ run: Run; points: TrackPoin
 
 export async function deleteRun(id: number): Promise<void> {
   const db = getDb();
-  const photos = await db.getFirstAsync<{ photos: string | null }>("SELECT photos FROM runs WHERE id = ?", id);
+  const photos = await db.getFirstAsync<{ photos: string | null; started_at: number }>(
+    "SELECT photos, started_at FROM runs WHERE id = ?", id,
+  );
   await db.runAsync("DELETE FROM points WHERE run_id = ?", id);
   // The programme has to let go of it too. `plan_done` points at a run
   // without a foreign key to enforce it, so a deleted run used to leave the
@@ -1478,6 +1480,11 @@ export async function deleteRun(id: number): Promise<void> {
   // from the outside, since the tick is what hides the session from them.
   await db.runAsync("DELETE FROM plan_done WHERE run_id = ?", id);
   await db.runAsync("DELETE FROM runs WHERE id = ?", id);
+  // Remembered for the account, which deletes it at the next sync.
+  if (photos) {
+    const pending = (await readSettings())[PENDING_DELETIONS_KEY];
+    await writeSetting(PENDING_DELETIONS_KEY, withPending(pending, photos.started_at));
+  }
   // After the row, so a file that will not go never keeps a run alive.
   forgetPhotos(parsePhotos(photos?.photos ?? null));
 }
