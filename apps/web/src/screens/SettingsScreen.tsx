@@ -3,16 +3,17 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  IoCheckmark, IoGlobeOutline, IoLogOutOutline, IoMailOutline, IoPersonOutline, IoPhonePortraitOutline, IoSyncOutline,
+  IoCheckmark, IoGlobeOutline, IoLogOutOutline, IoMailOutline, IoPersonOutline, IoPhonePortraitOutline, IoSpeedometerOutline, IoSyncOutline,
 } from "react-icons/io5";
 import { defineStrings, intlLocale, useStrings, type Language } from "@tread/core/i18n";
 import { PageHeader } from "@/components/PageHeader";
 import { SectionHeader } from "@/components/SectionHeader";
 import { Upload } from "@/components/Upload";
 import { authClient } from "@/lib/auth-client";
-import { LANGUAGE_COOKIE } from "@/lib/language";
+import { LANGUAGE_COOKIE, UNITS_COOKIE } from "@/lib/language";
 
 type LanguageChoice = "auto" | Language;
+type UnitsChoice = "auto" | "metric" | "imperial";
 
 const strings = defineStrings({
   fr: {
@@ -23,6 +24,8 @@ const strings = defineStrings({
     signOut: "Se déconnecter",
     language: "Langue",
     languages: { auto: "Celle du navigateur", fr: "Français", en: "English" } as Record<LanguageChoice, string>,
+    units: "Unités",
+    unitChoices: { auto: "Celles du téléphone", metric: "Kilomètres", imperial: "Miles" } as Record<UnitsChoice, string>,
     phone: "Le téléphone",
     phoneSteps: "Dans Tread : Réglages, Compte, puis connecte-toi avec cette adresse. Tes sorties, ton programme, tes parcours et tes chaussures arrivent ici, et chaque nouvelle course suit.",
     lastSync: "Dernière synchro",
@@ -44,6 +47,8 @@ const strings = defineStrings({
     signOut: "Sign out",
     language: "Language",
     languages: { auto: "The browser's", fr: "Français", en: "English" } as Record<LanguageChoice, string>,
+    units: "Units",
+    unitChoices: { auto: "The phone's", metric: "Kilometres", imperial: "Miles" } as Record<UnitsChoice, string>,
     phone: "The phone",
     phoneSteps: "In Tread: Settings, Account, then sign in with this address. Your outings, plan, routes and shoes arrive here, and every new run follows.",
     lastSync: "Last sync",
@@ -59,11 +64,12 @@ const strings = defineStrings({
   },
 });
 
-export function SettingsScreen({ name, email, syncedAt, language }: {
+export function SettingsScreen({ name, email, syncedAt, language, units }: {
   name: string;
   email: string;
   syncedAt: number | null;
   language: LanguageChoice;
+  units: UnitsChoice;
 }) {
   const s = useStrings(strings);
   const router = useRouter();
@@ -74,6 +80,13 @@ export function SettingsScreen({ name, email, syncedAt, language }: {
     document.cookie = choice === "auto"
       ? `${LANGUAGE_COOKIE}=; path=/; max-age=0; samesite=lax`
       : `${LANGUAGE_COOKIE}=${choice}; path=/; max-age=31536000; samesite=lax`;
+    router.refresh();
+  }
+
+  function chooseUnits(choice: UnitsChoice) {
+    document.cookie = choice === "auto"
+      ? `${UNITS_COOKIE}=; path=/; max-age=0; samesite=lax`
+      : `${UNITS_COOKIE}=${choice}; path=/; max-age=31536000; samesite=lax`;
     router.refresh();
   }
 
@@ -124,6 +137,25 @@ export function SettingsScreen({ name, email, syncedAt, language }: {
             <span className="icon"><IoGlobeOutline size={19} /></span>
             <span className="setting-label">{s.languages[choice]}</span>
             {language === choice ? <IoCheckmark className="tick" size={20} aria-hidden /> : null}
+          </button>
+        ))}
+      </div>
+
+      <SectionHeader title={s.units} />
+      <div className="settings-group" role="radiogroup" aria-label={s.units}>
+        {(["auto", "metric", "imperial"] as UnitsChoice[]).map((choice) => (
+          <button
+            key={choice}
+            type="button"
+            role="radio"
+            aria-checked={units === choice}
+            className="setting"
+            onClick={() => chooseUnits(choice)}
+            style={{ width: "100%", background: "none", border: 0, borderBottom: "1px solid var(--hairline)", padding: 0, cursor: "pointer", textAlign: "left" }}
+          >
+            <span className="icon"><IoSpeedometerOutline size={19} /></span>
+            <span className="setting-label">{s.unitChoices[choice]}</span>
+            {units === choice ? <IoCheckmark className="tick" size={20} aria-hidden /> : null}
           </button>
         ))}
       </div>

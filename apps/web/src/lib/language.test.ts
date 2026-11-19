@@ -13,9 +13,9 @@ test("without a choice, French only when the browser leads with it", () => {
   assert.equal(pickLanguage("xx", null), "en");
 });
 
-test("the phone's units win, else miles only where the region measures in them", () => {
-  assert.equal(pickUnits("imperial", "fr-FR"), "imperial");
-  assert.equal(pickUnits("auto", "en-US,en;q=0.9"), "imperial");
-  assert.equal(pickUnits(undefined, "en-GB"), "imperial");
-  assert.equal(pickUnits(undefined, "en-AU"), "metric");
+test("units: this page's choice, else the phone's, else kilometres", () => {
+  assert.equal(pickUnits("imperial", "metric"), "imperial");
+  assert.equal(pickUnits(undefined, "imperial"), "imperial");
+  assert.equal(pickUnits(undefined, "auto"), "metric");
+  assert.equal(pickUnits("auto", undefined), "metric");
 });

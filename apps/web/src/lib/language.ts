@@ -14,12 +14,17 @@ export function pickLanguage(chosen: string | null | undefined, accepted: string
   return first.startsWith("fr") ? "fr" : "en";
 }
 
+/** The cookie the settings page writes when somebody picks units. */
+export const UNITS_COOKIE = "tread-units";
+
 /**
- * Kilometres or miles: what the phone was set to, else what the browser's
- * region measures in (the United States and the United Kingdom in miles).
+ * Kilometres or miles: what was picked on this page's settings, else what the
+ * phone was set to, else kilometres. The phone's "Automatic" follows the
+ * phone's region, which the server never sees; guessing it from the browser's
+ * language put a French runner with an American browser in miles.
  */
-export function pickUnits(phone: string | undefined, accepted: string | null | undefined): UnitSystem {
+export function pickUnits(chosen: string | undefined, phone: string | undefined): UnitSystem {
+  if (chosen === "metric" || chosen === "imperial") return chosen;
   if (phone === "metric" || phone === "imperial") return phone;
-  const region = (accepted ?? "").split(",")[0]?.trim().toLowerCase() ?? "";
-  return region === "en-us" || region === "en-gb" ? "imperial" : "metric";
+  return "metric";
 }
