@@ -1,3 +1,4 @@
+import { syncNow } from "./account";
 import * as Location from "expo-location";
 import { Pedometer } from "expo-sensors";
 import * as TaskManager from "expo-task-manager";
@@ -883,6 +884,8 @@ export async function finish(): Promise<number | null> {
   if (state.planOrder !== null) {
     await markPlanSessionDone(state.planOrder, runId, endedAt).catch(() => undefined);
   }
+  // Then to the account, if there is one: the run, and the session it ticked off.
+  void syncNow();
 
   // Apple Health is a mirror, and the run is already safe on disk, so the copy
   // is deliberately not awaited: a slow or refused HealthKit call must not

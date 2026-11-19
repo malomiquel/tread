@@ -4,6 +4,7 @@ import { ScrollView, StyleSheet, Switch } from "react-native";
 import { SettingRow } from "@/components/SettingRow";
 import { SettingsGroup } from "@/components/SettingsGroup";
 import { WeeklyGoalSheet } from "@/components/WeeklyGoalSheet";
+import { authClient } from "@/lib/account";
 import { currentBuild } from "@/lib/build";
 import { ofSport } from "@tread/core/activity";
 import { listRuns, listShoes } from "@/lib/db";
@@ -16,7 +17,7 @@ import { unitChoiceWords } from "@/lib/unitChoice";
 import { appearanceWords } from "@/lib/appearance";
 import { forgetWelcome, toggleAutoPause, toggleVoice, useSettings, weeklyGoal } from "@/lib/settings";
 import { goalAmount } from "@tread/core/goals";
-import { suggestedWeeklyGoalM } from "@/lib/stats";
+import { suggestedWeeklyGoalM } from "@tread/core/stats";
 import { colors } from "@/lib/theme";
 
 const settingsStrings = defineStrings({
@@ -42,9 +43,11 @@ const settingsStrings = defineStrings({
     hideEnds: "Masquer départ et arrivée",
     hideNothing: "Non",
     data: "Données",
+    account: "Compte Tread",
+    accountOff: "Non connecté",
     importExport: "Importer et exporter",
     transfer: "Changer de téléphone",
-    dataFooter: "Tes données restent sur ce téléphone. Exporte-les ou emporte-les ici.",
+    dataFooter: "Tes données restent sur ce téléphone, et sur ton compte Tread si tu t'y connectes. Exporte-les ou emporte-les ici.",
     about: "À propos",
     developer: "Développement",
     replayWelcome: "Revoir l'accueil",
@@ -71,9 +74,11 @@ const settingsStrings = defineStrings({
     hideEnds: "Hide start and finish",
     hideNothing: "Off",
     data: "Data",
+    account: "Tread account",
+    accountOff: "Signed out",
     importExport: "Import and export",
     transfer: "Switch phones",
-    dataFooter: "Your data stays on this phone. Export it or take it with you from here.",
+    dataFooter: "Your data stays on this phone, and on your Tread account if you sign in. Export it or take it with you from here.",
     about: "About",
     developer: "Development",
     replayWelcome: "Replay the welcome",
@@ -101,6 +106,7 @@ export default function SettingsScreen() {
   const router = useRouter();
   const settings = useSettings();
   const s = useStrings(settingsStrings);
+  const { data: session } = authClient.useSession();
   const goal = weeklyGoal(settings);
   const [editingGoal, setEditingGoal] = useState(false);
   /** Their own recent average, so the goal sheet opens on a figure they know. */
@@ -221,6 +227,12 @@ export default function SettingsScreen() {
       </SettingsGroup>
 
       <SettingsGroup title={s.data} footer={s.dataFooter}>
+        <SettingRow
+          icon="person-circle-outline"
+          label={s.account}
+          value={session?.user.email ?? s.accountOff}
+          onPress={() => router.push("/settings/account")}
+        />
         <SettingRow
           icon="swap-vertical-outline"
           label={s.importExport}

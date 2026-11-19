@@ -1,3 +1,4 @@
+import { syncNow } from "@/lib/account";
 import "@/lib/tracker"; // defines the background GPS task at startup, outside any screen
 import {
   BarlowCondensed_400Regular, BarlowCondensed_500Medium, BarlowCondensed_600SemiBold,
@@ -54,6 +55,7 @@ const layoutStrings = defineStrings({
     sharing: "Partage",
     shoes: "Chaussures",
     data: "Données",
+    account: "Compte",
     about: "À propos",
     privacy: "Confidentialité",
     transfer: "Changer de téléphone",
@@ -90,6 +92,7 @@ const layoutStrings = defineStrings({
     sharing: "Sharing",
     shoes: "Shoes",
     data: "Data",
+    account: "Account",
     about: "About",
     privacy: "Privacy",
     transfer: "Switch phones",
@@ -150,6 +153,7 @@ export default function RootLayout() {
         void copyToOffer().then((copy) => {
           if (!copy) {
             void makeCopy();
+            void syncNow();
             return;
           }
           const words = layoutStrings();
@@ -183,6 +187,8 @@ export default function RootLayout() {
         void refreshHomeWidget();
         // Folded first, so the copy reads a database with the last run in it.
         void checkpoint().then(() => makeCopy());
+        // And to the account, when signed in and something moved.
+        void syncNow();
       }
       // Back from a run with the watch: its run is waiting in Health.
       if (next === "active") void importFromHealth();
@@ -321,6 +327,7 @@ export default function RootLayout() {
           <Stack.Screen name="settings/shoes" options={{ title: s.shoes, headerBackTitle: s.settings }} />
           <Stack.Screen name="settings/shoe/[id]" options={{ headerBackTitle: s.shoes }} />
           <Stack.Screen name="settings/data" options={{ title: s.data, headerBackTitle: s.settings }} />
+          <Stack.Screen name="settings/account" options={{ title: s.account, headerBackTitle: s.settings }} />
           <Stack.Screen name="settings/about" options={{ title: s.about, headerBackTitle: s.settings }} />
           <Stack.Screen
             name="settings/privacy"
