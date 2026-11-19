@@ -4,6 +4,7 @@ import * as SecureStore from "expo-secure-store";
 import { fingerprint } from "@tread/core/backup";
 import { afterSync, PENDING_DELETIONS_KEY, readPending } from "@tread/core/sync";
 import { packTransfer } from "@tread/core/transfer";
+import { getUnitSystem } from "@tread/core/units";
 import { dataSummary, everythingForTransfer, readSettings, writeSetting } from "./db";
 
 /**
@@ -82,7 +83,8 @@ export function syncNow(force = false): Promise<SyncOutcome> {
     try {
       const cookie = await authClient.getCookie();
       if (!cookie) return { kind: "signedOut" };
-      const current = fingerprint(await dataSummary());
+      // The units count too: the web reads them from here.
+      const current = `${fingerprint(await dataSummary())}|${getUnitSystem()}`;
       const last = await lastSync();
       if (!force && last?.fingerprint === current) return { kind: "unchanged" };
 
@@ -93,14 +95,18 @@ export function syncNow(force = false): Promise<SyncOutcome> {
         headers: { "Content-Type": "application/json", Cookie: cookie },
         // The cookie is set by hand above; letting fetch add its own would clash with it.
         credentials: "omit",
-        body: JSON.stringify({ archive, deleted }),
+        // The units this phone shows, worked out: "Automatic" follows the
+        // phone's region, which the web cannot see for itself.
+        body: JSON.stringify({ archive, deleted, units: getUnitSystem() }),
       });
       if (response.status === 401) return { kind: "signedOut" };
       if (!response.ok) return { kind: "failed" };
       const result = (await response.json()) as SyncResult;
       // Read again: a run deleted while this was on its way stays pending.
       await writeSetting(PENDING_DELETIONS_KEY, afterSync((await readSettings())[PENDING_DELETIONS_KEY], deleted));
-      await writeSetting(SYNC_KEY, JSON.stringify({ at: Date.now(), fingerprint: fingerprint(await dataSummary()) } satisfies SyncState));
+      await writeSetting(SYNC_KEY, JSON.stringify({
+        at: Date.now(), fingerprint: `${fingerprint(await dataSummary())}|${getUnitSystem()}`,
+      } satisfies SyncState));
       return { kind: "done", result };
     } catch {
       return { kind: "failed" };

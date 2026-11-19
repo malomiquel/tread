@@ -1,9 +1,9 @@
 import { Locale } from "@/components/Locale";
-import { requestLanguage, requestUnits } from "@/lib/server/locale";
+import { requestLanguage } from "@/lib/server/locale";
 
 export default async function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <Locale language={await requestLanguage()} units={await requestUnits(undefined)}>
+    <Locale language={await requestLanguage()} units="metric">
       <main className="auth">
         <div className="auth-card">{children}</div>
       </main>

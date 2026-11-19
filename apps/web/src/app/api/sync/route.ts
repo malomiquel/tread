@@ -18,7 +18,7 @@ export async function POST(request: Request) {
 
   const type = request.headers.get("content-type") ?? "";
   if (type.includes("application/json")) {
-    const body = (await request.json().catch(() => null)) as { archive?: unknown; deleted?: unknown } | null;
+    const body = (await request.json().catch(() => null)) as { archive?: unknown; deleted?: unknown; units?: unknown } | null;
     const transfer = typeof body?.archive === "string" ? await unpackTransfer(body.archive) : null;
     if (!transfer) return NextResponse.json({ error: "unreadable" }, { status: 400 });
     const deleted = Array.isArray(body?.deleted)
@@ -26,7 +26,8 @@ export async function POST(request: Request) {
       : [];
     // Deleted first: a run deleted then recorded again at the same start comes back.
     const removed = await deleteOutings(userId, deleted);
-    return NextResponse.json({ ...(await ingestTransfer(userId, transfer)), removed });
+    const units = body?.units === "metric" || body?.units === "imperial" ? body.units : undefined;
+    return NextResponse.json({ ...(await ingestTransfer(userId, transfer, units)), removed });
   }
 
   const form = await request.formData().catch(() => null);

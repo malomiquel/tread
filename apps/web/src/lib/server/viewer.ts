@@ -2,7 +2,7 @@ import "server-only";
 import type { Language } from "@tread/core/i18n";
 import type { UnitSystem } from "@tread/core/units";
 import { preferencesOf } from "./data";
-import { requestLanguage, requestUnits } from "./locale";
+import { phoneUnits, requestLanguage } from "./locale";
 import { requireUser } from "./session";
 
 export interface Viewer {
@@ -31,7 +31,7 @@ export async function viewer(): Promise<Viewer> {
     name: user.name,
     email: user.email,
     language: await requestLanguage(),
-    units: await requestUnits(preferences.settings.units),
+    units: phoneUnits(preferences.settings),
     settings: preferences.settings,
     syncedAt: preferences.syncedAt,
   };

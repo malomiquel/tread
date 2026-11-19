@@ -1,6 +1,7 @@
 import "server-only";
 import JSZip from "jszip";
 import { prisma, type Prisma } from "@tread/db";
+import type { UnitSystem } from "@tread/core/units";
 import { readActivity, type ActivityType } from "@tread/core/activity";
 import { bestEfforts } from "@tread/core/efforts";
 import type { TrackPoint } from "@tread/core/geo";
@@ -102,7 +103,10 @@ async function ingestRuns(userId: string, runs: readonly TransferRun[]): Promise
 }
 
 /** Everything a phone sends: runs, routes, shoes, its own sessions, the plan and its settings. */
-export async function ingestTransfer(userId: string, transfer: Transfer): Promise<Ingested> {
+/** The setting the phone's units, worked out, are kept under (see `pickUnits`). */
+export const PHONE_UNITS_KEY = "phoneUnits";
+
+export async function ingestTransfer(userId: string, transfer: Transfer, phoneUnits?: UnitSystem): Promise<Ingested> {
   const { added, updated } = await ingestRuns(userId, transfer.runs);
 
   for (const route of transfer.routes) {
@@ -139,10 +143,11 @@ export async function ingestTransfer(userId: string, transfer: Transfer): Promis
   } else {
     await prisma.plan.deleteMany({ where: { userId } });
   }
+  const settings = phoneUnits ? { ...transfer.settings, [PHONE_UNITS_KEY]: phoneUnits } : transfer.settings;
   await prisma.preferences.upsert({
     where: { userId },
-    create: { userId, settings: json(transfer.settings), syncedAt: new Date() },
-    update: { settings: json(transfer.settings), syncedAt: new Date() },
+    create: { userId, settings: json(settings), syncedAt: new Date() },
+    update: { settings: json(settings), syncedAt: new Date() },
   });
 
   return { added, updated, routes: transfer.routes.length, plan: transfer.plan !== null };
