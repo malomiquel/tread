@@ -1,0 +1,223 @@
+// Tread's server database: accounts (Better Auth) and what the phone sends.
+//
+// Postgres on Supabase. The app talks to it through the pooler
+// (DATABASE_URL); migrations go straight to the database (DIRECT_URL), see
+// prisma.config.ts. Every table lives in `public`, which Supabase exposes
+// through its Data API: each one has row level security switched on and no
+// policy, so only this server, connecting as the owner, can read it.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Better Auth. Field names are the ones its Prisma adapter expects.
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String    @id
+  name          String
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  sessions      Session[]
+  accounts      Account[]
+
+  outings     Outing[]
+  routes      Route[]
+  shoes       Shoe[]
+  workouts    Workout[]
+  plan        Plan?
+  preferences Preferences?
+
+  @@map("user")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+/// Better Auth's request counters, kept in the database so every server instance shares them.
+model RateLimit {
+  id          String @id
+  key         String @unique
+  count       Int
+  lastRequest BigInt
+
+  @@map("rateLimit")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+// ---------------------------------------------------------------------------
+// What the phone records, as it sends it (`Transfer` in @tread/core/transfer).
+//
+// The phone stays the source: it numbers its own shoes and sessions, and an
+// outing is known by when it started. Sending the same history twice changes
+// nothing; sending it after an edit updates what was edited.
+// ---------------------------------------------------------------------------
+
+/// A run, a walk or a ride. The track is kept apart (`Track`) so a list never loads it.
+model Outing {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startedAt      DateTime
+  endedAt        DateTime?
+  /// An `ActivityType` identifier: "run", "trail", "treadmill", "walk", "hike", "ride".
+  activity       String    @default("run")
+  name           String?
+  distanceM      Float
+  durationS      Float
+  avgPaceSKm     Float?
+  elevationGainM Float?
+  fastestKmS     Float?
+  cadenceSpm     Float?
+  /// 1 to 5, how hard it felt.
+  exertion       Int?
+  /// The plan or custom session it followed ("easy", "custom-3"), or null.
+  sessionId      String?
+  /// The pair of shoes, by the phone's own number for it (`Shoe.ref`).
+  shoeRef        Int?
+  tags           String[]
+  note           String?
+  blocks         Json      @default("[]")
+  laps           Json      @default("[]")
+  weather        Json?
+  heart          Json?
+  /// About sixty [lat, lng] pairs, enough to draw the outline in a list.
+  shape          Json      @default("[]")
+  /// Fastest time over each standard distance (`BestEfforts`), measured once on arrival.
+  efforts        Json?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  track          Track?
+
+  @@unique([userId, startedAt])
+  @@index([userId, startedAt(sort: Desc)])
+  @@map("outing")
+}
+
+/// Every GPS fix of an outing, as `TrackPoint[]`.
+model Track {
+  outingId String @id
+  outing   Outing @relation(fields: [outingId], references: [id], onDelete: Cascade)
+  points   Json
+
+  @@map("track")
+}
+
+/// A drawn route: its handles and the streets between them.
+model Route {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  createdAt DateTime
+  waypoints Json
+  legs      Json
+  place     String?
+
+  @@unique([userId, createdAt])
+  @@map("route")
+}
+
+model Shoe {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// The phone's id for the pair, which outings name it by.
+  ref       Int
+  name      String
+  addedAt   DateTime
+  startM    Float
+  limitM    Float
+  retired   Boolean  @default(false)
+  isDefault Boolean  @default(false)
+
+  @@unique([userId, ref])
+  @@map("shoe")
+}
+
+/// A session the runner wrote on the phone.
+model Workout {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ref       Int
+  name      String
+  createdAt DateTime
+  groups    Json
+
+  @@unique([userId, ref])
+  @@map("workout")
+}
+
+/// The training plan under way, as the phone keeps it (`TransferPlan`).
+model Plan {
+  userId    String   @id
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  data      Json
+  updatedAt DateTime @updatedAt
+
+  @@map("plan")
+}
+
+/// The phone's settings, as stored there (weekly goal, units, language…), and the last sync.
+model Preferences {
+  userId   String    @id
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  settings Json      @default("{}")
+  syncedAt DateTime?
+
+  @@map("preferences")
+}
