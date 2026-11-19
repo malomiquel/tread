@@ -22,8 +22,10 @@ export const auth = betterAuth({
   database: prismaAdapter(prisma, { provider: "postgresql" }),
   emailAndPassword: {
     enabled: true,
-    // An address nobody confirmed cannot sign in: it may not be theirs.
-    requireEmailVerification: true,
+    // No e-mail at sign-up for now: an account is usable at once, and signs
+    // in as it is created. Confirming the address comes back with a sender.
+    requireEmailVerification: false,
+    autoSignIn: true,
     minPasswordLength: 10,
     maxPasswordLength: 128,
     revokeSessionsOnPasswordReset: true,
@@ -33,7 +35,7 @@ export const auth = betterAuth({
     },
   },
   emailVerification: {
-    sendOnSignUp: true,
+    sendOnSignUp: false,
     autoSignInAfterVerification: true,
     sendVerificationEmail: async ({ user, url }, request) => {
       await sendVerification(user.email, url, requestLanguage(request));

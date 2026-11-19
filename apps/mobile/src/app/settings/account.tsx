@@ -23,11 +23,8 @@ const accountStrings = defineStrings({
     passwordHint: "Au moins 10 caractères.",
     forgot: "Mot de passe oublié",
     working: "Un instant…",
-    checkTitle: "Regarde tes e-mails",
-    checkMessage: (email: string) => `Un lien de confirmation est parti vers ${email}. Ouvre-le, puis connecte-toi ici.`,
     failedTitle: "Connexion impossible",
     wrong: "Adresse ou mot de passe incorrect.",
-    unverified: "Confirme d'abord ton adresse : un nouveau lien vient de partir.",
     taken: "Impossible de créer un compte avec cette adresse. Essaie de te connecter.",
     tooShort: "Le mot de passe doit faire au moins 10 caractères.",
     tooMany: "Trop d'essais d'un coup. Attends une minute.",
@@ -54,11 +51,8 @@ const accountStrings = defineStrings({
     passwordHint: "At least 10 characters.",
     forgot: "Forgot password",
     working: "One moment…",
-    checkTitle: "Check your email",
-    checkMessage: (email: string) => `A confirmation link went to ${email}. Open it, then sign in here.`,
     failedTitle: "Cannot sign in",
     wrong: "Wrong address or password.",
-    unverified: "Confirm your address first: a new link is on its way.",
     taken: "This address cannot be used for a new account. Try signing in.",
     tooShort: "The password needs at least 10 characters.",
     tooMany: "Too many tries at once. Wait a minute.",
@@ -117,19 +111,11 @@ export default function AccountScreen() {
     setBusy(true);
     try {
       const address = email.trim();
-      if (mode === "signUp") {
-        const { error } = await authClient.signUp.email({ name: name.trim() || address.split("@")[0], email: address, password });
-        if (error) {
-          Alert.alert(s.failedTitle, error.status === 429 ? s.tooMany : s.taken);
-          return;
-        }
-        Alert.alert(s.checkTitle, s.checkMessage(address));
-        setMode("signIn");
-        return;
-      }
-      const { error } = await authClient.signIn.email({ email: address, password });
+      const { error } = mode === "signUp"
+        ? await authClient.signUp.email({ name: name.trim() || address.split("@")[0], email: address, password })
+        : await authClient.signIn.email({ email: address, password });
       if (error) {
-        Alert.alert(s.failedTitle, error.status === 403 ? s.unverified : error.status === 429 ? s.tooMany : s.wrong);
+        Alert.alert(s.failedTitle, error.status === 429 ? s.tooMany : mode === "signUp" ? s.taken : s.wrong);
         return;
       }
       setPassword("");

@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --port 3020",
-    "build": "next build",
+    "build": "pnpm --filter @tread/db generate && next build",
     "start": "next start --port 3020",
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-strip-types --test src/lib/*.test.ts"

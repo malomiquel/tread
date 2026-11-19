@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useStrings } from "@tread/core/i18n";
 import { Brand } from "@/components/Brand";
 import { authClient } from "@/lib/auth-client";
@@ -11,7 +12,7 @@ export function SignUpForm() {
   const s = useStrings(authStrings);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  const [sentTo, setSentTo] = useState<string | null>(null);
+  const router = useRouter();
 
   async function submit(form: FormData) {
     const email = String(form.get("email") ?? "").trim();
@@ -29,21 +30,13 @@ export function SignUpForm() {
       callbackURL: `${window.location.origin}/history`,
     });
     setBusy(false);
-    if (!error) setSentTo(email);
-    else if (error.status === 429) setMessage(s.tooMany);
+    if (!error) {
+      // Signed in as it is created: straight to the history.
+      router.replace("/history");
+      router.refresh();
+    } else if (error.status === 429) setMessage(s.tooMany);
     else if (error.status === 422 || error.status === 400) setMessage(s.taken);
     else setMessage(s.failed);
-  }
-
-  if (sentTo) {
-    return (
-      <>
-        <Brand />
-        <h1>{s.checkTitle}</h1>
-        <p className="lede">{s.checkLede(sentTo)}</p>
-        <Link href="/sign-in" className="button secondary press">{s.backToSignIn}</Link>
-      </>
-    );
   }
 
   return (
