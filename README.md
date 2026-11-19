@@ -7,9 +7,10 @@ history. A finished run draws
 itself back on its map and leaves as a picture, a GIF or a GPX; the whole app
 moves to a new phone in one file. Expo SDK 58, React Native, TypeScript.
 
-The same outings can be opened in a browser: the web app reads GPX files and
-the app's archive without sending them anywhere. A landing page says what
-the app is.
+The same outings can be read in a browser, à la Strava: sign in to a Tread
+account on the phone and on the web, and every run arrives there with its
+map, splits and charts, along with the plan, the routes and the profile. The
+app works without an account. A landing page says what the app is.
 
 ## Layout
 
@@ -17,15 +18,30 @@ A pnpm monorepo — see [ARCHITECTURE.md](ARCHITECTURE.md) for why it is cut
 this way.
 
 - `apps/mobile`: the Expo app
-- `apps/web`: the web app (Next.js, port 3020)
+- `apps/web`: the web app and its server (Next.js, Better Auth, port 3020)
 - `apps/landing`: the landing page (Astro, port 3021)
 - `packages/core`: what they share — the maths of a run, GPX, units, i18n,
-  colours
+  colours, the transfer file
+- `packages/db`: the server database (Prisma on Supabase's Postgres)
 
 ```bash
 pnpm web           # http://localhost:3020
 pnpm landing       # http://localhost:3021
 ```
+
+The web app needs a database and a secret. Copy `apps/web/.env.example` to
+`apps/web/.env.local` and `packages/db/.env.example` to `packages/db/.env`,
+fill them in (Supabase's pooler as the `tread_app` role, or a local
+Postgres), then:
+
+```bash
+pnpm db:deploy
+```
+
+In development, the e-mails that confirm an address or reset a password are
+printed in the web server's log. The phone reaches the server at
+`EXPO_PUBLIC_API_URL` (default `http://localhost:3020`, which a simulator
+reaches; a real phone needs the Mac's address on the network).
 
 ## Trying it in Expo Go
 

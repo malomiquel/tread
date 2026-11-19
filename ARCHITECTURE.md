@@ -7,13 +7,19 @@ the code they share.
 apps/
   mobile/     The Expo app (iOS, Android). Everything that needs the phone:
               GPS, SQLite, Health, widgets, the Live Activity, notifications.
-  web/        Next.js. The outings viewer, in the browser. Port 3020.
+  web/        Next.js. Tread in the browser: history, an outing with its map,
+              the plan, routes, profile, behind a Tread account. Also the
+              server: Better Auth (/api/auth) and the sync (/api/sync).
+              Port 3020.
   landing/    Astro. The public page, static, in French and English. Port 3021.
 packages/
   core/       @tread/core: what Tread knows without a phone. The maths of a
               run (geo, pace, splits, efforts, predictions, plans), GPX in and
               out, units and formatting, the two languages (i18n) and the
               colours (palette).
+  db/         @tread/db: the server database. The Prisma schema (accounts
+              and what the phone sends), its migrations and the client.
+              Server only: the phone app never imports it.
 ```
 
 ## Decisions
@@ -42,23 +48,60 @@ for every one of those and a page laid out for a thumb. The web app is
 written for a large screen instead, and shares everything that is not UI
 through `@tread/core`.
 
-### No backend yet: the browser reads files
+### Accounts and sync: Supabase, Prisma, Better Auth
 
-The phone stays local-first: SQLite on the device, a copy in the user's own
-iCloud. The web app has no account and no server: it opens GPX files, or the
-"All my runs" archive the app exports, and reads them in the browser. Nothing
-is uploaded.
+Decided on 2026-11-19, replacing "no backend yet". The phone stays
+local-first: SQLite on the device is the source, the app works signed out,
+and the safety copy still goes to the runner's own cloud. Signed in, it also
+sends its history to a Tread account, which the web app reads.
 
-A Strava-like web app, where outings recorded on the phone appear on their
-own, needs accounts and a sync between the phone's SQLite and a server
-database. That is its own project, and the layout is ready for it: the
-server would be a new `apps/api` (or route handlers in `apps/web`), and the
-shapes it stores would come from `@tread/core`.
+- **Postgres on Supabase** (project `tread`, eu-west-3), used as a plain
+  database: no Supabase Auth, no Data API. Every table has row level
+  security switched on and no policy, so the anon and authenticated roles
+  read nothing; only the web app's server, connecting as the owner, does.
+- **Prisma 7** in `packages/db`: `schema.prisma`, migrations, and the client
+  with the `pg` driver adapter. Both connect as `tread_app`, a role made for
+  this server alone, which owns its tables: the app through the transaction
+  pooler (`DATABASE_URL`, port 6543), migrations through the session pooler
+  (`DIRECT_URL`, port 5432; the direct host is IPv6 only). TLS is verified
+  against Supabase's own root authority, bundled in `packages/db/src/supabaseCa.ts`.
+- **Better Auth**, e-mail and password, with its Prisma adapter, mounted in
+  the web app at `/api/auth`. The phone signs in through the same endpoints
+  with `@better-auth/expo`, its session in the keychain (`expo-secure-store`).
+  An address must be confirmed before it signs in; links are e-mailed through
+  Resend, or printed in the server's log in development.
 
-The landing page does not sell "no server" for that reason: the day the
-phone and the browser share outings, there will be one. It sells what the
-app does — the ghost, the voice, the plan, grade-adjusted pace, the
-heatmap — instead.
+**What travels is the file the app already writes.** The phone posts the
+same `Transfer` that "Switch phones" and the safety copy hold
+(`@tread/core/transfer`, zipped and base64) to `/api/sync`, after every run
+and when the app goes to the background, if its data fingerprint moved. The
+browser can upload that file too, or GPX files. One format, one reader
+(`apps/web/src/lib/server/ingest.ts`), whichever door it comes in by.
+
+An outing is known by when it started (`userId, startedAt` is unique). Sent
+again, it is updated with what the phone now says about it (name, type,
+rating, shoes); its track is stored once, apart from it (`track`), so a list
+never loads one. Nothing is deleted for being missing from what arrives: a
+reinstalled phone with an empty database would otherwise empty the account.
+Deleting is said out loud instead: the phone keeps the start of every run it
+deletes (`@tread/core/sync`) and sends the list with the next sync
+(`deleted`), which the server deletes before reading the rest.
+
+Best efforts and the outline drawn in a list are worked out on arrival and
+stored with the outing, so the profile never reads tracks.
+
+### The web pages
+
+Server components read the database, narrowed to the signed-in person, and
+hand plain data to client components that format it. Formatting is done
+where `<Locale>` has set the language and units every formatter in
+`@tread/core` reads: module-wide values, as on the phone, set in render with
+no Suspense boundary below, so one request cannot slip into another's. The
+language comes from a cookie the settings write, else the browser; the units
+from the phone's own setting, else the browser's region.
+
+Maps are MapLibre GL 5 on OpenFreeMap's tiles: no key, no account. (MapLibre
+6 loads its worker as a separate module, which Turbopack does not serve.)
 
 ### The landing page is its own Astro site
 
@@ -71,7 +114,8 @@ sit behind an account). So they are two packages:
   `robots.txt` built from `SITE_URL`. It shares TypeScript only — strings
   through `defineStrings`, colours through `@tread/core/palette` — never a
   React Native component.
-- `apps/web`, Next.js: marked `noindex`. Its address is given to the landing
+- `apps/web`, Next.js: marked `noindex`, every page but the account ones
+  behind a session. Its address is given to the landing
   page as `PUBLIC_WEB_URL`, and the landing page's to it as
   `NEXT_PUBLIC_LANDING_URL` (both default to localhost in development).
 
@@ -95,8 +139,9 @@ declaring it.
 - Nothing native. A module that imports `react-native`, an `expo-*` package
   or a native module (`liveActivity.ts`, `theme.ts`, `db.ts`…) stays in
   `apps/mobile/src/lib`. `react` is allowed: `i18n` and `units` expose hooks.
-- A module that only needs a type from the app (`stats.ts` reads `Run` from
-  `db.ts`) stays in the app until that type moves to core.
+- A module that only needs a type from the app reads a structural type
+  instead (`stats.ts` sums any `RunFigures`), so the phone and the server
+  add up the same way.
 
 ## Commands
 
@@ -107,7 +152,9 @@ From the root:
 | `pnpm start` | Metro for the phone app, port 8082 |
 | `pnpm web` | The web app, http://localhost:3020 |
 | `pnpm landing` | The landing page, http://localhost:3021 |
+| `pnpm db:migrate` | A new Prisma migration, against `DIRECT_URL` (`packages/db/.env`), and the client regenerated |
+| `pnpm db:deploy` | The migrations applied to the database (Supabase) |
 | `npm run deploy:ios` | Release build on the plugged-in iPhone (`apps/mobile/scripts/deploy-ios.sh`) |
 | `pnpm typecheck` | `tsc --noEmit` in every package |
 | `pnpm lint` | `expo lint` in the phone app |
-| `pnpm test` | Every package's tests (core and mobile) |
+| `pnpm test` | Every package's tests (core, db, web and mobile) |
