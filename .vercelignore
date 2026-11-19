@@ -1,0 +1,17 @@
+# What the web app's build on Vercel does not need. The phone app keeps its
+# package.json and patches only, so the workspace still installs as locked.
+node_modules
+**/node_modules
+**/.next
+**/.expo
+apps/mobile/ios
+apps/mobile/android
+apps/mobile/assets
+apps/mobile/targets
+apps/mobile/modules
+apps/mobile/src
+apps/landing/dist
+packages/db/src/generated
+.env
+**/.env
+**/.env*.local

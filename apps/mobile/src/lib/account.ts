@@ -18,8 +18,14 @@ import { dataSummary, everythingForTransfer, readSettings, writeSetting } from "
  * The session lives in the keychain (SecureStore), never in plain storage.
  */
 
-/** Where the web app answers. Set EXPO_PUBLIC_API_URL for a device; a simulator reaches the Mac at localhost. */
-export const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3020").replace(/\/$/, "");
+/**
+ * Where the web app answers: the deployed one in a release build, the Mac's
+ * in development (a simulator reaches it at localhost). EXPO_PUBLIC_API_URL
+ * overrides both, for a real phone against the Mac on the same network.
+ */
+export const API_URL = (
+  process.env.EXPO_PUBLIC_API_URL ?? (__DEV__ ? "http://localhost:3020" : "https://tread-web-omega.vercel.app")
+).replace(/\/$/, "");
 
 export const authClient = createAuthClient({
   baseURL: API_URL,

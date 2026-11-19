@@ -90,6 +90,18 @@ deletes (`@tread/core/sync`) and sends the list with the next sync
 Best efforts and the outline drawn in a list are worked out on arrival and
 stored with the outing, so the profile never reads tracks.
 
+### Hosting
+
+The web app runs on Vercel (project `tread-web`, root directory `apps/web`,
+https://tread-web-omega.vercel.app). Its environment holds `DATABASE_URL`,
+`DIRECT_URL`, `BETTER_AUTH_SECRET` and `BETTER_AUTH_URL`; `.vercelignore`
+keeps the phone app's native folders out of the upload. A release build of
+the phone app talks to that address, a development build to localhost.
+
+No e-mail is sent at sign-up for now: an account is usable as soon as it is
+created. Password reset e-mails need `RESEND_API_KEY`; without it they are
+not sent (a warning in the log).
+
 ### The web pages
 
 Server components read the database, narrowed to the signed-in person, and
