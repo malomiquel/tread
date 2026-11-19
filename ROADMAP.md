@@ -179,6 +179,14 @@ promise is listed at the end, under "Not doing".
   (distance, runs and days, a bar per week or month, time, climb, longest,
   change on the period before); from History's month banner and Profile's
   year; steps back through past periods
+- [x] **The card game** 📱: every run's card turned over on a stage after
+  the run (face down, a tap, its traits said one by one; gravity tilt and
+  depth on rare cards), past runs' cards offered to turn the first time;
+  great cards for a week held, four weeks in a row and a race with the
+  training that led to it; duels of five cards within a budget, by link or
+  QR code, played the same on both phones, with traits as keywords; the plan
+  read as a campaign of chapters and guardians; the collection under the
+  week on Profile, rare cards marked in History
 - [x] **Privacy zones**: shared pictures and GIFs hide the track within
   200 m / 500 m / 1 km of the start and finish (Settings › Sharing, 200 m by
   default); figures stay the whole run's

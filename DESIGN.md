@@ -228,6 +228,12 @@ defaults.
 | `ShareCard` | The picture a run leaves as. |
 | `RecapCard` | A month or a year as a picture, the run card's size, on the light accent whatever the appearance. |
 | `RunCard` | The card a run leaves in the collection (`@tread/core/card`): number and rarity in words, the outline with its ends hidden, name, four stats from 1 to 99, traits in words. Light palette whatever the appearance, since it is shared as is. Rarity is the frame and the word, never colour alone: hairline, `text` rule, `accent` rule, then the whole card on `accent`. No gold, no glow. |
+| `MiniCard` + `MiniCardRow` | A run's card at thumbnail size (118 wide, radius 12), in the same frames and light paper: number, outline, name, rarity word. In a grid of three or a row that scrolls sideways from the gutter. |
+| `MetaCardView` + `MiniMetaCard` | The great cards (`@tread/core/metaCard`): a week held, a block of four, a race. A week or a block shows its runs' outlines four to a row; a race its own outline large over the runs that led to it. A race is legendary: on the stage, with a second frame inside the first, and the word. |
+| `CardBack` | The back of every card: the stage, a second frame, TREAD and the number. `small` for a card in miniature. |
+| `TiltCard` + `Depth` | The finish a rare card has earned: held, it leans with the phone (gravity, on the UI thread, 9° at most, settling flat at whatever angle it is held) and its outline (`Depth`) floats a few points above the paper. Rare and up, legendary, and never with reduce motion. |
+| `DuelCardFace` | A card as it arrives in a friend's deck: number, rarity, distance, the four stats with the round's own set apart, traits. No outline, no name, no date: a deck carries none. |
+| `CampaignMap` | A plan read as chapters (one per phase): a path of its sessions (filled dot run, dash passed, ring next, quiet dot ahead) with its guardians as tiles on it, then the guardians as rows, each opening its session. |
 | `LineChart` | A series against distance on a run's page (altitude, pace, heart rate): line over a soft fill, the two extremes named. |
 | `RideDashboard` | The same place on a ride: the speed of the moment large, the average beside its unit, the top speed under it. No verdict and no gauge: a ride has no pace to hold. Paused, a `warning` chip says so in the room kept for it. |
 | `RunDashboard` | The run screen while recording, over the map: a verdict chip (on pace, too slow, too fast, free), the pace of the moment large, the target beside its unit, a gauge read like a speedometer (too slow left, too fast right) whose marker springs around the tolerance band, and the block under way with what is left and what comes next. Off pace, the chip, the marker and the figure turn `warning` together. |
@@ -296,11 +302,11 @@ Section heading                     aside
   gets its own page: the tab shows its headline in one `RecordRow` with a
   chevron (Profile: Records → longest run, Best efforts → 5K, Predicted
   times → 10K), and the page shows the rest. Profile reads, top to bottom:
-  week banner, progress, performance, all time. All time ends on two rows
-  leading elsewhere: the map of every run, and the Collection, whose page
-  lists the rarest cards, then each set as a `SectionHeader` ("4 / 7") over
-  its slots in `RecordRow`s: a tick and the run that filled it, or an empty
-  circle and, in words, what would fill it. No slot asks for a speed.
+  week banner, collection, progress, performance, all time. The collection
+  sits straight under the week: a `MiniCardRow` of the newest cards, then a
+  panel of rows (cards to turn over when there are some, the whole
+  collection, the duel). All time ends on a row leading to the map of every
+  run. See [The card game](#the-card-game) for the Collection page itself.
 
 ### An empty tab
 
@@ -367,6 +373,38 @@ Once a lap is pressed the status line follows the lap under way, in
 `accent`, as a session's line does; a session's line wins over it. On a chosen route the
 line follows the route: distance left, the next turn within 200 m, "Off
 route" in `warning`; a session's or a lap's line wins over it.
+
+### The card game
+
+Every run leaves a card, dealt from what happened (`@tread/core/card`), and
+every past run has one already: nothing is stored, the history is dealt
+again wherever cards are shown.
+
+- **Turning a card over.** After a run, the top of its page holds a stage
+  row, "Your card is waiting", with a card back beside it. It opens the
+  card stage (`/card`, full screen): the card face down, turned by a tap (a
+  rotation, moved never faded, Medium or Heavy impact), then what it earned
+  said one line at a time with a selection tick, each trait with what it is
+  worth in a duel, then the slots it filled. The great cards it completed
+  follow it, each turned in turn. Cards of runs not yet seen (an import, a
+  new phone, the first opening) are offered from Profile and the Collection
+  banner, the finest eight at most.
+- **The Collection page**: the banner (cards, rare ones, sets), the duel,
+  the great cards in a row, the rarest in a row, every card in a grid of
+  three with rarity chips, then the sets. A card opens on the stage face up,
+  to hold and tilt, share, or open its run.
+- **History** says a rare or exceptional card in the row, in words, as a
+  chip: tinted for rare, filled for exceptional.
+- **Duels** (`/duel`, `@tread/core/duel`): five cards, 12 points at most
+  (1 to 4 by rarity), one exceptional. Built by tapping cards in a grid
+  (ringed in `accent` once in), or "Build it for me". Sent as a link or a QR
+  code holding the cards alone; the friend's link opens the match, played
+  round by round (one stat a round, traits as bonuses), and offers to send
+  it back so both phones show the same duel. Nothing is won or lost but the
+  duel.
+- **The campaign**: in Plan, a `Segmented` Sessions / Campaign under the
+  next session, and the chapter under way in one `accent` line whichever is
+  shown. A session passed over is passed, never failed.
 
 ### A pushed page's actions
 

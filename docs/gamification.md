@@ -4,7 +4,8 @@ A study, not a spec. It asks whether Tread should turn each outing into a
 collectible card, in the manner of a trading card game, and how to do it
 without breaking what the app promises. No code has been written for it.
 
-- Status: proposal, November 2026
+- Status: built, November 2026 (the Album, then the next five: the reveal,
+  great cards, duels and the campaign; see "What was built" at the end)
 - Reads with: `ROADMAP.md` (positioning, "Not doing"), `DESIGN.md`
 - Touches, if built: `packages/core` (a pure `card.ts`), the run page,
   Profile, `ShareCard`, `RunShape`
@@ -494,3 +495,36 @@ the companies themselves are marked as such above.
 - Taylor Wessing, ["An iPhone, a gambling problem and the loot box debate"](https://www.taylorwessing.com/en/insights-and-events/insights/2025/03/an-iphone-a-gambling-problem-and-the-loot-box-debate), 2025
 - PC Gamer, ["The Netherlands moves toward an outright loot box ban"](https://pcgamer.com/the-netherlands-moves-toward-an-outright-loot-box-ban)
 - Fieldfisher, [EU report on a consumer protection approach to loot boxes](https://www.fieldfisher.com/en/services/technology-outsourcing-and-privacy/technology-and-outsourcing-blog/consumer-protection-approach-to-tackle-loot-boxes)
+
+---
+
+## What was built
+
+The Album first, then, on top of it and still without a backend:
+
+- **The reveal** (`apps/mobile/src/app/card.tsx`). A run's card arrives face
+  down at the top of its page; turned on a stage of its own, its traits said
+  one at a time. Rare cards and better lean with the phone, their outline
+  standing off the paper (`TiltCard`). The past runs' cards are all dealt
+  already; the first opening turns over the five finest, and later bursts
+  (an import, a new phone) the eight finest.
+- **Great cards** (`packages/core/src/metaCard.ts`). A week counts when the
+  weekly goal is met, or with two runs without one; its tier comes from the
+  variety of its traits, not from its kilometres. Four weeks in a row make a
+  block. Every race (tagged, or a plan's race session) seals the runs of the
+  twelve weeks before it, back to the race before, as a legendary card.
+- **Duels** (`packages/core/src/duel.ts`). Five cards, a budget of 12 (1 to
+  4 by rarity), one exceptional at most, so a deck needs plain cards too.
+  Five rounds, each on one stat, every stat at least once, the terrains
+  taken from a hash of both decks so both phones play the same duel. Traits
+  are keywords: a record +15 on speed, the longest run +15 on endurance,
+  Session held +15 on steadiness, Patience +12 against a faster card, the
+  ghost +12 when behind. The link holds the cards alone (number, rarity,
+  stats, traits, distance to 100 m) with a checksum against a link cut
+  short; it can be edited by hand, which is acceptable for a game between
+  friends with nothing at stake.
+- **The campaign** (`packages/core/src/campaign.ts`). Chapters are the plan's
+  phases; guardians are each phase's longest long run and last quality
+  session; the race closes the last chapter. Only a way of reading the plan.
+
+Still out: printed cards, seasonal sets, ride sets, an inbox of duels.
