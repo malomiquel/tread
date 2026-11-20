@@ -45,8 +45,15 @@ const strings = defineStrings({
     allCardsDetail: (rare: number) => (rare > 0 ? `${plural(rare, "carte rare", "cartes rares")} et mieux` : "Grandes cartes, séries et règles"),
     card: (label: string) => `Carte : ${label}`,
     progress: "Progression",
-    streak: "Semaines d'affilée",
-    streakDetail: (best: number, goal: boolean) => `${goal ? "Objectif tenu" : "Au moins une course"} · record ${best}`,
+    streakGoal: "Semaines d'affilée à l'objectif",
+    streakActive: "Semaines d'affilée avec une course",
+    streakHeld: (goal: string) => `Objectif de ${goal} tenu cette semaine`,
+    streakToKeep: (left: string) => `Encore ${left} cette semaine pour la prolonger`,
+    streakToStart: (left: string) => `Encore ${left} cette semaine pour la lancer`,
+    streakRan: "Une course cette semaine, la série continue",
+    streakRun: "Une course cette semaine suffit à la prolonger",
+    streakRecord: (best: number) => ` · record ${best}`,
+    weekUnit: (n: number): string => (n > 1 ? "semaines" : "semaine"),
     weeks: (n: number) => plural(n, "semaine", "semaines"),
     year: (year: number) => `Depuis le 1er janvier ${year}`,
     yearDetail: (last: string) => `L'an dernier à la même date : ${last} ${distanceUnit()}`,
@@ -86,8 +93,15 @@ const strings = defineStrings({
     allCardsDetail: (rare: number) => (rare > 0 ? `${plural(rare, "rare card", "rare cards")} and better` : "Great cards, sets and rules"),
     card: (label: string) => `Card: ${label}`,
     progress: "Progress",
-    streak: "Weeks in a row",
-    streakDetail: (best: number, goal: boolean) => `${goal ? "Goal met" : "At least one run"} · best ${best}`,
+    streakGoal: "Weeks in a row on goal",
+    streakActive: "Weeks in a row with a run",
+    streakHeld: (goal: string) => `${goal} goal met this week`,
+    streakToKeep: (left: string) => `${left} more this week to keep it going`,
+    streakToStart: (left: string) => `${left} more this week to start one`,
+    streakRan: "A run this week, the streak goes on",
+    streakRun: "One run this week keeps it going",
+    streakRecord: (best: number) => ` · best ${best}`,
+    weekUnit: (n: number) => (n === 1 ? "week" : "weeks"),
     weeks: (n: number) => plural(n, "week", "weeks"),
     year: (year: number) => `Since 1 January ${year}`,
     yearDetail: (last: string) => `Last year by this date: ${last} ${distanceUnit()}`,
@@ -142,6 +156,14 @@ export function ProfileScreen({ name, outings, cardOutings, shoes, settings }: {
   const covered = goal ? measure(goal.kind, { distanceM: week.distanceM, durationS: week.durationS, climbM: week.climbM }) : 0;
   const progress = goal ? goalProgress(covered, goal.target) : null;
   const streak = weekStreak(runs, goal, now);
+  // What the streak hangs on this week, in words: the goal met, or what is
+  // left to meet it; and the best there has been, once there is one.
+  const streakNow = goal && progress
+    ? progress.reached
+      ? s.streakHeld(goalAmount(goal.kind, goal.target))
+      : (streak.current > 0 ? s.streakToKeep : s.streakToStart)(goalAmount(goal.kind, goal.target - covered))
+    : week.runs > 0 ? s.streakRan : s.streakRun;
+  const streakLine = `${streakNow}${streak.best > streak.current ? s.streakRecord(streak.best) : ""}`;
   const ytd = yearToDate(runs, now);
   const habit = weeklyVolumeKm(runs, now);
 
@@ -202,7 +224,13 @@ export function ProfileScreen({ name, outings, cardOutings, shoes, settings }: {
             <section>
               <SectionHeader title={s.progress} />
               <div className="panel">
-                <RecordRow icon={<IoFlameOutline size={19} />} name={s.streak} detail={s.streakDetail(streak.best, streak.kind === "goal")} value={String(streak.current)} />
+                <RecordRow
+                  icon={<IoFlameOutline size={19} />}
+                  name={goal ? s.streakGoal : s.streakActive}
+                  detail={streakLine}
+                  value={String(streak.current)}
+                  unit={s.weekUnit(streak.current)}
+                />
                 <RecordRow icon={<IoCalendarClearOutline size={19} />} name={s.year(ytd.year)} detail={s.yearDetail(formatDistance(ytd.lastYear.distanceM))} value={formatDistance(ytd.thisYear.distanceM)} unit={distanceUnit()} />
                 {habit !== null ? <RecordRow icon={<IoTrendingUpOutline size={19} />} name={s.habit} detail={s.habitDetail} value={formatDistance(habit * 1000)} unit={distanceUnit()} /> : null}
               </div>
