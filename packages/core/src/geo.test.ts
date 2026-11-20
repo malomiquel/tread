@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  bounds, currentPace, distanceM, elevationGainM, fastestKmS, isAcceptable,
+  bounds, currentPace, distanceM, effortKm, elevationChangeM, elevationGainM, fastestKmS, isAcceptable,
   paceSecPerKm, regionAround, splits, totalDistanceM, type TrackPoint, elevationProfile,
   ABSURD_SPEED_MS, fitRegion, projectPoint, topSpeedMs } from "./geo.ts";
 
@@ -332,4 +332,26 @@ test("top speed: held over the window, not a single jump", () => {
 test("top speed: none for a track shorter than the window", () => {
   assert.equal(topSpeedMs(straightLine(5, 1, 8)), null);
   assert.equal(topSpeedMs([]), null);
+});
+
+test("elevation: a descent is counted as loss, a climb as gain", () => {
+  const up = Array.from({ length: 51 }, (_, i) =>
+    at(i * 1000, 48 + i * 3 * DEG_PER_M, 2, { alt: 100 + i }));
+  const down = Array.from({ length: 51 }, (_, i) =>
+    at((51 + i) * 1000, 48 + (51 + i) * 3 * DEG_PER_M, 2, { alt: 150 - i }));
+  const { gainM, lossM } = elevationChangeM([...up, ...down]);
+  assert.ok(gainM > 40 && gainM < 55, `gain ${gainM}, expected around 50`);
+  assert.ok(lossM > 40 && lossM < 55, `loss ${lossM}, expected around 50`);
+  assert.equal(elevationGainM([...up, ...down]), gainM, "the gain is the same figure either way");
+});
+
+test("elevation: jitter standing still is neither gain nor loss", () => {
+  const points = Array.from({ length: 60 }, (_, i) =>
+    at(i * 1000, 48 + i * 3 * DEG_PER_M, 2, { alt: 100 + (i % 2 ? 2 : -2) }));
+  assert.deepEqual(elevationChangeM(points), { gainM: 0, lossM: 0 });
+});
+
+test("effort kilometres add one kilometre per hundred metres climbed", () => {
+  assert.equal(effortKm(20_000, 1_000), 30);
+  assert.equal(effortKm(10_000, 0), 10);
 });

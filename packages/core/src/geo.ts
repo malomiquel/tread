@@ -246,7 +246,23 @@ export function splits(points: TrackPoint[], unitM = 1000): Split[] {
  * be far worse than missing a few metres of a genuine climb.
  */
 export function elevationGainM(points: TrackPoint[], thresholdM = 4, window = 5): number {
-  let total = 0;
+  return elevationChangeM(points, thresholdM, window).gainM;
+}
+
+/**
+ * Cumulative elevation gain and loss in metres, read the same careful way.
+ *
+ * The loss (D−) is what a trail runner's legs pay for on the way down, and
+ * on a loop it is close to the gain: worth saying, since a descent of a
+ * thousand metres is a different day from a flat one of the same length.
+ */
+export function elevationChangeM(
+  points: TrackPoint[],
+  thresholdM = 4,
+  window = 5,
+): { gainM: number; lossM: number } {
+  let gainM = 0;
+  let lossM = 0;
   for (const segment of segments(points)) {
     const altitudes = segment.map((p) => p.alt).filter((a): a is number => a !== null);
     if (altitudes.length < 2) continue;
@@ -263,15 +279,23 @@ export function elevationGainM(points: TrackPoint[], thresholdM = 4, window = 5)
     for (const altitude of smoothed) {
       const delta = altitude - reference;
       if (delta >= thresholdM) {
-        total += delta;
+        gainM += delta;
         reference = altitude;
       } else if (delta <= -thresholdM) {
+        lossM -= delta;
         reference = altitude;
       }
     }
   }
-  return total;
+  return { gainM, lossM };
 }
+
+/**
+ * Effort kilometres: the distance plus one kilometre for every hundred
+ * metres climbed, the measure trail races are rated by (ITRA). It lets a
+ * 20 km with 1 000 m of climb read as the 30 km of effort it is.
+ */
+export const effortKm = (distanceM: number, gainM: number): number => distanceM / 1000 + gainM / 100;
 
 /** An altitude reading against how far into the run it was taken. */
 export interface ElevationPoint {

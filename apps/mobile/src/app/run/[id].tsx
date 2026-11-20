@@ -31,7 +31,7 @@ import { autoRouteName, routeFromLine, runLine } from "@tread/core/route";
 import {
   autoName, formatDate, formatDistance, formatDuration, formatElevation, formatEnergy, formatPace, formatSpeed,
 } from "@tread/core/format";
-import { elevationProfile, splits, topSpeedMs, type TrackPoint } from "@tread/core/geo";
+import { effortKm, elevationChangeM, elevationProfile, splits, topSpeedMs, type TrackPoint } from "@tread/core/geo";
 import { gradeAdjustedPace } from "@tread/core/gradePace";
 import { lapsOf, type Lap } from "@tread/core/laps";
 import { findSession } from "@/lib/sessionLibrary";
@@ -84,6 +84,8 @@ const runStrings = defineStrings({
     avgPace: "Allure moyenne",
     gradePace: "Allure ajustée pente",
     elevationGain: "Dénivelé positif",
+    elevationLoss: "Dénivelé négatif",
+    effortKm: "Km-effort",
     bestSplit: (unit: string): string => (unit === "km" ? "Meilleur km" : "Meilleur mile"),
     avgSpeed: "Vitesse moyenne",
     topSpeed: "Vitesse max",
@@ -175,6 +177,8 @@ const runStrings = defineStrings({
     avgPace: "Average pace",
     gradePace: "Grade-adjusted pace",
     elevationGain: "Elevation gain",
+    elevationLoss: "Elevation loss",
+    effortKm: "Effort km",
     bestSplit: (unit: string): string => (unit === "km" ? "Best km" : "Best mile"),
     avgSpeed: "Average speed",
     topSpeed: "Top speed",
@@ -500,6 +504,13 @@ export default function RunDetailScreen() {
   // Only where the hills made a difference worth reading: on the flat it is
   // the pace again, and a second figure saying the same thing is noise.
   const gradePace = (run.elevationGainM ?? 0) >= 20 ? gradeAdjustedPace(points, run.durationS) : null;
+  // What a hilly run asks of the legs: the way down as well as the way up,
+  // and the distance the climb is worth (a kilometre per 100 m, as trail
+  // races are rated). Read from the track, so only where there is one and
+  // the hills were real.
+  const hilly = !riding && (run.elevationGainM ?? 0) >= 20 && points.length > 1;
+  const descentM = hilly ? elevationChangeM(points).lossM : null;
+  const effort = hilly ? effortKm(run.distanceM, run.elevationGainM ?? 0) : null;
   const showGradePace = !riding && gradePace !== null && run.avgPaceSKm !== null && Math.abs(gradePace - run.avgPaceSKm) >= 3;
   // Only worth pointing out among two full laps or more.
   const fullLaps = laps.filter((lap) => !lap.partial && lap.paceSKm !== null);
@@ -848,6 +859,13 @@ export default function RunDetailScreen() {
             ) : null}
           </View>
         )}
+        {descentM !== null && effort !== null ? (
+          <View style={styles.row}>
+            <Metric label={s.elevationLoss} value={formatElevation(descentM)} unit={elevationUnit()} />
+            {/* Kilometres on purpose: effort km are a rating, like a race's name. */}
+            <Metric label={s.effortKm} value={decimal(effort.toFixed(1))} unit="km" />
+          </View>
+        ) : null}
         {/* A ride already leads with its speed; a run gives it here, beside its pace. */}
         {!riding || energyKcal !== null ? (
           <View style={styles.row}>

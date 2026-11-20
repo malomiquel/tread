@@ -5,10 +5,10 @@ import { IoChevronBack } from "react-icons/io5";
 import { activityName, sportOf } from "@tread/core/activity";
 import { paceSeries } from "@tread/core/charts";
 import { formatDistance, formatDuration, formatElevation, formatPace, formatSpeed } from "@tread/core/format";
-import { elevationProfile, splits } from "@tread/core/geo";
+import { effortKm, elevationChangeM, elevationProfile, splits } from "@tread/core/geo";
 import { gradeAdjustedPace } from "@tread/core/gradePace";
 import { formatBpm, zoneName } from "@tread/core/heart";
-import { defineStrings, intlLocale, useStrings } from "@tread/core/i18n";
+import { decimal, defineStrings, intlLocale, useStrings } from "@tread/core/i18n";
 import { lapsOf } from "@tread/core/laps";
 import { exertionName, kindName, sessionKind } from "@tread/core/plan";
 import { distanceUnit, elevationUnit, paceUnit, speedUnit, toElevationUnits, unitLengthM } from "@tread/core/units";
@@ -30,6 +30,8 @@ const strings = defineStrings({
     pace: "Allure",
     speed: "Vitesse",
     climb: "Dénivelé +",
+    descent: "Dénivelé −",
+    effortKm: "Km-effort",
     gap: "Allure ajustée",
     splits: "Kilomètre par kilomètre",
     splitsMiles: "Mile par mile",
@@ -63,6 +65,8 @@ const strings = defineStrings({
     pace: "Pace",
     speed: "Speed",
     climb: "Climb",
+    descent: "Descent",
+    effortKm: "Effort km",
     gap: "Grade-adjusted",
     splits: "Kilometre by kilometre",
     splitsMiles: "Mile by mile",
@@ -109,12 +113,21 @@ export function OutingScreen({ outing }: { outing: OutingDetail }) {
   const hasTrack = points.length > 1;
 
   const graded = running && hasTrack ? gradeAdjustedPace(points, outing.durationS) : null;
+  // As on the phone: the way down and the climb's worth in distance, where the hills were real.
+  const hilly = running && hasTrack && (outing.elevationGainM ?? 0) >= 20;
+  const hillFigures = hilly
+    ? [
+      { label: s.descent, value: formatElevation(elevationChangeM(points).lossM), unit: elevationUnit() },
+      { label: s.effortKm, value: decimal(effortKm(outing.distanceM, outing.elevationGainM ?? 0).toFixed(1)), unit: "km" },
+    ]
+    : [];
   const figures = [
     { label: s.time, value: formatDuration(outing.durationS) },
     riding
       ? { label: s.speed, value: formatSpeed(outing.durationS > 0 ? outing.distanceM / outing.durationS : 0), unit: speedUnit() }
       : { label: s.pace, value: formatPace(outing.avgPaceSKm), unit: paceUnit() },
     { label: s.climb, value: formatElevation(outing.elevationGainM ?? 0), unit: elevationUnit() },
+    ...hillFigures,
     ...(graded && outing.avgPaceSKm && Math.abs(graded - outing.avgPaceSKm) >= 3
       ? [{ label: s.gap, value: formatPace(graded), unit: paceUnit() }]
       : []),
