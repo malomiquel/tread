@@ -408,6 +408,7 @@ again wherever cards are shown.
   the great cards in a row, the rarest in a row, every card in a grid of
   three with rarity chips, then the sets. A card opens on the stage face up,
   to hold and tilt, share, or open its run.
+- **The rules** (`/card-rules`), linked from the top of the Collection: rarity and its points, every trait with what earns it and its worth, the four stats, the great cards. The points and thresholds are read from `@tread/core/card`, never written into the page.
 - **History** says a rare or exceptional card in the row, in words, as a
   chip: tinted for rare, filled for exceptional.
 - **Duels** (`/duel`, `@tread/core/duel`): five cards, 12 points at most

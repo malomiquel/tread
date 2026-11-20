@@ -14,7 +14,7 @@ import { cardWords, filledCount, isComplete, RARITIES, slotName, type Card, type
 import { DECK_SIZE, deckCost, playable } from "@tread/core/duel";
 import { autoName, formatDate, formatDuration } from "@tread/core/format";
 import { defineStrings, plural, useStrings } from "@tread/core/i18n";
-import { metaWords, type MetaCard } from "@tread/core/metaCard";
+import type { MetaCard } from "@tread/core/metaCard";
 import { unseenCards, useAlbum } from "@/lib/album";
 import { cardHref } from "@/lib/cardStage";
 import type { Run } from "@/lib/db";
@@ -27,7 +27,8 @@ const pageStrings = defineStrings({
     nothing: "Ta première course laissera ta première carte.",
     banner: "Ta collection",
     cards: (count: number): string => (count > 1 ? "cartes" : "carte"),
-    explained: (kind: string, text: string) => `${kind} : ${text}`,
+    rules: "Comment les cartes sont tirées",
+    rulesDetail: "Rareté, traits et stats",
     rare: "Rares",
     sets: "Séries",
     toTurn: (count: number) => `${plural(count, "carte", "cartes")} à retourner`,
@@ -52,7 +53,8 @@ const pageStrings = defineStrings({
     nothing: "Your first run will leave your first card.",
     banner: "Your collection",
     cards: (count: number) => (count === 1 ? "card" : "cards"),
-    explained: (kind: string, text: string) => `${kind}: ${text}`,
+    rules: "How cards are dealt",
+    rulesDetail: "Rarity, traits and stats",
     rare: "Rare",
     sets: "Sets",
     toTurn: (count: number) => `${plural(count, "card", "cards")} to turn over`,
@@ -89,7 +91,6 @@ const COLUMNS = 3;
 export default function CollectionScreen() {
   const s = useStrings(pageStrings);
   const words = useStrings(cardWords);
-  const meta = useStrings(metaWords);
   const router = useRouter();
   const settings = useSettings();
   const { album, failed, reload } = useAlbum();
@@ -159,6 +160,21 @@ export default function CollectionScreen() {
           <Button label={s.turnAction} onPress={turnOver} />
         </View>
       ) : null}
+
+      {/* Before anything else to read: how the cards below were dealt. */}
+      <View style={styles.rules}>
+        <Panel>
+          <RecordRow
+            first
+            onPanel
+            icon="help-circle-outline"
+            label={s.rules}
+            detail={s.rulesDetail}
+            value=""
+            onPress={() => router.push("/card-rules")}
+          />
+        </Panel>
+      </View>
 
       {total > 0 ? (
         <>
@@ -263,9 +279,6 @@ export default function CollectionScreen() {
               </Panel>
             </View>
           ))}
-          <Text style={styles.footnote}>
-            {(["week", "block", "race"] as const).map((kind) => s.explained(meta.kind[kind], meta.explain[kind])).join("\n")}
-          </Text>
         </>
       ) : null}
     </ScrollView>
@@ -273,6 +286,7 @@ export default function CollectionScreen() {
 }
 
 const styles = StyleSheet.create({
+  rules: { marginTop: 12 },
   screen: { flex: 1, backgroundColor: colors.background },
   content: { paddingTop: 4, paddingBottom: 48 },
   lede: {
@@ -287,9 +301,5 @@ const styles = StyleSheet.create({
   note: {
     color: colors.subtle, fontSize: 14.5, fontFamily: font.regular, lineHeight: 20,
     paddingHorizontal: 20, minHeight: 40,
-  },
-  footnote: {
-    color: colors.subtle, fontSize: 13, fontFamily: font.regular, lineHeight: 19,
-    paddingHorizontal: 20, paddingTop: 20,
   },
 });

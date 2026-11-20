@@ -46,6 +46,7 @@ const layoutStrings = defineStrings({
     duel: "Duel",
     recap: "Récap",
     method: "Méthode",
+    cardRules: "Règles des cartes",
     settings: "Réglages",
     profile: "Profil",
     notifications: "Notifications",
@@ -85,6 +86,7 @@ const layoutStrings = defineStrings({
     duel: "Duel",
     recap: "Recap",
     method: "Method",
+    cardRules: "Card rules",
     settings: "Settings",
     profile: "Profile",
     notifications: "Notifications",
@@ -299,6 +301,7 @@ export default function RootLayout() {
           <Stack.Screen name="duel" options={{ title: s.duel, headerBackTitle: s.back }} />
           <Stack.Screen name="recap" options={{ title: s.recap, headerBackTitle: s.back }} />
           <Stack.Screen name="plan-method" options={{ title: s.method, headerBackTitle: s.back }} />
+          <Stack.Screen name="card-rules" options={{ title: s.cardRules, headerBackTitle: s.back }} />
           {/* One screen for both: drawing a route and changing one are the same
               act, and the title is set by the screen from what it was given. */}
           <Stack.Screen name="route/[id]" options={{ headerBackTitle: s.back }} />

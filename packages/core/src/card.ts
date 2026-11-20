@@ -74,7 +74,8 @@ export interface Card {
   note: CardNote | null;
 }
 
-const POINTS: Record<Trait, number> = {
+/** What each trait is worth towards a card's rarity. Shown as is on the rules page. */
+export const TRAIT_POINTS: Record<Trait, number> = {
   best: 3, longest: 3, ghost: 2, race: 2, session: 2, patience: 2,
   climb: 1, early: 1, late: 1, rain: 1, snow: 1, wind: 1, cold: 1, anniversary: 1,
 };
@@ -87,14 +88,20 @@ const POINTS: Record<Trait, number> = {
  * for four, not six, so they make a rare card rather than an exceptional one.
  */
 export const cardPoints = (traits: readonly Trait[]): number =>
-  traits.reduce((sum, trait) => sum + POINTS[trait], 0)
-  - (traits.includes("best") && traits.includes("longest") ? 2 : 0);
+  traits.reduce((sum, trait) => sum + TRAIT_POINTS[trait], 0)
+  - (traits.includes("best") && traits.includes("longest") ? OVERLAP_DISCOUNT : 0);
+
+/** The points a card needs for each rarity. Shown as is on the rules page. */
+export const RARITY_FROM: Record<Rarity, number> = { common: 0, notable: 2, rare: 4, exceptional: 6 };
+
+/** Two of the same event, counted once: a record found on the longest run. */
+export const OVERLAP_DISCOUNT = 2;
 
 export function rarityOf(traits: readonly Trait[]): Rarity {
   const points = cardPoints(traits);
-  if (points >= 6) return "exceptional";
-  if (points >= 4) return "rare";
-  if (points >= 2) return "notable";
+  if (points >= RARITY_FROM.exceptional) return "exceptional";
+  if (points >= RARITY_FROM.rare) return "rare";
+  if (points >= RARITY_FROM.notable) return "notable";
   return "common";
 }
 
