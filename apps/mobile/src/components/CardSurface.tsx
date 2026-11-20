@@ -56,6 +56,8 @@ const IVORY_SOFT = "#8a8780";
 const IVORY_STRONG = "#5f5c56";
 const NIGHT = "#0b0b0c";
 const MATTE_SILVER = ["#cfcbc2", "#f1eee8", "#b6b1a7", "#e4e1da"] as const;
+const COOL_PAPER = "#f1f4fa";
+const BLUE_STEEL = ["#c9d6f2", "#7f97c9", "#eef3ff", "#6f86b8", "#c9d6f2"] as const;
 const POLISHED_SILVER = ["#eef1f6", "#9aa3b2", "#ffffff", "#8d96a6", "#e6e9ef"] as const;
 const PLATINUM = ["#f4f4f4", "#8f8f8f", "#ffffff", "#b9c8ff", "#7a7a7a", "#ededed"] as const;
 const ON_DARK_SOFT = "rgba(255, 255, 255, 0.66)";
@@ -78,7 +80,12 @@ const night = (glow: readonly [string, string], foil: number, innerFrame: string
 
 const LOOKS: Record<Rarity | "legendary", Look> = {
   common: paper,
-  notable: { ...paper, metal: POLISHED_SILVER, frame: light("text"), frameWidth: 1.5, strong: light("text") },
+  notable: {
+    ...paper,
+    page: COOL_PAPER, metal: BLUE_STEEL, frame: light("accent"), frameWidth: 1.5,
+    glow: ["rgba(111, 168, 255, 0.28)", "rgba(111, 168, 255, 0)"], contour: "rgba(0, 52, 143, 0.1)",
+    innerFrame: "rgba(0, 52, 143, 0.28)", tile: "rgba(0, 52, 143, 0.05)", strong: light("accent"),
+  },
   rare: {
     page: light("stage"), metal: POLISHED_SILVER, frame: light("accent"), frameWidth: 2,
     glow: ["rgba(111, 168, 255, 0.6)", "rgba(111, 168, 255, 0)"], contour: "rgba(255, 255, 255, 0.1)", foil: 0.7,
@@ -145,7 +152,11 @@ export const CardSurface = forwardRef<View, SurfaceProps>(function CardSurface(
         {look.innerFrame ? (
           <View
             pointerEvents="none"
-            style={[styles.inner, { borderRadius: Math.max(radius - edge - 5, 4), borderColor: look.innerFrame }]}
+            style={[
+              styles.inner,
+              edge < 3 && styles.innerSmall,
+              { borderRadius: Math.max(radius - edge - (edge < 3 ? 3 : 5), 4), borderColor: look.innerFrame },
+            ]}
           />
         ) : null}
       </View>
@@ -297,6 +308,7 @@ const styles = StyleSheet.create({
   surface: { overflow: "hidden" },
   ground: { flex: 1, overflow: "hidden" },
   inner: { position: "absolute", top: 5, left: 5, right: 5, bottom: 5, borderWidth: 1 },
+  innerSmall: { top: 3, left: 3, right: 3, bottom: 3, borderWidth: StyleSheet.hairlineWidth },
   metal: { position: "absolute", top: "-50%", left: "-50%", width: "200%", height: "200%" },
   contours: { position: "absolute", top: -12, left: -12, right: -12, bottom: -12 },
   foil: { position: "absolute", top: "-20%", bottom: "-20%", left: "-100%", width: "300%" },
