@@ -183,9 +183,6 @@ export default function CardStage() {
     bottom: Math.max(insets.bottom, window?.bottom ?? 0),
   };
 
-  const tilts = runCard
-    ? runCard.rarity === "rare" || runCard.rarity === "exceptional"
-    : metaCard !== undefined && (metaCard.tier === "legendary" || metaCard.tier === "exceptional" || metaCard.tier === "rare");
   const strong = runCard ? cardPoints(runCard.traits) >= 4 : metaCard !== undefined;
 
   return (
@@ -210,7 +207,7 @@ export default function CardStage() {
             backLabel={s.backFace}
             lines={lines}
           >
-            <TiltCard enabled={tilts}>
+            <TiltCard enabled>
               {runCard && run ? (
                 <RunCard ref={front} card={runCard} run={run} privacyRadiusM={privacyRadiusM} />
               ) : metaCard && album ? (

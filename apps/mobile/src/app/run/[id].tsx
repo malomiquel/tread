@@ -1098,8 +1098,8 @@ export default function RunDetailScreen() {
       {card ? (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{s.card}</Text>
-          {/* A rare card leans with the phone, the finish it earned. */}
-          <TiltCard enabled={card.rarity === "rare" || card.rarity === "exceptional"}>
+          {/* Every card leans with the phone; the rarer ones also catch the light. */}
+          <TiltCard enabled>
             <RunCard ref={runCard} card={card} run={run} privacyRadiusM={privacyRadiusM} />
           </TiltCard>
           {viewShot() ? (

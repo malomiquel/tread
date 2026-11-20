@@ -120,7 +120,8 @@ interface SurfaceProps {
  * What every card is printed on: a metal edge, the ground, the light from
  * the top right, contour lines, and on the rarer cards a holographic sheen
  * that slides with the tilt of the phone, the way a foil card catches the
- * light. Its content is laid on top, the sheen over everything.
+ * light. Held, the light also runs along the edge and the contours drift
+ * under the outline. Its content is laid on top, the sheen over everything.
  */
 export const CardSurface = forwardRef<View, SurfaceProps>(function CardSurface(
   { look, seed, radius = 18, edge = 4, style, children },
@@ -128,7 +129,7 @@ export const CardSurface = forwardRef<View, SurfaceProps>(function CardSurface(
 ) {
   return (
     <View ref={ref} collapsable={false} style={[{ borderRadius: radius, padding: edge }, styles.surface, style]}>
-      <LinearGradient colors={look.metal} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+      <Metal colors={look.metal} />
       <View style={[styles.ground, { borderRadius: radius - edge, backgroundColor: look.page }]}>
         {look.glow ? (
           <LinearGradient
@@ -152,15 +153,54 @@ export const CardSurface = forwardRef<View, SurfaceProps>(function CardSurface(
   );
 });
 
-/** Lines a card is engraved with, like the contours of a map, drawn from its seed. */
+/** The card's tilt, or still values for a card that does not lean. */
+function useLean() {
+  const tilt = useTilt();
+  const zero = useSharedValue(0);
+  return { x: tilt?.x ?? zero, y: tilt?.y ?? zero };
+}
+
+/**
+ * The metal edge: a polished strip twice the card's size, slid with the
+ * tilt, so the light runs along the edge as the card is turned in the hand.
+ * Only its rim shows, the ground covering the rest.
+ */
+function Metal({ colors }: { colors: Look["metal"] }) {
+  const { x, y } = useLean();
+  const slide = useAnimatedStyle(() => ({
+    transform: [{ translateX: x.get() * 70 }, { translateY: -y.get() * 90 }],
+  }));
+  return (
+    <Animated.View pointerEvents="none" style={[styles.metal, slide]}>
+      <LinearGradient
+        colors={[...colors, ...colors.slice(0, -1).reverse()] as unknown as Look["metal"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
+    </Animated.View>
+  );
+}
+
+/**
+ * Lines a card is engraved with, like the contours of a map, drawn from its
+ * seed. They drift a little with the tilt, under the outline that floats
+ * the other way, so the card reads as layered.
+ */
 function Contours({ seed, color }: { seed: number; color: string }) {
   const paths = useMemo(() => contourPaths(seed), [seed]);
+  const { x, y } = useLean();
+  const drift = useAnimatedStyle(() => ({
+    transform: [{ translateX: x.get() * 10 }, { translateY: -y.get() * 10 }],
+  }));
   return (
-    <Svg pointerEvents="none" style={StyleSheet.absoluteFill} viewBox="0 0 300 420" preserveAspectRatio="xMidYMid slice">
-      {paths.map((d, index) => (
-        <Path key={index} d={d} stroke={color} strokeWidth={1.1} fill="none" />
-      ))}
-    </Svg>
+    <Animated.View pointerEvents="none" style={[styles.contours, drift]}>
+      <Svg style={StyleSheet.absoluteFill} viewBox="0 0 300 420" preserveAspectRatio="xMidYMid slice">
+        {paths.map((d, index) => (
+          <Path key={index} d={d} stroke={color} strokeWidth={1.1} fill="none" />
+        ))}
+      </Svg>
+    </Animated.View>
   );
 }
 
@@ -204,10 +244,7 @@ function contourPaths(seed: number): string[] {
  * its width, moved against the tilt. Still on a card that does not tilt.
  */
 function Foil({ strength }: { strength: number }) {
-  const tilt = useTilt();
-  const zero = useSharedValue(0);
-  const x = tilt?.x ?? zero;
-  const y = tilt?.y ?? zero;
+  const { x, y } = useLean();
   const slide = useAnimatedStyle(() => ({
     transform: [{ translateX: -x.get() * 90 }, { translateY: y.get() * 60 }],
   }));
@@ -260,6 +297,8 @@ const styles = StyleSheet.create({
   surface: { overflow: "hidden" },
   ground: { flex: 1, overflow: "hidden" },
   inner: { position: "absolute", top: 5, left: 5, right: 5, bottom: 5, borderWidth: 1 },
+  metal: { position: "absolute", top: "-50%", left: "-50%", width: "200%", height: "200%" },
+  contours: { position: "absolute", top: -12, left: -12, right: -12, bottom: -12 },
   foil: { position: "absolute", top: "-20%", bottom: "-20%", left: "-100%", width: "300%" },
   back: { flex: 1, alignItems: "center", justifyContent: "center", gap: 6 },
   backBrand: { color: light("onStage"), fontSize: 44, fontFamily: font.extrabold, letterSpacing: 6 },

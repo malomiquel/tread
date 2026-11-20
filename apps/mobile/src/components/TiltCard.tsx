@@ -27,7 +27,7 @@ const SETTLE_MS = 480;
 
 interface Props {
   children: ReactNode;
-  /** Off for a card that has earned no finish. */
+  /** Off where the card should stay still. */
   enabled: boolean;
   style?: StyleProp<ViewStyle>;
 }
@@ -35,10 +35,10 @@ interface Props {
 /**
  * A card that leans with the phone.
  *
- * The finish a rare card has earned: held in the hand, it tilts under the
- * light the way a printed card does, and its outline moves above the paper.
- * Driven by gravity on the UI thread, never by the JavaScript one. Still for
- * anyone who asked the phone to reduce motion, and for a plain card.
+ * Held in the hand, a card tilts under the light the way a printed card
+ * does: its outline moves above the paper, its contours and the light on
+ * its edge move under it. Driven by gravity on the UI thread, never by the
+ * JavaScript one. Still for anyone who asked the phone to reduce motion.
  */
 export function TiltCard({ children, enabled, style }: Props) {
   const reduced = useReducedMotion();
