@@ -15,6 +15,7 @@ import { parseHeart, type Heart } from "@tread/core/heart";
 import { parseLaps, type LapMark } from "@tread/core/laps";
 import type { ImportedRun } from "@tread/core/healthImport";
 import { forgetPhotos, parsePhotos } from "./photos";
+import { pictureUri } from "./picture";
 import type { EditedRun } from "@tread/core/runEdit";
 import type { Shoe } from "@tread/core/shoes";
 import { parseRoute, routeDistanceM, type Route, type RoutePoint, type StoredRoute } from "@tread/core/route";
@@ -1044,7 +1045,7 @@ const toRoute = (row: RouteRow): StoredRoute => ({
   createdAt: row.created_at,
   distanceM: row.distance_m,
   place: row.place,
-  preview: row.preview,
+  preview: pictureUri(row.preview),
   ...parseRoute(row.waypoints, row.legs),
 });
 
@@ -1311,7 +1312,7 @@ export async function mergeAccountRoutes(
     // A new shape makes the old picture wrong; a new name alone does not.
     await updateRoute(local.id, route.name, shape, {
       place: route.place,
-      preview: sameShape ? local.preview : null,
+      preview: sameShape ? pictureUri(local.preview) : null,
     });
     changed += 1;
   }
@@ -1342,8 +1343,10 @@ export async function deleteRoute(id: number): Promise<void> {
  * that can happen here is one orphaned picture; the worst the other way round
  * is a route nobody can get rid of.
  */
-function forgetPicture(uri: string): void {
+function forgetPicture(stored: string): void {
   try {
+    const uri = pictureUri(stored);
+    if (!uri) return;
     const file = new File(uri);
     if (file.exists) file.delete();
   } catch {

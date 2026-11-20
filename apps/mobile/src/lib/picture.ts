@@ -26,3 +26,23 @@ export function keepPicture(from: string): string {
   file.move(kept);
   return kept.uri;
 }
+
+/**
+ * Where a kept route picture is now, or null when it is gone.
+ *
+ * iOS moves the app's folder on every install and update, so a full path
+ * written down yesterday points nowhere today. Only the file's name is
+ * trusted, read against wherever the documents directory is now; a picture
+ * that is really gone gives null, and the route is photographed again.
+ */
+export function pictureUri(stored: string | null): string | null {
+  if (!stored) return null;
+  const name = stored.split("/").pop();
+  if (!name) return null;
+  try {
+    const file = new File(new Directory(Paths.document, "routes"), name);
+    return file.exists ? file.uri : null;
+  } catch {
+    return null;
+  }
+}
