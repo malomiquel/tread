@@ -6,7 +6,7 @@ import { Platform } from "react-native";
 import { autoName } from "@tread/core/format";
 import { elevationGainM, fastestKmS, paceSecPerKm, segments, totalDistanceM, type TrackPoint } from "@tread/core/geo";
 import {
-  normaliseDays, type Done, type Exertion, type Goal, type PerWeek, type PlannedSession,
+  normaliseDays, type Done, type Exertion, type PerWeek, type PlanGoal, type PlannedSession,
 } from "@tread/core/plan";
 import { ofSport, parseTags, readActivity, type ActivityType, type RunTag, type Sport } from "@tread/core/activity";
 import { parseGroups, type CustomSession, type DraftGroup } from "@tread/core/customSession";
@@ -1600,7 +1600,7 @@ async function recoverInterruptedRuns(): Promise<void> {
 /** A programme as it was generated, with the race it is aimed at. */
 export interface StoredPlan {
   id: number;
-  goal: Goal;
+  goal: PlanGoal;
   raceAt: number;
   weeks: number;
   perWeek: PerWeek;
@@ -1649,7 +1649,7 @@ export async function activePlan(): Promise<StoredPlan | null> {
   const perWeek = ([1, 2, 3, 4] as const).find((n) => n === row.per_week) ?? 3;
   return {
     id: row.id,
-    goal: row.goal as Goal,
+    goal: row.goal as PlanGoal,
     raceAt: row.race_at,
     weeks: row.weeks,
     perWeek,
@@ -1663,7 +1663,7 @@ export async function activePlan(): Promise<StoredPlan | null> {
 }
 
 export interface NewPlan {
-  goal: Goal;
+  goal: PlanGoal;
   raceAt: number;
   weeks: number;
   perWeek: PerWeek;

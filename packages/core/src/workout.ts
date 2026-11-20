@@ -1,4 +1,7 @@
+import { formatElevation } from "./format.ts";
+import { zoneName } from "./heart.ts";
 import { decimal, defineStrings } from "./i18n.ts";
+import { distanceUnit, elevationUnit, toDistanceUnits } from "./units.ts";
 
 /** Structured sessions: what to run, and for how long, announced as you go. */
 
@@ -17,7 +20,28 @@ export interface Step {
   effort: Effort;
   metres?: number;
   seconds?: number;
+  /**
+   * The ground the block is run on, for a trail session. Absent on the road,
+   * where the ground is flat and says nothing.
+   */
+  terrain?: Terrain;
+  /**
+   * How hard the block should feel, on Borg's 0 to 10 scale (CR10), for a
+   * session run by effort rather than by pace. Absent on a paced session.
+   *
+   * A trail session cannot be held to a pace: the same effort is 4'30" on
+   * the flat and 15'00" up a 20 % slope, so a pace target would be wrong on
+   * every metre of the run. Effort is what a trail coach prescribes, and
+   * what a heart-rate zone measures for a runner with a watch.
+   */
+  rpe?: number;
 }
+
+/**
+ * The ground under a trail block: climbing, descending, or rolling terrain
+ * that does a bit of both, as a long run in the hills does.
+ */
+export type Terrain = "climb" | "descent" | "hills";
 
 export interface Session {
   id: string;
@@ -91,13 +115,81 @@ const effortNames = defineStrings<Record<Effort, string>>({
 
 export const effortName = (effort: Effort): string => effortNames()[effort];
 
+const terrainNames = defineStrings<Record<Terrain, string>>({
+  fr: { climb: "en montée", descent: "en descente", hills: "sur terrain vallonné" },
+  en: { climb: "uphill", descent: "downhill", hills: "on hills" },
+});
+
 export function stepLabel(step: Step): string {
   const measure = step.metres !== undefined
     ? step.metres >= 1000
       ? `${decimal((step.metres / 1000).toString())} km`
       : `${step.metres} m`
     : secondsName(step.seconds ?? 0);
-  return `${measure} ${effortName(step.effort)}`;
+  const ground = step.terrain ? ` ${terrainNames()[step.terrain]}` : "";
+  return `${measure} ${effortName(step.effort)}${ground}`;
+}
+
+const rpeWords = defineStrings({
+  fr: {
+    rpe: (rpe: number) => `effort ${rpe}/10`,
+    zone: (zone: number, name: string) => `Z${zone + 1} ${name}`,
+  },
+  en: {
+    rpe: (rpe: number) => `effort ${rpe}/10`,
+    zone: (zone: number, name: string) => `Z${zone + 1} ${name}`,
+  },
+});
+
+/** "effort 7/10" — displayed. */
+export const rpeName = (rpe: number): string => rpeWords().rpe(rpe);
+
+/**
+ * The heart-rate zone an effort corresponds to, from 0 for the easiest.
+ *
+ * CHOSEN, after the usual reading of Borg's CR10 against a five-zone split:
+ * up to 2 is recovery, 3 and 4 the endurance a long run is spent in, 5 and 6
+ * tempo, 7 and 8 threshold, 9 and 10 the top. Approximate in both directions
+ * — heart rate lags a short climb and drifts up through a long day — which
+ * is why the effort is the target and the zone only a cross-check.
+ */
+export function rpeZone(rpe: number): number {
+  if (rpe <= 2) return 0;
+  if (rpe <= 4) return 1;
+  if (rpe <= 6) return 2;
+  if (rpe <= 8) return 3;
+  return 4;
+}
+
+/** "effort 7/10 · Z4 Threshold" — displayed. */
+export function rpeWithZone(rpe: number): string {
+  const zone = rpeZone(rpe);
+  return `${rpeName(rpe)} · ${rpeWords().zone(zone, zoneName(zone))}`;
+}
+
+/**
+ * True for a session run by effort and time rather than by pace: a trail
+ * session, or a trail race. No pace verdict is ever given on one.
+ */
+export function isEffortSession(session: Session | null): boolean {
+  if (!session) return false;
+  const id = session.id.replace(/-eased$/, "");
+  return id.startsWith("trail-") || id.startsWith("race-trail");
+}
+
+/**
+ * How hard a session's work should feel: the highest effort of the blocks
+ * that are the point of it, warm-up, cool-down and recoveries aside. Null
+ * for a session that carries no effort.
+ */
+export function sessionEffort(session: Session): number | null {
+  let highest: number | null = null;
+  for (const step of session.steps) {
+    if (step.rpe === undefined) continue;
+    if (step.effort === "warmup" || step.effort === "cooldown" || step.effort === "recovery") continue;
+    highest = Math.max(highest ?? 0, step.rpe);
+  }
+  return highest;
 }
 
 /**
@@ -251,7 +343,8 @@ export interface StepGroup {
 }
 
 const sameStep = (a: Step, b: Step): boolean =>
-  a.effort === b.effort && a.metres === b.metres && a.seconds === b.seconds;
+  a.effort === b.effort && a.metres === b.metres && a.seconds === b.seconds
+  && a.terrain === b.terrain && a.rpe === b.rpe;
 
 /**
  * Fold a session's blocks into the shape a runner thinks in.
@@ -384,7 +477,15 @@ const sessionWords = defineStrings({
     runWalk: (times: number, run: string) => `Course-marche ${times} × ${run}`,
     pyramid: "Pyramide 1-2-3-2-1",
     vmaTest: "Test VMA (demi-Cooper)",
-    races: { fiveK: "5 km", tenK: "10 km", half: "Semi-marathon", marathon: "Marathon" },
+    trailEasy: (duration: string) => `Footing trail ${duration}`,
+    trailLong: (duration: string) => `Sortie longue vallonnée ${duration}`,
+    backToBack: (duration: string) => `Enchaînement ${duration}`,
+    hills: (times: number, duration: string) => `${times} × ${duration} en côte`,
+    climb: (blocks: number, minutes: number) => `${blocks} × ${minutes} min de montée`,
+    hike: (blocks: number, minutes: number) => `${blocks} × ${minutes} min de marche en côte`,
+    descent: (times: number, duration: string) => `${times} × ${duration} de descente`,
+    trailRace: (distance: string, gain: string) => `Trail ${distance} · ${gain} D+`,
+    races: { fiveK: "5 km", tenK: "10 km", half: "Semi-marathon", marathon: "Marathon", trail: "Trail" },
   },
   en: {
     easy: (duration: string) => `Easy run ${duration}`,
@@ -393,12 +494,29 @@ const sessionWords = defineStrings({
     runWalk: (times: number, run: string) => `Run-walk ${times} × ${run}`,
     pyramid: "Pyramid 1-2-3-2-1",
     vmaTest: "VMA test (half-Cooper)",
-    races: { fiveK: "5 km", tenK: "10 km", half: "Half marathon", marathon: "Marathon" },
+    trailEasy: (duration: string) => `Easy trail run ${duration}`,
+    trailLong: (duration: string) => `Hilly long run ${duration}`,
+    backToBack: (duration: string) => `Back-to-back ${duration}`,
+    hills: (times: number, duration: string) => `${times} × ${duration} hill repeats`,
+    climb: (blocks: number, minutes: number) => `${blocks} × ${minutes} min uphill tempo`,
+    hike: (blocks: number, minutes: number) => `${blocks} × ${minutes} min power hiking`,
+    descent: (times: number, duration: string) => `${times} × ${duration} downhill`,
+    trailRace: (distance: string, gain: string) => `Trail ${distance} · ${gain} gain`,
+    races: { fiveK: "5 km", tenK: "10 km", half: "Half marathon", marathon: "Marathon", trail: "Trail" },
   },
 });
 
 const adviceWords = defineStrings({
   fr: {
+    climbGain: (gain: string) => `Cherche du relief : vise environ ${gain} de D+ sur la sortie.`,
+    flatland: "Pas de relief près de chez toi ? Des escaliers, un parking à étages ou un tapis incliné font l'affaire.",
+    longRun: "Cours à l'effort, pas à l'allure : marche dans les montées raides, mange et bois dès la première heure, comme le jour J.",
+    backToBack: "Sur les jambes de la veille : c'est le but. Pars lentement, marche les montées et arrête-toi si une douleur s'installe.",
+    hills: "Monte à fond mais en restant relâché, et redescends en trottinant : la descente est la récupération.",
+    climb: "Un effort que tu pourrais tenir une heure : la respiration forte mais régulière, pas à bout de souffle.",
+    hike: "Pas courts, buste penché, mains sur les cuisses ou bâtons si tu cours avec. Vite, sans courir : c'est ce que tu feras dans les montées raides.",
+    descent: "Regard loin devant, pas courts et rapides, bras écartés pour l'équilibre. Lâche les freins progressivement, séance après séance.",
+    race: "Pars plus lentement que tu ne le voudrais : sur un trail, les heures de la fin se gagnent dans la première.",
     vmaTest: [
       "Sur piste de préférence : le GPS y est plus juste, et les lignes permettent de vérifier la distance.",
       "Pars à une allure que tu penses tenir six minutes, et garde-la jusqu'au bout.",
@@ -407,6 +525,15 @@ const adviceWords = defineStrings({
     ],
   },
   en: {
+    climbGain: (gain: string) => `Look for hills: aim for about ${gain} of climbing on this run.`,
+    flatland: "No hills nearby? Stairs, a multi-storey car park or an inclined treadmill will do.",
+    longRun: "Run by effort, not by pace: walk the steep climbs, and eat and drink from the first hour, as on race day.",
+    backToBack: "On yesterday's legs: that is the point. Start slowly, walk the climbs and stop if a pain sets in.",
+    hills: "Climb hard but stay relaxed, and jog back down: the descent is the recovery.",
+    climb: "An effort you could hold for an hour: breathing hard but steady, not gasping.",
+    hike: "Short steps, chest forward, hands on your thighs or poles if you use them. Fast, without running: it is what you will do on the steep climbs.",
+    descent: "Eyes well ahead, short quick steps, arms out for balance. Let go of the brakes gradually, session after session.",
+    race: "Start slower than you want to: on a trail, the last hours are won in the first one.",
     vmaTest: [
       "On a track if you can: GPS is more accurate there, and the lines let you check the distance.",
       "Start at a pace you think you can hold for six minutes, and keep it to the end.",
@@ -423,7 +550,31 @@ const adviceWords = defineStrings({
  * taken, and six minutes started too fast measures the start.
  */
 export function sessionAdvice(session: Session): readonly string[] {
-  return session.id === "vma-test" ? adviceWords().vmaTest : [];
+  const words = adviceWords();
+  if (session.id === "vma-test") return words.vmaTest;
+  const kind = session.id.replace(/-eased$/, "");
+  if (kind.startsWith("race-trail")) return [words.race];
+  if (kind.startsWith("trail-long-")) {
+    const gain = trailGainOf(kind);
+    return gain > 0
+      ? [words.climbGain(`${formatElevation(gain)} ${elevationUnit()}`), words.longRun, words.flatland]
+      : [words.longRun];
+  }
+  if (kind.startsWith("trail-b2b-")) return [words.backToBack];
+  if (kind.startsWith("trail-hills-")) return [words.hills, words.flatland];
+  if (kind.startsWith("trail-climb-")) return [words.climb, words.flatland];
+  if (kind.startsWith("trail-hike-")) return [words.hike, words.flatland];
+  if (kind.startsWith("trail-descent-")) return [words.descent];
+  return [];
+}
+
+/**
+ * The climbing a trail session's id carries, in metres: the last number of
+ * `trail-long-150-600` or `race-trail-2500`. Zero when it has none.
+ */
+export function trailGainOf(id: string): number {
+  const match = /-(\d+)$/.exec(id.replace(/-eased$/, ""));
+  return match ? Number(match[1]) : 0;
 }
 
 /** The name of a race distance, by the goal id the programme stores. */
@@ -461,6 +612,29 @@ export function sessionName(session: Session): string {
   }
   if ((kind === "threshold" || kind.startsWith("tempo-")) && paced.length > 0) {
     return words.threshold(paced.length, minutesOf(paced[0]));
+  }
+  if (kind.startsWith("trail-")) {
+    const climbs = session.steps.filter((step) => step.terrain === "climb" && step.effort !== "walk");
+    const walks = session.steps.filter((step) => step.terrain === "climb" && step.effort === "walk");
+    const descents = session.steps.filter((step) => step.terrain === "descent" && step.effort === "steady");
+    if (kind.startsWith("trail-easy-") && paced.length > 0) return words.trailEasy(durationName(minutesOf(paced[0])));
+    if (kind.startsWith("trail-long-") && paced.length > 0) return words.trailLong(durationName(minutesOf(paced[0])));
+    if (kind.startsWith("trail-b2b-") && paced.length > 0) return words.backToBack(durationName(minutesOf(paced[0])));
+    if (kind.startsWith("trail-hills-") && climbs.length > 0) {
+      return words.hills(climbs.length, secondsName(climbs[0].seconds ?? 0));
+    }
+    if (kind.startsWith("trail-climb-") && climbs.length > 0) return words.climb(climbs.length, minutesOf(climbs[0]));
+    if (kind.startsWith("trail-hike-") && walks.length > 0) return words.hike(walks.length, minutesOf(walks[0]));
+    if (kind.startsWith("trail-descent-") && descents.length > 0) {
+      return words.descent(descents.length, secondsName(descents[0].seconds ?? 0));
+    }
+  }
+  if (kind.startsWith("race-trail") && session.steps[0]?.metres !== undefined) {
+    return words.trailRace(
+      // Whole units: a race is called "42 km", not "42,0 km".
+      `${Math.round(toDistanceUnits(session.steps[0].metres))} ${distanceUnit()}`,
+      `${formatElevation(trailGainOf(kind))} ${elevationUnit()}`,
+    );
   }
   if (kind.startsWith("race-")) return raceName(kind.slice("race-".length)) ?? session.name;
   return session.name;

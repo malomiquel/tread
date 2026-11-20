@@ -33,7 +33,7 @@ import { paceDrift } from "@tread/core/pace";
 import { getSettings, setSport } from "./settings";
 import { weatherAt, type Weather } from "./weather";
 import {
-  hasSinglePace, isPaced, stepIsDone, stepLabel, type RanBlock, type Session, type Step,
+  hasSinglePace, isEffortSession, isPaced, stepIsDone, stepLabel, type RanBlock, type Session, type Step,
 } from "@tread/core/workout";
 
 export const TASK_NAME = "tread-gps-tracking";
@@ -302,6 +302,10 @@ export function heldPace(
   settingsPaceSKm: number | null,
 ): number | null {
   if (!session) return settingsPaceSKm;
+  // A trail session is run by effort: the same effort is a different pace on
+  // every metre of slope, so no pace is held, the runner's own setting
+  // included, and the voice never calls one too slow on a climb.
+  if (isEffortSession(session)) return null;
   // Only through the blocks a pace is held in. A long run warms up and cools
   // down around its pace, and nobody wants to be told they are running their
   // warm-up too slowly.

@@ -38,7 +38,9 @@ import {
 } from "@/lib/tracker";
 import { formatTemperature, useCurrentWeather, weatherIcon, weatherLine } from "@/lib/weather";
 import { findSession } from "@/lib/sessionLibrary";
-import { isPaced, sessionName, stepLabel, stepRemaining } from "@tread/core/workout";
+import {
+  isPaced, rpeName, rpeWithZone, sessionEffort, sessionName, stepLabel, stepRemaining,
+} from "@tread/core/workout";
 
 const recordStrings = defineStrings({
   fr: {
@@ -572,7 +574,11 @@ export default function RecordScreen() {
   const sessionLine = (() => {
     if (!session) return null;
     if (!recording) {
-      const paceWords = tracker.sessionPaceSKm === null ? "" : ` · ${formatPace(tracker.sessionPaceSKm)}${paceUnit()}`;
+      // A trail session says its effort where a road one says its pace.
+      const effort = sessionEffort(session);
+      const paceWords = tracker.sessionPaceSKm !== null
+        ? ` · ${formatPace(tracker.sessionPaceSKm)}${paceUnit()}`
+        : effort !== null ? ` · ${rpeName(effort)}` : "";
       return `${s.sessionBlocks(sessionName(session), session.steps.length)}${paceWords}`;
     }
     if (!step) return s.sessionDone(sessionName(session));
@@ -585,7 +591,9 @@ export default function RecordScreen() {
       ? `${Math.round(left.metres)} m`
       : formatDuration(Math.ceil(left.seconds ?? 0));
     const blockPace = paceForStep(step, tracker.sessionPaceSKm);
-    const paceWords = blockPace === null ? "" : ` · ${formatPace(blockPace)}${paceUnit()}`;
+    const paceWords = blockPace !== null
+      ? ` · ${formatPace(blockPace)}${paceUnit()}`
+      : step.rpe !== undefined ? ` · ${rpeName(step.rpe)}` : "";
     return `${tracker.stepIndex + 1}/${session.steps.length} · ${stepLabel(step)}${paceWords} · ${remaining}`;
   })();
 
@@ -610,6 +618,7 @@ export default function RecordScreen() {
       next: nextStep ? stepLabel(nextStep) : null,
       easy: !isPaced(step),
       walk: step.effort === "walk",
+      effort: step.rpe !== undefined ? rpeWithZone(step.rpe) : null,
     };
   })();
 

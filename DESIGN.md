@@ -237,6 +237,8 @@ defaults.
 | `LineChart` | A series against distance on a run's page (altitude, pace, heart rate): line over a soft fill, the two extremes named. |
 | `RideDashboard` | The same place on a ride: the speed of the moment large, the average beside its unit, the top speed under it. No verdict and no gauge: a ride has no pace to hold. Paused, a `warning` chip says so in the room kept for it. |
 | `RunDashboard` | The run screen while recording, over the map: a verdict chip (on pace, too slow, too fast, free), the pace of the moment large, the target beside its unit, a gauge read like a speedometer (too slow left, too fast right) whose marker springs around the tolerance band, and the block under way with what is left and what comes next. Off pace, the chip, the marker and the figure turn `warning` together. |
+| `RunDashboard` on a trail session | A trail session is run by effort, not pace: no gauge, no verdict. The chip says the effort of the block under way ("Effort 7/10 · Z4 Threshold") in the calm colour, with `pulse`; the block card keeps its time left. Pause still wins the chip. |
+| `IgnTiles` + `IgnCredit` | The IGN topo map, when chosen in Settings › Maps: a tile layer over the platform map, never instead of it, so a missing tile shows the street map rather than a hole. Outside France it is not drawn, and the credit becomes "IGN map: France only". While IGN is shown, "© IGN" sits bottom-left over every map, riding with the controls. Offline, only tiles on the phone are read. |
 
 ### Home screen
 
@@ -251,6 +253,11 @@ defaults.
   type): the chosen one ticked, a tap chooses and closes.
 - `RunDetails`: on a run's page, what the runner says about it that the phone
   could not measure, as a settings block of rows.
+- `OfflineMapSheet`: keeping a route's IGN map on the phone. Says what it
+  costs before anything is fetched (tiles · about N MB), shows a progress bar
+  and "Stop" while it runs (it carries on if the sheet closes), then "Kept on
+  this phone" with a red "Delete the map" link. Zooms 11–16 for small areas,
+  11–15 otherwise; refused past 3,000 tiles, and outside France.
 
 - **Sheets** (`FeelSheet`, `WeeklyGoalSheet`, `RoutePicker`, `SessionPicker`,
   `SessionDetail`): a centred card, max width 380, over `scrim`. Tapping
@@ -328,6 +335,10 @@ Blocks by subject (Training, While running, App, Data, About). One row = one
 icon, one label, its current value. Explanations go in the block footer, not
 under each row. Rows that lead somewhere have a chevron; rows that are a
 choice have a tick; rows that act have a switch.
+
+Settings › App › Maps holds the map background (Apple or IGN, ticked rows)
+and the offline maps kept, each with its size; deleting one asks through the
+system Alert, as does "Delete everything".
 
 ### The run screen
 
@@ -415,6 +426,8 @@ the button, aligned to its right edge, an icon and a word per row, the
 destructive one last, set apart and in red. Never a row of buttons at the
 foot of the page (four abreast, their words break), never the phone's action
 sheet (it rises far from the finger and reads as a warning).
+A saved route's page follows the same rule: its ⋯ in the header holds
+"Offline map" and, last and in red, "Delete".
 
 ### The welcome
 
@@ -435,6 +448,31 @@ fitness page says so in one line: the plan starts on run-walk, a minute's
 running at a time, with no intervals and no pace. Such sessions show "by
 feel" where others show their pace, and on the run screen a walking block
 reads "Walk" rather than a verdict on the pace.
+
+### Setting up a trail plan
+
+The same shape, with Trail as a sixth answer to "Which race?". A trail is
+described rather than picked: a Course page asks distance and elevation gain
+(steppers), and says what they add up to — "Long trail · 72 effort km",
+distance plus a kilometre per 100 m of gain, ITRA's measure — which sets the
+plan's size and its weeks. The date comes after it. From a long trail on,
+the rhythm proposes Saturday and Sunday so back-to-back weekends fall on
+two days in a row. "Where are you today" asks only the longest run: no
+volume, which only bends road paces. The time page becomes a goal page:
+Finish (default, with the estimated time in one line) or A target time,
+which sizes the long runs and sets no pace. The recap adds a Course row and
+a Goal row, and no paces.
+
+When the long run cannot get near what the race asks, a `warning` line says
+so on the fitness page and the recap. Under half of it, or for a long trail
+from run-walk, or an ultra on one day a week, the line says why and "Create
+the plan" stays disabled.
+
+A trail session reads in effort wherever a road one reads in pace: "effort
+7/10" in plan rows and the next-session card, "effort 7/10 · Z4 Threshold"
+on the session sheet. Slope sessions have their own kinds and icons:
+Hill repeats and Uphill tempo `trending-up`, Power hiking `footsteps`,
+Downhill `trending-down`.
 
 ---
 
@@ -493,6 +531,8 @@ on does nothing and buzzes nothing.
   séance ou un parcours si tu veux", not "Démarrer une course libre".
 - No exclamation marks, no emoji in the interface.
 - Units are metric: km, m, /km, km/h, °.
+- Effort is out of 10 ("effort 7/10"), with the heart-rate zone beside it
+  where there is room. Elevation gain is "D+" in French, "gain" in English.
 
 ---
 

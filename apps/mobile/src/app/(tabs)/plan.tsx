@@ -18,13 +18,13 @@ import {
   activePlan, createPlan, deletePlan, markPlanSessionDone, unmarkPlanSessionDone, planDone, recentExertions,
   type StoredPlan,
 } from "@/lib/db";
-import { formatDuration } from "@tread/core/format";
+import { formatDuration, formatElevation } from "@tread/core/format";
 import { defineStrings, intlLocale, plural, useStrings } from "@tread/core/i18n";
 import { useTabBarSpace } from "@/lib/layout";
 import { useKnownLocation } from "@/lib/location";
 import {
-  buildPlan, daysBetween, goalById, goalName, kindName, nextSession, phaseName, planProgress, ranCount, targetName,
-  schedule,
+  buildPlan, daysBetween, goalById, goalName, kindName, nextSession, phaseName, planProgress, ranCount,
+  schedule, sessionTargetName, trailOfPlan,
   easeFactor, startOfDay, type Done, type Exertion, type ScheduledSession,
 } from "@tread/core/plan";
 import { refreshReminders } from "@/lib/planReminders";
@@ -35,6 +35,7 @@ import { chooseSession } from "@/lib/tracker";
 import {
   forecastBrief, forecastLine, forecastOn, useForecasts, weatherIcon, type Forecast,
 } from "@/lib/weather";
+import { distanceUnit, elevationUnit, toDistanceUnits } from "@tread/core/units";
 import { eased, sessionMinutes, sessionName } from "@tread/core/workout";
 
 /** Displayed, indexed by `Date.getDay`. */
@@ -60,7 +61,7 @@ const planStrings = defineStrings({
     runNowDetail: "Une sortie libre, avec une séance ou un parcours si tu veux.",
     prepareRace: "Préparer une course",
     prepareRaceDetail:
-      "Du 5 km au marathon, des séances jusqu'au jour J.",
+      "Du 5 km à l'ultra-trail, des séances jusqu'au jour J.",
     startNote: "Avec ou sans programme, le bouton ▶ au centre de la barre lance une course à tout moment.",
     abandonTitle: "Abandonner le programme ?",
     abandonBody: "Les courses déjà faites restent dans ton historique. Seul le programme disparaît.",
@@ -73,6 +74,11 @@ const planStrings = defineStrings({
       `${date} · ${daysLeft > 0
         ? `dans ${plural(daysLeft, "jour", "jours")}`
         : daysLeft === 0 ? "c'est aujourd'hui" : `il y a ${plural(-daysLeft, "jour", "jours")}`} · ${target} visé`,
+    trailTitle: (distance: string) => `Trail ${distance}`,
+    trailLine: (date: string, daysLeft: number, climb: string, target: string | null) =>
+      `${date} · ${daysLeft > 0
+        ? `dans ${plural(daysLeft, "jour", "jours")}`
+        : daysLeft === 0 ? "c'est aujourd'hui" : `il y a ${plural(-daysLeft, "jour", "jours")}`} · ${climb} D+ · ${target === null ? "objectif : finir" : `${target} visé`}`,
     progress: (ran: number, total: number, skipped: number) =>
       `${plural(ran, "séance", "séances")} sur ${total}`
       + (skipped > 0 ? ` · ${plural(skipped, "passée", "passées")}` : ""),
@@ -96,7 +102,7 @@ const planStrings = defineStrings({
     runNowDetail: "A free run, with a session or a route if you like.",
     prepareRace: "Train for a race",
     prepareRaceDetail:
-      "From 5K to marathon, sessions all the way to race day.",
+      "From 5K to ultra trail, sessions all the way to race day.",
     startNote: "With or without a plan, the ▶ button in the middle of the bar starts a run at any time.",
     abandonTitle: "Abandon the training plan?",
     abandonBody: "Runs you have already done stay in your history. Only the plan goes away.",
@@ -109,6 +115,11 @@ const planStrings = defineStrings({
       `${date} · ${daysLeft > 0
         ? `in ${plural(daysLeft, "day", "days")}`
         : daysLeft === 0 ? "it's today" : `${plural(-daysLeft, "day", "days")} ago`} · aiming for ${target}`,
+    trailTitle: (distance: string) => `Trail ${distance}`,
+    trailLine: (date: string, daysLeft: number, climb: string, target: string | null) =>
+      `${date} · ${daysLeft > 0
+        ? `in ${plural(daysLeft, "day", "days")}`
+        : daysLeft === 0 ? "it's today" : `${plural(-daysLeft, "day", "days")} ago`} · ${climb} gain · ${target === null ? "aiming to finish" : `aiming for ${target}`}`,
     progress: (ran: number, total: number, skipped: number) =>
       `${ran} of ${total} ${total === 1 ? "session" : "sessions"}`
       + (skipped > 0 ? ` · ${skipped} skipped` : ""),
@@ -141,6 +152,10 @@ const ICONS: Record<string, React.ComponentProps<typeof Ionicons>["name"]> = {
   interval: "flash",
   tempo: "speedometer",
   race: "flag",
+  hills: "trending-up",
+  climb: "trending-up",
+  hike: "footsteps",
+  downhill: "trending-down",
 };
 
 /**
@@ -200,7 +215,7 @@ function SessionRow({
           {name}
         </Text>
         <Text style={styles.rowDetail}>
-          {skipped ? s.skipped : kindName(entry.kind)} · {minutes} min · {targetName(entry.targetSKm)}
+          {skipped ? s.skipped : kindName(entry.kind)} · {minutes} min · {sessionTargetName(entry.session, entry.targetSKm)}
         </Text>
       </View>
       {/* The day and its weather in one column, because the weather belongs
@@ -462,6 +477,8 @@ export default function PlanScreen() {
   }
 
   const goal = goalById(plan.goal);
+  // A trail programme's course is read back from its race session.
+  const trail = plan.goal === "trail" ? trailOfPlan(plan.sessions) : null;
   const factor = easeFactor(recent);
   // Applied on the way out, never written back. The stored plan stays the
   // intention it was; what changes is what is asked of you this week, which
@@ -489,7 +506,11 @@ export default function PlanScreen() {
       <View style={styles.fill}>
         <ScrollView ref={page} contentContainerStyle={[styles.content, { paddingBottom: tabBarSpace }]}>
           <View style={styles.head}>
-            <Text style={styles.title}>{goal ? goalName(goal.id) : s.programme}</Text>
+            <Text style={styles.title}>
+              {trail
+                ? s.trailTitle(`${Math.round(toDistanceUnits(trail.distanceM))} ${distanceUnit()}`)
+                : goal ? goalName(goal.id) : s.programme}
+            </Text>
             {/* The reasoning behind the plan, one tap from the plan itself.
                 Someone told what to run for three months is owed the why —
                 including which parts of it are only my judgement. */}
@@ -501,7 +522,12 @@ export default function PlanScreen() {
             />
           </View>
           <Text style={styles.lede}>
-            {s.raceLine(dateName(plan.raceAt), daysLeft, formatDuration(plan.targetTimeS))}
+            {trail
+              ? s.trailLine(
+                dateName(plan.raceAt), daysLeft, `${formatElevation(trail.gainM)} ${elevationUnit()}`,
+                plan.targetTimeS > 0 ? formatDuration(plan.targetTimeS) : null,
+              )
+              : s.raceLine(dateName(plan.raceAt), daysLeft, formatDuration(plan.targetTimeS))}
           </Text>
 
           <View style={styles.bar}>
@@ -537,7 +563,7 @@ export default function PlanScreen() {
                 </Text>
                 <Text style={styles.nextName}>{sessionName(next.session)}</Text>
                 <Text style={styles.nextDetail}>
-                  {kindName(next.kind)} · {targetName(next.targetSKm)} · {s.week(next.week)}
+                  {kindName(next.kind)} · {sessionTargetName(next.session, next.targetSKm)} · {s.week(next.week)}
                 </Text>
                 {nextForecast ? <ForecastLine forecast={nextForecast} /> : null}
               </View>

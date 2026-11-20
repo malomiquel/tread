@@ -4,7 +4,7 @@ import { IoCheckmarkCircle, IoEllipseOutline, IoFlagOutline, IoPhonePortraitOutl
 import { formatDuration } from "@tread/core/format";
 import { defineStrings, intlLocale, useStrings } from "@tread/core/i18n";
 import {
-  goalName, kindName, nextSession, phaseName, planProgress, ranCount, schedule, startOfDay, targetName,
+  goalName, kindName, nextSession, phaseName, planProgress, ranCount, schedule, sessionTargetName, startOfDay,
   type Done, type ScheduledSession,
 } from "@tread/core/plan";
 import { sessionMinutes, sessionName } from "@tread/core/workout";
@@ -28,6 +28,7 @@ const strings = defineStrings({
     dayUnit: (n: number): string => (n > 1 ? "jours" : "jour"),
     sessions: "Séances faites",
     target: "Objectif",
+    finish: "Finir",
     week: (n: number, phase: string) => `Semaine ${n} · ${phase}`,
     minutes: (n: number) => `${n} min`,
     ran: "Faite",
@@ -50,6 +51,7 @@ const strings = defineStrings({
     dayUnit: (n: number): string => (n === 1 ? "day" : "days"),
     sessions: "Sessions done",
     target: "Target",
+    finish: "Finish",
     week: (n: number, phase: string) => `Week ${n} · ${phase}`,
     minutes: (n: number) => `${n} min`,
     ran: "Done",
@@ -90,6 +92,9 @@ export function PlanScreen({ plan }: { plan: PlanData | null }) {
   const weeks = new Map<number, ScheduledSession[]>();
   for (const session of scheduled) weeks.set(session.week, [...(weeks.get(session.week) ?? []), session]);
 
+  // A trail run to finish has no time: zero is stored, and "Finish" shown.
+  const goalTime = plan.targetTimeS > 0 ? formatDuration(plan.targetTimeS) : s.finish;
+
   return (
     <div className="page narrow">
       <PageHeader title={s.title} subtitle={s.subtitle(goalName(plan.goal), day(plan.raceAt))} />
@@ -97,12 +102,12 @@ export function PlanScreen({ plan }: { plan: PlanData | null }) {
         label={next ? s.next : s.done}
         value={next ? (next.kind === "race" ? goalName(plan.goal) : sessionName(next.session)) : `${ran}/${plan.sessions.length}`}
         detail={next
-          ? `${next.kind === "race" ? s.raceDay : when(next.at)} · ${next.kind === "race" ? formatDuration(plan.targetTimeS) : targetName(next.targetSKm)}`
+          ? `${next.kind === "race" ? s.raceDay : when(next.at)} · ${next.kind === "race" ? goalTime : sessionTargetName(next.session, next.targetSKm)}`
           : s.doneDetail}
         figures={[
           { label: s.daysLeft, value: String(daysLeft), unit: s.dayUnit(daysLeft) },
           { label: s.sessions, value: `${ran}/${plan.sessions.length}` },
-          { label: s.target, value: formatDuration(plan.targetTimeS) },
+          { label: s.target, value: goalTime },
         ]}
         progress={planProgress(plan.sessions, ran)}
       />
@@ -132,8 +137,8 @@ export function PlanScreen({ plan }: { plan: PlanData | null }) {
                       </span>
                     </span>
                     <span className="row-figures">
-                      <strong>{race ? formatDuration(plan.targetTimeS) : s.minutes(sessionMinutes(session.session))}</strong>
-                      <span className="row-detail" style={{ display: "block" }}>{race ? s.target : targetName(session.targetSKm)}</span>
+                      <strong>{race ? goalTime : s.minutes(sessionMinutes(session.session))}</strong>
+                      <span className="row-detail" style={{ display: "block" }}>{race ? s.target : sessionTargetName(session.session, session.targetSKm)}</span>
                     </span>
                   </li>
                 );

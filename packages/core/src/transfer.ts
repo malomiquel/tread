@@ -3,7 +3,7 @@ import type { TrackPoint } from "./geo.ts";
 import type { Heart } from "./heart.ts";
 import { parseGroups, type DraftGroup } from "./customSession.ts";
 import { parseLaps, type LapMark } from "./laps.ts";
-import type { Exertion, Goal, PerWeek, PlannedSession } from "./plan.ts";
+import type { Exertion, PerWeek, PlanGoal, PlannedSession } from "./plan.ts";
 import { defineStrings, intlLocale } from "./i18n.ts";
 import type { RoutePoint } from "./route.ts";
 import type { Weather } from "./weather.ts";
@@ -78,7 +78,7 @@ export interface TransferRun {
 
 /** The programme, with the sessions already ticked off. */
 export interface TransferPlan {
-  goal: Goal;
+  goal: PlanGoal;
   raceAt: number;
   weeks: number;
   perWeek: PerWeek;

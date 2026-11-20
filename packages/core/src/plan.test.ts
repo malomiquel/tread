@@ -467,6 +467,14 @@ test("every session is named the same whether read from disk or worked out", asy
   const { eased, KNOWN_SESSIONS, sessionName } = await import("./workout.ts");
   const plans = GOALS.flatMap((goal) => [2, 3, 4].map((perWeek) =>
     buildPlan({ goal: goal.id, weeks: goal.maxWeeks, perWeek: perWeek as 2 | 3 | 4, targetTimeS: goal.defaultTimeS, longestMin: 60 })));
+  // Trail plans too, from a short trail to an ultra, a beginner's included.
+  for (const [distanceM, gainM, longestMin] of [[20_000, 800, 60], [60_000, 3000, 120], [100_000, 6000, 150]]) {
+    for (const perWeek of [2, 3, 4] as const) {
+      plans.push(buildPlan({
+        goal: "trail", weeks: 24, perWeek, targetTimeS: 0, longestMin, weeklyKm: 40, trail: { distanceM, gainM },
+      }));
+    }
+  }
   const sessions = [...KNOWN_SESSIONS, ...plans.flat().map((planned) => planned.session)];
   for (const session of sessions) {
     assert.equal(sessionName(session), session.name, session.id);

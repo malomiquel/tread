@@ -76,6 +76,16 @@ const methodStrings = defineStrings<{
         ],
       },
       {
+        title: "Les trails",
+        body: [
+          "Un trail se décrit par sa distance et son dénivelé. Le programme les additionne à la manière de l'ITRA — un kilomètre de plus par tranche de 100 m de D+ — et c'est ce total, les km-effort, qui fixe sa taille : trail court, trail long ou ultra, et le nombre de semaines qui va avec.",
+          "Aucune allure : le même effort vaut 4'30\" sur le plat et 15'00\" dans une pente à 20 %. Les séances se courent à la durée et à l'effort, noté sur 10, avec la zone cardiaque qui lui correspond pour qui court avec une montre.",
+          "Le travail de qualité se fait en côte : des répétitions pour la force, de la montée au seuil, de la marche active pour les pentes raides — tout le monde marche dans un ultra, presque personne ne s'y entraîne — et de la descente, qui use les cuisses plus que tout le reste.",
+          "La sortie longue grandit au même rythme que sur route, jamais plus de 8 % par semaine, avec du dénivelé en proportion de la course. Elle plafonne à 2 h 30 sur un trail court, 4 h sur un trail long, 5 h sur un ultra ; au-delà, ce sont les week-ends enchaînés, une sortie le samedi et une plus courte le dimanche, qui apprennent à courir fatigué.",
+          "Si la date ne laisse pas à la sortie longue le temps d'approcher ce que la course demande, l'app le dit. Sous la moitié, elle ne fait pas le programme : l'écart se comblerait le jour J, en montagne.",
+        ],
+      },
+      {
         title: "Les dates",
         body: [
           "Aucune date n'est enregistrée. Le calendrier est recalculé chaque fois que tu ouvres l'onglet, à partir des jours que tu as choisis.",
@@ -153,6 +163,16 @@ const methodStrings = defineStrings<{
           "If two sessions in a row feel hard, the plan takes 15% off what it asks — 30% if both were very hard. The repetitions go first, never the warm-up: arriving cold at a lighter session would be the worst of both worlds.",
           "A single hard session triggers nothing. That's training working as it should, and easing off after every tough run would never build anything.",
           "Nothing in the plan is rewritten: the easing applies to what's shown, and disappears as soon as a session feels easier.",
+        ],
+      },
+      {
+        title: "Trails",
+        body: [
+          "A trail is described by its distance and its climbing. The plan adds them up the way ITRA does — one more kilometre for every 100 m of gain — and that total, the effort kilometres, sets its size: short trail, long trail or ultra, and the number of weeks that goes with it.",
+          "No pace: the same effort is 4'30\" on the flat and 15'00\" up a 20% slope. Sessions are run by duration and effort, out of 10, with the heart-rate zone it matches for anyone running with a watch.",
+          "The quality work is done on hills: repeats for strength, uphill tempo, power hiking for the steep climbs — everybody walks in an ultra, almost nobody trains for it — and descending, which wears the thighs out more than anything else.",
+          "The long run grows at the road's rate, never more than 8% a week, with climbing in proportion to the race. It tops out at 2 h 30 for a short trail, 4 h for a long one, 5 h for an ultra; beyond that, back-to-back weekends — a run on Saturday and a shorter one on Sunday — teach running on tired legs.",
+          "If the date leaves the long run no time to get near what the race asks, the app says so. Under half of it, it does not make the plan: the gap would be closed on the day, in the mountains.",
         ],
       },
       {

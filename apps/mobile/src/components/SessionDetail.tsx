@@ -4,7 +4,9 @@ import { GlassPanel } from "@/components/GlassPanel";
 import { formatPace } from "@tread/core/format";
 import { defineStrings, plural, useStrings } from "@tread/core/i18n";
 import { colors, floatingShadow, font } from "@/lib/theme";
-import { groupLabel, groupSteps, sessionAdvice, sessionMinutes, sessionName, type Session } from "@tread/core/workout";
+import {
+  groupLabel, groupSteps, rpeWithZone, sessionAdvice, sessionEffort, sessionMinutes, sessionName, type Session,
+} from "@tread/core/workout";
 
 const sessionDetailStrings = defineStrings({
   fr: {
@@ -82,6 +84,8 @@ export function SessionDetail({
   const running = currentIndex !== null;
   const over = running && currentIndex >= session.steps.length;
   const advice = sessionAdvice(session);
+  // A trail session is run by effort, said where a road one says its pace.
+  const effort = targetSKm === null ? sessionEffort(session) : null;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -94,6 +98,7 @@ export function SessionDetail({
             <Text style={styles.detail}>
               {s.summary(session.steps.length, sessionMinutes(session))}
               {targetSKm !== null ? ` · ${formatPace(targetSKm)}` : ""}
+              {effort !== null ? ` · ${rpeWithZone(effort)}` : ""}
             </Text>
 
             <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>

@@ -61,6 +61,12 @@ export interface DashboardBlock {
   easy: boolean;
   /** A walking block, in a beginner's run-walk. */
   walk: boolean;
+  /**
+   * The effort the block asks for, already worded ("effort 7/10 · Z4
+   * Threshold"), on a trail session run by effort rather than pace; null on
+   * the road.
+   */
+  effort: string | null;
 }
 
 interface Props {
@@ -76,6 +82,9 @@ interface Props {
 }
 
 const SPRING = { damping: 20, stiffness: 180 };
+
+/** A label that opens a line, "effort 7/10" becoming "Effort 7/10". */
+const capitalise = (text: string): string => text.charAt(0).toUpperCase() + text.slice(1);
 const MARKER = 24;
 
 /**
@@ -143,15 +152,20 @@ export function RunDashboard({
   // No reading yet, in the first seconds or after a pause: saying "on pace"
   // there would be a verdict on nothing.
   const measuring = target !== null && currentPaceSKm === null;
+  // A trail block carries an effort instead of a pace: the chip says the
+  // effort to hold, never a verdict, because a pace on a slope means nothing.
+  const effort = target === null ? block?.effort ?? null : null;
   const verdict = paused !== null
     ? paused
     : measuring
     ? s.measuring
+    : effort !== null ? capitalise(effort)
     : block?.walk ? s.walk : state === "free" && block ? s.easy : s[state];
   const icon = paused !== null
     ? "pause"
     : measuring
     ? "time-outline"
+    : effort !== null ? "pulse"
     : block?.walk ? "walk-outline"
     : state === "slow" ? "arrow-up" : state === "fast" ? "arrow-down" : state === "free" ? "pulse" : "checkmark";
   const drift = off && paused === null

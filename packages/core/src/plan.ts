@@ -36,12 +36,22 @@
 // one: node runs these modules directly for the tests and resolves paths the
 // way the web does, without guessing at extensions.
 import { formatPace } from "./format.ts";
+import { effortKm } from "./geo.ts";
 import { defineStrings } from "./i18n.ts";
 import { paceUnit } from "./units.ts";
-import { eased, raceName, type Session, type Step } from "./workout.ts";
+import {
+  eased, isEffortSession, raceName, rpeName, sessionEffort, trailGainOf, type Session, type Step,
+} from "./workout.ts";
 
-/** A race a plan can be built for. */
+/** A road race a plan can be built for, trained by pace. */
 export type Goal = "fiveK" | "tenK" | "half" | "marathon";
+
+/**
+ * Anything a plan can be built for: a road race, or a trail race, which is
+ * described by its distance and its climbing rather than picked from a list
+ * (see "Trail plans" below).
+ */
+export type PlanGoal = Goal | "trail";
 
 export interface GoalSpec {
   id: Goal;
@@ -70,7 +80,7 @@ export const goalById = (id: string | null): GoalSpec | null =>
  * A goal's name in the interface's language. `GoalSpec.name` is the French
  * one, kept as the name a race session is stored under.
  */
-export const goalName = (id: Goal): string => raceName(id) ?? id;
+export const goalName = (id: PlanGoal): string => raceName(id) ?? id;
 
 /**
  * The endurance exponent, and why it is not one number.
@@ -279,11 +289,20 @@ const phaseNames = defineStrings<Record<Phase, string>>({
 export const phaseName = (phase: Phase): string => phaseNames()[phase];
 
 /** What a given session is for. */
-export type Kind = "easy" | "long" | "interval" | "tempo" | "race";
+export type Kind =
+  | "easy" | "long" | "interval" | "tempo" | "race"
+  // A trail plan's own work, run by effort on a slope rather than by pace.
+  | "hills" | "climb" | "hike" | "downhill";
 
 const kindNames = defineStrings<Record<Kind, string>>({
-  fr: { easy: "Footing", long: "Sortie longue", interval: "Fractionné", tempo: "Seuil", race: "Course" },
-  en: { easy: "Easy run", long: "Long run", interval: "Intervals", tempo: "Threshold", race: "Race" },
+  fr: {
+    easy: "Footing", long: "Sortie longue", interval: "Fractionné", tempo: "Seuil", race: "Course",
+    hills: "Côtes", climb: "Seuil en côte", hike: "Marche en côte", downhill: "Descente",
+  },
+  en: {
+    easy: "Easy run", long: "Long run", interval: "Intervals", tempo: "Threshold", race: "Race",
+    hills: "Hill repeats", climb: "Uphill tempo", hike: "Power hiking", downhill: "Downhill",
+  },
 });
 
 /** Displayed. */
@@ -296,6 +315,18 @@ export const targetName = (targetSKm: number | null): string =>
   targetSKm === null ? feelWords().feel : `${formatPace(targetSKm)}${paceUnit()}`;
 
 /**
+ * What a planned session asks for, as shown beside it: its pace on the road,
+ * its effort on a trail ("effort 7/10"), "by feel" when it asks for neither.
+ */
+export function sessionTargetName(session: Session, targetSKm: number | null): string {
+  if (isEffortSession(session)) {
+    const rpe = sessionEffort(session);
+    if (rpe !== null) return rpeName(rpe);
+  }
+  return targetName(targetSKm);
+}
+
+/**
  * What kind of session a run followed, from the id it was stored with.
  *
  * Library sessions and generated ones name themselves differently — "threshold"
@@ -305,6 +336,12 @@ export const targetName = (targetSKm: number | null): string =>
 export function sessionKind(id: string | null): Kind | null {
   if (!id) return null;
   const base = id.replace(/-eased$/, "");
+  if (base.startsWith("trail-easy-")) return "easy";
+  if (base.startsWith("trail-long-") || base.startsWith("trail-b2b-")) return "long";
+  if (base.startsWith("trail-hills-")) return "hills";
+  if (base.startsWith("trail-climb-")) return "climb";
+  if (base.startsWith("trail-hike-")) return "hike";
+  if (base.startsWith("trail-descent-")) return "downhill";
   if (base === "easy" || base.startsWith("easy-")) return "easy";
   if (base === "long" || base.startsWith("long-")) return "long";
   if (base === "400" || base === "pyramid" || base.startsWith("interval-")) return "interval";
@@ -330,7 +367,7 @@ export interface PlannedSession {
 }
 
 export interface PlanInput {
-  goal: Goal;
+  goal: PlanGoal;
   weeks: number;
   perWeek: PerWeek;
   /** The finish time the plan trains for. */
@@ -345,10 +382,15 @@ export interface PlanInput {
   longestMin: number;
   /** Kilometres a week today, measured or declared. */
   weeklyKm: number;
+  /**
+   * The course, for a trail race. Ignored on the road. On a trail
+   * `targetTimeS` may be zero, which means the goal is to finish.
+   */
+  trail?: TrailRace | null;
 }
 
 /** Weeks a plan may run for, given its race. */
-export function clampWeeks(goal: GoalSpec, weeks: number): number {
+export function clampWeeks(goal: Pick<GoalSpec, "minWeeks" | "maxWeeks">, weeks: number): number {
   if (!Number.isFinite(weeks)) return goal.minWeeks;
   return Math.min(goal.maxWeeks, Math.max(goal.minWeeks, Math.round(weeks)));
 }
@@ -497,6 +539,20 @@ export function longMinutes(
   // here is rounded to five at the end and rounding up through the ceiling
   // would quietly undo it.
   const peak = Math.floor(longCeilingMin(goal, raceMin) / 5) * 5;
+  return longMinutesTo(peak, week, weeks, taperWeeks, startMin);
+}
+
+/**
+ * The long run's growth towards a given ceiling, whatever set the ceiling:
+ * the road race's share above, or a trail's (see `trailLongCeilingMin`).
+ */
+function longMinutesTo(
+  peak: number,
+  week: number,
+  weeks: number,
+  taperWeeks: number,
+  startMin: number,
+): number {
   const start = Math.min(Math.max(startMin, LONG_FLOOR_MIN), peak);
   const working = Math.max(1, weeks - taperWeeks);
   const at = (w: number): number => Math.min(peak, start * LONG_GROWTH ** (w - 1));
@@ -753,27 +809,25 @@ function graduateEasy(): Unplaced {
  * running more, and a first injury from running fast.
  */
 function noviceWeek(
-  goal: GoalSpec,
   perWeek: PerWeek,
   week: number,
-  weeks: number,
   graduatedAt: number | null,
   longestMin: number,
-  raceMin: number,
-  paces: Paces,
+  /** The long run of a week off the ladder, given how long ago it was left. */
+  longOf: (weeksOff: number) => Unplaced,
+  easy: () => Unplaced = graduateEasy,
 ): Unplaced[] {
   const rung = rungOfWeek(week, longestMin);
   if (rung !== null || graduatedAt === null) {
     return Array.from({ length: perWeek }, () => runWalkSession(rung ?? RUN_WALK.length - 1));
   }
-  const long: Unplaced = {
-    ...longSession(
-      longMinutes(goal.id, week - graduatedAt + 1, weeks - graduatedAt + 1, goal.taperWeeks, GRADUATE_MIN, raceMin),
-      paces,
-    ),
-    targetSKm: null,
-  };
-  return [...Array.from({ length: perWeek - 1 }, graduateEasy), long];
+  return [...Array.from({ length: perWeek - 1 }, easy), longOf(week - graduatedAt + 1)];
+}
+
+/** The first week off the run-walk ladder, or null for a plan too short to climb it. */
+function graduationWeek(weeks: number, longestMin: number): number | null {
+  if (!isNovice(longestMin)) return null;
+  return Array.from({ length: weeks }, (_, i) => i + 1).find((w) => rungOfWeek(w, longestMin) === null) ?? null;
 }
 
 /**
@@ -823,6 +877,7 @@ function weekBody(
  * missed week slide instead of piling up as a column of failures.
  */
 export function buildPlan(input: PlanInput): PlannedSession[] {
+  if (input.goal === "trail") return buildTrailPlan(input);
   const goal = goalById(input.goal);
   if (!goal) return [];
   const paces = pacesFrom(goal.distanceM, input.targetTimeS, input.weeklyKm);
@@ -833,9 +888,8 @@ export function buildPlan(input: PlanInput): PlannedSession[] {
   let order = 0;
   const novice = isNovice(input.longestMin);
   // The first week off the ladder, for a beginner who climbs it in time.
-  const graduatedAt = novice
-    ? Array.from({ length: weeks }, (_, i) => i + 1).find((w) => rungOfWeek(w, input.longestMin) === null) ?? null
-    : null;
+  const graduatedAt = graduationWeek(weeks, input.longestMin);
+  const raceMin = input.targetTimeS / 60;
 
   for (let week = 1; week <= weeks; week += 1) {
     const phase = phaseOfWeek(week, weeks, goal.taperWeeks);
@@ -858,7 +912,13 @@ export function buildPlan(input: PlanInput): PlannedSession[] {
           raceSession(goal, paces),
         ]
       : novice
-        ? noviceWeek(goal, input.perWeek, week, weeks, graduatedAt, input.longestMin, input.targetTimeS / 60, paces)
+        ? noviceWeek(input.perWeek, week, graduatedAt, input.longestMin, (weeksOff) => ({
+          ...longSession(
+            longMinutes(goal.id, weeksOff, weeks - (graduatedAt ?? 1) + 1, goal.taperWeeks, GRADUATE_MIN, raceMin),
+            paces,
+          ),
+          targetSKm: null,
+        }))
         : weekBody(
           input.perWeek, week, phase, load, paces,
           longMinutes(
@@ -873,6 +933,627 @@ export function buildPlan(input: PlanInput): PlannedSession[] {
     }
   }
   return sessions;
+}
+
+/*
+ * ## Trail plans
+ *
+ * A trail race is not a slower road race. The same kilometre can take four
+ * minutes on a track and twenty up a mountain, so almost everything the road
+ * plans are built on — a target pace, a pace ladder, a long run sized by the
+ * race's duration at that pace — stops meaning anything. What carries over is
+ * the skeleton: phases, a step back every fourth week, a long run growing
+ * from what the runner can already do, a taper counted back from the race,
+ * and run-walk for somebody who cannot yet run twenty minutes.
+ *
+ * What changes, and why:
+ *
+ * - **The race is its distance and its climbing.** Sized by effort
+ *   kilometres, the distance plus one for every hundred metres of D+
+ *   (`effortKm`, the measure ITRA rates races by). A 20 km with 1 000 m of
+ *   climbing is a 30 km race to prepare for, not a 20.
+ * - **Sessions are in time and effort, never pace.** Every block carries an
+ *   effort on Borg's 0 to 10 scale, read against a heart-rate zone for a
+ *   runner with a watch. The run screen gives no pace verdict on them.
+ * - **The quality work is on a slope.** Hill repeats build strength while
+ *   there is time; uphill tempo is the trail's threshold session; power
+ *   hiking is trained because every runner walks the steep climbs of a long
+ *   race and almost nobody practises it; descending is trained because it is
+ *   what wrecks the quadriceps, and technique is what spares them.
+ * - **Ultras get back-to-back weekends.** A long run on Saturday and a
+ *   shorter one on Sunday teaches running on tired legs without the recovery
+ *   cost of one enormous run — CONVENTION in every ultra plan, without a
+ *   trial behind it.
+ * - **The plan refuses what it cannot prepare.** A long run grows by eight
+ *   percent a week at most, so the date decides how far it can get. When it
+ *   cannot get near what the race asks, the plan says so, and below half of
+ *   it the plan is not made at all.
+ */
+
+/** A trail race, as the runner describes it. */
+export interface TrailRace {
+  distanceM: number;
+  /** Positive elevation gain over the course, the D+. */
+  gainM: number;
+}
+
+/**
+ * Three sizes of trail, by effort kilometres.
+ *
+ * PUBLISHED boundaries, after ITRA's categories: under 45 effort kilometres
+ * is their XXS and XS, 45 to 75 their S, and from 75 — their M, a race of ten
+ * hours and more for most of the field — the preparation is an ultra's, with
+ * back-to-back weekends and the longest build. The three names are CHOSEN.
+ */
+export type TrailCategory = "short" | "long" | "ultra";
+
+const TRAIL_SHORT_BELOW_EKM = 45;
+const TRAIL_ULTRA_FROM_EKM = 75;
+
+/** CHOSEN: the bounds a generated plan will take on, either way. */
+export const TRAIL_MIN_DISTANCE_M = 5000;
+export const TRAIL_MAX_EFFORT_KM = 300;
+
+export function trailCategory(race: TrailRace): TrailCategory {
+  const size = effortKm(race.distanceM, race.gainM);
+  if (size < TRAIL_SHORT_BELOW_EKM) return "short";
+  return size < TRAIL_ULTRA_FROM_EKM ? "long" : "ultra";
+}
+
+const trailCategoryNames = defineStrings<Record<TrailCategory, string>>({
+  fr: { short: "Trail court", long: "Trail long", ultra: "Ultra-trail" },
+  en: { short: "Short trail", long: "Long trail", ultra: "Ultra trail" },
+});
+
+/** Displayed. */
+export const trailCategoryName = (category: TrailCategory): string => trailCategoryNames()[category];
+
+/** What the length of a trail plan depends on. */
+export interface TrailSpec {
+  category: TrailCategory;
+  effortKm: number;
+  minWeeks: number;
+  maxWeeks: number;
+  taperWeeks: number;
+}
+
+/**
+ * How long a trail plan may run, and how long its taper is.
+ *
+ * CHOSEN in figure, CONVENTION in direction: the longer the race, the longer
+ * the build, because the long run that prepares it starts from where the
+ * runner is and may only grow so fast. The floor is low on purpose — twelve
+ * weeks for an ultra, which only somebody already running four hours can
+ * make use of — because whether the weeks are enough depends on the runner,
+ * and that is `trailReadiness`'s call, made in words, not a greyed-out day
+ * on a calendar. The ceiling is where a build stops adding and starts
+ * wearing: twenty eight weeks, past which nobody stays sharp. The taper grows
+ * too — Bosquet's two weeks for anything a marathon's length, three before an
+ * ultra, whose fatigue takes longer to clear — and a short trail of a couple
+ * of hours keeps the road's one week.
+ */
+export function trailSpec(race: TrailRace): TrailSpec {
+  const size = effortKm(race.distanceM, race.gainM);
+  const category = trailCategory(race);
+  if (category === "short") {
+    return { category, effortKm: size, minWeeks: 6, maxWeeks: 16, taperWeeks: size < 30 ? 1 : 2 };
+  }
+  if (category === "long") return { category, effortKm: size, minWeeks: 10, maxWeeks: 20, taperWeeks: 2 };
+  return { category, effortKm: size, minWeeks: 12, maxWeeks: 28, taperWeeks: 3 };
+}
+
+/**
+ * A first guess at how long the race takes, in minutes, for somebody who
+ * gave no target time.
+ *
+ * CHOSEN. Seven and a half minutes an effort kilometre over twenty of them
+ * is the back half of a typical field, and the time per effort kilometre
+ * grows slowly with the size of the race — the same idea as Riegel's
+ * exponent, at a CHOSEN 1.1. It only sizes the long run, never a pace, and it
+ * errs long, which caps the long run lower rather than higher.
+ */
+export function trailEstimateMin(race: TrailRace): number {
+  const size = effortKm(race.distanceM, race.gainM);
+  if (!(size > 0)) return 0;
+  return 7.5 * size * (size / 20) ** 0.1;
+}
+
+/** The race's duration as the plan reads it: the target when there is one. */
+function trailRaceMin(race: TrailRace, targetTimeS: number): number {
+  return targetTimeS > 0 ? targetTimeS / 60 : trailEstimateMin(race);
+}
+
+/**
+ * The longest a trail long run may be, in minutes.
+ *
+ * CONVENTION for the shape, CHOSEN for the figures. A short trail can be
+ * out-run in training, as a road ten can, because a long run is easier than
+ * a race; ninety percent of its duration and at least seventy five minutes.
+ * From a long trail on, the race lasts far longer than any training run
+ * should — nobody runs ten hours to prepare for ten hours, the recovery
+ * would cost the next two weeks — so the share falls and a ceiling binds:
+ * four hours for a long trail, five for an ultra, where the back-to-back
+ * weekend supplies the rest of the time on feet.
+ */
+const TRAIL_LONG_PEAK_MIN: Record<TrailCategory, number> = { short: 150, long: 240, ultra: 300 };
+const TRAIL_LONG_RACE_SHARE: Record<TrailCategory, number> = { short: 0.9, long: 0.6, ultra: 0.4 };
+
+export function trailLongCeilingMin(category: TrailCategory, raceMin: number): number {
+  const share = Math.max(75, raceMin * TRAIL_LONG_RACE_SHARE[category]);
+  return Math.floor(Math.min(TRAIL_LONG_PEAK_MIN[category], share) / 5) * 5;
+}
+
+/**
+ * The long run a race actually asks for, in minutes: the ceiling, or three
+ * quarters of a short race's duration when that is less (CHOSEN). The
+ * ceiling is what the plan grows towards when there is time; this is what it
+ * has to reach for the race to be prepared at all — an hour's trail does not
+ * need seventy five minutes in training to be finished well.
+ */
+export function trailLongNeededMin(category: TrailCategory, raceMin: number): number {
+  return Math.min(trailLongCeilingMin(category, raceMin), round5(raceMin * 0.75));
+}
+
+/**
+ * The second day of a back-to-back weekend, given the first.
+ *
+ * CONVENTION: the second run is the shorter one, around half to two thirds
+ * of the first. CHOSEN: sixty percent, never over three hours, and only once
+ * the Saturday has reached two hours — before that there is no fatigue worth
+ * running on, only fatigue.
+ */
+export function backToBackMin(longMin: number): number | null {
+  if (longMin < 120) return null;
+  return Math.min(180, round5(longMin * 0.6));
+}
+
+/**
+ * The days a trail plan proposes. CHOSEN: the long run keeps Sunday, and
+ * from two days a week the day before it is Saturday, so a back-to-back
+ * weekend falls on two days in a row rather than five days apart. Only a
+ * suggestion, as on the road.
+ */
+export const TRAIL_SLOT_DAYS: Record<PerWeek, number[]> = {
+  1: [0],
+  2: [6, 0],
+  3: [3, 6, 0],
+  4: [2, 4, 6, 0],
+};
+
+/** The days to propose for a plan, before the runner picks their own. */
+export function suggestedDays(perWeek: PerWeek, category: TrailCategory | null): number[] {
+  return category === "long" || category === "ultra" ? TRAIL_SLOT_DAYS[perWeek] : SLOT_DAYS[perWeek];
+}
+
+/** Why a trail plan is a stretch, or out of reach. */
+export type TrailConcern =
+  /** A course outside what a generated plan takes on. */
+  | "distance"
+  /** Someone still learning to run twenty minutes, before a long trail. */
+  | "novice"
+  /** Too few days a week for the back-to-back weekends an ultra needs. */
+  | "rhythm"
+  /** The long run cannot grow near enough to what the race asks. */
+  | "longRun";
+
+export interface TrailReadiness {
+  /** "ok", a plan worth warning about, or no plan at all. */
+  verdict: "ok" | "tight" | "tooFar";
+  concern: TrailConcern | null;
+  /** The longest run the plan reaches, and what the race asks, in minutes. */
+  reachedMin: number;
+  neededMin: number;
+}
+
+export interface TrailReadinessInput {
+  race: TrailRace;
+  weeks: number;
+  perWeek: PerWeek;
+  longestMin: number;
+  /** Zero to finish. */
+  targetTimeS: number;
+}
+
+/**
+ * Whether the time left can prepare this race, from where the runner is.
+ *
+ * CHOSEN thresholds, on a CONVENTION: the long run has to get within reach
+ * of what the race asks. Eighty percent of the ceiling is a plan that does
+ * its job; under it the plan is made but the runner is told; under half, the
+ * gap would be bridged on race day, and a plan that sends someone into the
+ * mountains for six hours on the strength of three hours of training is not
+ * one this app will write. Also refused, whatever the dates: a long trail
+ * for somebody still on run-walk, and an ultra on one run a week.
+ */
+export function trailReadiness(input: TrailReadinessInput): TrailReadiness {
+  const { race, perWeek, longestMin, targetTimeS } = input;
+  const spec = trailSpec(race);
+  const weeks = clampWeeks(spec, input.weeks);
+  const raceMin = trailRaceMin(race, targetTimeS);
+  const neededMin = trailLongNeededMin(spec.category, raceMin);
+  const reachedMin = isNovice(longestMin)
+    ? longestRunMin(buildTrailSessions({ ...input, weeks }, spec))
+    : trailLongMinutes(
+      spec, Math.max(1, weeks - spec.taperWeeks), weeks, longestMin, trailLongCeilingMin(spec.category, raceMin),
+    );
+  const result = (verdict: TrailReadiness["verdict"], concern: TrailConcern | null): TrailReadiness =>
+    ({ verdict, concern, reachedMin, neededMin });
+
+  if (!(race.distanceM >= TRAIL_MIN_DISTANCE_M) || !(race.gainM >= 0) || spec.effortKm > TRAIL_MAX_EFFORT_KM) {
+    return result("tooFar", "distance");
+  }
+  if (isNovice(longestMin) && spec.category !== "short") return result("tooFar", "novice");
+  if (spec.category === "ultra" && perWeek === 1) return result("tooFar", "rhythm");
+  if (reachedMin < neededMin * 0.5) return result("tooFar", "longRun");
+  if (reachedMin < neededMin * 0.8) return result("tight", "longRun");
+  if (spec.category === "ultra" && perWeek === 2) return result("tight", "rhythm");
+  return result("ok", null);
+}
+
+/** A trail long run in a given week, grown from where the runner is. */
+function trailLongMinutes(spec: TrailSpec, week: number, weeks: number, startMin: number, ceilingMin: number): number {
+  return longMinutesTo(ceilingMin, week, weeks, spec.taperWeeks, startMin);
+}
+
+/** CHOSEN: warm-up and cool-down of every slope session, in seconds. */
+const TRAIL_WARMUP_S = 900;
+const TRAIL_COOLDOWN_S = 600;
+
+const round50 = (metres: number): number => Math.round(metres / 50) * 50;
+
+/**
+ * The trail sessions, each with what it is for.
+ *
+ * Every figure in them is CHOSEN; the shapes are CONVENTION, the same
+ * progression as the road's repetitions: short and hard while there is time
+ * to build strength, longer and closer to the race's effort as it nears.
+ * The efforts are on Borg's 0 to 10 scale.
+ */
+function trailEasy(minutes: number): Unplaced {
+  return {
+    kind: "easy",
+    targetSKm: null,
+    session: {
+      id: `trail-easy-${minutes}`,
+      name: `Footing trail ${durationName(minutes)}`,
+      steps: [{ effort: "steady", seconds: minutes * 60, rpe: 3 }],
+    },
+  };
+}
+
+/**
+ * The long run, on hills, with a climbing target: the race's climbing per
+ * hour, over the hours of the run, at half in the base phase and eighty
+ * percent after (CHOSEN). It is the run that teaches the legs the race's
+ * ground, and the D+ is written into it so it can be read back.
+ */
+function trailLong(minutes: number, gainM: number): Unplaced {
+  return {
+    kind: "long",
+    targetSKm: null,
+    session: {
+      id: `trail-long-${minutes}-${gainM}`,
+      name: `Sortie longue vallonnée ${durationName(minutes)}`,
+      steps: [{ effort: "steady", seconds: minutes * 60, terrain: "hills", rpe: 4 }],
+    },
+  };
+}
+
+function trailBackToBack(minutes: number): Unplaced {
+  return {
+    kind: "long",
+    targetSKm: null,
+    session: {
+      id: `trail-b2b-${minutes}`,
+      name: `Enchaînement ${durationName(minutes)}`,
+      steps: [{ effort: "steady", seconds: minutes * 60, terrain: "hills", rpe: 4 }],
+    },
+  };
+}
+
+/**
+ * Hill repeats: strength, the trail's answer to the road's repetitions.
+ * A minute hard in the base phase, two to three later; an ultra's are longer
+ * and a notch easier, because its race is never run at that intensity.
+ * Jogged back down, which is the recovery.
+ */
+function trailHills(phase: Phase, load: number, category: TrailCategory): Unplaced {
+  const shape = phase === "base"
+    ? { seconds: 60, recovery: 90, base: 6, rpe: 8 }
+    : category === "ultra"
+      ? { seconds: 180, recovery: 150, base: 4, rpe: 7 }
+      : { seconds: 120, recovery: 120, base: 5, rpe: 8 };
+  const reps = shape.base + Math.round(load * 2);
+  return {
+    kind: "hills",
+    targetSKm: null,
+    session: {
+      id: `trail-hills-${shape.seconds}-${reps}`,
+      name: `${reps} × ${secondsWords(shape.seconds)} en côte`,
+      steps: [
+        { effort: "warmup", seconds: TRAIL_WARMUP_S },
+        ...repeat(
+          reps,
+          { effort: "fast", seconds: shape.seconds, terrain: "climb", rpe: shape.rpe },
+          { effort: "recovery", seconds: shape.recovery, terrain: "descent", rpe: 2 },
+        ),
+        { effort: "cooldown", seconds: TRAIL_COOLDOWN_S },
+      ],
+    },
+  };
+}
+
+/**
+ * Uphill tempo: the threshold session, on a long climb. Blocks consolidate
+ * as the race nears, as the road's do, and an ultra's grow longer still.
+ */
+function trailClimb(phase: Phase, load: number, category: TrailCategory): Unplaced {
+  const blocks = phase === "peak" || phase === "taper" ? 2 : 3;
+  const minutes = Math.round(
+    blocks === 2
+      ? category === "short" ? 12 + 8 * load : 15 + 10 * load
+      : 6 + 4 * load,
+  );
+  const recovery = Math.max(3, Math.round(minutes / 2));
+  return {
+    kind: "climb",
+    targetSKm: null,
+    session: {
+      id: `trail-climb-${blocks}-${minutes}`,
+      name: `${blocks} × ${minutes} min de montée`,
+      steps: [
+        { effort: "warmup", seconds: TRAIL_WARMUP_S },
+        ...repeat(
+          blocks,
+          { effort: "steady", seconds: minutes * 60, terrain: "climb", rpe: 7 },
+          { effort: "recovery", seconds: recovery * 60, terrain: "descent", rpe: 2 },
+        ),
+        { effort: "cooldown", seconds: TRAIL_COOLDOWN_S },
+      ],
+    },
+  };
+}
+
+/**
+ * Power hiking on a steep climb. On any slope past about fifteen percent,
+ * walking hard is as fast as running and costs less (CONVENTION, and what
+ * the front of every ultra field does); it is a skill, and untrained it is
+ * a slow stroll. Longer blocks before a long race, because its climbs are.
+ */
+function trailHike(phase: Phase, load: number, category: TrailCategory): Unplaced {
+  const long = category !== "short" && (phase === "peak" || phase === "taper");
+  const blocks = long ? 3 : 4;
+  const minutes = Math.round(long ? 10 + 10 * load : 5 + 5 * load);
+  return {
+    kind: "hike",
+    targetSKm: null,
+    session: {
+      id: `trail-hike-${blocks}-${minutes}`,
+      name: `${blocks} × ${minutes} min de marche en côte`,
+      steps: [
+        { effort: "warmup", seconds: TRAIL_WARMUP_S },
+        ...repeat(
+          blocks,
+          { effort: "walk", seconds: minutes * 60, terrain: "climb", rpe: 6 },
+          { effort: "recovery", seconds: 180, terrain: "descent", rpe: 2 },
+        ),
+        { effort: "cooldown", seconds: TRAIL_COOLDOWN_S },
+      ],
+    },
+  };
+}
+
+/**
+ * Downhill technique: short descents at a controlled effort, walked or
+ * jogged back up. Descending is where a trail runner's legs are lost —
+ * eccentric work the quadriceps are not used to — and the only protection
+ * is having done it before, a little more each time (CONVENTION).
+ */
+function trailDescent(load: number): Unplaced {
+  const reps = 4 + Math.round(load * 2);
+  return {
+    kind: "downhill",
+    targetSKm: null,
+    session: {
+      id: `trail-descent-120-${reps}`,
+      name: `${reps} × 2 min de descente`,
+      steps: [
+        { effort: "warmup", seconds: TRAIL_WARMUP_S },
+        ...repeat(
+          reps,
+          { effort: "steady", seconds: 120, terrain: "descent", rpe: 5 },
+          { effort: "recovery", seconds: 180, terrain: "climb", rpe: 3 },
+        ),
+        { effort: "cooldown", seconds: TRAIL_COOLDOWN_S },
+      ],
+    },
+  };
+}
+
+/**
+ * The race, at the effort to start it at. CHOSEN: the longer the race, the
+ * lower — a short trail is raced, an ultra is managed.
+ */
+function trailRaceSession(race: TrailRace, category: TrailCategory): Unplaced {
+  const gain = Math.round(race.gainM);
+  return {
+    kind: "race",
+    targetSKm: null,
+    session: {
+      id: `race-trail-${gain}`,
+      name: `Trail ${Math.round(race.distanceM / 1000)} km · ${gain} m D+`,
+      steps: [{
+        effort: "steady",
+        metres: race.distanceM,
+        terrain: "hills",
+        rpe: category === "short" ? 7 : category === "long" ? 6 : 5,
+      }],
+    },
+  };
+}
+
+/** "1 min", "1 min 30" — the French name stored with a session. */
+function secondsWords(seconds: number): string {
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  return rest === 0 ? `${minutes} min` : `${minutes} min ${String(rest).padStart(2, "0")}`;
+}
+
+type TrailWork = "hills" | "climb" | "hike" | "descent";
+
+/**
+ * Which slope session each week brings, in turn, by race and phase.
+ *
+ * CHOSEN. The order is the point: strength first (hills), then the race's
+ * own efforts (climbing at threshold, hiking, descending), more hiking and
+ * less speed the longer the race. A short trail is mostly run; an ultra's
+ * climbs are mostly walked, so its plan practises walking them.
+ */
+const TRAIL_ROTATION: Record<TrailCategory, Record<Phase, readonly TrailWork[]>> = {
+  short: {
+    base: ["hills", "hills"],
+    build: ["hills", "climb", "descent"],
+    peak: ["climb", "descent", "hills"],
+    taper: ["climb"],
+  },
+  long: {
+    base: ["hills", "hike"],
+    build: ["climb", "hills", "descent", "hike"],
+    peak: ["climb", "hike", "descent"],
+    taper: ["climb"],
+  },
+  ultra: {
+    base: ["hike", "hills"],
+    build: ["climb", "hike", "descent", "hills"],
+    peak: ["hike", "climb", "descent"],
+    taper: ["hike"],
+  },
+};
+
+function trailWork(work: TrailWork, phase: Phase, load: number, category: TrailCategory): Unplaced {
+  if (work === "hills") return trailHills(phase, load, category);
+  if (work === "climb") return trailClimb(phase, load, category);
+  if (work === "hike") return trailHike(phase, load, category);
+  return trailDescent(load);
+}
+
+/**
+ * A trail week, by volume. The road's order of sacrifice, with one addition:
+ * on an ultra's back-to-back weekends the second long run takes the place of
+ * whatever would otherwise go — the easy run, or at two days a week the
+ * slope session, which comes back the week after.
+ */
+function trailWeekBody(
+  perWeek: PerWeek,
+  week: number,
+  phase: Phase,
+  load: number,
+  category: TrailCategory,
+  long: Unplaced,
+  backToBack: Unplaced | null,
+  startMin: number,
+): Unplaced[] {
+  const rotation = TRAIL_ROTATION[category][phase];
+  const quality = trailWork(rotation[week % rotation.length], phase, load, category);
+  const second = trailWork(rotation[(week + 1) % rotation.length], phase, load, category);
+  const easy = trailEasy(Math.min(50, round5(Math.max(LONG_FLOOR_MIN, startMin) * 0.6)));
+
+  if (perWeek === 1) return [category === "short" && week % 3 === 0 ? quality : long];
+  if (backToBack) {
+    if (perWeek === 2) return [long, backToBack];
+    if (perWeek === 3) return [quality, long, backToBack];
+    return [quality, easy, long, backToBack];
+  }
+  if (perWeek === 2) return [quality, long];
+  if (perWeek === 3) return [quality, easy, long];
+  // At four, the second slope session is a different one, never the same twice.
+  return [quality, easy, second.session.id === quality.session.id ? trailDescent(load) : second, long];
+}
+
+/** Builds the sessions without checking readiness; `buildTrailPlan` does. */
+function buildTrailSessions(input: Omit<TrailReadinessInput, "race"> & { race: TrailRace }, spec: TrailSpec): PlannedSession[] {
+  const { race, perWeek, longestMin, targetTimeS } = input;
+  const weeks = clampWeeks(spec, input.weeks);
+  const raceMin = trailRaceMin(race, targetTimeS);
+  const ceiling = trailLongCeilingMin(spec.category, raceMin);
+  const gainPerMin = raceMin > 0 ? race.gainM / raceMin : 0;
+  const gainFor = (minutes: number, phase: Phase): number =>
+    round50(gainPerMin * minutes * (phase === "base" ? 0.5 : 0.8));
+  const novice = isNovice(longestMin);
+  const graduatedAt = graduationWeek(weeks, longestMin);
+
+  const sessions: PlannedSession[] = [];
+  let order = 0;
+  for (let week = 1; week <= weeks; week += 1) {
+    const phase = phaseOfWeek(week, weeks, spec.taperWeeks);
+    const load = loadOfWeek(week, weeks, spec.taperWeeks);
+
+    // As on the road: race week is a couple of short runs and the race.
+    const loosen = (): Unplaced => {
+      if (!novice) return trailEasy(Math.min(40, round5(Math.max(LONG_FLOOR_MIN, longestMin) * 0.5)));
+      if (graduatedAt !== null && graduatedAt < week) return trailEasy(GRADUATE_MIN);
+      return runWalkSession(Math.min(rungOfWeek(week - 1, longestMin) ?? RUN_WALK.length - 1, RUN_WALK.length - 1));
+    };
+
+    let body: Unplaced[];
+    if (week === weeks) {
+      body = [...Array.from({ length: Math.min(2, perWeek - 1) }, loosen), trailRaceSession(race, spec.category)];
+    } else if (novice) {
+      // A beginner's trail plan is the road's, run on trails: the ladder,
+      // then easy running and a long run growing from twenty minutes, all by
+      // feel. No hills, no hiking blocks, nothing hard.
+      body = noviceWeek(perWeek, week, graduatedAt, longestMin, (weeksOff) => {
+        const minutes = longMinutesTo(
+          ceiling, weeksOff, weeks - (graduatedAt ?? 1) + 1, spec.taperWeeks, GRADUATE_MIN,
+        );
+        return trailLong(minutes, gainFor(minutes, "base"));
+      }, () => trailEasy(GRADUATE_MIN));
+    } else {
+      const longMin = trailLongMinutes(spec, week, weeks, longestMin, ceiling);
+      const backToBack = spec.category === "ultra"
+        && (phase === "build" || phase === "peak")
+        && week % 4 !== 0
+        ? backToBackMin(longMin)
+        : null;
+      body = trailWeekBody(
+        perWeek, week, phase, load, spec.category,
+        trailLong(longMin, gainFor(longMin, phase)),
+        backToBack === null ? null : trailBackToBack(backToBack),
+        longestMin,
+      );
+    }
+
+    for (const part of body) {
+      order += 1;
+      sessions.push({ order, week, phase, ...part });
+    }
+  }
+  return sessions;
+}
+
+/**
+ * A trail programme, or nothing when the race is out of reach in the time
+ * left (see `trailReadiness`). Every session in it is run by time and
+ * effort; none carries a pace.
+ */
+function buildTrailPlan(input: PlanInput): PlannedSession[] {
+  const race = input.trail;
+  if (!race) return [];
+  const readiness = trailReadiness({ ...input, race });
+  if (readiness.verdict === "tooFar") return [];
+  return buildTrailSessions({ ...input, race }, trailSpec(race));
+}
+
+/**
+ * The course a stored trail programme was built for, read back from its race
+ * session — `race-trail-<D+>`, over the distance — so that nothing about the
+ * stored shape of a programme had to change for trail plans to exist.
+ */
+export function trailOfPlan(sessions: readonly PlannedSession[]): TrailRace | null {
+  const race = sessions.find((planned) => planned.kind === "race" && planned.session.id.startsWith("race-trail"));
+  const metres = race?.session.steps[0]?.metres;
+  if (!race || metres === undefined) return null;
+  return { distanceM: metres, gainM: trailGainOf(race.session.id) };
 }
 
 /** Projected finish, for the line under the goal. */

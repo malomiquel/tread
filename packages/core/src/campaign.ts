@@ -67,7 +67,8 @@ function guardiansOf(sessions: readonly ScheduledSession[]): Set<number> {
       sessionMinutes(session.session) > sessionMinutes(best.session) ? session : best);
     keys.add(longest.order);
   }
-  const quality = sessions.filter((session) => session.kind === "interval" || session.kind === "tempo");
+  // The road's repetitions and threshold, and a trail's slope sessions.
+  const quality = sessions.filter((session) => session.kind !== "long" && session.kind !== "easy" && session.kind !== "race");
   if (quality.length > 0) keys.add(quality[quality.length - 1].order);
   return keys;
 }

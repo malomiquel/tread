@@ -7,21 +7,25 @@ import { SettingRow } from "@/components/SettingRow";
 import { SettingsGroup } from "@/components/SettingsGroup";
 import { ofSport } from "@tread/core/activity";
 import { listRuns, personalRecords } from "@/lib/db";
-import { formatDistance, formatDuration, formatPace } from "@tread/core/format";
+import { formatDistance, formatDuration, formatElevation, formatPace } from "@tread/core/format";
 import { HoldButton } from "@/components/HoldButton";
-import { defineStrings, intlLocale, plural, useStrings } from "@tread/core/i18n";
+import { decimal, defineStrings, intlLocale, plural, useStrings } from "@tread/core/i18n";
 import { useTabBarSpace } from "@/lib/layout";
 import {
   buildPlan, clampWeeks, daysBetween, equivalentTimeS, goalName, GOALS, pacesFrom, projectedTimeS,
   isNovice, longCeilingMin, longestReachedMin, longestRunMin, SLOT_DAYS, startOfDay,
-  type Goal, type GoalSpec, type PerWeek,
+  suggestedDays, trailCategoryName, trailEstimateMin, trailReadiness, trailSpec,
+  TRAIL_MAX_EFFORT_KM, TRAIL_MIN_DISTANCE_M,
+  type GoalSpec, type PerWeek, type PlanGoal, type TrailRace, type TrailReadiness,
 } from "@tread/core/plan";
 import {
   startingLongestMin, startingVolumeKm, suggestedRace, type RunnerProfile,
 } from "@tread/core/runner";
 import { weeklyVolumeKm } from "@tread/core/stats";
 import { colors, font } from "@/lib/theme";
-import { distanceUnit, paceUnit } from "@tread/core/units";
+import {
+  distanceUnit, elevationUnit, FEET_PER_METRE, getUnitSystem, paceUnit, toDistanceUnits, unitLengthM,
+} from "@tread/core/units";
 
 /**
  * Midnight of the day this module was loaded.
@@ -128,6 +132,40 @@ const planSetupStrings = defineStrings({
     recapSize: (weeks: number, sessions: number) =>
       `${plural(weeks, "semaine", "semaines")} · ${plural(sessions, "séance", "séances")}, puis la course.`,
     createPlan: "Créer le programme",
+    trailOption: "Du trail court à l'ultra, avec son dénivelé",
+    courseQuestion: "Quel parcours ?",
+    courseLede: "La distance et le dénivelé positif, tels que l'organisateur les annonce.",
+    courseDistance: "Distance",
+    courseGain: "Dénivelé positif",
+    shorterCourse: "Parcours plus court",
+    longerCourse: "Parcours plus long",
+    lessGain: "Moins de dénivelé",
+    moreGain: "Plus de dénivelé",
+    gainUnit: "D+",
+    courseSize: (category: string, effortKm: number) => `${category} · ${effortKm} km-effort`,
+    courseSizeHint: "La distance plus un kilomètre par tranche de 100 m de D+ : la mesure de l'ITRA. C'est elle qui dimensionne le programme, pas la distance seule.",
+    courseTooBig: "Parcours hors limites",
+    trailGoalQuestion: "Quel est ton objectif ?",
+    trailGoalLede: "Sur un trail, le chrono dépend du terrain et de la météo autant que de toi. Les séances se courent à l'effort et à la durée, jamais à l'allure.",
+    finish: "Finir",
+    finishDetail: "Arriver au bout, en forme. Le programme part d'un temps estimé d'après le parcours.",
+    timed: "Un temps visé",
+    timedDetail: "Il règle la longueur des sorties longues. Aucune allure n'est imposée.",
+    estimated: (time: string) => `Temps estimé d'après le parcours : environ ${time}.`,
+    perEffortKm: (minutes: string) => `${minutes} min par km-effort`,
+    recapCourse: "Parcours",
+    recapCourseValue: (distance: string, gain: string) => `${distance} · ${gain} D+`,
+    recapGoal: "Objectif",
+    concern: {
+      distance: "Ce parcours sort de ce que Tread sait préparer : au moins 5 km, et au plus 300 km-effort.",
+      novice: "Un trail de cette taille demande de savoir déjà courir longtemps. Commence par un trail court : le programme t'y amènera depuis la course-marche.",
+      rhythmRefused: "Un ultra se prépare avec des week-ends de deux sorties longues : il faut au moins deux jours par semaine.",
+      rhythmTight: "À deux jours par semaine, les week-ends enchaînés prennent toute la place et les séances en côte sautent une semaine sur deux. Trois jours, c'est mieux.",
+      longRunRefused: (reached: string, needed: string) =>
+        `D'ici la course, ta sortie longue n'atteindrait que ${reached}, quand le parcours en demande ${needed}. L'écart se comblerait le jour J, en montagne : vise une course plus lointaine ou plus courte.`,
+      longRunTight: (reached: string, needed: string) =>
+        `Ta sortie longue atteindra ${reached}, pour ${needed} idéalement. Le programme tient, mais l'arrivée se jouera à la gestion : pars prudemment, marche tôt dans les montées.`,
+    },
   },
   en: {
     weekdays: ["M", "T", "W", "T", "F", "S", "S"],
@@ -209,6 +247,40 @@ const planSetupStrings = defineStrings({
     recapSize: (weeks: number, sessions: number) =>
       `${plural(weeks, "week", "weeks")} · ${plural(sessions, "session", "sessions")}, then the race.`,
     createPlan: "Create the plan",
+    trailOption: "From a short trail to an ultra, with its climbing",
+    courseQuestion: "What's the course?",
+    courseLede: "Its distance and elevation gain, as the organiser gives them.",
+    courseDistance: "Distance",
+    courseGain: "Elevation gain",
+    shorterCourse: "Shorter course",
+    longerCourse: "Longer course",
+    lessGain: "Less climbing",
+    moreGain: "More climbing",
+    gainUnit: "gain",
+    courseSize: (category: string, effortKm: number) => `${category} · ${effortKm} effort km`,
+    courseSizeHint: "The distance plus a kilometre for every 100 m of climbing: ITRA's measure. It sizes the plan, not the distance alone.",
+    courseTooBig: "Course out of range",
+    trailGoalQuestion: "What's your goal?",
+    trailGoalLede: "On a trail, the time depends on the ground and the weather as much as on you. Sessions are run by effort and duration, never by pace.",
+    finish: "Finish",
+    finishDetail: "Reach the end in good shape. The plan works from a time estimated from the course.",
+    timed: "A target time",
+    timedDetail: "It sets how long the long runs get. No pace is imposed.",
+    estimated: (time: string) => `Estimated from the course: about ${time}.`,
+    perEffortKm: (minutes: string) => `${minutes} min per effort km`,
+    recapCourse: "Course",
+    recapCourseValue: (distance: string, gain: string) => `${distance} · ${gain} gain`,
+    recapGoal: "Goal",
+    concern: {
+      distance: "This course is beyond what Tread can prepare: at least 5 km, and at most 300 effort km.",
+      novice: "A trail this size asks you to be able to run for a long time already. Start with a short trail: the plan will take you there from run-walk.",
+      rhythmRefused: "An ultra is prepared with weekends of two long runs: it takes at least two days a week.",
+      rhythmTight: "At two days a week, the back-to-back weekends take all the room and the hill sessions drop out every other week. Three days is better.",
+      longRunRefused: (reached: string, needed: string) =>
+        `By race day your long run would only reach ${reached}, when the course asks for ${needed}. The gap would be closed on the day, in the mountains: aim for a later or a shorter race.`,
+      longRunTight: (reached: string, needed: string) =>
+        `Your long run will reach ${reached}, against ${needed} ideally. The plan holds, but the finish will come down to pacing yourself: start carefully and walk the climbs early.`,
+    },
   },
 });
 
@@ -218,8 +290,39 @@ const planSetupStrings = defineStrings({
  * page read as a form to get through, and nobody checked what they had
  * chosen before the plan was built from it.
  */
-type SetupStep = "race" | "date" | "rhythm" | "fitness" | "target" | "recap";
+type SetupStep = "race" | "course" | "date" | "rhythm" | "fitness" | "target" | "recap";
 const STEPS: readonly SetupStep[] = ["race", "date", "rhythm", "fitness", "target", "recap"];
+/**
+ * A trail asks for its course before its date — the course decides how many
+ * weeks it needs — and its "target" page asks for a goal, finishing or a
+ * time, rather than a time that sets paces.
+ */
+const TRAIL_STEPS: readonly SetupStep[] = ["race", "course", "date", "rhythm", "fitness", "target", "recap"];
+
+/** A trail to start from: a classic day in the hills. */
+const DEFAULT_TRAIL: TrailRace = { distanceM: 30_000, gainM: 1500 };
+/** CHOSEN: the most a course can be set to here, either way. */
+const TRAIL_MAX_DISTANCE_M = 250_000;
+const TRAIL_MAX_GAIN_M = 15_000;
+
+/** The sentence explaining a trail plan's concern, or null when there is none. */
+function concernText(
+  text: ReturnType<typeof planSetupStrings>,
+  readiness: TrailReadiness | null,
+): string | null {
+  if (!readiness || readiness.concern === null) return null;
+  const refused = readiness.verdict === "tooFar";
+  switch (readiness.concern) {
+    case "distance": return text.concern.distance;
+    case "novice": return text.concern.novice;
+    case "rhythm": return refused ? text.concern.rhythmRefused : text.concern.rhythmTight;
+    case "longRun": {
+      const reached = durationName(readiness.reachedMin);
+      const needed = durationName(readiness.neededMin);
+      return refused ? text.concern.longRunRefused(reached, needed) : text.concern.longRunTight(reached, needed);
+    }
+  }
+}
 
 const round5 = (minutes: number): number => Math.max(5, Math.round(minutes / 5) * 5);
 
@@ -331,7 +434,7 @@ function Option({ title, detail, on, onPress }: { title: string; detail: string;
 }
 
 export interface PlanDraft {
-  goal: Goal;
+  goal: PlanGoal;
   raceAt: number;
   weeks: number;
   perWeek: PerWeek;
@@ -342,6 +445,8 @@ export interface PlanDraft {
   longestMin: number;
   /** Kilometres a week today. */
   weeklyKm: number;
+  /** The course, for a trail; null on the road. */
+  trail: TrailRace | null;
 }
 
 /**
@@ -352,9 +457,32 @@ export interface PlanDraft {
  * means nothing at that distance anyway. Over five and ten kilometres it is
  * the other way round: a minute is already a large share of the result.
  */
-function stepFor(goal: Goal): number {
+function stepFor(goal: PlanGoal): number {
   return goal === "half" || goal === "marathon" ? 300 : 60;
 }
+
+/**
+ * A course distance moved by one step: a kilometre (or mile) at a time up to
+ * a marathon's worth, five beyond, where the odd unit means nothing.
+ */
+function stepDistance(metres: number, direction: 1 | -1): number {
+  const unit = unitLengthM();
+  const units = Math.round(metres / unit);
+  const next = direction > 0
+    ? units >= 42 ? Math.floor(units / 5) * 5 + 5 : units + 1
+    : units > 42 ? Math.ceil(units / 5) * 5 - 5 : units - 1;
+  return Math.min(TRAIL_MAX_DISTANCE_M, Math.max(TRAIL_MIN_DISTANCE_M, next * unit));
+}
+
+/** Elevation gain moved by a step: 100 m, or 250 ft in feet, snapped to it. */
+function stepGain(metres: number, direction: 1 | -1): number {
+  const step = getUnitSystem() === "metric" ? 100 : 250 / FEET_PER_METRE;
+  const next = (Math.round(metres / step) + direction) * step;
+  return Math.min(TRAIL_MAX_GAIN_M, Math.max(0, next));
+}
+
+/** "7,5" — minutes with one decimal, in the interface's language. */
+const decimalMinutes = (minutes: number): string => decimal((Math.round(minutes * 10) / 10).toString());
 
 export function PlanSetup({
   onCreate, onCancel, profile = null,
@@ -381,7 +509,7 @@ export function PlanSetup({
    */
   const cancel = () => {
     if (!onCancel) return;
-    if (STEPS.indexOf(step) === 0) {
+    if (steps.indexOf(step) === 0) {
       onCancel();
       return;
     }
@@ -397,7 +525,14 @@ export function PlanSetup({
    * after it.
    */
   const [reviewing, setReviewing] = useState(false);
-  const [goalId, setGoalId] = useState<Goal>(() => (profile ? suggestedRace(profile) : "half"));
+  const [goalId, setGoalId] = useState<PlanGoal>(() => (profile ? suggestedRace(profile) : "half"));
+  /** The trail's course, kept while another race is looked at. */
+  const [course, setCourse] = useState<TrailRace>(DEFAULT_TRAIL);
+  /** On a trail: finishing (the default), or a time to aim for. */
+  const [finishOnly, setFinishOnly] = useState(true);
+  const [trailOverride, setTrailOverride] = useState<number | null>(null);
+  /** Once the runner has chosen days, nothing re-proposes them. */
+  const [daysTouched, setDaysTouched] = useState(false);
   const [raceAt, setRaceAt] = useState<number | null>(null);
   const [perWeek, setPerWeek] = useState<PerWeek>(() => profile?.perWeek ?? 2);
   const [days, setDays] = useState<number[]>(() => SLOT_DAYS[profile?.perWeek ?? 2]);
@@ -422,8 +557,20 @@ export function PlanSetup({
   const page = useRef<ScrollView>(null);
   useScrollToTop(page);
 
-  const goal = useMemo(() => GOALS.find((g) => g.id === goalId)!, [goalId]);
+  const isTrail = goalId === "trail";
+  // The road race, or the half's figures standing in while a trail is set up:
+  // nothing below reads them for a trail but the pace ladder, which a trail
+  // does not show.
+  const goal = useMemo(() => GOALS.find((g) => g.id === goalId) ?? GOALS[2], [goalId]);
+  const spec = isTrail ? trailSpec(course) : null;
+  /** What bounds the date: the road race, or the course's size. */
+  const bounds = spec ?? goal;
+  const steps = isTrail ? TRAIL_STEPS : STEPS;
   const stepS = stepFor(goalId);
+  // A trail time moves by quarter hours from a long trail on: the odd five
+  // minutes over ten hours in the mountains is not a figure anyone aims for.
+  const trailStepS = spec?.category === "short" ? 300 : 900;
+  const trailEstimateS = Math.round((trailEstimateMin(course) * 60) / trailStepS) * trailStepS;
 
   useEffect(() => {
     const first = setTimeout(() => setToday(startOfDay(Date.now())), 0);
@@ -479,10 +626,11 @@ export function PlanSetup({
     // has to first tidy up an odd number before it can change anything.
     return Math.round((projected ?? goal.defaultTimeS) / stepS) * stepS;
   }, [goal, reference, stepS, weeklyKm]);
-  const targetTimeS = override ?? suggested;
+  // Zero on a trail run to finish, which the plan reads as "estimate it".
+  const targetTimeS = isTrail ? (finishOnly ? 0 : trailOverride ?? trailEstimateS) : override ?? suggested;
 
-  const earliest = today + goal.minWeeks * 7 * DAY_MS;
-  const latest = today + goal.maxWeeks * 7 * DAY_MS;
+  const earliest = today + bounds.minWeeks * 7 * DAY_MS;
+  const latest = today + bounds.maxWeeks * 7 * DAY_MS;
   // A date picked for one distance may be out of reach for another, since a
   // marathon needs twelve weeks where a ten needs six. Ignored rather than
   // cleared, so that switching distance and back does not lose the choice.
@@ -491,26 +639,42 @@ export function PlanSetup({
   // Thirty minutes for someone with no history: enough to be a run, short
   // enough that nobody is handed an hour they have never done.
   const longest = longestMin ?? (profile ? startingLongestMin(profile) : 30);
-  const weeks = chosen === null ? null : clampWeeks(goal, daysBetween(today, chosen) / 7);
+  const weeks = chosen === null ? null : clampWeeks(bounds, daysBetween(today, chosen) / 7);
   const novice = isNovice(longest);
-  const paces = pacesFrom(goal.distanceM, targetTimeS, weeklyKm);
-  const plan = weeks !== null && paces !== null
-    ? buildPlan({ goal: goalId, weeks, perWeek, targetTimeS, longestMin: longest, weeklyKm })
+  // A trail is run by effort: there are no paces to derive.
+  const paces = isTrail ? null : pacesFrom(goal.distanceM, targetTimeS, weeklyKm);
+  const trail = isTrail ? course : null;
+  const plan = weeks !== null && (isTrail || paces !== null)
+    ? buildPlan({ goal: goalId, weeks, perWeek, targetTimeS, longestMin: longest, weeklyKm, trail })
+    : null;
+  /** Whether the time left can prepare the course, said before anything is made. */
+  const readiness = trail !== null && weeks !== null
+    ? trailReadiness({ race: trail, weeks, perWeek, longestMin: longest, targetTimeS })
     : null;
   // A beginner's plan climbs a ladder before it grows a long run, so what it
   // reaches is read off the plan itself rather than off the growth rule.
   const reached = weeks === null
     ? null
-    : novice
-      ? plan === null ? null : longestRunMin(plan)
-      : longestReachedMin(goalId, weeks, goal.taperWeeks, longest, targetTimeS / 60);
-  const ready = chosen !== null && weeks !== null && paces !== null && days.length === perWeek;
+    : readiness
+      ? readiness.reachedMin
+      : novice
+        ? plan === null ? null : longestRunMin(plan)
+        : longestReachedMin(goal.id, weeks, goal.taperWeeks, longest, targetTimeS / 60);
+  // Every answer given, so the recap can be shown — even for a trail the plan
+  // then declines, so the runner sees what they asked for beside why.
+  const answeredAll = chosen !== null && weeks !== null && (isTrail || paces !== null) && days.length === perWeek;
+  const ready = answeredAll && readiness?.verdict !== "tooFar";
   const sessions = ready && plan !== null ? plan.length : 0;
+  const concern = concernText(s, readiness);
+  const courseTooBig = spec !== null && spec.effortKm > TRAIL_MAX_EFFORT_KM;
 
 
-  const stepIndex = STEPS.indexOf(step);
+  const stepIndex = steps.indexOf(step);
   const go = (to: SetupStep) => {
     if (to === "recap") setReviewing(true);
+    // A long trail's back-to-back weekends want Saturday and Sunday: proposed
+    // once the course is known, unless the runner has already chosen.
+    if (to === "rhythm" && !daysTouched) setDays(suggestedDays(perWeek, spec?.category ?? null));
     // The calendar opens on the first month with a date to pick: a marathon
     // is at least twelve weeks out, and opening on this month meant paging
     // past three months of greyed-out days to reach one.
@@ -521,11 +685,13 @@ export function PlanSetup({
     setStep(to);
     page.current?.scrollTo({ y: 0, animated: false });
   };
-  const forward = reviewing ? "recap" : STEPS[stepIndex + 1];
+  const forward = reviewing ? "recap" : steps[stepIndex + 1];
   // Each question is answered before the next: a date for the date, the
   // right number of days for the rhythm. Everything else has a sensible
   // answer already filled in.
-  const answered = step === "date" ? chosen !== null : step === "rhythm" ? days.length === perWeek : true;
+  const answered = step === "date"
+    ? chosen !== null
+    : step === "rhythm" ? days.length === perWeek : step === "course" ? !courseTooBig : true;
   const dayLetters = WEEKDAY_NUMBERS
     .map((number, i) => (days.includes(number) ? s.weekdays[i] : null))
     .filter(Boolean)
@@ -553,7 +719,7 @@ export function PlanSetup({
         <Pressable
           onPress={() => (reviewing && step !== "recap"
             ? go("recap")
-            : stepIndex > 0 ? go(STEPS[stepIndex - 1]) : cancel())}
+            : stepIndex > 0 ? go(steps[stepIndex - 1]) : cancel())}
           disabled={stepIndex === 0 && !onCancel}
           accessibilityRole="button"
           accessibilityLabel={stepIndex > 0 || reviewing ? s.back : s.cancel}
@@ -563,7 +729,7 @@ export function PlanSetup({
           {stepIndex > 0 || onCancel ? <Ionicons name="chevron-back" size={24} color={colors.text} /> : null}
         </Pressable>
         <View style={styles.progress}>
-          {STEPS.map((id, i) => (
+          {steps.map((id, i) => (
             <View key={id} style={[styles.segment, i <= stepIndex && styles.segmentOn]} />
           ))}
         </View>
@@ -589,14 +755,49 @@ export function PlanSetup({
                   onPress={() => { setGoalId(spec.id); setOverride(null); }}
                 />
               ))}
+              <Option
+                title={goalName("trail")}
+                detail={s.trailOption}
+                on={isTrail}
+                onPress={() => setGoalId("trail")}
+              />
             </View>
+          </>
+        ) : null}
+
+        {step === "course" && spec ? (
+          <>
+            <Text style={styles.question}>{s.courseQuestion}</Text>
+            <Text style={styles.lede}>{s.courseLede}</Text>
+            <Text style={styles.section}>{s.courseDistance}</Text>
+            {stepper(
+              `${Math.round(toDistanceUnits(course.distanceM))} ${distanceUnit()}`,
+              " ",
+              () => setCourse((current) => ({ ...current, distanceM: stepDistance(current.distanceM, -1) })),
+              () => setCourse((current) => ({ ...current, distanceM: stepDistance(current.distanceM, 1) })),
+              s.shorterCourse, s.longerCourse,
+            )}
+            <Text style={styles.section}>{s.courseGain}</Text>
+            {stepper(
+              `${formatElevation(course.gainM)} ${elevationUnit()}`,
+              s.gainUnit,
+              () => setCourse((current) => ({ ...current, gainM: stepGain(current.gainM, -1) })),
+              () => setCourse((current) => ({ ...current, gainM: stepGain(current.gainM, 1) })),
+              s.lessGain, s.moreGain,
+            )}
+            <Text style={styles.courseSize}>
+              {s.courseSize(trailCategoryName(spec.category), Math.round(spec.effortKm))}
+            </Text>
+            {courseTooBig
+              ? <Text style={styles.warn}>{s.concern.distance}</Text>
+              : <Text style={styles.hint}>{s.courseSizeHint}</Text>}
           </>
         ) : null}
 
         {step === "date" ? (
           <>
             <Text style={styles.question}>{s.dateQuestion}</Text>
-            <Text style={styles.lede}>{s.dateHint(goal.minWeeks, goal.maxWeeks)}</Text>
+            <Text style={styles.lede}>{s.dateHint(bounds.minWeeks, bounds.maxWeeks)}</Text>
             <View style={styles.monthHead}>
               <Pressable
                 onPress={() => setMonth((m) => new Date(m.getFullYear(), m.getMonth() - 1, 1))}
@@ -641,7 +842,11 @@ export function PlanSetup({
                   on={perWeek === count}
                   // Changing the rhythm re-proposes days that match it, rather
                   // than leaving a count that no longer adds up to fix by hand.
-                  onPress={() => { setPerWeek(count); setDays(SLOT_DAYS[count]); }}
+                  onPress={() => {
+                    setPerWeek(count);
+                    setDays(suggestedDays(count, spec?.category ?? null));
+                    setDaysTouched(true);
+                  }}
                 />
               ))}
             </View>
@@ -655,11 +860,13 @@ export function PlanSetup({
                 return (
                   <Pressable
                     key={number}
-                    onPress={() =>
+                    onPress={() => {
+                      setDaysTouched(true);
                       setDays((current) =>
                         current.includes(number)
                           ? current.filter((d) => d !== number)
-                          : [...current, number].sort((a, b) => a - b))}
+                          : [...current, number].sort((a, b) => a - b));
+                    }}
                     accessibilityRole="checkbox"
                     accessibilityState={{ checked: on }}
                     // "M" twice says nothing; the weekday in full does.
@@ -671,6 +878,7 @@ export function PlanSetup({
                 );
               })}
             </View>
+            {readiness?.concern === "rhythm" && concern ? <Text style={styles.warn}>{concern}</Text> : null}
           </>
         ) : null}
 
@@ -687,11 +895,16 @@ export function PlanSetup({
               () => setLongestMin((current) => Math.min(240, (current ?? longest) + 5)),
               s.shorterRun, s.longerRun,
             )}
-            {novice ? (
+            {readiness && (readiness.concern === "novice" || readiness.concern === "longRun") && concern ? (
+              <Text style={styles.warn}>{concern}</Text>
+            ) : novice ? (
               <Text style={styles.hint}>{s.novice}</Text>
-            ) : reached !== null && reached < longCeilingMin(goalId, targetTimeS / 60) * 0.7 ? (
+            ) : !isTrail && reached !== null && reached < longCeilingMin(goal.id, targetTimeS / 60) * 0.7 ? (
               <Text style={styles.warn}>{s.tooShort(goalName(goalId))}</Text>
             ) : null}
+            {/* A trail plan is sized by its course and the long run, never by
+                pace, so the volume that bends the road's paces is not asked. */}
+            {isTrail ? null : <>
             <Text style={styles.section}>{s.volume}</Text>
             <Text style={styles.hint}>
               {measuredKm !== null && declaredKm === null ? s.volumeMeasured : s.volumeUnknown}
@@ -703,10 +916,35 @@ export function PlanSetup({
               () => setDeclaredKm((current) => Math.min(200, (current ?? weeklyKm) + 5)),
               s.lessVolume, s.moreVolume,
             )}
+            </>}
           </>
         ) : null}
 
-        {step === "target" ? (
+        {step === "target" && isTrail ? (
+          <>
+            <Text style={styles.question}>{s.trailGoalQuestion}</Text>
+            <Text style={styles.lede}>{s.trailGoalLede}</Text>
+            <View style={styles.options}>
+              <Option title={s.finish} detail={s.finishDetail} on={finishOnly} onPress={() => setFinishOnly(true)} />
+              <Option title={s.timed} detail={s.timedDetail} on={!finishOnly} onPress={() => setFinishOnly(false)} />
+            </View>
+            {finishOnly ? (
+              <Text style={[styles.hint, styles.estimate]}>{s.estimated(formatDuration(trailEstimateS))}</Text>
+            ) : (
+              <View style={styles.timed}>
+                {stepper(
+                  formatDuration(targetTimeS),
+                  spec ? s.perEffortKm(decimalMinutes(targetTimeS / 60 / spec.effortKm)) : " ",
+                  () => setTrailOverride((current) => Math.max(trailStepS * 4, (current ?? trailEstimateS) - trailStepS)),
+                  () => setTrailOverride((current) => (current ?? trailEstimateS) + trailStepS),
+                  s.shorterTime, s.longerTime,
+                )}
+              </View>
+            )}
+          </>
+        ) : null}
+
+        {step === "target" && !isTrail ? (
           <>
             <Text style={styles.question}>{s.targetQuestion}</Text>
             <Text style={styles.lede}>{reference ? s.targetProjected : s.targetUnknown}</Text>
@@ -736,13 +974,24 @@ export function PlanSetup({
           </>
         ) : null}
 
-        {step === "recap" && ready ? (
+        {step === "recap" && answeredAll ? (
           <>
             <Text style={styles.question}>{s.recapQuestion}</Text>
             <Text style={styles.lede}>{s.recapLede}</Text>
             <View style={styles.recap}>
               <SettingsGroup>
                 <SettingRow icon="flag-outline" label={s.recapRace} value={goalName(goalId)} onPress={() => go("race")} />
+                {trail ? (
+                  <SettingRow
+                    icon="trending-up-outline"
+                    label={s.recapCourse}
+                    value={s.recapCourseValue(
+                      `${Math.round(toDistanceUnits(trail.distanceM))} ${distanceUnit()}`,
+                      `${formatElevation(trail.gainM)} ${elevationUnit()}`,
+                    )}
+                    onPress={() => go("course")}
+                  />
+                ) : null}
                 <SettingRow
                   icon="calendar-outline"
                   label={s.recapDate}
@@ -764,20 +1013,32 @@ export function PlanSetup({
                   )}
                   onPress={() => go("fitness")}
                 />
-                <SettingRow
-                  icon="stats-chart-outline"
-                  label={s.recapVolume}
-                  value={s.recapVolumeValue(formatDistance(weeklyKm * 1000))}
-                  onPress={() => go("fitness")}
-                />
-                <SettingRow
-                  icon="stopwatch-outline"
-                  label={s.recapTarget}
-                  value={s.recapTargetValue(formatDuration(targetTimeS), racePace)}
-                  onPress={() => go("target")}
-                />
+                {isTrail ? (
+                  <SettingRow
+                    icon="stopwatch-outline"
+                    label={s.recapGoal}
+                    value={finishOnly ? s.finish : formatDuration(targetTimeS)}
+                    onPress={() => go("target")}
+                  />
+                ) : (
+                  <>
+                    <SettingRow
+                      icon="stats-chart-outline"
+                      label={s.recapVolume}
+                      value={s.recapVolumeValue(formatDistance(weeklyKm * 1000))}
+                      onPress={() => go("fitness")}
+                    />
+                    <SettingRow
+                      icon="stopwatch-outline"
+                      label={s.recapTarget}
+                      value={s.recapTargetValue(formatDuration(targetTimeS), racePace)}
+                      onPress={() => go("target")}
+                    />
+                  </>
+                )}
               </SettingsGroup>
             </View>
+            {concern ? <Text style={styles.warn}>{concern}</Text> : null}
             {paces ? (
               <>
                 <Text style={styles.section}>{s.recapPaces}</Text>
@@ -796,14 +1057,14 @@ export function PlanSetup({
                 </View>
               </>
             ) : null}
-            <Text style={styles.size}>{s.recapSize(weeks, sessions)}</Text>
+            {ready ? <Text style={styles.size}>{s.recapSize(weeks, sessions)}</Text> : null}
           </>
         ) : null}
         {/* A date that the race changed under it: send them back to pick one. */}
-        {step === "recap" && !ready ? (
+        {step === "recap" && !answeredAll ? (
           <>
             <Text style={styles.question}>{s.recapQuestion}</Text>
-            <Text style={styles.lede}>{s.dateHint(goal.minWeeks, goal.maxWeeks)}</Text>
+            <Text style={styles.lede}>{s.dateHint(bounds.minWeeks, bounds.maxWeeks)}</Text>
             <View style={styles.recap}>
               <SettingsGroup>
                 <SettingRow icon="calendar-outline" label={s.recapDate} value={s.pickDate} onPress={() => go("date")} />
@@ -824,7 +1085,7 @@ export function PlanSetup({
               setCreating(true);
               onCreate({
                 goal: goalId, raceAt: chosen, weeks, perWeek, days, targetTimeS,
-                longestMin: longest, weeklyKm,
+                longestMin: longest, weeklyKm, trail,
               })
                 .catch(() => {
                   const text = planSetupStrings();
@@ -837,7 +1098,7 @@ export function PlanSetup({
           <Button
             label={answered
               ? reviewing ? s.backToRecap : s.next
-              : step === "date" ? s.pickDate : s.pickDays(perWeek)}
+              : step === "date" ? s.pickDate : step === "course" ? s.courseTooBig : s.pickDays(perWeek)}
             disabled={!answered}
             onPress={() => go(forward)}
           />
@@ -929,6 +1190,11 @@ const styles = StyleSheet.create({
     color: colors.warning, fontFamily: font.regular, fontSize: 13.5,
     lineHeight: 19, marginTop: 10,
   },
+  courseSize: {
+    color: colors.accent, fontSize: 15.5, fontFamily: font.semibold, marginTop: 22, marginBottom: 6,
+  },
+  estimate: { marginTop: 14 },
+  timed: { marginTop: 16 },
   paces: {
     flexDirection: "row", flexWrap: "wrap", marginTop: 16,
     borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline, paddingTop: 12,
