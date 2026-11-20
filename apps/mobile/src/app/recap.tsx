@@ -2,9 +2,10 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import * as Sharing from "expo-sharing";
 import { useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { Button } from "@/components/Button";
-import { RecapCard, periodTitle } from "@/components/RecapCard";
+import { RECAP_VARIANTS, RecapCard, periodTitle, type RecapVariant } from "@/components/RecapCard";
+import { CARD_WIDTH } from "@/components/ShareCard";
 import { Segmented } from "@/components/Segmented";
 import { ofSport } from "@tread/core/activity";
 import { listRuns, type Run } from "@/lib/db";
@@ -12,6 +13,7 @@ import { defineStrings, useStrings } from "@tread/core/i18n";
 import { nextPeriod, previousPeriod, recapOf, type RecapKind, type RecapPeriod } from "@tread/core/recap";
 import { colors, font } from "@/lib/theme";
 import { viewShot } from "@/lib/viewShot";
+import Svg, { Defs, Pattern, Rect } from "react-native-svg";
 
 const strings = defineStrings({
   fr: {
@@ -57,7 +59,10 @@ export default function RecapScreen() {
   const [loaded, setLoaded] = useState<Run[] | null>(null);
   const runs = loaded ?? [];
   const [sharing, setSharing] = useState(false);
-  const card = useRef<View>(null);
+  // Every variant side by side; the one in view is the one shared.
+  const cards = useRef<Partial<Record<RecapVariant, View | null>>>({});
+  const [variant, setVariant] = useState<RecapVariant>("stage");
+  const { width: screenWidth } = useWindowDimensions();
 
   useEffect(() => {
     let active = true;
@@ -79,13 +84,14 @@ export default function RecapScreen() {
 
   const share = async () => {
     const shot = viewShot();
-    if (!shot || !card.current) {
+    const card = cards.current[variant];
+    if (!shot || !card) {
       Alert.alert(s.unavailableTitle, s.unavailable);
       return;
     }
     setSharing(true);
     try {
-      const uri = await shot.captureRef(card.current, { format: "png", quality: 1, result: "tmpfile" });
+      const uri = await shot.captureRef(card, { format: "png", quality: 1, result: "tmpfile" });
       await Sharing.shareAsync(uri, { mimeType: "image/png", UTI: "public.png" });
     } catch {
       Alert.alert(s.failed, s.tryAgain);
@@ -126,12 +132,33 @@ export default function RecapScreen() {
         </Pressable>
       </View>
 
-      <View style={styles.preview}>
-        {/* Its room is kept while the runs are read, and the card only
-            drawn once they are: nothing moves when they arrive. */}
-        <View style={loaded === null && styles.waiting}>
-          <RecapCard ref={card} recap={recap} />
-        </View>
+      {/* Every way of sharing it, swiped through like photos. Their room
+          is kept while the runs are read, and they are only drawn once they
+          are: nothing moves when they arrive. */}
+      <ScrollView
+        horizontal
+        snapToInterval={PAGE}
+        decelerationRate="fast"
+        showsHorizontalScrollIndicator={false}
+        style={[{ width: screenWidth, marginHorizontal: -20 }, loaded === null && styles.waiting]}
+        contentContainerStyle={{ paddingHorizontal: (screenWidth - CARD_WIDTH) / 2, gap: PAGE_GAP }}
+        onMomentumScrollEnd={(event) => {
+          const index = Math.round(event.nativeEvent.contentOffset.x / PAGE);
+          setVariant(RECAP_VARIANTS[Math.max(0, Math.min(RECAP_VARIANTS.length - 1, index))]);
+        }}
+      >
+        {RECAP_VARIANTS.map((which) => (
+          <View key={which}>
+            {/* Checks under a transparent one, so it does not read as the page. */}
+            {which === "clear" || which === "clearBlue" ? <Checks /> : null}
+            <RecapCard ref={(view) => { cards.current[which] = view; }} recap={recap} variant={which} />
+          </View>
+        ))}
+      </ScrollView>
+      <View style={styles.dots}>
+        {RECAP_VARIANTS.map((which) => (
+          <View key={which} style={[styles.dot, variant === which && styles.dotOn]} />
+        ))}
       </View>
 
       <Button label={sharing ? s.sharing : s.share} onPress={() => void share()} disabled={sharing || recap.runs === 0} />
@@ -139,7 +166,29 @@ export default function RecapScreen() {
   );
 }
 
+const PAGE_GAP = 14;
+const PAGE = CARD_WIDTH + PAGE_GAP;
+
+/** The grey checks that mean "transparent", under a picture with nothing behind it. */
+function Checks() {
+  return (
+    <Svg style={StyleSheet.absoluteFill}>
+      <Defs>
+        <Pattern id="recap-checks" width={16} height={16} patternUnits="userSpaceOnUse">
+          <Rect width={16} height={16} fill="#5a5a5a" />
+          <Rect width={8} height={8} fill="#6e6e6e" />
+          <Rect x={8} y={8} width={8} height={8} fill="#6e6e6e" />
+        </Pattern>
+      </Defs>
+      <Rect width="100%" height="100%" fill="url(#recap-checks)" />
+    </Svg>
+  );
+}
+
 const styles = StyleSheet.create({
+  dots: { flexDirection: "row", gap: 6, alignSelf: "center", alignItems: "center" },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.hairline },
+  dotOn: { width: 18, backgroundColor: colors.accent },
   waiting: { opacity: 0 },
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: 20, gap: 16, paddingBottom: 48 },
@@ -147,5 +196,4 @@ const styles = StyleSheet.create({
   arrow: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
   dim: { opacity: 0.3 },
   period: { color: colors.text, fontSize: 19, fontFamily: font.semibold },
-  preview: { alignItems: "center" },
 });
