@@ -34,6 +34,12 @@ const phone: CardRun[] = Array.from({ length: 24 }, (_, index) => {
   };
 });
 
+// Run 7 and run 13 follow the same route, and the second beats the first's
+// time: a ghost. Run 15 is on a treadmill, with no track.
+phone[6] = { ...phone[6], routeId: 5 };
+phone[12] = { ...phone[12], routeId: 5, durationS: phone[6].durationS - 30 };
+phone[14] = { ...phone[14], activity: "treadmill", elevationGainM: null };
+
 const serverId = (id: number) => `outing-${1000 - id}`;
 
 /** The same history as the server sends it: named by strings, newest first. */
@@ -55,6 +61,7 @@ const server: CardOuting[] = phone.map((run) => ({
   blocks: [...run.blocks],
   weather: run.weather ? { temperatureC: 3, day: true, ...run.weather } : null,
   efforts: run.bestEfforts,
+  routeRef: run.routeId,
 })).reverse();
 
 const withoutId = <T extends { runId: number }>(card: T) => ({ ...card, runId: 0 });
@@ -69,6 +76,8 @@ test("the web deals every outing the card the phone deals it", () => {
   }
   // The history is not dealt flat: there is something to compare.
   assert.ok([...expected.values()].some((card) => card.traits.length > 0));
+  assert.ok(cardOf(album, serverId(13))?.traits.includes("ghost"), "the route's ghost is beaten");
+  assert.ok(cardOf(album, serverId(15)), "a treadmill run has its card");
 });
 
 test("its sets and great cards are the phone's, run for run", () => {

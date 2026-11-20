@@ -128,6 +128,8 @@ model Outing {
   sessionId      String?
   /// The pair of shoes, by the phone's own number for it (`Shoe.ref`).
   shoeRef        Int?
+  /// The route it followed, by the phone's own number for it: what a run's ghost is matched on.
+  routeRef       Int?
   tags           String[]
   note           String?
   blocks         Json      @default("[]")

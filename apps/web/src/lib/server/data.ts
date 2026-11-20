@@ -74,7 +74,7 @@ export async function cardOutings(userId: string): Promise<CardOuting[]> {
     orderBy: { startedAt: "desc" },
     select: {
       ...rowFields, endedAt: true, fastestKmS: true, exertion: true, sessionId: true, tags: true,
-      blocks: true, weather: true, efforts: true,
+      blocks: true, weather: true, efforts: true, routeRef: true,
     },
   });
   return outings.map((outing) => ({
@@ -87,6 +87,7 @@ export async function cardOutings(userId: string): Promise<CardOuting[]> {
     blocks: (outing.blocks as unknown as RanBlock[]) ?? [],
     weather: (outing.weather as unknown as Weather | null) ?? null,
     efforts: (outing.efforts as BestEfforts | null) ?? null,
+    routeRef: outing.routeRef,
   }));
 }
 

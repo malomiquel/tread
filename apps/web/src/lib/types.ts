@@ -64,6 +64,8 @@ export interface CardOuting extends OutingRow {
   blocks: RanBlock[];
   weather: Weather | null;
   efforts: BestEfforts | null;
+  /** The route it followed, by the phone's number for it, or null. */
+  routeRef: number | null;
 }
 
 export interface RouteRow {

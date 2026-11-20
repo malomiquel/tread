@@ -55,6 +55,7 @@ function editable(run: TransferRun) {
     exertion: run.exertion,
     sessionId: run.sessionId,
     shoeRef: run.shoeId ?? null,
+    routeRef: run.routeId ?? null,
     tags: run.tags ?? [],
     note: run.note ?? null,
     blocks: json(run.blocks),
@@ -71,7 +72,9 @@ async function ingestRuns(userId: string, runs: readonly TransferRun[]): Promise
     (await prisma.outing.findMany({ where: { userId }, select: { id: true, startedAt: true } }))
       .map((outing) => [outing.startedAt.getTime(), outing.id]),
   );
-  const fresh = runs.filter((run) => !known.has(run.startedAt) && run.points.length >= 2);
+  // A run without a track (a treadmill, one entered by hand) still counts, as
+  // on the phone: only an empty one, no track and no distance, is left out.
+  const fresh = runs.filter((run) => !known.has(run.startedAt) && (run.points.length >= 2 || run.distanceM > 0));
   const seen = runs.filter((run) => known.has(run.startedAt));
 
   for (let i = 0; i < fresh.length; i += CHUNK) {
@@ -89,7 +92,7 @@ async function ingestRuns(userId: string, runs: readonly TransferRun[]): Promise
         skipDuplicates: true,
       }),
       prisma.track.createMany({
-        data: chunk.map(({ id, run }) => ({ outingId: id, points: json(run.points) })),
+        data: chunk.filter(({ run }) => run.points.length >= 2).map(({ id, run }) => ({ outingId: id, points: json(run.points) })),
         skipDuplicates: true,
       }),
     ]);

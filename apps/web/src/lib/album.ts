@@ -65,8 +65,7 @@ function toCardRun(outing: CardOuting, id: number): AlbumRun {
     blocks: outing.blocks,
     weather: outing.weather,
     bestEfforts: outing.efforts,
-    // The server does not keep which route a run followed: no ghost is dealt here.
-    routeId: null,
+    routeId: outing.routeRef,
     activity: outing.activity,
     tags: RUN_TAGS.filter((tag) => outing.tags.includes(tag)),
   };

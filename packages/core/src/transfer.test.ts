@@ -94,6 +94,15 @@ test("a run without the two fields the import keys on is dropped", () => {
   assert.equal(read?.runs[0].startedAt, 42);
 });
 
+test("a run names the route it followed by the route's id", () => {
+  const read = readTransfer(JSON.stringify(transfer({
+    runs: [{ ...run(1), routeId: 7 }, { ...run(2), routeId: "7" as never }, { ...run(3), routeId: null }],
+    routes: [{ ...loop, id: 7 }, { ...loop, id: 2.5 }],
+  })));
+  assert.deepEqual(read?.runs.map((one) => one.routeId), [7, undefined, undefined]);
+  assert.deepEqual(read?.routes.map((route) => route.id), [7, undefined]);
+});
+
 test("a plan without its sessions is no plan", () => {
   const withPlan = readTransfer(JSON.stringify(transfer({
     plan: { raceAt: 1, sessions: [], goal: "10k", weeks: 8, perWeek: 3,

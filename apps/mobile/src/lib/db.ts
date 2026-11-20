@@ -834,6 +834,7 @@ export async function everythingForTransfer(): Promise<Transfer> {
       heart: run.heart,
       laps: run.laps,
       shoeId: run.shoeId,
+      routeId: run.routeId,
       activity: run.activity,
       tags: run.tags,
       note: run.note,
@@ -853,6 +854,7 @@ export async function everythingForTransfer(): Promise<Transfer> {
     exportedAt: Date.now(),
     runs: carried,
     routes: (await listRoutes()).map((route) => ({
+      id: route.id,
       name: route.name,
       createdAt: route.createdAt,
       waypoints: route.waypoints,
@@ -918,6 +920,32 @@ export async function restoreTransfer(transfer: Transfer): Promise<Restored> {
     shoeIds.set(shoe.id, Number(result.lastInsertRowId));
   }
 
+  // A route is recognised by its name and the moment it was drawn, so the
+  // same file read twice adds it once. Its creation date is kept: the list is
+  // ordered by it, and a route drawn last spring is not new.
+  // Before the runs, so each can name the route it followed here: its id on
+  // the old phone is only a name in the file.
+  let routes = 0;
+  const routeIds = new Map<number, number>();
+  for (const route of transfer.routes) {
+    const existing = await db.getFirstAsync<{ id: number }>(
+      "SELECT id FROM routes WHERE created_at = ? AND name = ?", route.createdAt, route.name,
+    );
+    if (existing) {
+      if (route.id !== undefined) routeIds.set(route.id, existing.id);
+      continue;
+    }
+    const shape = { waypoints: route.waypoints, legs: route.legs };
+    const inserted = await db.runAsync(
+      "INSERT INTO routes (name, created_at, distance_m, waypoints, legs, place, preview)"
+      + " VALUES (?, ?, ?, ?, ?, ?, NULL)",
+      route.name, route.createdAt, routeDistanceM(shape),
+      JSON.stringify(route.waypoints), JSON.stringify(route.legs), route.place,
+    );
+    if (route.id !== undefined) routeIds.set(route.id, Number(inserted.lastInsertRowId));
+    routes += 1;
+  }
+
   for (const run of transfer.runs) {
     const existing = await db.getFirstAsync<{ id: number }>(
       "SELECT id FROM runs WHERE started_at = ?", run.startedAt,
@@ -932,7 +960,7 @@ export async function restoreTransfer(transfer: Transfer): Promise<Restored> {
     await db.runAsync(
       "UPDATE runs SET ended_at = ?, distance_m = ?, duration_s = ?, avg_pace_s_km = ?, name = ?,"
       + " elevation_gain_m = ?, fastest_km_s = ?, cadence_spm = ?, exertion = ?, session_id = ?,"
-      + " session_blocks = ?, weather = ?, heart = ?, laps = ?, shoe_id = ?, activity = ?, tags = ?, note = ? WHERE id = ?",
+      + " session_blocks = ?, weather = ?, heart = ?, laps = ?, shoe_id = ?, route_id = ?, activity = ?, tags = ?, note = ? WHERE id = ?",
       run.endedAt, run.distanceM, run.durationS, run.avgPaceSKm, run.name,
       run.elevationGainM, run.fastestKmS, run.cadenceSpm, run.exertion, run.sessionId,
       run.blocks?.length ? JSON.stringify(run.blocks) : null,
@@ -940,31 +968,13 @@ export async function restoreTransfer(transfer: Transfer): Promise<Restored> {
       run.heart ? JSON.stringify(run.heart) : null,
       run.laps?.length ? JSON.stringify(run.laps) : null,
       run.shoeId == null ? null : shoeIds.get(run.shoeId) ?? null,
+      run.routeId == null ? null : routeIds.get(run.routeId) ?? null,
       run.activity && run.activity !== "run" ? readActivity(run.activity) : null,
       run.tags?.length ? JSON.stringify(parseTags(JSON.stringify(run.tags))) : null,
       typeof run.note === "string" && run.note.trim() ? run.note : null,
       id,
     );
     added += 1;
-  }
-
-  // A route is recognised by its name and the moment it was drawn, so the
-  // same file read twice adds it once. Its creation date is kept: the list is
-  // ordered by it, and a route drawn last spring is not new.
-  let routes = 0;
-  for (const route of transfer.routes) {
-    const existing = await db.getFirstAsync<{ id: number }>(
-      "SELECT id FROM routes WHERE created_at = ? AND name = ?", route.createdAt, route.name,
-    );
-    if (existing) continue;
-    const shape = { waypoints: route.waypoints, legs: route.legs };
-    await db.runAsync(
-      "INSERT INTO routes (name, created_at, distance_m, waypoints, legs, place, preview)"
-      + " VALUES (?, ?, ?, ?, ?, ?, NULL)",
-      route.name, route.createdAt, routeDistanceM(shape),
-      JSON.stringify(route.waypoints), JSON.stringify(route.legs), route.place,
-    );
-    routes += 1;
   }
 
   // Kept under the same id when it is free, since runs name the session they

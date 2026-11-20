@@ -62,6 +62,11 @@ export interface TransferRun {
   laps?: LapMark[];
   /** The pair it was run in, by its id in `shoes`. */
   shoeId?: number | null;
+  /**
+   * The route it followed, by its id in `routes`. Absent from older files.
+   * The account keeps it too, so a run on the web can beat its ghost.
+   */
+  routeId?: number | null;
   /** Absent from older files: a run, untagged. */
   activity?: string;
   tags?: string[];
@@ -97,6 +102,8 @@ export interface TransferPlan {
  * list on the other phone takes its own the first time it shows the route.
  */
 export interface TransferRoute {
+  /** Its id on the phone that wrote the file, which runs name it by. Absent from older files. */
+  id?: number;
   name: string;
   createdAt: number;
   waypoints: RoutePoint[];
@@ -172,8 +179,9 @@ export function readTransfer(text: string): Transfer | null {
           && typeof (run as TransferRun).startedAt === "number"
           && Array.isArray((run as TransferRun).points))
         // A file from an older version spells its sessions in French.
-        .map((run) => ({
+        .map(({ routeId, ...run }) => ({
           ...run,
+          ...(typeof routeId === "number" && Number.isInteger(routeId) ? { routeId } : {}),
           sessionId: typeof run.sessionId === "string" ? currentSessionId(run.sessionId) : null,
           blocks: Array.isArray(run.blocks)
             ? run.blocks.map((block) => ({ ...block, effort: currentEffort(block.effort) }))
@@ -243,7 +251,11 @@ function readRoutes(routes: unknown): TransferRoute[] {
       && typeof (route as TransferRoute).createdAt === "number"
       && Array.isArray((route as TransferRoute).waypoints)
       && Array.isArray((route as TransferRoute).legs))
-    .map((route) => ({ ...route, place: typeof route.place === "string" ? route.place : null }));
+    .map(({ id, ...route }) => ({
+      ...route,
+      ...(typeof id === "number" && Number.isInteger(id) ? { id } : {}),
+      place: typeof route.place === "string" ? route.place : null,
+    }));
 }
 
 /**
