@@ -81,18 +81,16 @@ export function RouteEditorMap({ route, onAdd, onMove }: {
       instance.addControl(new lib.NavigationControl({ showCompass: false }), "top-right");
       instance.getCanvas().style.cursor = "crosshair";
 
-      // A new route starts where the runner is, when the browser is willing to say.
-      if (start.length === 0 && "geolocation" in navigator) {
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            if (latest.current.waypoints.length === 0) {
-              instance.jumpTo({ center: [position.coords.longitude, position.coords.latitude], zoom: 14 });
-            }
-          },
-          () => undefined,
-          { timeout: 5000, maximumAge: 600_000 },
-        );
-      }
+      // Where the runner is: a dot on the map and a button to come back to it.
+      // A new route starts there, when the browser is willing to say.
+      const locate = new lib.GeolocateControl({
+        positionOptions: { enableHighAccuracy: true, timeout: 10_000 },
+        fitBoundsOptions: { maxZoom: 15 },
+        showUserLocation: true,
+        trackUserLocation: false,
+      });
+      instance.addControl(locate, "top-right");
+      if (start.length === 0) instance.once("load", () => locate.trigger());
 
       instance.on("click", (event) => add.current({ lat: event.lngLat.lat, lng: event.lngLat.lng }));
       instance.on("style.load", () => {
