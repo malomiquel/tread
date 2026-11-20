@@ -151,9 +151,11 @@ button, input, select { font: inherit; color: inherit; }
 /* ---------- Rows ---------- */
 .rows { list-style: none; margin: 0; padding: 0; }
 .row { display: flex; align-items: center; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--hairline); min-height: 64px; }
-.rows > li:last-child > .row, .rows > .row:last-child { border-bottom: 0; }
-a.row { margin: 0 -20px; padding-left: 20px; padding-right: 20px; border-radius: 0; }
-a.row:hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
+.rows > li:last-child > .row, .rows > .row:last-child, .panel > .row:last-child { border-bottom: 0; }
+/* The hover is a rounded patch set in from the panel's edge, never a band
+   running into its corners; its own rule goes while it shows. */
+a.row { margin: 0 -12px; padding-left: 12px; padding-right: 12px; border-radius: 14px; }
+a.row:hover { background: color-mix(in srgb, var(--text) 5%, transparent); border-bottom-color: transparent; }
 .tile { width: 44px; height: 44px; border-radius: 12px; background: var(--background); flex: none; display: grid; place-items: center; color: var(--muted); }
 .panel .tile { background: var(--background); }
 .row-main { min-width: 0; flex: 1; }
