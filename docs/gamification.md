@@ -527,4 +527,14 @@ The Album first, then, on top of it and still without a backend:
   phases; guardians are each phase's longest long run and last quality
   session; the race closes the last chapter. Only a way of reading the plan.
 
+**Calibrated after a first look.** On a beginner's first weeks almost every
+long run broke a record and the longest distance at once, and the two
+together made an exceptional card a week. Now a record must be 1 % faster,
+over 1 km or more (a 400 m caught by GPS inside repeats is noise), the
+longest run must be 5 % longer, and a record and the longest run on the same
+day count for four points rather than six, since they are mostly one event.
+On a simulated year (fast progress for four months, then a plateau, a race
+a season) that deals about 72 % common, 25 % notable, 3 % rare, and an
+exceptional card only on a day out of the ordinary.
+
 Still out: printed cards, seasonal sets, ride sets, an inbox of duels.

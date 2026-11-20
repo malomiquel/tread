@@ -79,9 +79,16 @@ const POINTS: Record<Trait, number> = {
   climb: 1, early: 1, late: 1, rain: 1, snow: 1, wind: 1, cold: 1, anniversary: 1,
 };
 
-/** How many points a card's traits add up to. */
+/**
+ * How many points a card's traits add up to.
+ *
+ * A record and the longest run on the same day are mostly one event, since
+ * a longer run is where a new 10K or half is found: together they count
+ * for four, not six, so they make a rare card rather than an exceptional one.
+ */
 export const cardPoints = (traits: readonly Trait[]): number =>
-  traits.reduce((sum, trait) => sum + POINTS[trait], 0);
+  traits.reduce((sum, trait) => sum + POINTS[trait], 0)
+  - (traits.includes("best") && traits.includes("longest") ? 2 : 0);
 
 export function rarityOf(traits: readonly Trait[]): Rarity {
   const points = cardPoints(traits);
@@ -105,6 +112,13 @@ function tooFastForARun(run: CardRun): boolean {
   return run.distanceM >= 2000 && run.avgPaceSKm !== null && run.avgPaceSKm > 0
     && run.avgPaceSKm < RUN_FASTEST_AVG_S_KM;
 }
+
+/** Records count over this distance and up. */
+const RECORD_FROM_M = 1000;
+/** How much faster a record must be: 1 %, about 15 s on a 25-minute 5K. */
+const RECORD_MARGIN = 0.01;
+/** How much further the longest run must go: 5 %, 500 m on a 10 km. */
+const LONGEST_MARGIN = 0.05;
 
 /** Thunderstorm codes: no card asks for a run under one. */
 const STORM = (code: number) => code >= 95 && code <= 99;
@@ -221,10 +235,16 @@ function traitsOf(run: CardRun, before: History): Trait[] {
   const traits: Trait[] = [];
   const indoor = run.activity === "treadmill";
 
+  // A record by a clear margin, over a kilometre or more: a 400 m caught by
+  // GPS inside a session of repeats, or a second shaved off a 5K, is noise
+  // as often as it is progress, and would make every early run a record.
   if (run.bestEfforts && Object.entries(run.bestEfforts).some(
-    ([key, seconds]) => before.efforts[key] !== undefined && seconds < before.efforts[key],
+    ([key, seconds]) => Number(key) >= RECORD_FROM_M && before.efforts[key] !== undefined
+      && seconds < before.efforts[key] * (1 - RECORD_MARGIN),
   )) traits.push("best");
-  if (before.count > 0 && run.distanceM > before.longestM) traits.push("longest");
+  // Longer by a stride worth the name, not by the hundred metres a loop
+  // gives one day and not the next.
+  if (before.count > 0 && run.distanceM > before.longestM * (1 + LONGEST_MARGIN)) traits.push("longest");
   if (!indoor && run.routeId !== null) {
     const record = before.routes.get(run.routeId);
     if (record !== undefined && run.durationS < record) traits.push("ghost");

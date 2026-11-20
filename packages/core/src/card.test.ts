@@ -40,7 +40,24 @@ test("a longer run and a faster 5K earn their traits", () => {
   const traits = cardsOf([before, longer]).get(longer.id)?.traits ?? [];
   assert.ok(traits.includes("longest"));
   assert.ok(traits.includes("best"));
-  assert.equal(rarityOf(traits), "exceptional");
+  // Mostly one event: a longer run is where a new best is found. Rare, not exceptional.
+  assert.equal(rarityOf(traits), "rare");
+});
+
+test("a record within GPS noise, or over 400 m, earns nothing", () => {
+  const before = run({ day: 1, bestEfforts: { "400": 100, "5000": 1800 } });
+  const barely = run({ day: 3, bestEfforts: { "400": 80, "5000": 1790 } });
+  assert.ok(!cardsOf([before, barely]).get(barely.id)?.traits.includes("best"));
+  const clearly = run({ day: 3, bestEfforts: { "5000": 1770 } });
+  assert.ok(cardsOf([before, clearly]).get(clearly.id)?.traits.includes("best"));
+});
+
+test("the longest run has to be longer by a stride worth the name", () => {
+  const before = run({ day: 1, distanceM: 10_000 });
+  const loop = run({ day: 3, distanceM: 10_300 });
+  assert.ok(!cardsOf([before, loop]).get(loop.id)?.traits.includes("longest"));
+  const further = run({ day: 3, distanceM: 10_600 });
+  assert.ok(cardsOf([before, further]).get(further.id)?.traits.includes("longest"));
 });
 
 test("a first run is no record: there is nothing yet to beat", () => {
