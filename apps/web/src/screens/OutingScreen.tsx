@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { IoChevronBack } from "react-icons/io5";
 import { activityName, sportOf } from "@tread/core/activity";
@@ -10,17 +11,24 @@ import { gradeAdjustedPace } from "@tread/core/gradePace";
 import { formatBpm, zoneName } from "@tread/core/heart";
 import { decimal, defineStrings, intlLocale, useStrings } from "@tread/core/i18n";
 import { lapsOf } from "@tread/core/laps";
+import { metaWords, tierName, completedBy, type MetaCard } from "@tread/core/metaCard";
+import { readPrivacyRadius } from "@tread/core/privacy";
 import { exertionName, kindName, sessionKind } from "@tread/core/plan";
 import { distanceUnit, elevationUnit, paceUnit, speedUnit, toElevationUnits, unitLengthM } from "@tread/core/units";
 import { weatherLabel, weatherLine } from "@tread/core/weather";
 import { sessionById, sessionName } from "@tread/core/workout";
+import { CardViewer } from "@/components/CardViewer";
+import { TiltCard } from "@/components/CardSurface";
 import { Figures } from "@/components/Figures";
+import { MetaCardView, MiniMetaCard, metaTitle } from "@/components/MetaCard";
+import { RunCard, type CardFace } from "@/components/RunCard";
 import { LineChart } from "@/components/LineChart";
 import { SectionHeader } from "@/components/SectionHeader";
 import { SummaryBanner } from "@/components/SummaryBanner";
 import { TrackMap } from "@/components/TrackMap";
+import { cardOf, dealAlbum, goalOf } from "@/lib/album";
 import { outingName } from "@/lib/display";
-import type { OutingDetail } from "@/lib/types";
+import type { CardOuting, OutingDetail } from "@/lib/types";
 
 const strings = defineStrings({
   fr: {
@@ -57,6 +65,10 @@ const strings = defineStrings({
     note: "Note",
     nothing: "Rien d'autre n'a été noté pour cette sortie.",
     noTrack: "Pas de tracé GPS : saisie à la main, ou sur tapis.",
+    card: "Sa carte",
+    completed: "Elle complète aussi",
+    collection: "Voir la collection",
+    viewer: (label: string) => `Carte : ${label}`,
   },
   en: {
     back: "History",
@@ -92,6 +104,10 @@ const strings = defineStrings({
     note: "Note",
     nothing: "Nothing else was noted for this outing.",
     noTrack: "No GPS track: entered by hand, or on a treadmill.",
+    card: "Its card",
+    completed: "It also completes",
+    collection: "See the collection",
+    viewer: (label: string) => `Card: ${label}`,
   },
 });
 
@@ -105,8 +121,24 @@ function sessionLabel(id: string | null): string | null {
   return kind ? kindName(kind) : null;
 }
 
-export function OutingScreen({ outing }: { outing: OutingDetail }) {
+export function OutingScreen({ outing, cardOutings, settings }: {
+  outing: OutingDetail;
+  /** The whole history, which the card is dealt against. */
+  cardOutings: CardOuting[];
+  settings: Record<string, string>;
+}) {
   const s = useStrings(strings);
+  const meta = useStrings(metaWords);
+  // Dealt against every outing before it, as on the phone; in the browser, for the runner's hours.
+  const album = useMemo(() => dealAlbum(cardOutings, goalOf(settings)), [cardOutings, settings]);
+  const card = cardOf(album, outing.id);
+  const number = album.numberOf.get(outing.id);
+  const completed = number === undefined ? [] : completedBy(album.meta, number);
+  const faces = useMemo(() => new Map<number, CardFace>(
+    [...album.byNumber].map(([key, run]) => [key, run.outing]),
+  ), [album]);
+  const privacy = readPrivacyRadius(settings.privacyRadiusM);
+  const [held, setHeld] = useState<MetaCard | null>(null);
   const riding = outing.activity === "ride";
   const running = sportOf(outing.activity) === "running";
   const points = outing.points;
@@ -203,6 +235,27 @@ export function OutingScreen({ outing }: { outing: OutingDetail }) {
         </div>
 
         <div>
+          {card ? (
+            <>
+              <SectionHeader title={s.card} />
+              <div className="card-holder">
+                <TiltCard><RunCard card={card} outing={outing} privacyRadiusM={privacy} /></TiltCard>
+              </div>
+              <p style={{ textAlign: "center", margin: "0 0 12px" }}>
+                <Link href="/collection" className="link-button">{s.collection}</Link>
+              </p>
+              {completed.length > 0 ? (
+                <>
+                  <p className="group-label">{s.completed}</p>
+                  <div className="card-row">
+                    {completed.map((great) => (
+                      <MiniMetaCard key={great.key} card={great} byNumber={faces} onOpen={() => setHeld(great)} />
+                    ))}
+                  </div>
+                </>
+              ) : null}
+            </>
+          ) : null}
           <SectionHeader title={s.about} />
           <div className="panel">
             {about.length > 0 ? (
@@ -281,6 +334,13 @@ export function OutingScreen({ outing }: { outing: OutingDetail }) {
           ) : null}
         </div>
       </div>
+      <CardViewer
+        open={held !== null}
+        onClose={() => setHeld(null)}
+        label={held ? s.viewer(`${meta.kind[held.kind]}, ${tierName(held.tier)}, ${metaTitle(held, faces)}`) : ""}
+      >
+        {held ? <MetaCardView card={held} byNumber={faces} privacyRadiusM={privacy} /> : null}
+      </CardViewer>
     </div>
   );
 }

@@ -11,7 +11,7 @@ import type { TransferPlan } from "@tread/core/transfer";
 import type { Weather } from "@tread/core/weather";
 import type { RanBlock } from "@tread/core/workout";
 import type {
-  OutingDetail, OutingFigures, OutingRow, PlanData, Preferences, RouteRow, ShoeRow,
+  CardOuting, OutingDetail, OutingFigures, OutingRow, PlanData, Preferences, RouteRow, ShoeRow,
 } from "@/lib/types";
 
 /**
@@ -60,6 +60,33 @@ export async function outingFigures(userId: string): Promise<OutingFigures[]> {
     ...toRow(outing),
     efforts: (outing.efforts as BestEfforts | null) ?? null,
     shoeRef: outing.shoeRef,
+  }));
+}
+
+/**
+ * Every outing with what its card is dealt from. Cards are dealt in the
+ * browser, not here: the hour a run started is read in the runner's own time
+ * zone, as on the phone, and a server's clock may sit in another.
+ */
+export async function cardOutings(userId: string): Promise<CardOuting[]> {
+  const outings = await prisma.outing.findMany({
+    where: { userId },
+    orderBy: { startedAt: "desc" },
+    select: {
+      ...rowFields, endedAt: true, fastestKmS: true, exertion: true, sessionId: true, tags: true,
+      blocks: true, weather: true, efforts: true,
+    },
+  });
+  return outings.map((outing) => ({
+    ...toRow(outing),
+    endedAt: outing.endedAt?.getTime() ?? null,
+    fastestKmS: outing.fastestKmS,
+    exertion: (outing.exertion as Exertion | null) ?? null,
+    sessionId: outing.sessionId,
+    tags: outing.tags,
+    blocks: (outing.blocks as unknown as RanBlock[]) ?? [],
+    weather: (outing.weather as unknown as Weather | null) ?? null,
+    efforts: (outing.efforts as BestEfforts | null) ?? null,
   }));
 }
 

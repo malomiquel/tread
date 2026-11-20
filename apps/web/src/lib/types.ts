@@ -51,6 +51,21 @@ export interface OutingFigures extends OutingRow {
   shoeRef: number | null;
 }
 
+/**
+ * An outing as its card reads it: what `@tread/core/card` deals from, with
+ * the outline to draw on the card. No track.
+ */
+export interface CardOuting extends OutingRow {
+  endedAt: number | null;
+  fastestKmS: number | null;
+  exertion: Exertion | null;
+  sessionId: string | null;
+  tags: string[];
+  blocks: RanBlock[];
+  weather: Weather | null;
+  efforts: BestEfforts | null;
+}
+
 export interface RouteRow {
   id: string;
   name: string;

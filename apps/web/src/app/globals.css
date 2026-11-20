@@ -257,3 +257,103 @@ a.row:hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
 .form-message { min-height: 22px; margin: 4px 0 12px; font-size: 15px; }
 .auth-foot { margin-top: 20px; color: var(--muted); font-size: 15.5px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .auth-foot a { color: var(--accent); font-weight: 600; }
+
+/* ---------- Cards ---------- */
+/*
+ * A card is printed (CardSurface): its colours come from @tread/core/cardLook
+ * as --card-* variables and follow neither appearance. 300 × 420 as on the
+ * phone; a thumbnail is as wide as its cell.
+ */
+.card-surface {
+  --lean-x: 0; --lean-y: 0;
+  position: relative; overflow: hidden; border-radius: 18px; padding: 4px; flex: none;
+  background-size: 200% 200%;
+  background-position: calc(50% + var(--lean-x) * 30%) calc(50% - var(--lean-y) * 40%);
+  color: var(--card-ink); font-family: var(--font-barlow), system-ui, sans-serif; line-height: 1.2;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+.card-surface.small { border-radius: 12px; padding: 2px; }
+.card-ground { position: relative; height: 100%; border-radius: 14px; overflow: hidden; background: var(--card-page); }
+.card-surface.small .card-ground { border-radius: 10px; }
+.card-glow { position: absolute; inset: 0; pointer-events: none; }
+.card-contours {
+  position: absolute; inset: -12px; width: calc(100% + 24px); height: calc(100% + 24px); pointer-events: none;
+  transform: translate(calc(var(--lean-x) * 10px), calc(var(--lean-y) * -10px));
+}
+.card-foil {
+  position: absolute; top: -20%; bottom: -20%; left: -100%; width: 300%; pointer-events: none;
+  transform: translate(calc(var(--lean-x) * -90px), calc(var(--lean-y) * 60px));
+}
+.card-inner { position: absolute; inset: 5px; border: 1px solid; border-radius: 9px; pointer-events: none; }
+.card-surface.small .card-inner { inset: 3px; border-width: 0.5px; border-radius: 7px; }
+.tilt { display: inline-block; transition: transform 160ms ease-out; transform-style: preserve-3d; will-change: transform; }
+
+.run-card { width: 300px; height: 420px; }
+.card-art {
+  position: absolute; top: 70px; left: 0; right: 0; display: flex; justify-content: center; pointer-events: none;
+  transform: translate(calc(var(--lean-x) * -8px), calc(var(--lean-y) * 8px));
+}
+.card-outline { display: block; overflow: visible; }
+.card-outline-empty { display: grid; place-items: center; aspect-ratio: 1; color: var(--card-soft); }
+.card-plate { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; width: 252px; padding-top: 8px; }
+.plate-cell { display: block; border-radius: 8px; background: color-mix(in srgb, var(--card-line) 7%, transparent); }
+.card-fade { position: absolute; left: 0; right: 0; bottom: 0; height: 52%; background: var(--card-fade); pointer-events: none; }
+.card-content { position: absolute; inset: 0; padding: 16px; display: flex; flex-direction: column; justify-content: space-between; }
+.card-top { display: flex; justify-content: space-between; align-items: flex-start; }
+.card-figure { font-size: 54px; line-height: 54px; font-weight: 700; letter-spacing: -2px; font-variant-numeric: tabular-nums; }
+.card-figure small { font-size: 18px; font-weight: 600; letter-spacing: 0; color: var(--card-lit); }
+.card-corner {
+  margin-top: 6px; font-size: 11.5px; line-height: 15px; font-weight: 600; letter-spacing: 1.6px; text-transform: uppercase;
+  color: var(--card-soft); font-variant-numeric: tabular-nums;
+}
+.card-corner.right { text-align: right; }
+.card-foot { display: flex; flex-direction: column; gap: 3px; }
+.card-name { font-size: 23px; font-weight: 700; letter-spacing: -0.4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-detail {
+  font-size: 12px; font-weight: 500; letter-spacing: 0.8px; text-transform: uppercase; color: var(--card-soft);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums;
+}
+.card-traits {
+  font-size: 13.5px; font-weight: 600; line-height: 17px; height: 34px; margin-top: 2px; color: var(--card-lit);
+  overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.card-traits.note { font-weight: 400; color: var(--card-soft); }
+.card-stats { display: flex; margin: 4px 0 0; padding-top: 8px; border-top: 0.5px solid var(--card-rule); }
+.card-stats > div { flex: 1; text-align: center; min-width: 0; padding: 0 2px; }
+.card-stats dd { margin: 0; font-size: 22px; line-height: 24px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.card-stats dt {
+  font-size: 11px; font-weight: 600; letter-spacing: 0.9px; text-transform: uppercase; color: var(--card-soft);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.card-bottom { display: flex; justify-content: space-between; margin-top: 8px; }
+.card-rarity { font-size: 11px; font-weight: 600; letter-spacing: 1.6px; text-transform: uppercase; color: var(--card-strong); white-space: pre; }
+.card-brand { font-size: 11px; font-weight: 700; letter-spacing: 2.4px; color: var(--card-soft); }
+
+.mini-card { width: 100%; aspect-ratio: 5 / 7; }
+.mini-content { position: absolute; inset: 0; padding: 8px; display: flex; flex-direction: column; text-align: left; }
+.mini-top, .mini-tier { font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; font-variant-numeric: tabular-nums; }
+.mini-top { color: var(--card-soft); }
+.mini-tier { color: var(--card-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mini-art { flex: 1; min-height: 0; position: relative; }
+/* The art is a square as large as the room between the number and the name allows. */
+.mini-art > * { position: absolute; inset: 0; margin: auto; height: 100%; width: auto; max-width: 100%; aspect-ratio: 1; }
+.mini-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; align-content: center; }
+.mini-name { font-size: 14px; font-weight: 700; letter-spacing: -0.2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mini-button { display: block; width: 100%; padding: 0; border: 0; background: none; cursor: pointer; border-radius: 12px; }
+.mini-button:hover .card-surface { box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16); }
+
+/* A row that scrolls sideways from the gutter, and a grid of cards. */
+.card-row { display: grid; grid-auto-flow: column; grid-auto-columns: 118px; gap: 10px; overflow-x: auto; scrollbar-width: none; padding: 2px 0 6px; }
+.card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 12px; }
+@media (max-width: 720px) { .card-grid { grid-template-columns: repeat(3, 1fr); gap: 10px; } }
+
+/* The card held up on its own (CardViewer), and a card beside a page's details. */
+.card-viewer { border: 0; padding: 0; background: none; max-width: 380px; overflow: visible; }
+.card-viewer::backdrop { background: var(--scrim); }
+.card-viewer-body { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 12px; }
+.card-viewer-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.card-holder { display: flex; justify-content: center; padding: 18px 0; }
+.card-note { color: var(--subtle); font-size: 14.5px; text-align: center; margin: 0 0 18px; min-height: 2.7em; }
+.page-lede { color: var(--muted); font-size: 15.5px; line-height: 1.45; margin: 0 0 16px; max-width: 640px; min-height: 2.9em; }
+.body-text { color: var(--muted); font-size: 15px; line-height: 1.45; margin: 0 0 10px; }
+.kind-name { font-size: 16.5px; font-weight: 600; margin: 0 0 2px; }

@@ -1,27 +1,33 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import {
-  IoCalendarClearOutline, IoFlameOutline, IoFootstepsOutline, IoRibbonOutline, IoSpeedometerOutline,
+  IoAlbumsOutline, IoCalendarClearOutline, IoFlameOutline, IoFootstepsOutline, IoRibbonOutline, IoSpeedometerOutline,
   IoStopwatchOutline, IoTrendingUpOutline, IoTrophyOutline,
 } from "react-icons/io5";
 import { ofSport } from "@tread/core/activity";
 import { EFFORT_KEYS, effortName } from "@tread/core/efforts";
 import { formatDistance, formatDuration, formatElevation } from "@tread/core/format";
-import { goalAmount, goalFromSettings, measure, readGoalKind } from "@tread/core/goals";
+import { cardWords, type Card } from "@tread/core/card";
+import { goalAmount, measure } from "@tread/core/goals";
 import { defineStrings, intlLocale, plural, useStrings } from "@tread/core/i18n";
+import { readPrivacyRadius } from "@tread/core/privacy";
 import { goalName } from "@tread/core/plan";
 import { effortSamples, predictRaces } from "@tread/core/predictions";
 import { wearOf } from "@tread/core/shoes";
 import { goalProgress, weekStreak, weekTotals, weeklyVolumeKm, yearToDate } from "@tread/core/stats";
 import { distanceUnit, elevationUnit, paceUnit } from "@tread/core/units";
 import { formatPace } from "@tread/core/format";
+import { CardViewer } from "@/components/CardViewer";
 import { Figures } from "@/components/Figures";
 import { PageHeader } from "@/components/PageHeader";
 import { RecordRow } from "@/components/RecordRow";
+import { MiniCard, RunCard } from "@/components/RunCard";
 import { SectionHeader } from "@/components/SectionHeader";
 import { BannerTag, SummaryBanner } from "@/components/SummaryBanner";
+import { dealAlbum, goalOf } from "@/lib/album";
 import { outingName } from "@/lib/display";
-import type { OutingFigures, ShoeRow } from "@/lib/types";
+import type { CardOuting, OutingFigures, ShoeRow } from "@/lib/types";
 
 const strings = defineStrings({
   fr: {
@@ -34,6 +40,10 @@ const strings = defineStrings({
     goalLeft: (left: string) => `encore ${left}`,
     goalReached: "Objectif atteint",
     noGoal: "Pas d'objectif de la semaine : fixe-le dans l'app.",
+    collection: "Collection",
+    allCards: "Toute la collection",
+    allCardsDetail: (rare: number) => (rare > 0 ? `${plural(rare, "carte rare", "cartes rares")} et mieux` : "Grandes cartes, séries et règles"),
+    card: (label: string) => `Carte : ${label}`,
     progress: "Progression",
     streak: "Semaines d'affilée",
     streakDetail: (best: number, goal: boolean) => `${goal ? "Objectif tenu" : "Au moins une course"} · record ${best}`,
@@ -71,6 +81,10 @@ const strings = defineStrings({
     goalLeft: (left: string) => `${left} to go`,
     goalReached: "Goal reached",
     noGoal: "No weekly goal: set it in the app.",
+    collection: "Collection",
+    allCards: "The whole collection",
+    allCardsDetail: (rare: number) => (rare > 0 ? `${plural(rare, "rare card", "rare cards")} and better` : "Great cards, sets and rules"),
+    card: (label: string) => `Card: ${label}`,
     progress: "Progress",
     streak: "Weeks in a row",
     streakDetail: (best: number, goal: boolean) => `${goal ? "Goal met" : "At least one run"} · best ${best}`,
@@ -100,31 +114,31 @@ const strings = defineStrings({
   },
 });
 
-const numberSetting = (raw: string | undefined): number | null => {
-  const value = Number(raw);
-  return raw && Number.isFinite(value) && value > 0 ? value : null;
-};
+/** The newest cards shown under the week, before the whole collection. */
+const NEWEST = 8;
 
 const shortDate = (at: number) => new Date(at).toLocaleDateString(intlLocale(), { day: "numeric", month: "short", year: "numeric" });
 
-export function ProfileScreen({ name, outings, shoes, settings }: {
+export function ProfileScreen({ name, outings, cardOutings, shoes, settings }: {
   name: string;
   outings: OutingFigures[];
+  /** The same outings as their cards read them. */
+  cardOutings: CardOuting[];
   shoes: ShoeRow[];
   settings: Record<string, string>;
 }) {
   const s = useStrings(strings);
+  const words = useStrings(cardWords);
   const now = Date.now();
+  const album = useMemo(() => dealAlbum(cardOutings, goalOf(settings)), [cardOutings, settings]);
+  const [held, setHeld] = useState<Card | null>(null);
+  const heldOuting = held ? album.byNumber.get(held.runId)?.outing : undefined;
+  const rareCards = album.newest.filter((card) => card.rarity === "rare" || card.rarity === "exceptional").length;
   // A runner's figures: rides count in none of them.
   const runs = ofSport(outings, "running");
 
   const week = weekTotals(runs, now);
-  const goal = goalFromSettings({
-    goalKind: readGoalKind(settings.goalKind),
-    weeklyGoalM: numberSetting(settings.weeklyGoalM),
-    weeklyGoalS: numberSetting(settings.weeklyGoalS),
-    weeklyGoalClimbM: numberSetting(settings.weeklyGoalClimbM),
-  });
+  const goal = goalOf(settings);
   const covered = goal ? measure(goal.kind, { distanceM: week.distanceM, durationS: week.durationS, climbM: week.climbM }) : 0;
   const progress = goal ? goalProgress(covered, goal.target) : null;
   const streak = weekStreak(runs, goal, now);
@@ -173,6 +187,17 @@ export function ProfileScreen({ name, outings, shoes, settings }: {
 
       {runs.length === 0 ? <p className="note">{s.empty}</p> : (
         <>
+          <SectionHeader title={s.collection} aside={String(album.newest.length)} />
+          <div className="card-row" style={{ marginBottom: 10 }}>
+            {album.newest.slice(0, NEWEST).map((card) => {
+              const run = album.byNumber.get(card.runId);
+              return run ? <MiniCard key={card.runId} card={card} outing={run.outing} onOpen={() => setHeld(card)} /> : null;
+            })}
+          </div>
+          <div className="panel">
+            <RecordRow icon={<IoAlbumsOutline size={19} />} name={s.allCards} detail={s.allCardsDetail(rareCards)} value="" href="/collection" />
+          </div>
+
           <div className="grid-2">
             <section>
               <SectionHeader title={s.progress} />
@@ -262,6 +287,14 @@ export function ProfileScreen({ name, outings, shoes, settings }: {
           </div>
         </>
       ) : null}
+      <CardViewer
+        open={held !== null && heldOuting !== undefined}
+        onClose={() => setHeld(null)}
+        href={heldOuting ? `/outings/${heldOuting.id}` : undefined}
+        label={held && heldOuting ? s.card(`${words.number(held.number)}, ${words.rarity[held.rarity]}, ${outingName(heldOuting)}`) : ""}
+      >
+        {held && heldOuting ? <RunCard card={held} outing={heldOuting} privacyRadiusM={readPrivacyRadius(settings.privacyRadiusM)} /> : null}
+      </CardViewer>
     </div>
   );
 }

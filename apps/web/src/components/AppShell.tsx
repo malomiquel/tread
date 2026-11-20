@@ -29,9 +29,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   const s = useStrings(strings);
   const path = usePathname();
   const current = (href: string) => (path === href || path.startsWith(`${href}/`) ? "page" : undefined);
-  const outing = path.startsWith("/outings/") ? "/history" : null;
+  // Pages pushed from a tab keep it lit: an outing from History, the collection from Profile.
+  const parent = path.startsWith("/outings/")
+    ? "/history"
+    : path === "/collection" || path === "/card-rules" ? "/profile" : null;
   const links = TABS.map(({ href, key, Icon }) => (
-    <Link key={href} href={href} aria-current={current(href) ?? (outing === href ? "page" : undefined)}>
+    <Link key={href} href={href} aria-current={current(href) ?? (parent === href ? "page" : undefined)}>
       <Icon size={20} aria-hidden />
       <span>{s[key]}</span>
     </Link>

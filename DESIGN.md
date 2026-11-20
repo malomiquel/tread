@@ -230,7 +230,7 @@ defaults.
 | `RunMap`, `TrackOverlay` | The map and the track drawn on it. |
 | `ShareCard` + `ShareRunSheet` | The picture a run leaves as, story-shaped (9:16): the distance large, date and place, time, pace, gain and steps, TREAD in the corner. The sheet lays every kind side by side, swiped through like photos with dots under them, and sends the one in view: Map (the map photographed, the track on it), Photo (one of the run's photos or any picked, the outline drawn white over it), Blue (the stage, the outline large), Transparent in white and in blue (no ground at all, to lay over a photo in a story), the same two as a small sticker (outline, distance, time and pace in the middle), and GIF (the track drawn as it was run). Transparent ones are previewed on checks and keep their alpha. |
 | `RecapCard` | A month or a year as a picture, the run card's size, on the light accent whatever the appearance. |
-| `CardSurface` | What every card is printed on, the one place the app is made to look printed (`CardSurface.tsx` holds its own paper and metal colours): a metal edge, the ground, the light from the top right, contour lines engraved from the card's seed, and from rare up a holographic sheen that slides against the tilt. Five tiers: common on ivory under matte silver; notable on cool white under blue steel, lit faintly, its contours blue and a fine blue second frame; rare on the stage under polished silver, with the sheen; exceptional on night under platinum, the sheen stronger; legendary the same with a second frame inside the edge and the strongest sheen. The tier is also a word and diamonds (◆◇◇◇), never colour alone. |
+| `CardSurface` | What every card is printed on, the one place the app is made to look printed (its paper and metal colours, contours and sheen live in `@tread/core/cardLook`, shared with the web): a metal edge, the ground, the light from the top right, contour lines engraved from the card's seed, and from rare up a holographic sheen that slides against the tilt. Five tiers: common on ivory under matte silver; notable on cool white under blue steel, lit faintly, its contours blue and a fine blue second frame; rare on the stage under polished silver, with the sheen; exceptional on night under platinum, the sheen stronger; legendary the same with a second frame inside the edge and the strongest sheen. The tier is also a word and diamonds (◆◇◇◇), never colour alone. |
 | `RunCard` | The card a run leaves in the collection (`@tread/core/card`), 300 × 420: the distance at 54 in the corner, its unit in the tier's light; the outline large across the card (`Depth`), fading into the foot; name, date · time · pace, traits in the tier's light, four stats from 1 to 99, then the tier and TREAD. Printed the same whatever the appearance, since it is shared as is. |
 | `MiniCard` + `MiniCardRow` | A run's card at thumbnail size (118 × 165, radius 12), on the same `CardSurface`: number, outline, name, tier word. In a grid of three or a row that scrolls sideways from the gutter. |
 | `MetaCardView` + `MiniMetaCard` | The great cards (`@tread/core/metaCard`): a week held, a block of four, a race, laid out as a run's card. A race shows its outline large; a week or a block its runs' outlines as a plate four to a row, or one alone large. At the foot, three figures: runs, time, and rare cards (weeks for a block). A race is legendary. |
@@ -557,7 +557,16 @@ The web app is the phone's tabs laid out for a large screen, built from its
 own components (`apps/web/src/components`) with the phone's names:
 `SummaryBanner` (the cobalt stage, one per page), `Figures`, `SectionHeader`,
 `EmptyState`, `NoMatch`, `RecordRow`, `ChoiceMenu` (a chip that opens a
-list), `Segmented`, `RunShape`, `LineChart`, `TrackMap`. Blocks sit in
+list), `Segmented`, `RunShape`, `LineChart`, `TrackMap`. The cards are the
+phone's, dealt in the browser with the same rules (`@tread/core/card`,
+`@tread/core/metaCard`) so the runner's own hours are read, and printed
+from the same look (`@tread/core/cardLook`): `CardSurface` (CSS gradients
+and SVG contours), `RunCard` and `MiniCard`, `MetaCardView` and
+`MiniMetaCard`, `TiltCard` (a card leans under the mouse, never under a
+finger nor with reduce motion), and `CardViewer`, a card held up alone over
+the scrim with the way to its outing. Profile shows the newest cards under
+the week and leads to the Collection and its rules; an outing's page shows
+its card beside its details, and the great cards it completed. Blocks sit in
 rounded `sunken` panels (`.panel`, radius 20). The four tabs (Plan,
 Routes, History, Profile) sit in the header on a large screen and float in a
 glass bar at the foot, as on the phone, below 720 px; Settings is a header
