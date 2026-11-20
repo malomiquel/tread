@@ -65,7 +65,8 @@ const historyStrings = defineStrings({
     monthRuns: (count: number, time: string) => `${plural(count, "course", "courses")} · ${time}`,
     nothingYet: "Pas encore de course ce mois-ci",
     lastMonth: (month: string, km: string) => `${month} : ${km} ${distanceUnit()}`,
-    monthTotal: (km: string, count: number) => `${km} ${distanceUnit()} · ${count}`,
+    monthTotal: (km: string, count: number, ride: boolean) =>
+      `${km} ${distanceUnit()} · ${ride ? plural(count, "sortie vélo", "sorties vélo") : plural(count, "course", "courses")}`,
     noMatch: (type: string) => `Aucune sortie « ${type} » pour l'instant.`,
     allOutings: "Toutes les sorties",
     whichOutings: "Quelles sorties",
@@ -106,7 +107,8 @@ const historyStrings = defineStrings({
     monthRuns: (count: number, time: string) => `${plural(count, "run", "runs")} · ${time}`,
     nothingYet: "No runs this month yet",
     lastMonth: (month: string, km: string) => `${month}: ${km} ${distanceUnit()}`,
-    monthTotal: (km: string, count: number) => `${km} ${distanceUnit()} · ${count}`,
+    monthTotal: (km: string, count: number, ride: boolean) =>
+      `${km} ${distanceUnit()} · ${ride ? plural(count, "ride", "rides") : plural(count, "run", "runs")}`,
     noMatch: (type: string) => `No “${type}” outings yet.`,
     allOutings: "All outings",
     whichOutings: "Which outings",
@@ -397,6 +399,7 @@ export default function HistoryScreen() {
               aside={s.monthTotal(
                 formatDistance(summed.reduce((total, run) => total + run.distanceM, 0)),
                 summed.length,
+                counted === "cycling",
               )}
             />
           );

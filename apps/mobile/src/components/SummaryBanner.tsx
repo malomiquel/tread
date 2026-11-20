@@ -129,7 +129,7 @@ const styles = StyleSheet.create({
   },
   figureUnit: { fontSize: 12, opacity: 0.7 },
   figureLabel: {
-    color: colors.onStage, opacity: 0.65, fontSize: 9.5, fontFamily: font.semibold,
+    color: colors.onStage, opacity: 0.65, fontSize: 11, fontFamily: font.semibold,
     letterSpacing: 1.1, textTransform: "uppercase",
   },
   tag: {

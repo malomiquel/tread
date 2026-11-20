@@ -59,7 +59,6 @@ type Loaded = { run: Run; points: TrackPoint[] };
 const runStrings = defineStrings({
   fr: {
     notFound: "Sortie introuvable.",
-    pageTitle: { running: "Course", cycling: "Vélo" } as Record<Sport, string>,
     shareUnavailable: "Partage indisponible",
     shareUnavailableBody: "Impossible d'ouvrir la feuille de partage sur cet appareil.",
     exportFailed: "Export impossible",
@@ -113,7 +112,7 @@ const runStrings = defineStrings({
     routeFirst: "premier passage sur ce parcours",
     routeBehind: (gap: string) => `+${gap} sur ton record`,
     record: "Record",
-    splits: "Fractionnés",
+    splits: "Temps intermédiaires",
     card: "Carte",
     cardWaiting: "Ta carte t'attend",
     cardTurn: "Touche pour la retourner",
@@ -127,7 +126,6 @@ const runStrings = defineStrings({
     lapName: (number: number) => `Tour ${number}`,
     lapRest: "Jusqu'à l'arrivée",
     fastestLap: "le plus rapide",
-    gpsPoints: (n: number) => `${n} points GPS enregistrés`,
     copiedToHealth: (store: string) => `Copiée dans ${store}`,
     importedFrom: (store: string, source: string) => `Importée depuis ${store} · ${source}`,
     sending: "Envoi…",
@@ -152,7 +150,6 @@ const runStrings = defineStrings({
   },
   en: {
     notFound: "Outing not found.",
-    pageTitle: { running: "Run", cycling: "Ride" },
     shareUnavailable: "Sharing unavailable",
     shareUnavailableBody: "The share sheet can't be opened on this device.",
     exportFailed: "Couldn't export",
@@ -220,7 +217,6 @@ const runStrings = defineStrings({
     lapName: (number: number) => `Lap ${number}`,
     lapRest: "To the finish",
     fastestLap: "fastest",
-    gpsPoints: (n: number) => (n === 1 ? "1 GPS point recorded" : `${n} GPS points recorded`),
     copiedToHealth: (store: string) => `Copied to ${store}`,
     importedFrom: (store: string, source: string) => `Imported from ${store} · ${source}`,
     sending: "Sending…",
@@ -565,6 +561,9 @@ export default function RunDetailScreen() {
   // Null until Health has answered, and null for good if it has no weight on
   // file: an invented figure would be worse than a missing one.
   const energyKcal = weightKg === null ? null : outingEnergyKcal(run.activity, run.distanceM, run.durationS, weightKg);
+  // The figures that follow the map, when the run has any.
+  const hasMoreFigures = (descentM !== null && effort !== null) || energyKcal !== null
+    || run.cadenceSpm !== null || showGradePace || weather !== null || run.heart !== null;
 
   /**
    * Writes the run as GPX into the cache and hands it to the share sheet.
@@ -755,10 +754,11 @@ export default function RunDetailScreen() {
       {/* Just finished, the page is closed with "Done", in the corner where
           back usually is: back would return to the empty run screen, the one
           place nobody wants to be once they have stopped. */}
+      {/* No title in the bar: the run's own name stands just under it, larger. */}
       <Stack.Screen
         options={from !== undefined
           ? {
-            title: s.pageTitle[sport],
+            title: "",
             headerBackVisible: false,
             gestureEnabled: false,
             headerRight: () => (
@@ -767,7 +767,7 @@ export default function RunDetailScreen() {
               </Pressable>
             ),
           }
-          : { title: s.pageTitle[sport] }}
+          : { title: "" }}
       />
 
       <View style={styles.heading}>
@@ -859,6 +859,23 @@ export default function RunDetailScreen() {
             ) : null}
           </View>
         )}
+      </View>
+
+      {/* The map straight under the headline figures: where the run went
+          is the first thing anyone looks for after how far and how fast. */}
+      {/* A run typed in by hand has no track to draw. */}
+      {points.length > 1 ? (
+        <RunMap
+          points={points}
+          fitAll
+          replayable
+          onToggleFullscreen={() => setMapExpanded(true)}
+          style={styles.map}
+        />
+      ) : null}
+
+      {hasMoreFigures ? (
+      <View style={styles.section}>
         {descentM !== null && effort !== null ? (
           <View style={styles.row}>
             <Metric label={s.elevationLoss} value={formatElevation(descentM)} unit={elevationUnit()} />
@@ -866,13 +883,9 @@ export default function RunDetailScreen() {
             <Metric label={s.effortKm} value={decimal(effort.toFixed(1))} unit="km" />
           </View>
         ) : null}
-        {/* A ride already leads with its speed; a run gives it here, beside its pace. */}
-        {!riding || energyKcal !== null ? (
+        {energyKcal !== null ? (
           <View style={styles.row}>
-            {riding ? null : <Metric label={s.avgSpeed} value={formatSpeed(avgSpeedMs)} unit={speedUnit()} />}
-            {energyKcal !== null ? (
-              <Metric label={s.estimatedCalories} value={formatEnergy(energyKcal)} unit="kcal" />
-            ) : null}
+            <Metric label={s.estimatedCalories} value={formatEnergy(energyKcal)} unit="kcal" />
           </View>
         ) : null}
         {run.cadenceSpm !== null || showGradePace ? (
@@ -927,6 +940,7 @@ export default function RunDetailScreen() {
           </View>
         )}
       </View>
+      ) : null}
 
       {/* Its own section rather than another pair of figures: five bars are a
           shape of an effort, and the shape is the point. A steady endurance
@@ -940,17 +954,6 @@ export default function RunDetailScreen() {
             {s.zoneNote(run.heart.maxHeartRate)}
           </Text>
         </View>
-      ) : null}
-
-      {/* A run typed in by hand has no track to draw. */}
-      {points.length > 1 ? (
-        <RunMap
-          points={points}
-          fitAll
-          replayable
-          onToggleFullscreen={() => setMapExpanded(true)}
-          style={styles.map}
-        />
       ) : null}
 
       {sharedPoints.length > 0 && (
@@ -1196,7 +1199,7 @@ export default function RunDetailScreen() {
       )}
 
       <View style={styles.footnotes}>
-        <Text style={styles.muted}>{points.length === 0 ? s.manual : s.gpsPoints(points.length)}</Text>
+        {points.length === 0 ? <Text style={styles.muted}>{s.manual}</Text> : null}
         {hasHealth && run.healthUuid && (
           <View style={styles.synced}>
             <Ionicons name="heart" size={12} color={colors.accent} />
@@ -1331,7 +1334,7 @@ const styles = StyleSheet.create({
   shareOff: { opacity: 0.35 },
   sharePressed: { backgroundColor: colors.sunken },
   name: { color: colors.text, fontSize: 27, fontFamily: font.bold, letterSpacing: -0.6 },
-  date: { color: colors.subtle, fontSize: 14.5 },
+  date: { color: colors.subtle, fontSize: 15, fontFamily: font.regular },
   onRoute: { color: colors.accent, fontSize: 14.5, fontFamily: font.semibold },
 
   // Set apart from the export and delete pair below it: closing a run and

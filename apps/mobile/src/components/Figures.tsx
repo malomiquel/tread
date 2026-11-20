@@ -65,7 +65,7 @@ const styles = StyleSheet.create({
   unit: { color: colors.subtle, fontSize: 13, fontFamily: font.medium, letterSpacing: 0 },
   unitGlass: { color: colors.onStage, opacity: 0.7 },
   label: {
-    color: colors.subtle, fontSize: 10.5, fontFamily: font.semibold, letterSpacing: 1.2,
+    color: colors.subtle, fontSize: 11, fontFamily: font.semibold, letterSpacing: 1.2,
     textTransform: "uppercase",
   },
   labelGlass: { color: colors.onStage, opacity: 0.65 },

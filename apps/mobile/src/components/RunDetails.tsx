@@ -25,6 +25,7 @@ const strings = defineStrings({
     title: "Détails",
     type: "Type",
     tags: "Étiquettes",
+    tagsNote: "Ce que cette sortie était. « Compétition » en fait un jour de course : sa carte est légendaire et scelle les semaines qui l'ont préparée.",
     shoes: "Chaussures",
     noShoe: "Aucune",
     noShoeDetail: "Cette course ne compte pour aucune paire",
@@ -48,6 +49,7 @@ const strings = defineStrings({
     title: "Details",
     type: "Type",
     tags: "Tags",
+    tagsNote: "What this outing was. \"Race\" makes it a race day: its card is legendary and seals the weeks that led to it.",
     shoes: "Shoes",
     noShoe: "None",
     noShoeDetail: "This run counts for no pair",
@@ -168,6 +170,7 @@ export function RunDetails({ run, onChange }: Props) {
 
       {/* Chips rather than a sheet: several can be on at once, and each is
           one tap either way. */}
+      <Text style={styles.groupTitle}>{s.tags}</Text>
       <View style={styles.tags} accessibilityLabel={s.tags}>
         {RUN_TAGS.map((tag) => {
           const on = run.tags.includes(tag);
@@ -188,6 +191,7 @@ export function RunDetails({ run, onChange }: Props) {
           );
         })}
       </View>
+      <Text style={styles.tagsNote}>{s.tagsNote}</Text>
 
       <SettingsGroup title={s.note}>
         <TextInput
@@ -204,7 +208,7 @@ export function RunDetails({ run, onChange }: Props) {
         />
       </SettingsGroup>
 
-      <Text style={styles.photosTitle}>{s.photos}</Text>
+      <Text style={styles.groupTitle}>{s.photos}</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photos}>
         {run.photos.map((name, index) => (
           <Pressable
@@ -279,7 +283,11 @@ export function RunDetails({ run, onChange }: Props) {
 }
 
 const styles = StyleSheet.create({
-  tags: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: 20, paddingTop: 12 },
+  tags: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: 20 },
+  tagsNote: {
+    color: colors.subtle, fontSize: 13.5, fontFamily: font.regular, lineHeight: 19,
+    paddingHorizontal: 20, paddingTop: 10,
+  },
   tag: {
     paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8,
     borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline,
@@ -292,7 +300,7 @@ const styles = StyleSheet.create({
     color: colors.text, fontSize: 16, fontFamily: font.regular, lineHeight: 21,
     minHeight: 64, paddingVertical: 12, textAlignVertical: "top",
   },
-  photosTitle: {
+  groupTitle: {
     color: colors.subtle, fontSize: 12.5, fontFamily: font.medium, letterSpacing: 1,
     textTransform: "uppercase", marginTop: 22, marginBottom: 7, marginHorizontal: 20,
   },
