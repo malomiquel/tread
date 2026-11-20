@@ -31,6 +31,8 @@ interface Props {
    * a picture has no dark mode.
    */
   tint?: { tile: string; line: string; icon: string };
+  /** A thicker line for a shape drawn large, as the art of a card. */
+  strokeWidth?: number;
 }
 
 /**
@@ -41,10 +43,10 @@ interface Props {
  * with no GPS points, or one still loading, shows a running figure instead of
  * an empty square.
  */
-export function RunShape({ runId, track, ride = false, size = 56, hideEndsM = 0, tint }: Props) {
+export function RunShape({ runId, track, ride = false, size = 56, hideEndsM = 0, tint, strokeWidth = 2.4 }: Props) {
   const scheme = useColorScheme() === "dark" ? "dark" : "light";
-  const inner = size - 12;
-  const key = `${runId}:${track}:${size}:${hideEndsM}`;
+  const inner = size - Math.max(12, strokeWidth * 4);
+  const key = `${runId}:${track}:${size}:${hideEndsM}:${strokeWidth}`;
   const [loaded, setLoaded] = useState<{ key: string; shape: { x: number; y: number }[] } | null>(null);
   const cached = shapes.get(key);
   const shape = cached ?? (loaded?.key === key ? loaded.shape : null);
@@ -54,13 +56,13 @@ export function RunShape({ runId, track, ride = false, size = 56, hideEndsM = 0,
     let active = true;
     void runShape(runId)
       .then((points) => {
-        const drawn = thumbnail(hideEnds(points, hideEndsM), inner, 3);
+        const drawn = thumbnail(hideEnds(points, hideEndsM), inner, Math.max(3, strokeWidth));
         shapes.set(key, drawn);
         if (active) setLoaded({ key, shape: drawn });
       })
       .catch(() => undefined);
     return () => { active = false; };
-  }, [key, runId, inner, hideEndsM]);
+  }, [key, runId, inner, hideEndsM, strokeWidth]);
 
   return (
     <View
@@ -75,7 +77,7 @@ export function RunShape({ runId, track, ride = false, size = 56, hideEndsM = 0,
           <Polyline
             points={shape.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(" ")}
             stroke={tint?.line ?? literalColors.track[scheme]}
-            strokeWidth={2.4}
+            strokeWidth={strokeWidth}
             strokeLinecap="round"
             strokeLinejoin="round"
             fill="none"

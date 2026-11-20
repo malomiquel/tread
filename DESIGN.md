@@ -79,6 +79,9 @@ colour. For those only, `literalColors` gives the raw pair (`track`,
   used **on the stage**, for its tags, progress track and figures.
 - The stage is the one place where blue fills a surface. A page has at most
   one; while a run records, the screen has none.
+- Cards are the exception: a card is a printed object, not a surface of the
+  page. Its paper, metal, night ground and sheen are its own (`CardSurface`),
+  and a rare card's stage does not count as the page's.
 
 ---
 
@@ -227,10 +230,11 @@ defaults.
 | `RunMap`, `TrackOverlay` | The map and the track drawn on it. |
 | `ShareCard` | The picture a run leaves as. |
 | `RecapCard` | A month or a year as a picture, the run card's size, on the light accent whatever the appearance. |
-| `RunCard` | The card a run leaves in the collection (`@tread/core/card`): number and rarity in words, the outline with its ends hidden, name, four stats from 1 to 99, traits in words. Light palette whatever the appearance, since it is shared as is. Rarity is the frame and the word, never colour alone: hairline, `text` rule, `accent` rule, then the whole card on `accent`. No gold, no glow. |
-| `MiniCard` + `MiniCardRow` | A run's card at thumbnail size (118 wide, radius 12), in the same frames and light paper: number, outline, name, rarity word. In a grid of three or a row that scrolls sideways from the gutter. |
-| `MetaCardView` + `MiniMetaCard` | The great cards (`@tread/core/metaCard`): a week held, a block of four, a race. A week or a block shows its runs' outlines four to a row; a race its own outline large over the runs that led to it. A race is legendary: on the stage lit from its top right corner, as the banners are (`LegendaryGround`), with a firm second frame inside the first, and the word; an exceptional card is the same blue, flat and single framed. |
-| `CardBack` | The back of every card: the stage, a second frame, TREAD and the number. `small` for a card in miniature. |
+| `CardSurface` | What every card is printed on, the one place the app is made to look printed (`CardSurface.tsx` holds its own paper and metal colours): a metal edge, the ground, the light from the top right, contour lines engraved from the card's seed, and from rare up a holographic sheen that slides against the tilt. Five tiers: common on ivory under matte silver; notable the same under polished silver; rare on the stage under polished silver, with the sheen; exceptional on night under platinum, the sheen stronger; legendary the same with a second frame inside the edge and the strongest sheen. The tier is also a word and diamonds (◆◇◇◇), never colour alone. |
+| `RunCard` | The card a run leaves in the collection (`@tread/core/card`), 300 × 420: the distance at 54 in the corner, its unit in the tier's light; the outline large across the card (`Depth`), fading into the foot; name, date · time · pace, traits in the tier's light, four stats from 1 to 99, then the tier and TREAD. Printed the same whatever the appearance, since it is shared as is. |
+| `MiniCard` + `MiniCardRow` | A run's card at thumbnail size (118 × 165, radius 12), on the same `CardSurface`: number, outline, name, tier word. In a grid of three or a row that scrolls sideways from the gutter. |
+| `MetaCardView` + `MiniMetaCard` | The great cards (`@tread/core/metaCard`): a week held, a block of four, a race, laid out as a run's card. A race shows its outline large; a week or a block its runs' outlines as a plate four to a row, or one alone large. At the foot, three figures: runs, time, and rare cards (weeks for a block). A race is legendary. |
+| `CardBack` | The back of every card: the stage under silver, engraved, a second frame, TREAD and the number. `small` for a card in miniature. |
 | `TiltCard` + `Depth` | The finish a rare card has earned: held, it leans with the phone (gravity, on the UI thread, 9° at most, settling flat at whatever angle it is held) and its outline (`Depth`) floats a few points above the paper. Rare and up, legendary, and never with reduce motion. |
 | `DuelCardFace` | A card as it arrives in a friend's deck: number, rarity, distance, the four stats with the round's own set apart, traits. No outline, no name, no date: a deck carries none. |
 | `CampaignMap` | A plan read as chapters (one per phase): a path of its sessions (filled dot run, dash passed, ring next, quiet dot ahead) with its guardians as tiles on it, then the guardians as rows, each opening its session. |

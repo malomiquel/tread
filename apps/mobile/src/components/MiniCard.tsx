@@ -1,6 +1,6 @@
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { PressableScale } from "@/components/PressableScale";
-import { cardLook } from "@/components/RunCard";
+import { CARD_RATIO, CardSurface, cardLook } from "@/components/CardSurface";
 import { RunShape } from "@/components/RunShape";
 import { cardWords, type Card } from "@tread/core/card";
 import { autoName } from "@tread/core/format";
@@ -13,9 +13,9 @@ export const MINI_CARD_WIDTH = 118;
 /**
  * A run's card at the size of a thumbnail, for a row or a grid of them.
  *
- * Drawn like the full card, on its light paper whatever the appearance, so
- * the collection reads as a set of the same objects: the frame and the word
- * say the rarity, the outline says the run.
+ * Printed like the full card, on the same paper, metal and sheen, so the
+ * collection reads as a set of the same objects: the edge and the word say
+ * the rarity, the outline says the run.
  */
 export function MiniCard({ card, run, width = MINI_CARD_WIDTH, onPress }: {
   card: Card;
@@ -32,20 +32,26 @@ export function MiniCard({ card, run, width = MINI_CARD_WIDTH, onPress }: {
       disabled={!onPress}
       accessibilityRole="button"
       accessibilityLabel={`${words.number(card.number)}, ${words.rarity[card.rarity]}, ${name}`}
-      style={[styles.card, { width, backgroundColor: look.page, borderColor: look.frame, borderWidth: look.frameWidth }]}
     >
-      <Text style={[styles.number, { color: look.soft }]}>{words.number(card.number)}</Text>
-      <RunShape
-        runId={run.id}
-        track={`${run.startedAt}-${run.endedAt}`}
-        ride={run.activity === "ride"}
-        size={width - 2 * PADDING}
-        tint={{ tile: look.tile, line: look.line, icon: look.soft }}
-      />
-      <View style={styles.foot}>
-        <Text style={[styles.name, { color: look.ink }]} numberOfLines={1}>{name}</Text>
-        <Text style={[styles.rarity, { color: look.strong }]} numberOfLines={1}>{words.rarity[card.rarity]}</Text>
-      </View>
+      <CardSurface look={look} seed={run.id} radius={12} edge={2} style={{ width, height: width * CARD_RATIO }}>
+        <View style={styles.card}>
+          <Text style={[styles.number, { color: look.soft }]}>{words.number(card.number)}</Text>
+          <View style={styles.art}>
+            <RunShape
+              runId={run.id}
+              track={`${run.startedAt}-${run.endedAt}`}
+              ride={run.activity === "ride"}
+              size={width - 2 * PADDING}
+              strokeWidth={3}
+              tint={{ tile: "transparent", line: look.line, icon: look.soft }}
+            />
+          </View>
+          <View style={styles.foot}>
+            <Text style={[styles.name, { color: look.ink }]} numberOfLines={1}>{name}</Text>
+            <Text style={[styles.rarity, { color: look.strong }]} numberOfLines={1}>{words.rarity[card.rarity]}</Text>
+          </View>
+        </View>
+      </CardSurface>
     </PressableScale>
   );
 }
@@ -69,13 +75,14 @@ export function MiniCardRow({ cards, byId, onOpen }: {
 const PADDING = 8;
 
 const styles = StyleSheet.create({
-  card: { borderRadius: 12, padding: PADDING, gap: 6 },
+  card: { flex: 1, padding: PADDING, justifyContent: "space-between" },
+  art: { flex: 1, alignItems: "center", justifyContent: "center" },
   row: { paddingHorizontal: 20, gap: 10 },
   number: {
     fontSize: 11, fontFamily: font.semibold, letterSpacing: 1, textTransform: "uppercase",
     fontVariant: ["tabular-nums"],
   },
   foot: { gap: 1 },
-  name: { fontSize: 14.5, fontFamily: font.semibold },
+  name: { fontSize: 14, fontFamily: font.bold, letterSpacing: -0.2 },
   rarity: { fontSize: 11, fontFamily: font.semibold, letterSpacing: 1, textTransform: "uppercase" },
 });

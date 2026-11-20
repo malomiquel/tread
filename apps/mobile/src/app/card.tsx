@@ -6,7 +6,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-nati
 import Animated, {
   Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming,
 } from "react-native-reanimated";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { initialWindowMetrics, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/Button";
 import { MetaCardView } from "@/components/MetaCard";
 import { CardBack, RunCard } from "@/components/RunCard";
@@ -85,6 +85,7 @@ export default function CardStage() {
   const meta = useStrings(metaWords);
   const duel = useStrings(duelWords);
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { privacyRadiusM } = useSettings();
   const { album, reload } = useAlbum();
   const revealing = params.reveal === "1";
@@ -174,13 +175,21 @@ export default function CardStage() {
     lines.push({ key: "explain", text: meta.explain[metaCard.kind] });
   }
 
+  // A full-screen modal can be laid out before its insets are known, and
+  // then sits under the clock: the window's own insets are the floor.
+  const window = initialWindowMetrics?.insets;
+  const safe = {
+    top: Math.max(insets.top, window?.top ?? 0),
+    bottom: Math.max(insets.bottom, window?.bottom ?? 0),
+  };
+
   const tilts = runCard
     ? runCard.rarity === "rare" || runCard.rarity === "exceptional"
     : metaCard !== undefined && (metaCard.tier === "legendary" || metaCard.tier === "exceptional" || metaCard.tier === "rare");
   const strong = runCard ? cardPoints(runCard.traits) >= 4 : metaCard !== undefined;
 
   return (
-    <SafeAreaView style={styles.screen} edges={["top", "bottom"]}>
+    <View style={[styles.screen, { paddingTop: safe.top, paddingBottom: safe.bottom }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.bar}>
         <Text style={styles.count}>{items.length > 1 ? s.of(index + 1, items.length) : ""}</Text>
@@ -224,7 +233,7 @@ export default function CardStage() {
           <Button label={s.share} variant="secondary" disabled={sharing} onPress={() => void share()} />
         ) : null}
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 

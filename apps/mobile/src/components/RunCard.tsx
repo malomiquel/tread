@@ -1,27 +1,35 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { forwardRef } from "react";
 import { StyleSheet, Text, View } from "react-native";
+import { CARD_RATIO, CardSurface, cardLook, rarityPips } from "@/components/CardSurface";
 import { RunShape } from "@/components/RunShape";
 import { Depth } from "@/components/TiltCard";
-import { STAT_KEYS, cardWords, type Card, type Rarity } from "@tread/core/card";
-import { autoName, formatDate, formatDistance, formatDuration } from "@tread/core/format";
-import { useStrings } from "@tread/core/i18n";
-import { palette } from "@tread/core/palette";
+import { STAT_KEYS, cardWords, type Card } from "@tread/core/card";
+import { autoName, formatDistance, formatDuration, formatPace, formatSpeed } from "@tread/core/format";
+import { intlLocale, useStrings } from "@tread/core/i18n";
 import type { Run } from "@/lib/db";
 import { font } from "@/lib/theme";
-import { distanceUnit } from "@tread/core/units";
+import { distanceUnit, paceUnit, speedUnit } from "@tread/core/units";
+
+export { CardBack, cardLook } from "@/components/CardSurface";
 
 /** The card's size: a playing card's proportions, small enough to share whole. */
 export const RUN_CARD_WIDTH = 300;
+export const RUN_CARD_HEIGHT = RUN_CARD_WIDTH * CARD_RATIO;
+
+/** Where the outline is drawn: large, behind the figure, fading into the text. */
+export const ART_TOP = 70;
+export const ART_SIZE = 184;
 
 /**
  * A run's card, as a picture.
  *
- * In the light palette whatever the phone is set to, like `RecapCard`: it is
- * made to leave the app, and a picture has no dark mode. Rarity is said in a
- * word in the corner and shown by the frame — a hairline, a dark rule, a
- * blue rule, then the whole card on blue — never by colour alone, and never
- * by gold or glow.
+ * Printed like a collector's card whatever the phone is set to, since it is
+ * made to leave the app: the distance large in the corner, the outline of
+ * the run across the card over engraved contour lines, the name and the
+ * four stats at the foot. The tier is the paper, the metal of the edge and,
+ * from rare up, a holographic sheen that follows the tilt; it is also said
+ * in a word and in diamonds, never by colour alone.
  *
  * The outline has its ends trimmed by the runner's privacy radius here
  * already, so what is seen on the page is what would be shared.
@@ -32,195 +40,125 @@ export const RunCard = forwardRef<View, {
   privacyRadiusM: number;
 }>(function RunCard({ card, run, privacyRadiusM }, ref) {
   const words = useStrings(cardWords);
-  const look = LOOKS[card.rarity];
+  const look = cardLook(card.rarity);
   const ride = run.activity === "ride";
+  const rhythm = ride
+    ? `${formatSpeed(run.durationS > 0 ? run.distanceM / run.durationS : 0)} ${speedUnit()}`
+    : `${formatPace(run.distanceM > 0 ? run.durationS / (run.distanceM / 1000) : null)} ${paceUnit()}`;
 
   return (
-    <View
-      ref={ref}
-      collapsable={false}
-      style={[styles.card, { backgroundColor: look.page, borderColor: look.frame, borderWidth: look.frameWidth }]}
-    >
-      <View style={styles.top}>
-        <Text style={[styles.corner, { color: look.soft }]}>{words.number(card.number)}</Text>
-        <Text style={[styles.corner, { color: look.strong }]}>{words.rarity[card.rarity]}</Text>
+    <CardSurface ref={ref} look={look} seed={run.id} style={styles.card}>
+      <View pointerEvents="none" style={styles.art}>
+        {/* Lifted off the paper when the card is held and tilted. */}
+        <Depth points={8}>
+          <RunShape
+            runId={run.id}
+            track={`${run.startedAt}-${run.endedAt}`}
+            ride={ride}
+            size={ART_SIZE}
+            strokeWidth={5}
+            hideEndsM={privacyRadiusM}
+            tint={{ tile: "transparent", line: look.line, icon: look.soft }}
+          />
+        </Depth>
       </View>
+      <LinearGradient
+        pointerEvents="none"
+        colors={[fade(look.page, 0), fade(look.page, 0.92)]}
+        locations={[0, 0.55]}
+        style={styles.fade}
+      />
 
-      {/* Lifted off the paper when the card is held and tilted. */}
-      <Depth>
-        <RunShape
-          runId={run.id}
-          track={`${run.startedAt}-${run.endedAt}`}
-          ride={ride}
-          size={RUN_CARD_WIDTH - 2 * PADDING}
-          hideEndsM={privacyRadiusM}
-          tint={{ tile: look.tile, line: look.line, icon: look.soft }}
-        />
-      </Depth>
+      <View style={styles.content}>
+        <View style={styles.top}>
+          <Text style={[styles.figure, { color: look.ink }]}>
+            {formatDistance(run.distanceM)}
+            <Text style={[styles.unit, { color: look.lit }]}> {distanceUnit()}</Text>
+          </Text>
+          <Text style={[styles.corner, { color: look.soft }]}>{words.number(card.number)}</Text>
+        </View>
 
-      <View style={styles.title}>
-        <Text style={[styles.name, { color: look.ink }]} numberOfLines={1}>
-          {run.name ?? autoName(run.startedAt, ride)}
-        </Text>
-        <Text style={[styles.detail, { color: look.soft }]} numberOfLines={1}>
-          {formatDate(run.startedAt)} · {formatDistance(run.distanceM)} {distanceUnit()} · {formatDuration(run.durationS)}
-        </Text>
-      </View>
+        <View style={styles.foot}>
+          <Text style={[styles.name, { color: look.ink }]} numberOfLines={1}>
+            {run.name ?? autoName(run.startedAt, ride)}
+          </Text>
+          <Text style={[styles.detail, { color: look.soft }]} numberOfLines={1}>
+            {`${formatDate(run.startedAt)} · ${formatDuration(run.durationS)} · ${rhythm}`}
+          </Text>
+          {/* Two lines' room whatever is said, so a card with no trait is
+              the same as one with three. */}
+          <Text
+            style={[styles.traits, { color: card.note ? look.soft : look.lit }, card.note ? styles.note : null]}
+            numberOfLines={2}
+          >
+            {card.note
+              ? words.note[card.note]
+              : card.traits.map((trait) => words.trait[trait]).join(" · ")}
+          </Text>
 
-      <View style={[styles.stats, { borderColor: look.rule }]}>
-        {STAT_KEYS.map((key) => (
-          <View key={key} style={styles.stat}>
-            <Text style={[styles.statLabel, { color: look.soft }]}>{words.stat[key]}</Text>
-            <Text style={[styles.statValue, { color: look.ink }]}>{card.stats[key] ?? "–"}</Text>
+          <View style={[styles.stats, { borderColor: look.rule }]}>
+            {STAT_KEYS.map((key) => (
+              <View key={key} style={styles.stat}>
+                <Text style={[styles.statValue, { color: look.ink }]}>{card.stats[key] ?? "–"}</Text>
+                <Text style={[styles.statLabel, { color: look.soft }]} numberOfLines={1} adjustsFontSizeToFit>
+                  {words.stat[key]}
+                </Text>
+              </View>
+            ))}
           </View>
-        ))}
-      </View>
 
-      {/* Two lines' room whatever is said, so a card with no trait is the
-          same height as one with three. */}
-      <Text
-        style={[styles.traits, { color: card.note ? look.soft : look.ink }, card.note ? styles.note : null]}
-        numberOfLines={2}
-      >
-        {card.note
-          ? words.note[card.note]
-          : card.traits.map((trait) => words.trait[trait]).join(" · ")}
-      </Text>
-    </View>
+          <View style={styles.bottom}>
+            <Text style={[styles.rarity, { color: look.strong }]}>
+              {`${words.rarity[card.rarity]}  ${rarityPips(card.rarity)}`}
+            </Text>
+            <Text style={[styles.brand, { color: look.soft }]}>TREAD</Text>
+          </View>
+        </View>
+      </View>
+    </CardSurface>
   );
 });
 
+/** A card's date, short and in capitals: "11 NOV. 2026". */
+function formatDate(ts: number): string {
+  return new Date(ts).toLocaleDateString(intlLocale(), { day: "numeric", month: "short", year: "numeric" });
+}
+
+/** The ground colour at an opacity, for the fade under the text. */
+export function fade(hex: string, alpha: number): string {
+  const value = parseInt(hex.slice(1), 16);
+  return `rgba(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255}, ${alpha})`;
+}
+
 const PADDING = 16;
 
-export interface Look {
-  page: string;
-  frame: string;
-  frameWidth: number;
-  tile: string;
-  line: string;
-  ink: string;
-  strong: string;
-  soft: string;
-  rule: string;
-}
-
-const light = (token: keyof typeof palette) => palette[token].light;
-
-/** Translucent white, only ever on the blue. */
-const ON_BLUE_SOFT = "rgba(255, 255, 255, 0.72)";
-const ON_BLUE_RULE = "rgba(255, 255, 255, 0.22)";
-
-const plain: Look = {
-  page: light("background"), frame: light("hairline"), frameWidth: 1,
-  tile: light("sunken"), line: light("track"),
-  ink: light("text"), strong: light("muted"), soft: light("subtle"), rule: light("hairline"),
-};
-
-/** How a card of each rarity is drawn, for every card that wears one. */
-export const cardLook = (rarity: Rarity | "legendary"): Look => (rarity === "legendary" ? LEGENDARY : LOOKS[rarity]);
-
-/**
- * A race card: on the stage lit from the top right, as the banners are,
- * where an exceptional card is flat blue; with a second frame inside the
- * first and its word (see `LegendaryGround`).
- */
-const LEGENDARY: Look = {
-  page: light("stage"), frame: light("stage"), frameWidth: 2.5,
-  tile: light("background"), line: light("track"),
-  ink: light("onStage"), strong: light("onStage"), soft: ON_BLUE_SOFT, rule: ON_BLUE_RULE,
-};
-
-/**
- * The back of every card: the stage, a second frame, the name of the app
- * and the card's number. What a card shows before it is turned over.
- * Laid over the face it hides, so both are the same size.
- */
-export function CardBack({ number, small = false }: { number?: string; small?: boolean }) {
-  return (
-    <View style={[styles.back, small && styles.backSmall]}>
-      {small ? null : <CardInnerFrame />}
-      <Text style={[styles.backBrand, small && styles.backBrandSmall]}>TREAD</Text>
-      {number ? <Text style={styles.backNumber}>{number}</Text> : null}
-    </View>
-  );
-}
-
-/** The second frame a card wears inset from its edge: the back, and a legendary card. */
-export function CardInnerFrame({ radius = 12, strong = false }: { radius?: number; strong?: boolean }) {
-  return <View pointerEvents="none" style={[styles.innerFrame, strong && styles.innerFrameStrong, { borderRadius: radius }]} />;
-}
-
-/**
- * What a legendary card is printed on: the stage lit from its top right
- * corner, the light the banners carry, and a second frame drawn firmly
- * inside the first. An exceptional card is the same blue, flat and single
- * framed, so the two never read as one. Its card clips it to its corners.
- */
-export function LegendaryGround({ radius = 12 }: { radius?: number }) {
-  return (
-    <>
-      <LinearGradient
-        colors={[light("stageGlow"), light("stage"), light("stage")]}
-        locations={[0, 0.55, 1]}
-        start={{ x: 1.1, y: -0.2 }}
-        end={{ x: 0.1, y: 1 }}
-        style={styles.ground}
-      />
-      <CardInnerFrame radius={radius} strong />
-    </>
-  );
-}
-
-const LOOKS: Record<Rarity, Look> = {
-  common: plain,
-  notable: { ...plain, frame: light("text"), frameWidth: 1.5, strong: light("text") },
-  rare: { ...plain, frame: light("accent"), frameWidth: 2.5, strong: light("accent") },
-  exceptional: {
-    page: light("accent"), frame: light("accent"), frameWidth: 2.5,
-    tile: light("background"), line: light("track"),
-    ink: light("accentText"), strong: light("accentText"), soft: ON_BLUE_SOFT, rule: ON_BLUE_RULE,
-  },
-};
-
 const styles = StyleSheet.create({
-  card: {
-    width: RUN_CARD_WIDTH, alignSelf: "center", borderRadius: 16,
-    padding: PADDING, gap: 12,
+  card: { width: RUN_CARD_WIDTH, height: RUN_CARD_HEIGHT, alignSelf: "center" },
+  art: { position: "absolute", top: ART_TOP, left: 0, right: 0, alignItems: "center" },
+  fade: { position: "absolute", left: 0, right: 0, bottom: 0, height: "52%" },
+  content: { flex: 1, padding: PADDING, justifyContent: "space-between" },
+  top: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
+  figure: {
+    fontSize: 54, lineHeight: 54, fontFamily: font.bold, letterSpacing: -2, fontVariant: ["tabular-nums"],
   },
-  top: { flexDirection: "row", justifyContent: "space-between" },
+  unit: { fontSize: 18, fontFamily: font.semibold, letterSpacing: 0 },
   corner: {
-    fontSize: 11.5, fontFamily: font.semibold, letterSpacing: 1.3, textTransform: "uppercase",
+    marginTop: 6, fontSize: 11.5, fontFamily: font.semibold, letterSpacing: 1.6, textTransform: "uppercase",
     fontVariant: ["tabular-nums"],
   },
-  title: { gap: 2 },
-  name: { fontSize: 21, fontFamily: font.bold, letterSpacing: -0.3 },
-  detail: { fontSize: 14, fontFamily: font.regular, fontVariant: ["tabular-nums"] },
-  stats: {
-    flexDirection: "row", flexWrap: "wrap", rowGap: 8,
-    paddingVertical: 10, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth,
+  foot: { gap: 3 },
+  name: { fontSize: 23, fontFamily: font.bold, letterSpacing: -0.4 },
+  detail: {
+    fontSize: 12, fontFamily: font.medium, letterSpacing: 0.8, textTransform: "uppercase",
+    fontVariant: ["tabular-nums"],
   },
-  stat: {
-    width: "50%", flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", paddingRight: 14,
-  },
-  statLabel: { fontSize: 11.5, fontFamily: font.semibold, letterSpacing: 1.3, textTransform: "uppercase" },
-  statValue: { fontSize: 22, fontFamily: font.semibold, letterSpacing: -0.5, fontVariant: ["tabular-nums"] },
-  traits: { fontSize: 15, fontFamily: font.medium, lineHeight: 20, minHeight: 40 },
+  traits: { fontSize: 13.5, fontFamily: font.semibold, lineHeight: 17, minHeight: 34, marginTop: 2 },
   note: { fontFamily: font.regular },
-  back: {
-    position: "absolute", top: 0, right: 0, bottom: 0, left: 0, borderRadius: 16, backgroundColor: light("stage"),
-    alignItems: "center", justifyContent: "center", gap: 6,
-  },
-  backSmall: { borderRadius: 8 },
-  backBrand: { color: light("onStage"), fontSize: 44, fontFamily: font.extrabold, letterSpacing: 6 },
-  backBrandSmall: { fontSize: 11, letterSpacing: 1.5 },
-  backNumber: {
-    color: ON_BLUE_SOFT, fontSize: 13, fontFamily: font.semibold, letterSpacing: 1.3,
-    textTransform: "uppercase", fontVariant: ["tabular-nums"],
-  },
-  ground: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0 },
-  innerFrameStrong: { borderWidth: 1.5 },
-  innerFrame: {
-    position: "absolute", top: 5, left: 5, right: 5, bottom: 5,
-    borderWidth: 1, borderColor: ON_BLUE_RULE,
-  },
+  stats: { flexDirection: "row", borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 8, marginTop: 4 },
+  stat: { flex: 1, alignItems: "center" },
+  statValue: { fontSize: 22, lineHeight: 24, fontFamily: font.semibold, fontVariant: ["tabular-nums"] },
+  statLabel: { fontSize: 11, fontFamily: font.semibold, letterSpacing: 0.9, textTransform: "uppercase" },
+  bottom: { flexDirection: "row", justifyContent: "space-between", marginTop: 8 },
+  rarity: { fontSize: 11, fontFamily: font.semibold, letterSpacing: 1.6, textTransform: "uppercase" },
+  brand: { fontSize: 11, fontFamily: font.bold, letterSpacing: 2.4 },
 });
