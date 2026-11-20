@@ -1,3 +1,4 @@
+import { LinearGradient } from "expo-linear-gradient";
 import { forwardRef } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { RunShape } from "@/components/RunShape";
@@ -119,8 +120,9 @@ const plain: Look = {
 export const cardLook = (rarity: Rarity | "legendary"): Look => (rarity === "legendary" ? LEGENDARY : LOOKS[rarity]);
 
 /**
- * A race card: on the stage, and set apart from an exceptional card by a
- * second frame inside the first (see `CardInnerFrame`) and by its word.
+ * A race card: on the stage lit from the top right, as the banners are,
+ * where an exceptional card is flat blue; with a second frame inside the
+ * first and its word (see `LegendaryGround`).
  */
 const LEGENDARY: Look = {
   page: light("stage"), frame: light("stage"), frameWidth: 2.5,
@@ -143,9 +145,30 @@ export function CardBack({ number, small = false }: { number?: string; small?: b
   );
 }
 
-/** The second frame a legendary card wears, inset from its edge. */
-export function CardInnerFrame({ radius = 12 }: { radius?: number }) {
-  return <View pointerEvents="none" style={[styles.innerFrame, { borderRadius: radius }]} />;
+/** The second frame a card wears inset from its edge: the back, and a legendary card. */
+export function CardInnerFrame({ radius = 12, strong = false }: { radius?: number; strong?: boolean }) {
+  return <View pointerEvents="none" style={[styles.innerFrame, strong && styles.innerFrameStrong, { borderRadius: radius }]} />;
+}
+
+/**
+ * What a legendary card is printed on: the stage lit from its top right
+ * corner, the light the banners carry, and a second frame drawn firmly
+ * inside the first. An exceptional card is the same blue, flat and single
+ * framed, so the two never read as one. Its card clips it to its corners.
+ */
+export function LegendaryGround({ radius = 12 }: { radius?: number }) {
+  return (
+    <>
+      <LinearGradient
+        colors={[light("stageGlow"), light("stage"), light("stage")]}
+        locations={[0, 0.55, 1]}
+        start={{ x: 1.1, y: -0.2 }}
+        end={{ x: 0.1, y: 1 }}
+        style={styles.ground}
+      />
+      <CardInnerFrame radius={radius} strong />
+    </>
+  );
 }
 
 const LOOKS: Record<Rarity, Look> = {
@@ -194,6 +217,8 @@ const styles = StyleSheet.create({
     color: ON_BLUE_SOFT, fontSize: 13, fontFamily: font.semibold, letterSpacing: 1.3,
     textTransform: "uppercase", fontVariant: ["tabular-nums"],
   },
+  ground: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0 },
+  innerFrameStrong: { borderWidth: 1.5 },
   innerFrame: {
     position: "absolute", top: 5, left: 5, right: 5, bottom: 5,
     borderWidth: 1, borderColor: ON_BLUE_RULE,

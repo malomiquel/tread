@@ -34,6 +34,7 @@ const pageStrings = defineStrings({
     firstTurn: "Tes courses passées ont leurs cartes : retourne les plus belles",
     turnAction: "Retourner",
     duel: "Duel",
+    challenge: "Défier un ami",
     duelReady: (points: number) => `Deck prêt · ${points} points`,
     duelBuild: (count: number) => `Ton deck : ${count} carte${count > 1 ? "s" : ""} sur ${DECK_SIZE}`,
     great: "Grandes cartes",
@@ -58,6 +59,7 @@ const pageStrings = defineStrings({
     firstTurn: "Your past runs have their cards: turn over the finest",
     turnAction: "Turn over",
     duel: "Duel",
+    challenge: "Challenge a friend",
     duelReady: (points: number) => `Deck ready · ${points} points`,
     duelBuild: (count: number) => `Your deck: ${count} of ${DECK_SIZE} cards`,
     great: "Great cards",
@@ -166,7 +168,7 @@ export default function CollectionScreen() {
               first
               onPanel
               icon="flash-outline"
-              label={s.duel}
+              label={s.challenge}
               detail={deck.length === DECK_SIZE ? s.duelReady(deckCost(deck)) : s.duelBuild(deck.length)}
               value=""
               onPress={() => router.push("/duel")}

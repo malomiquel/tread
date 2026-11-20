@@ -1,7 +1,7 @@
 import { forwardRef } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { PressableScale } from "@/components/PressableScale";
-import { CardInnerFrame, cardLook, RUN_CARD_WIDTH } from "@/components/RunCard";
+import { cardLook, LegendaryGround, RUN_CARD_WIDTH } from "@/components/RunCard";
 import { RunShape } from "@/components/RunShape";
 import { Depth } from "@/components/TiltCard";
 import { cardWords } from "@tread/core/card";
@@ -57,7 +57,7 @@ export const MetaCardView = forwardRef<View, {
       collapsable={false}
       style={[styles.card, { backgroundColor: look.page, borderColor: look.frame, borderWidth: look.frameWidth }]}
     >
-      {card.tier === "legendary" ? <CardInnerFrame /> : null}
+      {card.tier === "legendary" ? <LegendaryGround /> : null}
       <View style={styles.top}>
         <Text style={[styles.corner, { color: look.soft }]}>
           {`${words.kind[card.kind]} · ${cards.number(card.number)}`}
@@ -135,7 +135,7 @@ export function MiniMetaCard({ card, byId, onPress }: {
       accessibilityLabel={`${words.kind[card.kind]}, ${tierName(card.tier)}, ${title}`}
       style={[styles.mini, { width, backgroundColor: look.page, borderColor: look.frame, borderWidth: look.frameWidth }]}
     >
-      {card.tier === "legendary" ? <CardInnerFrame radius={9} /> : null}
+      {card.tier === "legendary" ? <LegendaryGround radius={9} /> : null}
       <Text style={[styles.miniKind, { color: look.soft }]} numberOfLines={1}>{words.kind[card.kind]}</Text>
       {race ? (
         <RunShape
@@ -169,7 +169,7 @@ const PADDING = 16;
 const GAP = 6;
 
 const styles = StyleSheet.create({
-  card: { width: RUN_CARD_WIDTH, alignSelf: "center", borderRadius: 16, padding: PADDING, gap: 12 },
+  card: { width: RUN_CARD_WIDTH, alignSelf: "center", borderRadius: 16, padding: PADDING, gap: 12, overflow: "hidden" },
   top: { flexDirection: "row", justifyContent: "space-between" },
   corner: {
     fontSize: 11.5, fontFamily: font.semibold, letterSpacing: 1.3, textTransform: "uppercase",
@@ -181,7 +181,7 @@ const styles = StyleSheet.create({
   detail: { fontSize: 14, fontFamily: font.regular, fontVariant: ["tabular-nums"] },
   traits: { fontSize: 15, fontFamily: font.medium, lineHeight: 20, minHeight: 40 },
 
-  mini: { borderRadius: 12, padding: 8, gap: 6 },
+  mini: { borderRadius: 12, padding: 8, gap: 6, overflow: "hidden" },
   miniKind: { fontSize: 11, fontFamily: font.semibold, letterSpacing: 1, textTransform: "uppercase" },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 4 },
   miniFoot: { gap: 1 },
