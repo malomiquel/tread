@@ -15,6 +15,7 @@ import { reminderName } from "@tread/core/reminders";
 import { runnerWords } from "@tread/core/runner";
 import { unitChoiceWords } from "@/lib/unitChoice";
 import { appearanceWords } from "@/lib/appearance";
+import { mapBackgroundWords } from "@/lib/offlineMap";
 import { forgetWelcome, toggleAutoPause, toggleVoice, useSettings, weeklyGoal } from "@/lib/settings";
 import { goalAmount } from "@tread/core/goals";
 import { suggestedWeeklyGoalM } from "@tread/core/stats";
@@ -38,6 +39,7 @@ const settingsStrings = defineStrings({
     language: "Langue",
     units: "Unités",
     appearance: "Apparence",
+    maps: "Cartes",
     languageAuto: "Automatique",
     sharing: "Partage",
     hideEnds: "Masquer départ et arrivée",
@@ -69,6 +71,7 @@ const settingsStrings = defineStrings({
     language: "Language",
     units: "Units",
     appearance: "Appearance",
+    maps: "Maps",
     languageAuto: "Automatic",
     sharing: "Sharing",
     hideEnds: "Hide start and finish",
@@ -214,6 +217,12 @@ export default function SettingsScreen() {
           label={s.appearance}
           value={appearanceWords().names[settings.appearance]}
           onPress={() => router.push("/settings/appearance")}
+        />
+        <SettingRow
+          icon="map-outline"
+          label={s.maps}
+          value={mapBackgroundWords().names[settings.mapBackground]}
+          onPress={() => router.push("/settings/map")}
         />
       </SettingsGroup>
 

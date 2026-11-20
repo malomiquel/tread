@@ -15,6 +15,7 @@ import { RunButtonText } from "@/components/RunButtonText";
 import { SwipeToDelete } from "@/components/SwipeToDelete";
 import { RouteSnapshot, type RouteSnapshotHandle } from "@/components/RouteSnapshot";
 import { deleteRoute, listRoutes, routeRecords, setRoutePreview, type RouteRecord } from "@/lib/db";
+import { deleteArea } from "@/lib/offlineMap";
 import { importRouteFiles } from "@/lib/files";
 import { formatDistance, formatDuration } from "@tread/core/format";
 import { defineStrings, useStrings } from "@tread/core/i18n";
@@ -267,6 +268,7 @@ export default function RoutesScreen() {
             // screen would keep a setting pointing at nothing.
             if (chosen === route.id) void setRoute(null);
             setRoutes((current) => (current ?? []).filter((item) => item.id !== route.id));
+            void deleteArea(route.id);
             void deleteRoute(route.id).catch(load);
           },
         },

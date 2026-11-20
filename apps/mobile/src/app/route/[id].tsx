@@ -3,7 +3,7 @@ import { File, Paths } from "expo-file-system";
 import { Stack, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import * as Sharing from "expo-sharing";
 import { usePreventRemove } from "expo-router/react-navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator, Alert, Modal, Pressable, StyleSheet, Text, TextInput, useColorScheme,
   View,
@@ -13,6 +13,10 @@ import { distanceM, fitRegion } from "@tread/core/geo";
 import { routeGpxFileName, routeToGpx } from "@tread/core/gpx";
 import { keepPicture, PREVIEW } from "@/lib/picture";
 import { Button } from "@/components/Button";
+import { DropdownMenu } from "@/components/DropdownMenu";
+import { IgnCredit, IgnTiles, useIgnChosen, useIgnCoverage } from "@/components/IgnLayer";
+import { OfflineMapSheet } from "@/components/OfflineMapSheet";
+import { deleteArea } from "@/lib/offlineMap";
 import { LoadError } from "@/components/LoadError";
 import { deleteRoute, readRoute, saveRoute, updateRoute } from "@/lib/db";
 import { formatDistance } from "@tread/core/format";
@@ -52,7 +56,8 @@ const routeStrings = defineStrings({
     edit: "Modifier",
     gone: "Ce parcours n'existe plus. Il a peut-être été supprimé.",
     back: "Retour",
-    deleteLabel: "Supprimer ce parcours",
+    actions: "Actions sur ce parcours",
+    offlineMap: "Carte hors ligne",
     renameLabel: (name: string) => `${name}, renommer`,
     nameLabel: "Nommer ce parcours",
     untitled: "Sans nom",
@@ -95,7 +100,8 @@ const routeStrings = defineStrings({
     edit: "Edit",
     gone: "This route no longer exists. It may have been deleted.",
     back: "Back",
-    deleteLabel: "Delete this route",
+    actions: "Actions on this route",
+    offlineMap: "Offline map",
     renameLabel: (name: string) => `${name}, rename`,
     nameLabel: "Name this route",
     untitled: "Untitled",
@@ -172,6 +178,8 @@ export default function RouteBuilder() {
   /** Something has been drawn or renamed since this screen was opened. */
   const [dirty, setDirty] = useState(false);
   const [explaining, setExplaining] = useState(false);
+  /** The sheet for keeping this route's IGN map on the phone. */
+  const [offline, setOffline] = useState(false);
   const [sharing, setSharing] = useState(false);
   /** Written to disk: the screen is now free to close. */
   const [written, setWritten] = useState(false);
@@ -313,6 +321,8 @@ export default function RouteBuilder() {
             // A deleted route must stop being the chosen one, or the running
             // screen would keep a setting pointing at nothing.
             if (getSettings().routeId === editing) void setChosenRoute(null);
+            // Its offline map goes with it: nothing would show it again.
+            void deleteArea(editing);
             void deleteRoute(editing)
               // Leaving goes through the same door as saving, so the unsaved
               // changes question is not asked about a route that is gone.
@@ -488,6 +498,19 @@ export default function RouteBuilder() {
   }
 
   const drawable = route.waypoints.length > 0;
+  const line = useMemo(() => drawnLine(route), [route]);
+
+  const initialRegion =
+    (opened && regionAroundRoute(opened)) ??
+    (coords
+      ? {
+          latitude: coords.lat, longitude: coords.lng,
+          latitudeDelta: WALKING_ZOOM, longitudeDelta: WALKING_ZOOM,
+        }
+      : PARIS);
+  const ign = useIgnCoverage({ lat: initialRegion.latitude, lng: initialRegion.longitude });
+  // Apple's shops and buildings drawn over a topo map turn it into a jumble.
+  const ignShown = useIgnChosen() && ign.covered;
 
   // The map is mounted only once it knows what to open on: an initial region
   // is read once and never again, so a route arriving a moment later would be
@@ -512,16 +535,16 @@ export default function RouteBuilder() {
       <Stack.Screen
         options={{
           title: editing === null ? s.newRoute : s.edit,
+          // What can be done to a saved route, behind one button: keep its
+          // map for offline use, or delete it, last and in red.
           headerRight: editing === null ? undefined : () => (
-            <Pressable
-              onPress={askDelete}
-              accessibilityRole="button"
-              accessibilityLabel={s.deleteLabel}
-              hitSlop={10}
-              style={({ pressed }) => [pressed && styles.pressed]}
-            >
-              <Text style={styles.deleteLabel}>{s.delete}</Text>
-            </Pressable>
+            <DropdownMenu
+              accessibilityLabel={s.actions}
+              items={[
+                { key: "offline", label: s.offlineMap, icon: "cloud-download-outline", onPress: () => setOffline(true) },
+                { key: "delete", label: s.delete, icon: "trash-outline", destructive: true, onPress: askDelete },
+              ]}
+            />
           ),
         }}
       />
@@ -531,20 +554,15 @@ export default function RouteBuilder() {
         // Framed on the route being changed, when there is one: opening on
         // where the phone is standing would put an edit of last week's loop
         // somewhere else entirely.
-        initialRegion={
-          (opened && regionAroundRoute(opened)) ??
-          (coords
-            ? {
-                latitude: coords.lat, longitude: coords.lng,
-                latitudeDelta: WALKING_ZOOM, longitudeDelta: WALKING_ZOOM,
-              }
-            : PARIS)
-        }
+        initialRegion={initialRegion}
         userInterfaceStyle={scheme}
         showsUserLocation={!posing}
         showsMyLocationButton={false}
         showsCompass={false}
         pitchEnabled={false}
+        onRegionChangeComplete={ign.onRegionChangeComplete}
+        showsPointsOfInterests={!ignShown}
+        showsBuildings={!ignShown}
         onPress={(event) => {
           const { latitude, longitude } = event.nativeEvent.coordinate;
           const point = { lat: latitude, lng: longitude };
@@ -561,6 +579,8 @@ export default function RouteBuilder() {
           void addPoint(point);
         }}
       >
+        <IgnTiles covered={ign.covered} />
+
         {/* One polyline per leg rather than one for the whole route: a leg
             the router never answered about is drawn as what it is, a guess
             in a straight line, and that is only sayable leg by leg. */}
@@ -626,6 +646,8 @@ export default function RouteBuilder() {
           </Marker>
         ))}
       </MapView>
+
+      <IgnCredit covered={ign.covered} style={styles.credit} />
 
       <View style={styles.readout}>
         {/* Tappable whether or not it has a name: the way in has to exist
@@ -776,6 +798,15 @@ export default function RouteBuilder() {
         </Pressable>
       </Modal>
 
+      {editing !== null ? (
+        <OfflineMapSheet
+          visible={offline}
+          onClose={() => setOffline(false)}
+          routeId={editing}
+          points={line}
+        />
+      ) : null}
+
       <Pressable
         onPress={keep}
         disabled={route.waypoints.length < 2 || saving}
@@ -801,7 +832,8 @@ const styles = StyleSheet.create({
   gone: { padding: 20, gap: 16 },
   goneText: { color: colors.muted, fontSize: 15.5, fontFamily: font.regular, textAlign: "center" },
   screen: { flex: 1, backgroundColor: colors.background },
-  deleteLabel: { color: colors.danger, fontSize: 16.5, fontFamily: font.semibold },
+  // Above the save button, which covers the platform map's own logo.
+  credit: { bottom: 84 },
 
   // The one figure that matters while drawing, where the eye already is.
   readout: {

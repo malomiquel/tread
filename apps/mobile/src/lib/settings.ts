@@ -8,6 +8,7 @@ import { DEFAULT_PRIVACY_RADIUS, readPrivacyRadius, type PrivacyRadius } from "@
 import { readRunnerProfile, type RunnerProfile } from "@tread/core/runner";
 import { applyUnits, readUnitChoice, type UnitChoice } from "./unitChoice";
 import { readReminderWhen, type ReminderWhen } from "@tread/core/reminders";
+import { readMapBackground, type MapBackground } from "./offlineMap";
 
 export interface Settings {
   /** Speak each kilometre out loud. The buzz happens either way. */
@@ -99,13 +100,18 @@ export interface Settings {
    * collection was ever opened. Cards of later runs wait to be turned over.
    */
   cardsSeenThrough: number | null;
+  /**
+   * What every map is drawn on: Apple's (or Google's) map, or IGN's topo map
+   * over it. Apple by default, since IGN only covers France.
+   */
+  mapBackground: MapBackground;
 }
 
 const DEFAULTS: Settings = {
   voice: true, targetPaceSKm: null, weeklyGoalM: null, goalKind: "distance", weeklyGoalS: null,
   weeklyGoalClimbM: null, reminder: "off", routeId: null,
   welcomed: false, language: "auto", runner: null, raceSetupOffered: false, autoPause: false, healthImport: false, units: "auto", appearance: "auto", privacyRadiusM: DEFAULT_PRIVACY_RADIUS,
-  sport: "running", duelDeck: [], cardsSeenThrough: null,
+  sport: "running", duelDeck: [], cardsSeenThrough: null, mapBackground: "apple",
 };
 
 /**
@@ -145,6 +151,7 @@ export async function loadSettings(): Promise<void> {
       sport: readSport(stored.sport),
       duelDeck: readIds(stored.duelDeck),
       cardsSeenThrough: readId(stored.cardsSeenThrough),
+      mapBackground: readMapBackground(stored.mapBackground),
     });
   } catch {
     // Unreadable settings are not worth failing a launch over.
@@ -212,6 +219,11 @@ export async function setDuelDeck(runIds: readonly number[]): Promise<void> {
 export async function markCardsSeen(runId: number): Promise<void> {
   if (current.cardsSeenThrough !== null && current.cardsSeenThrough >= runId) return;
   await store({ ...current, cardsSeenThrough: runId }, "cardsSeenThrough", String(runId));
+}
+
+/** Draw every map on Apple's map or on IGN's. */
+export async function setMapBackground(background: MapBackground): Promise<void> {
+  await store({ ...current, mapBackground: background }, "mapBackground", background);
 }
 
 /** Hide this much of a shared track around its start and finish. */

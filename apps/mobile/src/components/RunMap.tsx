@@ -10,6 +10,7 @@ import Animated, { useAnimatedStyle, type SharedValue } from "react-native-reani
 import { formatDistance, formatDuration } from "@tread/core/format";
 import { defineStrings, useStrings } from "@tread/core/i18n";
 import { bounds, regionAround, segments, type TrackPoint } from "@tread/core/geo";
+import { IgnCredit, IgnTiles, useIgnChosen, useIgnCoverage } from "@/components/IgnLayer";
 import { CONTROL_SIZE, CONTROLS_TOP } from "@/lib/layout";
 import { getCurrentCoords, locationAccess, type Coords } from "@/lib/location";
 import { readColour } from "@tread/core/raster";
@@ -121,6 +122,8 @@ interface Props {
 }
 
 const PARIS = { latitude: 48.8566, longitude: 2.3522, latitudeDelta: 0.05, longitudeDelta: 0.05 };
+/** Room left under the IGN credit for the platform map's own logo. */
+const CREDIT_LIFT = 28;
 const RUNNER_ZOOM = 0.006;
 
 /**
@@ -144,6 +147,12 @@ export function RunMap({
     bottom: controlsAbove ? controlsAbove.value : controlsBottom,
     transform: [{ translateX: controlsArrive ? (1 - controlsArrive.value) * 34 : 0 }],
   }), [controlsAbove, controlsArrive, controlsBottom]);
+  // The credit rides with the controls, on the other side and a little
+  // higher, clear of the platform map's own logo in the corner.
+  const creditRide = useAnimatedStyle(() => ({
+    bottom: (controlsAbove && !controlsAtTop ? controlsAbove.value : controlsBottom) + CREDIT_LIFT,
+    transform: [{ translateX: controlsArrive ? (controlsArrive.value - 1) * 34 : 0 }],
+  }), [controlsAbove, controlsArrive, controlsBottom, controlsAtTop]);
   const [locating, setLocating] = useState(false);
 
   const empty = points.length === 0;
@@ -290,6 +299,9 @@ export function RunMap({
     (anchor
       ? { latitude: anchor.lat, longitude: anchor.lng, latitudeDelta: RUNNER_ZOOM, longitudeDelta: RUNNER_ZOOM }
       : PARIS);
+  const ign = useIgnCoverage({ lat: initialRegion.latitude, lng: initialRegion.longitude });
+  // Apple's shops and buildings drawn over a topo map turn it into a jumble.
+  const ignShown = useIgnChosen() && ign.covered;
 
   return (
     <View style={[styles.container, style]}>
@@ -303,7 +315,12 @@ export function RunMap({
         showsCompass={false}
         pitchEnabled={false}
         onMapReady={frameTrack}
+        onRegionChangeComplete={ign.onRegionChangeComplete}
+        showsPointsOfInterests={!ignShown}
+        showsBuildings={!ignShown}
       >
+        <IgnTiles covered={ign.covered} />
+
         {/* Drawn first, so the track is drawn over it rather than under. */}
         {route && route.length > 1 && (
           <Polyline
@@ -356,6 +373,8 @@ export function RunMap({
           </Marker>
         )}
       </MapView>
+
+      <IgnCredit covered={ign.covered} style={creditRide} />
 
       <Animated.View style={[styles.controls, controlsAtTop ? styles.controlsTop : ride]}>
         <View style={styles.controlStack}>

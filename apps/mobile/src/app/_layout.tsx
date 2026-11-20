@@ -53,6 +53,7 @@ const layoutStrings = defineStrings({
     runner: "Mon profil de coureur",
     units: "Unités",
     appearance: "Apparence",
+    maps: "Cartes",
     sharing: "Partage",
     shoes: "Chaussures",
     data: "Données",
@@ -91,6 +92,7 @@ const layoutStrings = defineStrings({
     runner: "My runner profile",
     units: "Units",
     appearance: "Appearance",
+    maps: "Maps",
     sharing: "Sharing",
     shoes: "Shoes",
     data: "Data",
@@ -327,6 +329,10 @@ export default function RootLayout() {
           <Stack.Screen
             name="settings/appearance"
             options={{ title: s.appearance, headerBackTitle: s.settings }}
+          />
+          <Stack.Screen
+            name="settings/map"
+            options={{ title: s.maps, headerBackTitle: s.settings }}
           />
           <Stack.Screen
             name="settings/sharing"
