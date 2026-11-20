@@ -1,8 +1,8 @@
 import { createContext, useContext, type ReactNode } from "react";
 import { StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 import Animated, {
-  SensorType, useAnimatedSensor, useAnimatedStyle, useDerivedValue, useReducedMotion, useSharedValue,
-  type SharedValue,
+  Easing, SensorType, useAnimatedSensor, useAnimatedStyle, useDerivedValue, useReducedMotion, useSharedValue,
+  withTiming, type DerivedValue,
 } from "react-native-reanimated";
 
 /**
@@ -10,7 +10,7 @@ import Animated, {
  * when the card is still. Read by what is drawn on the card to move it in
  * depth: the outline floats above the paper.
  */
-export const TiltContext = createContext<{ x: SharedValue<number>; y: SharedValue<number> } | null>(null);
+export const TiltContext = createContext<{ x: DerivedValue<number>; y: DerivedValue<number> } | null>(null);
 
 export const useTilt = () => useContext(TiltContext);
 
@@ -19,9 +19,11 @@ const MAX_DEGREES = 9;
 /**
  * How quickly the neutral angle follows the phone. The card answers a
  * movement, then settles flat again at whatever angle the phone is held,
- * so nobody has to hold it upright to see it straight.
+ * so nobody has to hold it upright to see it straight. Restarted with every
+ * reading, a linear timing of this length closes about a thirtieth of the
+ * gap each frame.
  */
-const SETTLE = 0.035;
+const SETTLE_MS = 480;
 
 interface Props {
   children: ReactNode;
@@ -46,26 +48,23 @@ export function TiltCard({ children, enabled, style }: Props) {
 
 function Tilting({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
   const gravity = useAnimatedSensor(SensorType.GRAVITY, { interval: 16 });
-  const baseX = useSharedValue<number | null>(null);
-  const baseY = useSharedValue<number | null>(null);
-  const x = useSharedValue(0);
-  const y = useSharedValue(0);
-
-  useDerivedValue(() => {
+  /*
+   * Every value here is derived, none is written from a worklet. The first
+   * version kept its state with set() calls inside a derived value, and when
+   * "next card" unmounted the card that worklet ran once more and wrote into
+   * shared values already released: an error on the UI thread, which a
+   * release build answers by closing the app.
+   */
+  const normal = useDerivedValue(() => {
     const { x: gx, y: gy, z: gz } = gravity.sensor.get();
     const length = Math.hypot(gx, gy, gz) || 1;
-    const nx = gx / length;
-    const ny = gy / length;
-    const fromX = baseX.get() ?? nx;
-    const fromY = baseY.get() ?? ny;
-    const settledX = fromX + (nx - fromX) * SETTLE;
-    baseX.set(settledX);
-    const settledY = fromY + (ny - fromY) * SETTLE;
-    baseY.set(settledY);
-    const clamp = (value: number) => Math.max(-1, Math.min(1, value));
-    x.set(clamp((nx - settledX) * 4));
-    y.set(clamp((ny - settledY) * 4));
+    return { x: gx / length, y: gy / length };
   });
+  const settle = { duration: SETTLE_MS, easing: Easing.linear };
+  const baseX = useDerivedValue(() => withTiming(normal.get().x, settle));
+  const baseY = useDerivedValue(() => withTiming(normal.get().y, settle));
+  const x = useDerivedValue(() => Math.max(-1, Math.min(1, (normal.get().x - baseX.get()) * 4)));
+  const y = useDerivedValue(() => Math.max(-1, Math.min(1, (normal.get().y - baseY.get()) * 4)));
 
   const lean = useAnimatedStyle(() => ({
     transform: [
