@@ -2,7 +2,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { File, Paths } from "expo-file-system";
 import { useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, useColorScheme, View,
+  ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, useColorScheme, useWindowDimensions, View,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as Sharing from "expo-sharing";
@@ -55,7 +55,17 @@ const HOLD_MS = 650;
 const PREVIEW_MS = FRAMES * FRAME_MS;
 
 /** What the sheet is set to produce. */
-type Kind = "image" | "photo" | "stage" | "clear" | "gif";
+type Kind = "image" | "photo" | "stage" | "clear" | "clearBlue" | "sticker" | "stickerBlue" | "gif";
+
+/** The pictures, in the order they are swiped through. */
+const KINDS: readonly Kind[] = ["image", "photo", "stage", "clear", "clearBlue", "sticker", "stickerBlue", "gif"];
+
+/** The kinds with nothing behind them, previewed on checks and sent with their transparency. */
+const CLEAR: readonly Kind[] = ["clear", "clearBlue", "sticker", "stickerBlue"];
+
+/** The room between two pictures side by side. */
+const PAGE_GAP = 14;
+const PAGE = CARD_WIDTH + PAGE_GAP;
 
 const shareStrings = defineStrings({
   fr: {
@@ -74,11 +84,14 @@ const shareStrings = defineStrings({
     photo: "Photo",
     stage: "Bleu",
     clear: "Transparent",
+    clearBlue: "Transparent bleu",
+    sticker: "Petit transparent",
+    stickerBlue: "Petit transparent bleu",
     gif: "GIF",
     share: "Partager",
+    close: "Fermer",
     choosePhoto: "Choisir une photo",
     changePhoto: "Changer de photo",
-    clearHint: "Fond transparent : pose-la sur ta photo en story.",
   },
   en: {
     mapFailed: "The map couldn't be drawn. Check your connection, then try again.",
@@ -96,11 +109,14 @@ const shareStrings = defineStrings({
     photo: "Photo",
     stage: "Blue",
     clear: "Transparent",
+    clearBlue: "Transparent blue",
+    sticker: "Small transparent",
+    stickerBlue: "Small transparent blue",
     gif: "GIF",
     share: "Share",
+    close: "Close",
     choosePhoto: "Choose a photo",
     changePhoto: "Change photo",
-    clearHint: "Transparent: lay it over your photo in a story.",
   },
 });
 
@@ -181,7 +197,9 @@ function Sheet({ run, points, preparedMapUri, onClose }: Omit<Props, "visible">)
   const scheme = useColorScheme() === "dark" ? "dark" : "light";
   const s = useStrings(shareStrings);
   const source = useRef<CardMapHandle>(null);
-  const card = useRef<View>(null);
+  // One picture per kind, all laid out side by side; the one in view is the one sent.
+  const cards = useRef<Partial<Record<Kind, View | null>>>({});
+  const { width: screenWidth } = useWindowDimensions();
   // Seeded rather than derived: the body is mounted afresh each time the sheet
   // opens, so whatever was ready at that moment is simply where it starts.
   const [mapUri, setMapUri] = useState<string | null>(preparedMapUri ?? null);
@@ -225,17 +243,12 @@ function Sheet({ run, points, preparedMapUri, onClose }: Omit<Props, "visible">)
 
   async function pickPhoto() {
     const picked = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"], allowsEditing: true, aspect: [9, 16], quality: 0.9,
+      mediaTypes: ["images"], quality: 0.9,
     }).catch(() => null);
     const chosen = picked && !picked.canceled ? picked.assets[0]?.uri : undefined;
     if (chosen) setPhoto(chosen);
   }
 
-  function choose(which: Kind) {
-    setKind(which);
-    // Nothing to show a photo card on yet: go and get one.
-    if (which === "photo" && photo === null) void pickPhoto();
-  }
 
   /**
    * The preview draws itself, over and over, while the animation is the
@@ -286,7 +299,7 @@ function Sheet({ run, points, preparedMapUri, onClose }: Omit<Props, "visible">)
    * times the decoding, and a file too large to send.
    */
   async function photograph(shot: ViewShot) {
-    const uri = await shot.captureRef(card, {
+    const uri = await shot.captureRef(cards.current.gif as View, {
       format: "png", quality: 1, result: "tmpfile",
       width: CARD_WIDTH, height: CARD_HEIGHT,
     });
@@ -388,7 +401,7 @@ function Sheet({ run, points, preparedMapUri, onClose }: Omit<Props, "visible">)
       const animated = kind === "gif";
       const uri = animated
         ? await makeGif(shot)
-        : await shot.captureRef(card, { format: "png", quality: 1, result: "tmpfile" });
+        : await shot.captureRef(cards.current[kind] as View, { format: "png", quality: 1, result: "tmpfile" });
 
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(uri, {
@@ -408,80 +421,80 @@ function Sheet({ run, points, preparedMapUri, onClose }: Omit<Props, "visible">)
   }
 
   const animated = kind === "gif";
-  /**
-   * The animation needs its own photograph of the map, without the track.
-   *
-   * Until it arrives the card keeps the one it already has, line and all, so
-   * that choosing the animation never empties the picture in front of you.
-   * The two are the same map at the same framing, so the swap, when it comes,
-   * moves nothing.
-   */
-  const showBare = animated && bareMap !== null;
   const ready = animated ? bareMap !== null
     : kind === "image" ? mapUri !== null
     : kind === "photo" ? photo !== null
     : true;
 
   return (
-    <Pressable style={styles.backdrop} onPress={onClose}>
-      {/* Stops a tap on the card from closing the sheet. */}
-      <Pressable onPress={() => undefined} style={styles.stack}>
-        <View style={styles.cardShadow}>
-          {/* A transparent picture is shown on the checks every editor uses
-              for "nothing here", so it does not read as the page behind it.
-              Under the card, never in it: the checks are not captured. */}
-          {kind === "clear" ? <Checks /> : null}
-          <ShareCard
-            ref={card}
-            run={run}
-            variant={kind === "photo" ? "photo" : kind === "stage" ? "stage" : kind === "clear" ? "clear" : "map"}
-            photoUri={photo}
-            points={points}
-            // The animation draws its own line, so it is given the map that
-            // has none; the still keeps the one with the track drawn in.
-            mapUri={showBare ? bareMap : mapUri}
-            place={place}
-            // Only over the bare map. Over the other one it would be a second
-            // line on top of the one already in the photograph. Gone while the
-            // file is made: the frames start from a photograph of this card,
-            // and the preview's line would be in every one of them, under the
-            // line being drawn.
-            overlay={showBare && made === null ? <TrackOverlay points={points} progress={progress} /> : null}
-          />
-        </View>
+    <View style={styles.backdrop}>
+      {/* Behind everything rather than around it: wrapped around the
+          pictures, it took their swipe for a tap. */}
+      <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel={s.close} />
 
-        {/* One row under the picture, and nothing else.
-            What was here before was two buttons the width of the card — a
-            cancel that repeated what tapping the backdrop already does, and
-            a share sized as though it were the page's subject. It is not:
-            the picture is. So the choice of what to send sits on the left,
-            the sending on the right, and both are as small as a thumb allows.
+      <View style={styles.stack}>
+        {/* Every kind side by side, swiped through like photos: the
+            pictures say what they are better than their names would. */}
+        <ScrollView
+          horizontal
+          snapToInterval={PAGE}
+          decelerationRate="fast"
+          showsHorizontalScrollIndicator={false}
+          scrollEnabled={!sharing}
+          style={{ width: screenWidth, flexGrow: 0 }}
+          contentContainerStyle={{ paddingHorizontal: (screenWidth - CARD_WIDTH) / 2, gap: PAGE_GAP }}
+          onMomentumScrollEnd={(event) => {
+            const index = Math.round(event.nativeEvent.contentOffset.x / PAGE);
+            setKind(KINDS[Math.max(0, Math.min(KINDS.length - 1, index))]);
+          }}
+        >
+          {KINDS.map((which) => (
+            <View key={which} style={styles.cardShadow} accessible accessibilityLabel={s[which]}>
+              {/* A transparent picture is shown on the checks every editor
+                  uses for "nothing here". Under the card, never in it: the
+                  checks are not captured. */}
+              {CLEAR.includes(which) ? <Checks /> : null}
+              <ShareCard
+                ref={(view) => { cards.current[which] = view; }}
+                run={run}
+                variant={which === "photo" ? "photo" : which === "stage" ? "stage" : CLEAR.includes(which) ? "clear" : "map"}
+                ink={which === "clearBlue" || which === "stickerBlue" ? "blue" : "white"}
+                compact={which === "sticker" || which === "stickerBlue"}
+                photoUri={photo}
+                points={points}
+                // The animation draws its own line over the map that has
+                // none; until that map arrives it shows the other one.
+                mapUri={which === "gif" ? bareMap ?? mapUri : mapUri}
+                place={place}
+                // Only over the bare map, and gone while the file is made:
+                // the frames start from a photograph of this card.
+                overlay={which === "gif" && bareMap !== null && made === null
+                  ? <TrackOverlay points={points} progress={progress} />
+                  : null}
+              />
+              {/* No photo yet: the card itself asks for one. Over the card,
+                  not in it, so it is never part of what is sent. */}
+              {which === "photo" && photo === null ? (
+                <Pressable
+                  onPress={() => void pickPhoto()}
+                  accessibilityRole="button"
+                  style={({ pressed }) => [styles.pickPhoto, pressed && styles.pressed]}
+                >
+                  <Ionicons name="image-outline" size={28} color={literalColors.background.light} />
+                  <Text style={styles.underText}>{s.choosePhoto}</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ))}
+        </ScrollView>
 
-            The row is also where the next option goes — a card without the
-            map, a square crop — which is the other reason it is a row rather
-            than a pair of buttons. */}
         <View style={styles.bar}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.kindsScroll} contentContainerStyle={styles.kinds}>
-            {([["image", s.image], ["photo", s.photo], ["stage", s.stage], ["clear", s.clear], ["gif", s.gif]] as const).map(([which, label]) => (
-              <Pressable
-                key={which}
-                onPress={() => choose(which)}
-                disabled={sharing}
-                accessibilityRole="button"
-                accessibilityState={{ selected: kind === which }}
-                hitSlop={6}
-                style={({ pressed }) => [
-                  styles.kind,
-                  kind === which && styles.kindOn,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <Text style={[styles.kindLabel, kind === which && styles.kindLabelOn]}>
-                  {label}
-                </Text>
-              </Pressable>
+          {/* Where you are among the pictures, and how many there are. */}
+          <View style={styles.dots}>
+            {KINDS.map((which) => (
+              <View key={which} style={[styles.dot, kind === which && styles.dotOn]} />
             ))}
-          </ScrollView>
+          </View>
 
           {ready ? (
             <Pressable
@@ -530,7 +543,7 @@ function Sheet({ run, points, preparedMapUri, onClose }: Omit<Props, "visible">)
         {/* One line of room kept under the row, whatever is chosen, so
             switching kinds never moves the picture. */}
         <View style={styles.under}>
-          {kind === "photo" ? (
+          {kind === "photo" && photo !== null ? (
             <Pressable
               onPress={() => void pickPhoto()}
               disabled={sharing}
@@ -539,15 +552,13 @@ function Sheet({ run, points, preparedMapUri, onClose }: Omit<Props, "visible">)
               style={({ pressed }) => [styles.photoButton, pressed && styles.pressed]}
             >
               <Ionicons name="image-outline" size={17} color={literalColors.background.light} />
-              <Text style={styles.underText}>{photo ? s.changePhoto : s.choosePhoto}</Text>
+              <Text style={styles.underText}>{s.changePhoto}</Text>
             </Pressable>
-          ) : kind === "clear" ? (
-            <Text style={styles.underText}>{s.clearHint}</Text>
           ) : mapFailed ? (
             <Text style={styles.mapFailed}>{s.mapFailed}</Text>
           ) : null}
         </View>
-      </Pressable>
+      </View>
 
       {!mapUri && !mapFailed && (
         <CardMapSource key={`map-${mapAttempt}`} ref={source} points={points} onReady={renderMap} />
@@ -558,7 +569,7 @@ function Sheet({ run, points, preparedMapUri, onClose }: Omit<Props, "visible">)
       {!bareMap && !mapFailed && (
         <CardMapSource key={`bare-${mapAttempt}`} ref={bareSource} points={points} bare onReady={renderBareMap} />
       )}
-    </Pressable>
+    </View>
   );
 }
 
@@ -581,7 +592,7 @@ function Checks() {
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1, backgroundColor: VIEWING_DARK,
-    alignItems: "center", justifyContent: "center", padding: 16,
+    alignItems: "center", justifyContent: "center", paddingVertical: 16,
   },
   // A card this tall leaves little room around it, so the margins stay narrow
   // and everything under it is one row.
@@ -595,17 +606,18 @@ const styles = StyleSheet.create({
     width: CARD_WIDTH, flexDirection: "row", alignItems: "center",
     justifyContent: "space-between", gap: 12,
   },
-  kindsScroll: { flexShrink: 1, borderRadius: 16, backgroundColor: colors.background },
-  kinds: { flexDirection: "row", gap: 4, padding: 3 },
+  dots: { flexDirection: "row", gap: 6, alignItems: "center" },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "rgba(255, 255, 255, 0.3)" },
+  dotOn: { width: 18, backgroundColor: literalColors.background.light },
+  pickPhoto: {
+    position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+    alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "rgba(0, 0, 0, 0.35)",
+  },
   under: { width: CARD_WIDTH, minHeight: 22, alignItems: "center", justifyContent: "center" },
   photoButton: { flexDirection: "row", alignItems: "center", gap: 6 },
   underText: {
     color: literalColors.background.light, fontSize: 14.5, fontFamily: font.medium, textAlign: "center",
   },
-  kind: { paddingHorizontal: 13, paddingVertical: 6, borderRadius: 13 },
-  kindOn: { backgroundColor: colors.accentSoft },
-  kindLabel: { color: colors.muted, fontSize: 14, fontFamily: font.medium },
-  kindLabelOn: { color: colors.accent, fontFamily: font.semibold },
   pressed: { opacity: 0.6 },
 
   // Round, and the only thing on the row wearing the accent: there is one

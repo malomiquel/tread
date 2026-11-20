@@ -82,6 +82,9 @@ const cardStrings = defineStrings({
  */
 export type ShareVariant = "map" | "photo" | "stage" | "clear";
 
+/** The ink a transparent picture is written in: white for a dark photo, blue for a light one. */
+export type ShareInk = "white" | "blue";
+
 interface Props {
   run: Run;
   variant?: ShareVariant;
@@ -89,6 +92,10 @@ interface Props {
   photoUri?: string | null;
   /** The track, for the outline the variants without a map draw themselves. */
   points?: TrackPoint[];
+  /** The ink of a `clear` picture. */
+  ink?: ShareInk;
+  /** A `clear` picture as a small sticker in the middle, rather than across the whole frame. */
+  compact?: boolean;
   /**
    * The map already rendered to a file, or null while it is being drawn — in
    * which case the card simply shows its own dark ground until it arrives.
@@ -108,15 +115,19 @@ interface Props {
 }
 
 /** One figure over its label, as the rest of the app sets a metric. */
-function Stat({ value, unit, label, shaded = false }: { value: string; unit?: string; label: string; shaded?: boolean }) {
-  const shade = shaded ? styles.shade : null;
+function Stat({ value, unit, label, shaded = false, blue = false }: {
+  value: string; unit?: string; label: string; shaded?: boolean; blue?: boolean;
+}) {
+  const shade = shaded ? (blue ? styles.glow : styles.shade) : null;
+  const tint = blue ? { color: BLUE_INK } : null;
+  const tintSoft = blue ? { color: BLUE_SOFT } : null;
   return (
     <View style={styles.stat}>
       <View style={styles.statValueRow}>
-        <Text style={[styles.statValue, shade]}>{value}</Text>
-        {unit ? <Text style={[styles.statUnit, shade]}>{unit}</Text> : null}
+        <Text style={[styles.statValue, shade, tint]}>{value}</Text>
+        {unit ? <Text style={[styles.statUnit, shade, tintSoft]}>{unit}</Text> : null}
       </View>
-      <Text style={[styles.statLabel, shade]}>{label}</Text>
+      <Text style={[styles.statLabel, shade, tintSoft]}>{label}</Text>
     </View>
   );
 }
@@ -135,12 +146,16 @@ function Stat({ value, unit, label, shaded = false }: { value: string; unit?: st
  * equal weight is what makes a share card look like a receipt.
  */
 export const ShareCard = forwardRef<View, Props>(function ShareCard(
-  { run, mapUri, place = null, overlay = null, variant = "map", photoUri = null, points = [] },
+  { run, mapUri, place = null, overlay = null, variant = "map", photoUri = null, points = [], ink = "white", compact = false },
   ref,
 ) {
   const veiled = variant === "map" || variant === "photo";
   const clear = variant === "clear";
-  const shade = clear ? styles.shade : null;
+  const blue = clear && ink === "blue";
+  // Blue ink on a light photo, set off by a faint white glow rather than a shadow.
+  const shade = clear ? (blue ? styles.glow : styles.shade) : null;
+  const tint = blue ? { color: BLUE_INK } : null;
+  const tintSoft = blue ? { color: BLUE_SOFT } : null;
   const elevation = run.elevationGainM;
   // Read back out of the cadence, which is what the pedometer's count was
   // turned into before being stored. Every run already recorded therefore has
@@ -150,6 +165,26 @@ export const ShareCard = forwardRef<View, Props>(function ShareCard(
   const when = formatDate(run.startedAt);
   const weather = run.weather;
   const s = useStrings(cardStrings);
+
+  if (clear && compact) {
+    return (
+      <View ref={ref} collapsable={false} style={[styles.card, styles.cardClear]}>
+        <View style={styles.sticker}>
+          <Outline points={points} shadowed={!blue} size={STICKER_OUTLINE} ink={blue ? BLUE_INK : INK} />
+          <View style={styles.distanceRow}>
+            <Text style={[styles.stickerHero, shade, tint]}>{formatDistance(run.distanceM)}</Text>
+            <Text style={[styles.heroUnit, shade, tintSoft]}>{distanceUnit()}</Text>
+          </View>
+          <Text style={[styles.stickerLine, shade, tint]}>
+            {`${formatDuration(run.durationS)} · ${run.activity === "ride"
+              ? `${formatSpeed(run.durationS > 0 ? run.distanceM / run.durationS : 0)} ${speedUnit()}`
+              : `${formatPace(run.avgPaceSKm)} ${paceUnit()}`}`}
+          </Text>
+          <Text style={[styles.stickerBrand, shade, tintSoft]}>TREAD</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     // collapsable={false} keeps this view real in the native tree; React
@@ -171,7 +206,7 @@ export const ShareCard = forwardRef<View, Props>(function ShareCard(
           style={styles.mapImage}
         />
       ) : null}
-      {variant === "map" ? overlay : <Outline points={points} shadowed={variant !== "stage"} />}
+      {variant === "map" ? overlay : <Outline points={points} shadowed={variant !== "stage" && !blue} ink={blue ? BLUE_INK : INK} />}
 
       {veiled ? (
       <LinearGradient
@@ -198,7 +233,7 @@ export const ShareCard = forwardRef<View, Props>(function ShareCard(
             point of putting a name on a picture somebody else will see is
             that they can recognise it again in a shop. */}
         <Image source={require("@/assets/images/icon.png")} style={styles.brandMark} />
-        <Text style={[styles.brandName, shade]}>TREAD</Text>
+        <Text style={[styles.brandName, shade, tint]}>TREAD</Text>
       </View>
 
       {/* Across the top from the name, where a photograph carries the weather
@@ -213,7 +248,7 @@ export const ShareCard = forwardRef<View, Props>(function ShareCard(
       {weather ? (
         <View style={styles.weather}>
           <Ionicons name={weatherIcon(weather.code, weather.day)} size={16} color={INK_SOFT} />
-          <Text style={[styles.weatherValue, shade]}>{formatTemperature(weather.temperatureC)}</Text>
+          <Text style={[styles.weatherValue, shade, tint]}>{formatTemperature(weather.temperatureC)}</Text>
         </View>
       ) : null}
 
@@ -225,8 +260,8 @@ export const ShareCard = forwardRef<View, Props>(function ShareCard(
 
         <View style={styles.heroRow}>
           <View style={styles.distanceRow}>
-            <Text style={[styles.hero, shade]}>{formatDistance(run.distanceM)}</Text>
-            <Text style={[styles.heroUnit, shade]}>{distanceUnit()}</Text>
+            <Text style={[styles.hero, shade, tint]}>{formatDistance(run.distanceM)}</Text>
+            <Text style={[styles.heroUnit, shade, tintSoft]}>{distanceUnit()}</Text>
           </View>
           {/* Both lines in flow, but it is the place that has to meet "km".
               Flexbox only ever aligns a column on its first line, so the
@@ -235,29 +270,30 @@ export const ShareCard = forwardRef<View, Props>(function ShareCard(
               one was. The lift is a rendering offset, not a margin: the row
               keeps the height it would have had, so nothing below it moves. */}
           <View style={[styles.dateRow, place ? styles.dateRowTwoLines : null]}>
-            <Text style={[styles.date, shade]} numberOfLines={1}>{when}</Text>
+            <Text style={[styles.date, shade, tintSoft]} numberOfLines={1}>{when}</Text>
             {place ? (
-              <Text style={[styles.date, shade]} numberOfLines={1}>{place}</Text>
+              <Text style={[styles.date, shade, tintSoft]} numberOfLines={1}>{place}</Text>
             ) : null}
           </View>
         </View>
 
         <View style={styles.stats}>
-          <Stat shaded={clear} value={formatDuration(run.durationS)} label={s.time} />
+          <Stat shaded={clear} blue={blue} value={formatDuration(run.durationS)} label={s.time} />
           {run.activity === "ride" ? (
             <Stat
               shaded={clear}
+              blue={blue}
               value={formatSpeed(run.durationS > 0 ? run.distanceM / run.durationS : 0)}
               unit={speedUnit()}
               label={s.speed}
             />
           ) : (
-            <Stat shaded={clear} value={formatPace(run.avgPaceSKm)} unit={paceUnit()} label={s.pace} />
+            <Stat shaded={clear} blue={blue} value={formatPace(run.avgPaceSKm)} unit={paceUnit()} label={s.pace} />
           )}
           {elevation !== null && elevation > 0 ? (
-            <Stat shaded={clear} value={formatElevation(elevation)} unit={elevationUnit()} label={s.elevation} />
+            <Stat shaded={clear} blue={blue} value={formatElevation(elevation)} unit={elevationUnit()} label={s.elevation} />
           ) : null}
-          {steps !== null ? <Stat shaded={clear} value={formatCount(steps)} label={s.steps} /> : null}
+          {steps !== null ? <Stat shaded={clear} blue={blue} value={formatCount(steps)} label={s.steps} /> : null}
         </View>
       </View>
     </View>
@@ -267,24 +303,32 @@ export const ShareCard = forwardRef<View, Props>(function ShareCard(
 /** Where the outline sits on the variants that draw their own: above the figures. */
 const OUTLINE_SIZE = 216;
 const OUTLINE_TOP = 78;
+/** The small sticker's outline. */
+const STICKER_OUTLINE = 112;
+/** The app's cobalt, for a picture laid over a light photo. */
+const BLUE_INK = palette.accent.light;
+const BLUE_SOFT = "rgba(0, 52, 143, 0.72)";
 
 /**
  * The run's outline, drawn large and white on a card with no map under it.
  * Over a photo or nothing at all it gets a soft dark line beneath, so it
  * stays legible on a bright sky or a white wall.
  */
-function Outline({ points, shadowed }: { points: TrackPoint[]; shadowed: boolean }) {
+function Outline({ points, shadowed, size, ink = INK }: {
+  points: TrackPoint[]; shadowed: boolean; size?: number; ink?: string;
+}) {
+  const side = size ?? OUTLINE_SIZE;
   const line = useMemo(
-    () => thumbnail(points, OUTLINE_SIZE, 8).map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(" "),
-    [points],
+    () => thumbnail(points, side, 8).map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(" "),
+    [points, side],
   );
   if (line.length === 0) return null;
   return (
-    <Svg width={OUTLINE_SIZE} height={OUTLINE_SIZE} style={styles.outline} pointerEvents="none">
+    <Svg width={side} height={side} style={size ? undefined : styles.outline} pointerEvents="none">
       {shadowed ? (
         <Polyline points={line} stroke="rgba(0, 0, 0, 0.32)" strokeWidth={8} strokeLinecap="round" strokeLinejoin="round" fill="none" />
       ) : null}
-      <Polyline points={line} stroke={INK} strokeWidth={4.5} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <Polyline points={line} stroke={ink} strokeWidth={size ? 3.5 : 4.5} strokeLinecap="round" strokeLinejoin="round" fill="none" />
     </Svg>
   );
 }
@@ -321,6 +365,18 @@ const styles = StyleSheet.create({
   // White words on a picture nobody here has seen yet: a soft shadow keeps
   // them readable on a bright one.
   shade: { textShadowColor: "rgba(0, 0, 0, 0.45)", textShadowRadius: 6, textShadowOffset: { width: 0, height: 1 } },
+  glow: { textShadowColor: "rgba(255, 255, 255, 0.6)", textShadowRadius: 6, textShadowOffset: { width: 0, height: 0 } },
+  // The small sticker: one block in the middle of an empty frame, to be
+  // pinched to size and put anywhere on a story.
+  sticker: {
+    position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+    alignItems: "center", justifyContent: "center", gap: 2,
+  },
+  stickerHero: {
+    color: INK, fontSize: 44, fontFamily: font.semibold, letterSpacing: -0.8, fontVariant: ["tabular-nums"],
+  },
+  stickerLine: { color: INK, fontSize: 16, fontFamily: font.semibold, fontVariant: ["tabular-nums"] },
+  stickerBrand: { color: INK_SOFT, fontSize: 11, fontFamily: font.extrabold, letterSpacing: 2.6, marginTop: 6 },
 
   topVeil: { position: "absolute", top: 0, left: 0, right: 0, height: 104 },
   bottomVeil: { position: "absolute", left: 0, right: 0, bottom: 0, height: BOTTOM_VEIL },
