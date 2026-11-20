@@ -28,6 +28,27 @@ export const MOVE_AWAY_M = 12;
 export const MOVING_SPEED_MS = 1.5;
 
 /**
+ * A speed that is walking, however slowly: about 2.2 km/h.
+ *
+ * A steep climb on a trail goes at 2 or 3 km/h, which covers less than
+ * `STILL_RADIUS_M` in `STILL_AFTER_S`: read from positions alone, it looked
+ * like a stop, and the run paused itself halfway up the hill. The speed the
+ * GPS measures (from the Doppler shift, not from positions) stays near zero
+ * for someone standing still, so a fix reporting this much is a climber, not
+ * a stop.
+ */
+export const WALKING_SPEED_MS = 0.6;
+
+/** How far from where it stopped a walker has to be, at walking speed, to count as off again. */
+const WALK_AWAY_M = 5;
+
+/** Whether a fix is precise enough, and says it is moving at least at a walk. */
+const isWalking = (point: TrackPoint): boolean =>
+  point.speed !== null
+  && point.speed >= WALKING_SPEED_MS
+  && (point.accuracy === null || point.accuracy <= MAX_ACCURACY_M);
+
+/**
  * Whether the runner has been standing still for long enough.
  *
  * `segmentStartedAt` gives a grace period after a start or a resume: the
@@ -46,14 +67,19 @@ export function hasStopped(
   // No position at all yet is a GPS still searching, not a runner standing.
   if (!last) return false;
   const since = now - STILL_AFTER_S * 1000;
-  return current
-    .filter((point) => point.ts >= since)
-    .every((point) => distanceM(point, last) <= STILL_RADIUS_M);
+  const recent = current.filter((point) => point.ts >= since);
+  // Still walking, however slowly: a steep climb is not a stop.
+  if (recent.some(isWalking)) return false;
+  return recent.every((point) => distanceM(point, last) <= STILL_RADIUS_M);
 }
 
 /** Whether a fresh fix shows the runner has set off again from where they stopped. */
 export function hasMovedOn(stoppedAt: TrackPoint, fix: TrackPoint): boolean {
   if (fix.accuracy !== null && fix.accuracy > MAX_ACCURACY_M) return false;
   if (fix.speed !== null && fix.speed >= MOVING_SPEED_MS) return true;
-  return distanceM(stoppedAt, fix) > MOVE_AWAY_M;
+  const away = distanceM(stoppedAt, fix);
+  // Walking off, up a hill: a few metres at a walk is enough, rather than
+  // the dozen metres (twenty seconds on a steep climb) a drifting fix needs.
+  if (isWalking(fix) && away > WALK_AWAY_M) return true;
+  return away > MOVE_AWAY_M;
 }
