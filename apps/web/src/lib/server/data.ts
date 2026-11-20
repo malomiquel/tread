@@ -1,3 +1,5 @@
+import { PREDICTION_WINDOW_MS } from "@tread/core/predictions";
+import type { RouteRun } from "@tread/core/routeTime";
 import "server-only";
 import { prisma } from "@tread/db";
 import { readActivity } from "@tread/core/activity";
@@ -47,6 +49,24 @@ const toRow = (outing: RowRecord): OutingRow => ({
 export async function outingRows(userId: string): Promise<OutingRow[]> {
   const outings = await prisma.outing.findMany({ where: { userId }, orderBy: { startedAt: "desc" }, select: rowFields });
   return outings.map(toRow);
+}
+
+/** The last few weeks of outings, as a route's time is estimated from them. */
+export async function recentRuns(userId: string): Promise<RouteRun[]> {
+  const since = new Date(Date.now() - PREDICTION_WINDOW_MS);
+  const outings = await prisma.outing.findMany({
+    where: { userId, startedAt: { gte: since } },
+    orderBy: { startedAt: "desc" },
+    take: 40,
+    select: { startedAt: true, activity: true, distanceM: true, durationS: true, elevationGainM: true },
+  });
+  return outings.map((outing) => ({
+    startedAt: outing.startedAt.getTime(),
+    activity: outing.activity as RouteRun["activity"],
+    distanceM: outing.distanceM,
+    durationS: outing.durationS,
+    elevationGainM: outing.elevationGainM,
+  }));
 }
 
 /** Every outing with what the profile adds up. */

@@ -10,6 +10,8 @@ import {
   autoRouteName, drawnLine, emptyRoute, fetchLeg, isLoop, legsAround, movedWaypoint, routeDistanceM, snapped,
   withWaypoint, withoutLast, type Route, type RoutePoint,
 } from "@tread/core/route";
+import { estimateRouteTime, type RouteRun } from "@tread/core/routeTime";
+import { formatDuration } from "@tread/core/format";
 import { distanceUnit, elevationUnit } from "@tread/core/units";
 import { Figures } from "@/components/Figures";
 import { LineChart } from "@/components/LineChart";
@@ -32,6 +34,7 @@ const strings = defineStrings({
     distance: "Distance",
     gain: "D+",
     loss: "D−",
+    time: "Ton temps",
     profile: "Profil d'altitude",
     low: "Min",
     high: "Max",
@@ -52,6 +55,7 @@ const strings = defineStrings({
     distance: "Distance",
     gain: "Gain",
     loss: "Loss",
+    time: "Your time",
     profile: "Elevation profile",
     low: "Min",
     high: "Max",
@@ -66,8 +70,10 @@ const strings = defineStrings({
  * router the phone uses, the distance and the climb as it grows. Saved here,
  * it reaches the phone at its next sync.
  */
-export function RouteEditorScreen({ initial }: {
+export function RouteEditorScreen({ initial, recent }: {
   initial?: { id: string; name: string; waypoints: RoutePoint[]; legs: RoutePoint[][] };
+  /** The runner's last few weeks, to say how long the route would take them. */
+  recent: RouteRun[];
 }) {
   const s = useStrings(strings);
   const router = useRouter();
@@ -78,6 +84,7 @@ export function RouteEditorScreen({ initial }: {
   const line = useMemo(() => drawnLine(route), [route]);
   const elevation = useElevation(line);
   const distance = routeDistanceM(route);
+  const estimate = elevation ? estimateRouteTime(recent, distance, elevation.gainM) : null;
 
   /** Ask the router for one leg and put it in place, unless the route has moved on since. */
   function routeLeg(index: number, from: RoutePoint, to: RoutePoint) {
@@ -180,6 +187,7 @@ export function RouteEditorScreen({ initial }: {
             { label: s.distance, value: formatDistance(distance), unit: distanceUnit() },
             { label: s.gain, value: elevation ? formatElevation(elevation.gainM) : "–", unit: elevationUnit() },
             { label: s.loss, value: elevation ? formatElevation(elevation.lossM) : "–", unit: elevationUnit() },
+            { label: s.time, value: estimate ? formatDuration(estimate.timeS) : "–" },
           ]}
         />
         {/* Room kept for the profile, so the page does not jump when it arrives. */}
