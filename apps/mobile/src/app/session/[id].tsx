@@ -201,12 +201,19 @@ export default function SessionEditor() {
 
   // A session is built block by block; a swipe back must not throw it away
   // without asking, as the route editor already does for a drawn route.
-  usePreventRemove(dirty && !written, ({ data }) => {
+  // The way out chosen, held until the guard has dropped: dispatched from the
+  // button with the guard still up, it was stopped again and asked again.
+  const [leaving, setLeaving] = useState<{ action: Parameters<typeof navigation.dispatch>[0] } | null>(null);
+  usePreventRemove(dirty && !written && leaving === null, ({ data }) => {
     Alert.alert(s.leaveTitle, s.leaveBody, [
       { text: s.stay, style: "cancel" },
-      { text: s.leave, style: "destructive", onPress: () => navigation.dispatch(data.action) },
+      { text: s.leave, style: "destructive", onPress: () => setLeaving({ action: data.action }) },
     ]);
   });
+
+  useEffect(() => {
+    if (leaving) navigation.dispatch(leaving.action);
+  }, [leaving, navigation]);
 
   // Left once the save has been rendered, so the guard above has let go.
   useEffect(() => {

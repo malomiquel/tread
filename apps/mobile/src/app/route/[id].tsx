@@ -263,7 +263,16 @@ export default function RouteBuilder() {
    * closing in the same breath as clearing the guard would ask somebody
    * whether they want to discard what they have just saved.
    */
-  usePreventRemove(dirty && !written, ({ data }) => {
+  /**
+   * The way out chosen in that question, held until the guard has dropped.
+   *
+   * Dispatched straight from the button, the action met the guard still up
+   * and asked again, and again: the question came back every time "Leave"
+   * was pressed. The guard drops first, and the leaving happens on the next
+   * render, as it does after a save.
+   */
+  const [leaving, setLeaving] = useState<{ action: Parameters<typeof navigation.dispatch>[0] } | null>(null);
+  usePreventRemove(dirty && !written && leaving === null, ({ data }) => {
     Alert.alert(
       s.leaveTitle,
       s.leaveBody,
@@ -272,11 +281,15 @@ export default function RouteBuilder() {
         {
           text: s.leave,
           style: "destructive",
-          onPress: () => navigation.dispatch(data.action),
+          onPress: () => setLeaving({ action: data.action }),
         },
       ],
     );
   });
+
+  useEffect(() => {
+    if (leaving) navigation.dispatch(leaving.action);
+  }, [leaving, navigation]);
 
   useEffect(() => {
     if (written) router.back();
