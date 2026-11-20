@@ -2,8 +2,9 @@ import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from "expo-aud
 import { getSettings } from "@/lib/settings";
 
 /**
- * The app's few sounds, made for it (ElevenLabs sound effects, trimmed and
- * levelled) and shipped inside it, so nothing is ever fetched to play one.
+ * The cards' sounds, made for them (ElevenLabs sound effects, trimmed and
+ * levelled) and shipped inside the app, so nothing is ever fetched to play
+ * one. Only the cards make a sound: a run, a record or a button does not.
  *
  * Quiet by design: they mix with whatever is already playing, never pause a
  * runner's music, and follow the silent switch, as every sound that is not a
@@ -14,16 +15,6 @@ const SOURCES = {
   cardTrait: require("../../assets/sounds/card-trait.m4a"),
   cardRare: require("../../assets/sounds/card-rare.m4a"),
   cardLegendary: require("../../assets/sounds/card-legendary.m4a"),
-  runStart: require("../../assets/sounds/run-start.m4a"),
-  runPause: require("../../assets/sounds/run-pause.m4a"),
-  runResume: require("../../assets/sounds/run-resume.m4a"),
-  runFinish: require("../../assets/sounds/run-finish.m4a"),
-  runLap: require("../../assets/sounds/run-lap.m4a"),
-  runKm: require("../../assets/sounds/run-km.m4a"),
-  record: require("../../assets/sounds/record.m4a"),
-  goal: require("../../assets/sounds/goal.m4a"),
-  tap: require("../../assets/sounds/tap.m4a"),
-  tab: require("../../assets/sounds/tab.m4a"),
 } as const;
 
 export type Sound = keyof typeof SOURCES;

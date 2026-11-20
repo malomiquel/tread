@@ -65,7 +65,7 @@ export interface Settings {
   language: LanguageChoice;
   /** Pause the run when the runner stops, and resume when they set off. Off by default. */
   autoPause: boolean;
-  /** The app's sound effects: cards, run controls, records, buttons. On by default. */
+  /** The cards' sounds, as they are turned over. On by default. */
   sounds: boolean;
   /**
    * Bring in the runs a watch wrote to Apple Health. Off until asked for: it

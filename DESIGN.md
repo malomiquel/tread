@@ -504,24 +504,13 @@ on does nothing and buzzes nothing.
 
 ## Sound
 
-A few short sounds, made for the app (ElevenLabs sound effects, trimmed and
-levelled) and shipped inside it (`apps/mobile/assets/sounds`, played by
-`lib/sounds.ts`). Sober and premium: soft, short, never a fanfare. They mix
-with the runner's music rather than pausing it, follow the silent switch,
-and all go off with Settings › App › Sound effects.
-
-| Sound | When |
-|---|---|
-| `tap` | A `PressableScale` pressed (buttons, cards, banners), quietest of all |
-| `tab` | Changing tab, with the selection tick |
-| `cardFlip`, `cardTrait` | A card turned over; each line it then says |
-| `cardRare`, `cardLegendary` | Just after the turn, for a rare or exceptional card, or a race |
-| `runStart`, `runPause`, `runResume`, `runFinish`, `runLap` | The run controls, as they act |
-| `runKm` | Each kilometre, with the buzz, before the voice |
-| `record` | Arriving on a run that broke a record |
-| `goal` | The run that carries the week past its goal |
-
-Like a haptic, a sound only answers something that happened.
+The cards alone make a sound; a run, a record or a button does not. Four
+short sounds, made for them with ElevenLabs, trimmed and levelled, shipped
+in the app (`apps/mobile/assets/sounds`, played by `lib/sounds.ts`), in the
+manner of a card game: a card flipped onto a table, a pop for each line it
+says, a shimmer for a rare or exceptional card, an impact and a swell for a
+legendary one. They mix with the runner's music, follow the silent switch,
+and go off with Settings › App › Card sounds.
 
 ---
 

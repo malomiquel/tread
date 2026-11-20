@@ -366,12 +366,11 @@ const styles = StyleSheet.create({
   // them readable on a bright one.
   shade: { textShadowColor: "rgba(0, 0, 0, 0.45)", textShadowRadius: 6, textShadowOffset: { width: 0, height: 1 } },
   glow: { textShadowColor: "rgba(255, 255, 255, 0.6)", textShadowRadius: 6, textShadowOffset: { width: 0, height: 0 } },
-  // The small sticker: one block in the middle of an empty frame, to be
-  // pinched to size and put anywhere on a story.
-  sticker: {
-    position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
-    alignItems: "center", justifyContent: "center", gap: 2,
-  },
+  // The small sticker: one block in a corner of an empty frame, to be
+  // pinched to size and moved anywhere on a story.
+  // In the bottom corner, where a story leaves room, rather than over the
+  // middle of the photo it is laid on.
+  sticker: { position: "absolute", left: GUTTER, bottom: 40, alignItems: "flex-start", gap: 2 },
   stickerHero: {
     color: INK, fontSize: 44, fontFamily: font.semibold, letterSpacing: -0.8, fontVariant: ["tabular-nums"],
   },

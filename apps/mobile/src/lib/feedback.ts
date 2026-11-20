@@ -2,7 +2,6 @@ import { decimal, defineStrings, speechLocale } from "@tread/core/i18n";
 import { getUnitSystem, METRES_PER_MILE, toPaceUnits, toSpeedUnits } from "@tread/core/units";
 import * as Speech from "expo-speech";
 import { Platform, Vibration } from "react-native";
-import { playSound } from "@/lib/sounds";
 
 /**
  * How long one buzz of the vibration motor lasts.
@@ -153,7 +152,6 @@ export function announceKilometre(km: number, splitS: number, spoken: boolean, g
   // One buzz, alone. It is the only single in the set, so it needs no counting
   // to recognise: the silence straight after it is what names it.
   buzz(1);
-  playSound("runKm");
   if (!spoken) return;
 
   const minutes = Math.floor(splitS / 60);

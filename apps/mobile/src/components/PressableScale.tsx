@@ -1,6 +1,5 @@
 import { Pressable, type PressableProps, type StyleProp, type ViewStyle } from "react-native";
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
-import { playSound } from "@/lib/sounds";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -22,17 +21,12 @@ interface Props extends Omit<PressableProps, "style"> {
  * a list keep their own feedback, a sunken background: a whole row shrinking
  * away from its rules reads as the list moving.
  */
-export function PressableScale({ style, onPressIn, onPressOut, onPress, ...rest }: Props) {
+export function PressableScale({ style, onPressIn, onPressOut, ...rest }: Props) {
   const scale = useSharedValue(1);
   const pressed = useAnimatedStyle(() => ({ transform: [{ scale: scale.get() }] }));
   return (
     <AnimatedPressable
       {...rest}
-      // A soft click under the finger, with the scale: the same press, heard.
-      onPress={onPress ? (event) => {
-        playSound("tap");
-        onPress(event);
-      } : undefined}
       onPressIn={(event) => {
         scale.set(withTiming(PRESSED, DOWN));
         onPressIn?.(event);
