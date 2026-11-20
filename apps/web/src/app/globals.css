@@ -44,6 +44,8 @@ button, input, select { font: inherit; color: inherit; }
 .nav a[aria-current="page"] { color: var(--accent); background: var(--accent-soft); }
 .nav .label-short { display: none; }
 .shell-account { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+/* FR / EN beside the settings: the same segmented control, as narrow as its two words. */
+.language-switch button { min-width: 38px; padding: 0 9px; font-weight: 600; letter-spacing: 0.6px; }
 .page { max-width: var(--content); margin: 0 auto; padding: 0 var(--gutter) 64px; }
 .page.narrow { max-width: 760px; }
 

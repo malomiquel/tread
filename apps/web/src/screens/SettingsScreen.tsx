@@ -10,9 +10,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { SectionHeader } from "@/components/SectionHeader";
 import { Upload } from "@/components/Upload";
 import { authClient } from "@/lib/auth-client";
-import { LANGUAGE_COOKIE } from "@/lib/language";
 
-type LanguageChoice = "auto" | Language;
 
 const strings = defineStrings({
   fr: {
@@ -21,8 +19,6 @@ const strings = defineStrings({
     name: "Prénom",
     email: "Adresse",
     signOut: "Se déconnecter",
-    language: "Langue",
-    languages: { auto: "Celle du navigateur", fr: "Français", en: "English" } as Record<LanguageChoice, string>,
     phone: "Le téléphone",
     phoneSteps: "Dans Tread : Réglages, Compte, puis connecte-toi avec cette adresse. Tes sorties, ton programme, tes parcours et tes chaussures arrivent ici, et chaque nouvelle course suit.",
     lastSync: "Dernière synchro",
@@ -42,8 +38,6 @@ const strings = defineStrings({
     name: "First name",
     email: "Address",
     signOut: "Sign out",
-    language: "Language",
-    languages: { auto: "The browser's", fr: "Français", en: "English" } as Record<LanguageChoice, string>,
     phone: "The phone",
     phoneSteps: "In Tread: Settings, Account, then sign in with this address. Your outings, plan, routes and shoes arrive here, and every new run follows.",
     lastSync: "Last sync",
@@ -59,23 +53,16 @@ const strings = defineStrings({
   },
 });
 
-export function SettingsScreen({ name, email, syncedAt, language }: {
+export function SettingsScreen({ name, email, syncedAt }: {
   name: string;
   email: string;
   syncedAt: number | null;
-  language: LanguageChoice;
 }) {
   const s = useStrings(strings);
   const router = useRouter();
   const [removing, setRemoving] = useState(false);
   const [message, setMessage] = useState("");
 
-  function chooseLanguage(choice: LanguageChoice) {
-    document.cookie = choice === "auto"
-      ? `${LANGUAGE_COOKIE}=; path=/; max-age=0; samesite=lax`
-      : `${LANGUAGE_COOKIE}=${choice}; path=/; max-age=31536000; samesite=lax`;
-    router.refresh();
-  }
 
   async function signOut() {
     await authClient.signOut();
@@ -107,25 +94,6 @@ export function SettingsScreen({ name, email, syncedAt, language }: {
         <button type="button" className="setting" onClick={signOut} style={{ width: "100%", background: "none", border: 0, borderTop: 0, padding: 0, cursor: "pointer", textAlign: "left" }}>
           <span className="icon"><IoLogOutOutline size={19} /></span><span className="setting-label" style={{ color: "var(--accent)" }}>{s.signOut}</span>
         </button>
-      </div>
-
-      <SectionHeader title={s.language} />
-      <div className="settings-group" role="radiogroup" aria-label={s.language}>
-        {(["auto", "fr", "en"] as LanguageChoice[]).map((choice) => (
-          <button
-            key={choice}
-            type="button"
-            role="radio"
-            aria-checked={language === choice}
-            className="setting"
-            onClick={() => chooseLanguage(choice)}
-            style={{ width: "100%", background: "none", border: 0, borderBottom: "1px solid var(--hairline)", padding: 0, cursor: "pointer", textAlign: "left" }}
-          >
-            <span className="icon"><IoGlobeOutline size={19} /></span>
-            <span className="setting-label">{s.languages[choice]}</span>
-            {language === choice ? <IoCheckmark className="tick" size={20} aria-hidden /> : null}
-          </button>
-        ))}
       </div>
 
       <div id="phone">
