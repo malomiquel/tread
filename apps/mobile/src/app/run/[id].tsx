@@ -23,6 +23,7 @@ import { deleteRun, effortRecords, listRuns, readRoute, readRun, routeRecords, t
 import { CardBack, RunCard } from "@/components/RunCard";
 import { PressableScale } from "@/components/PressableScale";
 import { TiltCard } from "@/components/TiltCard";
+import { playSound } from "@/lib/sounds";
 import { cardHref } from "@/lib/cardStage";
 import { cardsOf } from "@tread/core/card";
 import { viewShot } from "@/lib/viewShot";
@@ -388,6 +389,20 @@ export default function RunDetailScreen() {
     });
     return () => { active = false; };
   }, [id]);
+
+  // Straight off a run that broke a record, the page opens on a chime: the
+  // one moment the record is news.
+  const cheered = useRef(false);
+  useEffect(() => {
+    if (from === undefined || cheered.current || !data || history === null) return;
+    const dealt = cardsOf([...history.filter((other) => other.id !== data.run.id), data.run]).get(data.run.id);
+    if (!dealt?.traits.includes("best")) return;
+    const timer = setTimeout(() => {
+      cheered.current = true;
+      playSound("record");
+    }, 700);
+    return () => clearTimeout(timer);
+  }, [from, data, history]);
 
   /**
    * Ask Health what this run's heart did, whenever the run has no answer yet.

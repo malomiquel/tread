@@ -38,6 +38,7 @@ import {
 } from "@/lib/tracker";
 import { formatTemperature, useCurrentWeather, weatherIcon, weatherLine } from "@/lib/weather";
 import { findSession } from "@/lib/sessionLibrary";
+import { playSound } from "@/lib/sounds";
 import {
   isPaced, rpeName, rpeWithZone, sessionEffort, sessionName, stepLabel, stepRemaining,
 } from "@tread/core/workout";
@@ -695,6 +696,7 @@ export default function RecordScreen() {
     const access = await locationAccess().catch(() => "denied" as const);
     if (access === "granted") {
       await start();
+      playSound("runStart");
       setBeginning(false);
       return;
     }
@@ -755,6 +757,7 @@ export default function RecordScreen() {
 
   async function close() {
     setFinishing(true);
+    playSound("runFinish");
     // Read before finishing, which clears it: the sheet needs to know where
     // this run came from so that closing it lands somewhere sensible.
     const from = tracker.planOrder !== null ? "plan" : "history";
@@ -770,6 +773,12 @@ export default function RecordScreen() {
     }
     setFinishing(false);
     if (id !== null) {
+      // The run that carried the week past its goal says so, after the
+      // finish chime has had its moment.
+      if (weekly !== null && goal !== null && goal.percent < 100) {
+        const after = measure(weekly.kind, { ...week, distanceM: week.distanceM + distance, durationS: week.durationS + duration });
+        if (after >= weekly.target) setTimeout(() => playSound("goal"), 900);
+      }
       router.push({ pathname: "/run/[id]", params: { id: String(id), from } });
     }
   }
@@ -1082,13 +1091,16 @@ export default function RecordScreen() {
                   icon="flag-outline"
                   label={s.lap}
                   accessibilityLabel={s.lapLabel(tracker.laps.length + 1)}
-                  onPress={lap}
+                  onPress={() => {
+                    playSound("runLap");
+                    lap();
+                  }}
                   disabled={tracker.status !== "running"}
                 />
                 {tracker.status === "running" ? (
-                  <RoundButton icon="pause" label={s.pause} onPress={pause} primary light size={RUN_CONTROL} />
+                  <RoundButton icon="pause" label={s.pause} onPress={() => { playSound("runPause"); pause(); }} primary light size={RUN_CONTROL} />
                 ) : (
-                  <RoundButton icon="play" label={s.resume} onPress={resume} primary size={RUN_CONTROL} />
+                  <RoundButton icon="play" label={s.resume} onPress={() => { playSound("runResume"); resume(); }} primary size={RUN_CONTROL} />
                 )}
                 <PillButton
                   icon="stop"

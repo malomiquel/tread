@@ -65,6 +65,8 @@ export interface Settings {
   language: LanguageChoice;
   /** Pause the run when the runner stops, and resume when they set off. Off by default. */
   autoPause: boolean;
+  /** The app's sound effects: cards, run controls, records, buttons. On by default. */
+  sounds: boolean;
   /**
    * Bring in the runs a watch wrote to Apple Health. Off until asked for: it
    * needs one more permission, and not everybody runs with a watch.
@@ -104,7 +106,7 @@ export interface Settings {
 const DEFAULTS: Settings = {
   voice: true, targetPaceSKm: null, weeklyGoalM: null, goalKind: "distance", weeklyGoalS: null,
   weeklyGoalClimbM: null, reminder: "off", routeId: null,
-  welcomed: false, language: "auto", runner: null, raceSetupOffered: false, autoPause: false, healthImport: false, units: "auto", appearance: "auto", privacyRadiusM: DEFAULT_PRIVACY_RADIUS,
+  welcomed: false, language: "auto", runner: null, raceSetupOffered: false, autoPause: false, sounds: true, healthImport: false, units: "auto", appearance: "auto", privacyRadiusM: DEFAULT_PRIVACY_RADIUS,
   sport: "running", cardsSeenThrough: null, mapBackground: "apple",
 };
 
@@ -138,6 +140,7 @@ export async function loadSettings(): Promise<void> {
       runner: readRunnerProfile(stored.runner),
       raceSetupOffered: stored.raceSetupOffered === "true",
       autoPause: stored.autoPause === "true",
+      sounds: stored.sounds !== "false",
       healthImport: stored.healthImport === "true",
       units: readUnitChoice(stored.units),
       appearance: readAppearanceChoice(stored.appearance),
@@ -232,6 +235,11 @@ export async function setHealthImport(on: boolean): Promise<void> {
 
 export async function toggleAutoPause(): Promise<void> {
   await store({ ...current, autoPause: !current.autoPause }, "autoPause", String(!current.autoPause));
+}
+
+/** Play the app's sound effects, or keep it silent. */
+export async function toggleSounds(): Promise<void> {
+  await store({ ...current, sounds: !current.sounds }, "sounds", String(!current.sounds));
 }
 
 /** Speak the kilometres, or stop speaking them. */

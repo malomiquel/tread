@@ -19,6 +19,7 @@ import { readItems, type StageItem as Item } from "@/lib/cardStage";
 import { markCardsSeen, useSettings } from "@/lib/settings";
 import { colors, font } from "@/lib/theme";
 import { pendingWeather } from "@/lib/tracker";
+import { playSound, type Sound } from "@/lib/sounds";
 import { viewShot } from "@/lib/viewShot";
 
 const strings = defineStrings({
@@ -182,6 +183,10 @@ export default function CardStage() {
   };
 
   const strong = runCard ? cardPoints(runCard.traits) >= 4 : metaCard !== undefined;
+  // The finer the card, the more it rings once face up.
+  const fine = runCard?.rarity === "rare" || runCard?.rarity === "exceptional"
+    || metaCard?.tier === "rare" || metaCard?.tier === "exceptional";
+  const chime: Sound | null = metaCard?.tier === "legendary" ? "cardLegendary" : fine ? "cardRare" : null;
 
   return (
     <View style={[styles.screen, { paddingTop: safe.top, paddingBottom: safe.bottom }]}>
@@ -201,6 +206,7 @@ export default function CardStage() {
             faceDown={revealing}
             number={runCard ? words.number(runCard.number) : metaCard ? `${meta.kind[metaCard.kind]} · ${words.number(metaCard.number)}` : ""}
             strong={strong}
+            chime={chime}
             hint={s.reveal}
             backLabel={s.backFace}
             lines={lines}
@@ -240,10 +246,11 @@ export default function CardStage() {
  * hidden past ninety degrees. Moved, never faded. For someone who asked the
  * phone to reduce motion, the card is simply face up.
  */
-function Flip({ faceDown, number, strong, hint, backLabel, lines, children }: {
+function Flip({ faceDown, number, strong, chime, hint, backLabel, lines, children }: {
   faceDown: boolean;
   number: string;
   strong: boolean;
+  chime: Sound | null;
   hint: string;
   backLabel: string;
   lines: { key: string; text: string; aside?: string }[];
@@ -260,6 +267,7 @@ function Flip({ faceDown, number, strong, hint, backLabel, lines, children }: {
     const timer = setTimeout(() => {
       setSaid((count) => count + 1);
       void Haptics.selectionAsync();
+      playSound("cardTrait");
     }, said === 0 ? 520 : 380);
     return () => clearTimeout(timer);
   }, [turned, said, lines.length]);
@@ -276,6 +284,9 @@ function Flip({ faceDown, number, strong, hint, backLabel, lines, children }: {
     setTurned(true);
     turn.set(withTiming(1, { duration: 620, easing: Easing.out(Easing.cubic) }));
     void Haptics.impactAsync(strong ? Haptics.ImpactFeedbackStyle.Heavy : Haptics.ImpactFeedbackStyle.Medium);
+    playSound("cardFlip");
+    // Once the face has come round, the light catches it.
+    if (chime) setTimeout(() => playSound(chime), 420);
   }
 
   return (

@@ -14,6 +14,7 @@ import { colors, font } from "@/lib/theme";
 import { setRoute } from "@/lib/settings";
 import { chooseSession, useTracker } from "@/lib/tracker";
 import type { Session } from "@tread/core/workout";
+import { playSound } from "@/lib/sounds";
 
 /**
  * A floating tab bar that hugs its own content.
@@ -148,6 +149,7 @@ export function FloatingTabBar({
       // where the navigation does — a tap on the section already open changes
       // nothing, and a buzz answering it would be claiming otherwise.
       void Haptics.selectionAsync().catch(() => undefined);
+      playSound("tab");
       navigateToTab(route.key);
     };
 

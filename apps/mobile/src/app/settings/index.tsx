@@ -16,7 +16,7 @@ import { runnerWords } from "@tread/core/runner";
 import { unitChoiceWords } from "@/lib/unitChoice";
 import { appearanceWords } from "@/lib/appearance";
 import { mapBackgroundWords } from "@/lib/offlineMap";
-import { forgetWelcome, toggleAutoPause, toggleVoice, useSettings, weeklyGoal } from "@/lib/settings";
+import { forgetWelcome, toggleAutoPause, toggleSounds, toggleVoice, useSettings, weeklyGoal } from "@/lib/settings";
 import { goalAmount } from "@tread/core/goals";
 import { suggestedWeeklyGoalM } from "@tread/core/stats";
 import { colors } from "@/lib/theme";
@@ -34,6 +34,7 @@ const settingsStrings = defineStrings({
     running: "Pendant la course",
     voice: "Annonces vocales",
     autoPause: "Pause automatique",
+    sounds: "Effets sonores",
     runningFooter: "Les annonces disent chaque kilomètre (ou mile), les écarts d'allure et les blocs de séance. La pause automatique arrête le chrono après dix secondes à l'arrêt, et le relance quand tu repars.",
     app: "Application",
     language: "Langue",
@@ -66,6 +67,7 @@ const settingsStrings = defineStrings({
     running: "While running",
     voice: "Voice announcements",
     autoPause: "Auto-pause",
+    sounds: "Sound effects",
     runningFooter: "Announcements read out every kilometre (or mile), pace drift and workout blocks. Auto-pause stops the clock after ten seconds standing still, and restarts it when you set off.",
     app: "App",
     language: "Language",
@@ -223,6 +225,18 @@ export default function SettingsScreen() {
           label={s.maps}
           value={mapBackgroundWords().names[settings.mapBackground]}
           onPress={() => router.push("/settings/map")}
+        />
+        <SettingRow
+          icon="musical-notes-outline"
+          label={s.sounds}
+          right={
+            <Switch
+              value={settings.sounds}
+              onValueChange={() => void toggleSounds()}
+              trackColor={{ true: colors.accent, false: colors.hairline }}
+              accessibilityLabel={s.sounds}
+            />
+          }
         />
       </SettingsGroup>
 

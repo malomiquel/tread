@@ -502,6 +502,27 @@ Downhill `trending-down`.
 A haptic only fires when something happened: tapping the tab you are already
 on does nothing and buzzes nothing.
 
+## Sound
+
+A few short sounds, made for the app (ElevenLabs sound effects, trimmed and
+levelled) and shipped inside it (`apps/mobile/assets/sounds`, played by
+`lib/sounds.ts`). Sober and premium: soft, short, never a fanfare. They mix
+with the runner's music rather than pausing it, follow the silent switch,
+and all go off with Settings › App › Sound effects.
+
+| Sound | When |
+|---|---|
+| `tap` | A `PressableScale` pressed (buttons, cards, banners), quietest of all |
+| `tab` | Changing tab, with the selection tick |
+| `cardFlip`, `cardTrait` | A card turned over; each line it then says |
+| `cardRare`, `cardLegendary` | Just after the turn, for a rare or exceptional card, or a race |
+| `runStart`, `runPause`, `runResume`, `runFinish`, `runLap` | The run controls, as they act |
+| `runKm` | Each kilometre, with the buzz, before the voice |
+| `record` | Arriving on a run that broke a record |
+| `goal` | The run that carries the week past its goal |
+
+Like a haptic, a sound only answers something that happened.
+
 ---
 
 ## Language
