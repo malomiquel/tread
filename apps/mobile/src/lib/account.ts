@@ -5,7 +5,7 @@ import { fingerprint } from "@tread/core/backup";
 import { afterSync, PENDING_DELETIONS_KEY, readPending } from "@tread/core/sync";
 import { packTransfer } from "@tread/core/transfer";
 import { getUnitSystem } from "@tread/core/units";
-import { dataSummary, everythingForTransfer, readSettings, writeSetting } from "./db";
+import { dataSummary, everythingForTransfer, mergeAccountRoutes, readSettings, writeSetting, type AccountRoute } from "./db";
 
 /**
  * The Tread account: the same one as on the web, so what this phone records
@@ -75,6 +75,32 @@ export type SyncOutcome =
 let running: Promise<SyncOutcome> | null = null;
 
 /**
+ * Bring down the routes the web holds: drawn or imported there, changed
+ * there, deleted there. The fingerprint is taken after, so a route that
+ * just arrived is not sent straight back up as news. Never throws: a sync
+ * that sent everything is not failed by a list that could not be read.
+ */
+async function pullRoutes(cookie: string): Promise<void> {
+  try {
+    const response = await fetch(`${API_URL}/api/routes`, { headers: { Cookie: cookie }, credentials: "omit" });
+    if (!response.ok) return;
+    const body = (await response.json()) as { routes?: unknown; deleted?: unknown };
+    const routes = Array.isArray(body.routes) ? (body.routes as AccountRoute[]) : [];
+    const deleted = Array.isArray(body.deleted)
+      ? body.deleted.filter((value): value is number => typeof value === "number")
+      : [];
+    const merged = await mergeAccountRoutes({ routes, deleted });
+    if (merged.added + merged.changed + merged.removed > 0) {
+      await writeSetting(SYNC_KEY, JSON.stringify({
+        at: Date.now(), fingerprint: `${fingerprint(await dataSummary())}|${getUnitSystem()}`,
+      } satisfies SyncState));
+    }
+  } catch {
+    // The routes wait for the next sync.
+  }
+}
+
+/**
  * Send everything to the account. `force` sends even when nothing changed
  * since the last time. One at a time; never throws.
  */
@@ -86,7 +112,11 @@ export function syncNow(force = false): Promise<SyncOutcome> {
       // The units count too: the web reads them from here.
       const current = `${fingerprint(await dataSummary())}|${getUnitSystem()}`;
       const last = await lastSync();
-      if (!force && last?.fingerprint === current) return { kind: "unchanged" };
+      if (!force && last?.fingerprint === current) {
+        // Nothing new to send, but the web may have drawn or deleted a route.
+        await pullRoutes(cookie);
+        return { kind: "unchanged" };
+      }
 
       const archive = await packTransfer(await everythingForTransfer());
       const deleted = readPending((await readSettings())[PENDING_DELETIONS_KEY]);
@@ -104,6 +134,9 @@ export function syncNow(force = false): Promise<SyncOutcome> {
       const result = (await response.json()) as SyncResult;
       // Read again: a run deleted while this was on its way stays pending.
       await writeSetting(PENDING_DELETIONS_KEY, afterSync((await readSettings())[PENDING_DELETIONS_KEY], deleted));
+      // Only once this phone's own routes have gone up: what comes back can
+      // then never be older than what is here.
+      await pullRoutes(cookie);
       await writeSetting(SYNC_KEY, JSON.stringify({
         at: Date.now(), fingerprint: `${fingerprint(await dataSummary())}|${getUnitSystem()}`,
       } satisfies SyncState));

@@ -121,7 +121,7 @@ const joinLegs = (legs: unknown, waypoints: unknown): RoutePoint[] => {
 };
 
 export async function routeRows(userId: string): Promise<RouteRow[]> {
-  const routes = await prisma.route.findMany({ where: { userId }, orderBy: { createdAt: "desc" } });
+  const routes = await prisma.route.findMany({ where: { userId, deletedAt: null }, orderBy: { createdAt: "desc" } });
   return routes.map((route) => ({
     id: route.id, name: route.name, createdAt: route.createdAt.getTime(), place: route.place,
     line: joinLegs(route.legs, route.waypoints),
@@ -129,7 +129,7 @@ export async function routeRows(userId: string): Promise<RouteRow[]> {
 }
 
 export async function routeById(userId: string, id: string): Promise<RouteRow | null> {
-  const route = await prisma.route.findFirst({ where: { id, userId } });
+  const route = await prisma.route.findFirst({ where: { id, userId, deletedAt: null } });
   return route
     ? { id: route.id, name: route.name, createdAt: route.createdAt.getTime(), place: route.place, line: joinLegs(route.legs, route.waypoints) }
     : null;

@@ -96,6 +96,7 @@ button, input, select { font: inherit; color: inherit; }
   background: var(--accent-soft); color: var(--accent);
 }
 .header-button.primary { background: var(--accent); color: var(--accent-text); }
+.header-button.danger { background: transparent; color: var(--danger); }
 .link-button { background: none; border: 0; padding: 0; color: var(--accent); font-weight: 600; cursor: pointer; font-size: 16px; }
 
 /* ---------- Stage (SummaryBanner) ---------- */
@@ -224,6 +225,27 @@ a.row:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
 .map.small { height: 300px; }
 @media (max-width: 720px) { .map { height: 300px; } }
 .map .maplibregl-ctrl-attrib { font-size: 10px; }
+/* ---------- Route editor ---------- */
+.map.editor { height: 560px; }
+@media (max-width: 720px) { .map.editor { height: 420px; } }
+.editor-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
+.editor-name {
+  flex: 1 1 260px; height: 44px; border-radius: 10px; border: 1.5px solid transparent; background: var(--sunken);
+  padding: 0 14px; font: inherit; font-size: 17px; font-weight: 600; color: var(--text);
+}
+.editor-name:focus { outline: none; border-color: var(--accent); }
+.editor-tools { display: flex; flex-wrap: wrap; gap: 8px; }
+.editor-tools .chip { color: var(--text); }
+.editor-tools .chip:disabled { opacity: 0.4; cursor: default; }
+.profile-room { min-height: 190px; margin-top: 14px; }
+.header-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+/* A file held over the page: the page says it will take it. */
+.page.dropping { outline: 2px dashed var(--accent); outline-offset: -8px; border-radius: 20px; }
+.route-handle {
+  width: 14px; height: 14px; border-radius: 50%; background: var(--background);
+  border: 3px solid var(--track); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25); cursor: grab;
+}
+.route-handle.start { width: 18px; height: 18px; background: var(--track); border-color: var(--background); }
 .chart { width: 100%; height: 150px; display: block; }
 .chart-caption { display: flex; justify-content: space-between; font-size: 13.5px; color: var(--subtle); margin-top: 4px; font-variant-numeric: tabular-nums; }
 .bars { display: grid; gap: 6px; }

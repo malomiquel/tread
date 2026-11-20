@@ -168,6 +168,9 @@ model Route {
   waypoints Json
   legs      Json
   place     String?
+  /// Deleted on the web. Kept as a mark, so a phone that still has the
+  /// route neither sends it back to life nor keeps it: it is told to drop it.
+  deletedAt DateTime?
 
   @@unique([userId, createdAt])
   @@map("route")

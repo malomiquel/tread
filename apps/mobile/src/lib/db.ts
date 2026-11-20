@@ -17,7 +17,7 @@ import type { ImportedRun } from "@tread/core/healthImport";
 import { forgetPhotos, parsePhotos } from "./photos";
 import type { EditedRun } from "@tread/core/runEdit";
 import type { Shoe } from "@tread/core/shoes";
-import { parseRoute, routeDistanceM, type Route, type StoredRoute } from "@tread/core/route";
+import { parseRoute, routeDistanceM, type Route, type RoutePoint, type StoredRoute } from "@tread/core/route";
 import {
   TRANSFER_FORMAT, TRANSFER_VERSION, type Restored, type Transfer, type TransferRun, type TransferSession,
   type TransferShoe,
@@ -1266,6 +1266,62 @@ export async function setRoutePreview(id: number, preview: string): Promise<void
 
 export async function renameRoute(id: number, name: string): Promise<void> {
   await getDb().runAsync("UPDATE routes SET name = ? WHERE id = ?", name.trim(), id);
+}
+
+/** A route as the account keeps it, read back by the phone. */
+export interface AccountRoute {
+  name: string;
+  createdAt: number;
+  waypoints: RoutePoint[];
+  legs: RoutePoint[][];
+  place: string | null;
+}
+
+/**
+ * Take in the routes the account holds: the ones drawn or imported on the
+ * web, changes made to them there, and the ones deleted there.
+ *
+ * A route is the same route on both sides when it was made at the same
+ * moment: the phone sends its routes keyed on that, and the web makes its
+ * own the same way. Run only right after this phone's own routes have been
+ * sent, so what comes back is never older than what is here.
+ */
+export async function mergeAccountRoutes(
+  remote: { routes: readonly AccountRoute[]; deleted: readonly number[] },
+): Promise<{ added: number; changed: number; removed: number }> {
+  const db = getDb();
+  let added = 0;
+  let changed = 0;
+  let removed = 0;
+  for (const route of remote.routes) {
+    const local = await db.getFirstAsync<RouteRow>("SELECT * FROM routes WHERE created_at = ?", route.createdAt);
+    const shape = { waypoints: route.waypoints, legs: route.legs };
+    if (!local) {
+      await db.runAsync(
+        "INSERT INTO routes (name, created_at, distance_m, waypoints, legs, place, preview)"
+        + " VALUES (?, ?, ?, ?, ?, ?, NULL)",
+        route.name, route.createdAt, routeDistanceM(shape),
+        JSON.stringify(route.waypoints), JSON.stringify(route.legs), route.place,
+      );
+      added += 1;
+      continue;
+    }
+    const sameShape = local.waypoints === JSON.stringify(route.waypoints) && local.legs === JSON.stringify(route.legs);
+    if (sameShape && local.name === route.name && (local.place ?? null) === route.place) continue;
+    // A new shape makes the old picture wrong; a new name alone does not.
+    await updateRoute(local.id, route.name, shape, {
+      place: route.place,
+      preview: sameShape ? local.preview : null,
+    });
+    changed += 1;
+  }
+  for (const createdAt of remote.deleted) {
+    const local = await db.getFirstAsync<{ id: number }>("SELECT id FROM routes WHERE created_at = ?", createdAt);
+    if (!local) continue;
+    await deleteRoute(local.id);
+    removed += 1;
+  }
+  return { added, changed, removed };
 }
 
 export async function deleteRoute(id: number): Promise<void> {

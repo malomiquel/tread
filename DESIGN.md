@@ -573,7 +573,15 @@ glass bar at the foot, as on the phone, below 720 px; Settings is a header
 pill. An outing's page puts the map and its charts in a wide column and the
 details, zones, splits and laps beside it, stacked at a phone's width. The
 account pages (sign in, sign up, password) are one centred column of 400.
-Every action has a word; a form keeps what was typed when it fails.
+Every action has a word; a form keeps what was typed when it fails. Routes are drawn and imported on the web too, where a mouse is easier than a
+finger: "New route" opens the editor (click to place points, the line asks
+the phone's walking router, a point dragged moves, undo, back to the start,
+clear; distance, gain and loss and the elevation profile as it grows), and
+"Import a GPX" takes files picked or dropped anywhere on the page. A
+route's page gives its gain and profile, "Edit" and a red "Delete". Gain
+and profile come from Open-Meteo's elevation service, routes carrying no
+altitude of their own. What is made or deleted here reaches the phone at
+its next sync (`/api/routes`).
 
 The landing page shares a language, not a layout. Every section uses the
 same parts — a two-tone headline (the second line in the accent), one

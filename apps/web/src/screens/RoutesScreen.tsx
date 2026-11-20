@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { IoChevronForward, IoPhonePortraitOutline } from "react-icons/io5";
+import { IoAddOutline, IoChevronForward, IoCloudUploadOutline } from "react-icons/io5";
 import { formatDistance } from "@tread/core/format";
 import { defineStrings, intlLocale, plural, useStrings } from "@tread/core/i18n";
 import { distanceUnit } from "@tread/core/units";
@@ -12,6 +12,7 @@ import { NoMatch } from "@/components/NoMatch";
 import { PageHeader } from "@/components/PageHeader";
 import { RunShape } from "@/components/RunShape";
 import { routeLengthM, routeShape } from "@/lib/route";
+import { useGpxRoutes } from "@/hooks/useGpxRoutes";
 import type { RouteRow } from "@/lib/types";
 
 type Sort = "recent" | "longest" | "shortest" | "name";
@@ -24,9 +25,18 @@ const strings = defineStrings({
     search: "Chercher un parcours",
     sort: "Trier",
     sorts: { recent: "Les plus récents", longest: "Les plus longs", shortest: "Les plus courts", name: "Par nom" } as Record<Sort, string>,
-    emptyTitle: "Trace ton premier parcours",
-    emptyDetail: "Dans Tread, onglet Parcours : les rues sont suivies, la distance tombe juste.",
-    note: "Les parcours se dessinent sur le téléphone et se retrouvent ici à la synchro.",
+    emptyTitle: "Dessiner un parcours",
+    emptyDetail: "Clique sur la carte : le tracé suit les rues, la distance et le D+ tombent juste.",
+    importTitle: "Importer un fichier GPX",
+    importDetail: "Depuis un planificateur, une montre ou un ami. Tu peux aussi le déposer ici.",
+    note: "Un parcours fait ici arrive sur ton téléphone à la prochaine synchro.",
+    newRoute: "Nouveau parcours",
+    importGpx: "Importer un GPX",
+    importing: "Import…",
+    imported: (added: number, unreadable: number) => [
+      added > 0 ? plural(added, "parcours importé", "parcours importés") : null,
+      unreadable > 0 ? plural(unreadable, "fichier illisible", "fichiers illisibles") : null,
+    ].filter(Boolean).join(" · ") || "Aucun parcours dans ce fichier.",
   },
   en: {
     title: "Routes",
@@ -35,9 +45,18 @@ const strings = defineStrings({
     search: "Search routes",
     sort: "Sort",
     sorts: { recent: "Most recent", longest: "Longest", shortest: "Shortest", name: "By name" } as Record<Sort, string>,
-    emptyTitle: "Draw your first route",
-    emptyDetail: "In Tread, Routes tab: it follows the streets, so the distance comes out right.",
-    note: "Routes are drawn on the phone and show here at the next sync.",
+    emptyTitle: "Draw a route",
+    emptyDetail: "Click the map: the line follows the streets, so the distance and gain come out right.",
+    importTitle: "Import a GPX file",
+    importDetail: "From a planner, a watch or a friend. You can also drop it here.",
+    note: "A route made here reaches your phone at its next sync.",
+    newRoute: "New route",
+    importGpx: "Import a GPX",
+    importing: "Importing…",
+    imported: (added: number, unreadable: number) => [
+      added > 0 ? plural(added, "route imported", "routes imported") : null,
+      unreadable > 0 ? plural(unreadable, "unreadable file", "unreadable files") : null,
+    ].filter(Boolean).join(" · ") || "No route in this file.",
   },
 });
 
@@ -45,13 +64,33 @@ export function RoutesScreen({ routes }: { routes: RouteRow[] }) {
   const s = useStrings(strings);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<Sort>("recent");
+  const gpx = useGpxRoutes();
+  const [over, setOver] = useState(false);
+  // A GPX file dropped anywhere on the page is imported.
+  const drop = {
+    onDragOver: (event: React.DragEvent) => {
+      event.preventDefault();
+      setOver(true);
+    },
+    onDragLeave: () => setOver(false),
+    onDrop: (event: React.DragEvent) => {
+      event.preventDefault();
+      setOver(false);
+      void gpx.importFiles(event.dataTransfer.files);
+    },
+  };
+  const status = gpx.busy ? s.importing : gpx.result ? s.imported(gpx.result.added, gpx.result.unreadable) : null;
 
   if (routes.length === 0) {
     return (
-      <div className="page narrow">
-        <PageHeader title={s.title} />
+      <div className={`page narrow${over ? " dropping" : ""}`} {...drop}>
+        <input {...gpx.inputProps} />
+        <PageHeader title={s.title} subtitle={status} />
         <EmptyState
-          actions={[{ title: s.emptyTitle, detail: s.emptyDetail, icon: <IoPhonePortraitOutline size={22} />, href: "/settings#phone", primary: true }]}
+          actions={[
+            { title: s.emptyTitle, detail: s.emptyDetail, icon: <IoAddOutline size={22} />, href: "/routes/new", primary: true },
+            { title: s.importTitle, detail: s.importDetail, icon: <IoCloudUploadOutline size={22} />, onClick: gpx.pick },
+          ]}
           note={s.note}
         />
       </div>
@@ -70,10 +109,23 @@ export function RoutesScreen({ routes }: { routes: RouteRow[] }) {
   const total = measured.reduce((sum, route) => sum + route.lengthM, 0);
 
   return (
-    <div className="page narrow">
+    <div className={`page narrow${over ? " dropping" : ""}`} {...drop}>
+      <input {...gpx.inputProps} />
       <PageHeader
         title={s.title}
-        subtitle={shown.length < measured.length ? s.narrowed(shown.length, measured.length) : s.count(measured.length, formatDistance(total))}
+        subtitle={status ?? (shown.length < measured.length ? s.narrowed(shown.length, measured.length) : s.count(measured.length, formatDistance(total)))}
+        action={
+          <div className="header-actions">
+            <button type="button" className="header-button" onClick={gpx.pick} disabled={gpx.busy}>
+              <IoCloudUploadOutline size={18} aria-hidden />
+              <span>{s.importGpx}</span>
+            </button>
+            <Link href="/routes/new" className="header-button primary">
+              <IoAddOutline size={18} aria-hidden />
+              <span>{s.newRoute}</span>
+            </Link>
+          </div>
+        }
       />
       {measured.length > 1 ? (
         <>
