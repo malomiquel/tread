@@ -25,7 +25,7 @@ const strings = defineStrings({
     from: (points: number, next: number | null) =>
       next === null ? `${points} points et plus` : points === next - 1 ? plural(points, "point", "points") : `${points} à ${plural(next - 1, "point", "points")}`,
     traits: "Les traits",
-    traitsBody: "Ce qu'une sortie a eu de particulier. Ils comptent pour la rareté, et donnent des bonus en duel.",
+    traitsBody: "Ce qu'une sortie a eu de particulier. Leurs points s'additionnent pour faire la rareté.",
     stats: "Les quatre stats",
     statsBody: "Chaque stat va de 1 à 99 et te compare à toi-même : 50, c'est une sortie dans ta moyenne ; 99, ta meilleure. Tant que tu as moins de dix sorties, la comparaison est complétée par dix sorties types de débutant, pour que tes premières cartes aient déjà des notes.",
     great: "Les grandes cartes",
@@ -62,7 +62,7 @@ const strings = defineStrings({
     from: (points: number, next: number | null) =>
       next === null ? `${points} points and more` : points === next - 1 ? plural(points, "point", "points") : `${points} to ${next - 1} points`,
     traits: "Traits",
-    traitsBody: "What was special about an outing. They count towards rarity, and give bonuses in a duel.",
+    traitsBody: "What was special about an outing. Their points add up to the rarity.",
     stats: "The four stats",
     statsBody: "Each stat runs from 1 to 99 and sets you against yourself: 50 is an outing in your average, 99 your best. Until you have ten outings, the comparison is filled out with ten typical beginner's outings, so your first cards already have marks.",
     great: "The great cards",

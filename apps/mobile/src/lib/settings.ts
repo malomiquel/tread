@@ -90,12 +90,6 @@ export interface Settings {
    */
   sport: Sport;
   /**
-   * The runs whose cards make up the duel deck, in the order they play.
-   * Run ids rather than cards: a card is dealt again whenever its history
-   * changes, and a deck should follow it.
-   */
-  duelDeck: number[];
-  /**
    * The newest run whose card has been revealed, or null before the
    * collection was ever opened. Cards of later runs wait to be turned over.
    */
@@ -111,7 +105,7 @@ const DEFAULTS: Settings = {
   voice: true, targetPaceSKm: null, weeklyGoalM: null, goalKind: "distance", weeklyGoalS: null,
   weeklyGoalClimbM: null, reminder: "off", routeId: null,
   welcomed: false, language: "auto", runner: null, raceSetupOffered: false, autoPause: false, healthImport: false, units: "auto", appearance: "auto", privacyRadiusM: DEFAULT_PRIVACY_RADIUS,
-  sport: "running", duelDeck: [], cardsSeenThrough: null, mapBackground: "apple",
+  sport: "running", cardsSeenThrough: null, mapBackground: "apple",
 };
 
 /**
@@ -149,7 +143,6 @@ export async function loadSettings(): Promise<void> {
       appearance: readAppearanceChoice(stored.appearance),
       privacyRadiusM: readPrivacyRadius(stored.privacyRadiusM),
       sport: readSport(stored.sport),
-      duelDeck: readIds(stored.duelDeck),
       cardsSeenThrough: readId(stored.cardsSeenThrough),
       mapBackground: readMapBackground(stored.mapBackground),
     });
@@ -202,17 +195,6 @@ function readId(raw: string | undefined): number | null {
   if (!raw || raw === "null") return null;
   const id = Number(raw);
   return Number.isInteger(id) && id > 0 ? id : null;
-}
-
-/** Stored run ids, comma separated; anything unreadable is left out. */
-function readIds(raw: string | undefined): number[] {
-  if (!raw) return [];
-  return raw.split(",").map((part) => readId(part)).filter((id): id is number => id !== null);
-}
-
-/** Keep these runs' cards as the duel deck, in this order. */
-export async function setDuelDeck(runIds: readonly number[]): Promise<void> {
-  await store({ ...current, duelDeck: [...runIds] }, "duelDeck", runIds.join(","));
 }
 
 /** Every card up to this run has been turned over. Never moves backwards. */

@@ -25,7 +25,7 @@ export interface Album {
  * Deals the whole album from a history.
  *
  * The album is made of runs: a ride has a card of its own on its page, but
- * it plays in no set, no week and no duel.
+ * it plays in no set and no week.
  */
 export function dealAlbum(all: readonly Run[], goal = weeklyGoal()): Album {
   const runs = ofSport(all).sort((a, b) => a.startedAt - b.startedAt || a.id - b.id);

@@ -11,7 +11,6 @@ import { RecordRow } from "@/components/RecordRow";
 import { SectionHeader } from "@/components/SectionHeader";
 import { BannerTag, bannerText, SummaryBanner } from "@/components/SummaryBanner";
 import { cardWords, filledCount, isComplete, RARITIES, slotName, type Card, type Rarity } from "@tread/core/card";
-import { DECK_SIZE, deckCost, playable } from "@tread/core/duel";
 import { autoName, formatDate, formatDuration } from "@tread/core/format";
 import { defineStrings, plural, useStrings } from "@tread/core/i18n";
 import type { MetaCard } from "@tread/core/metaCard";
@@ -34,10 +33,6 @@ const pageStrings = defineStrings({
     toTurn: (count: number) => `${plural(count, "carte", "cartes")} à retourner`,
     firstTurn: "Tes courses passées ont leurs cartes : retourne les plus belles",
     turnAction: "Retourner",
-    duel: "Duel",
-    challenge: "Défier un ami",
-    duelReady: (points: number) => `Deck prêt · ${points} points`,
-    duelBuild: (count: number) => `Ton deck : ${count} carte${count > 1 ? "s" : ""} sur ${DECK_SIZE}`,
     great: "Grandes cartes",
     greatNone: "Une semaine tenue, quatre d'affilée, une course : chacune laisse une grande carte.",
     rarest: "Les plus rares",
@@ -60,10 +55,6 @@ const pageStrings = defineStrings({
     toTurn: (count: number) => `${plural(count, "card", "cards")} to turn over`,
     firstTurn: "Your past runs have their cards: turn over the finest",
     turnAction: "Turn over",
-    duel: "Duel",
-    challenge: "Challenge a friend",
-    duelReady: (points: number) => `Deck ready · ${points} points`,
-    duelBuild: (count: number) => `Your deck: ${count} of ${DECK_SIZE} cards`,
     great: "Great cards",
     greatNone: "A week held, four in a row, a race: each leaves a great card.",
     rarest: "The rarest",
@@ -81,7 +72,7 @@ const PAGE = 30;
 const COLUMNS = 3;
 
 /**
- * The album: the cards still to turn, the duel, the great cards (weeks,
+ * The album: the cards still to turn, the great cards (weeks,
  * blocks and races), the rarest, every card in a grid, then each set with
  * its slots, filled or not.
  *
@@ -119,9 +110,6 @@ export default function CollectionScreen() {
     ...[...album.meta.blocks].reverse(),
     ...[...album.meta.weeks].reverse(),
   ];
-  const deck = settings.duelDeck
-    .map((id) => album.cards.get(id))
-    .filter((card): card is Card => card !== undefined && playable(card));
   const shown = only === null ? album.newest : album.newest.filter((card) => card.rarity === only);
   const held = RARITIES.filter((rarity) => album.newest.some((card) => card.rarity === rarity));
 
@@ -178,19 +166,6 @@ export default function CollectionScreen() {
 
       {total > 0 ? (
         <>
-          <SectionHeader title={s.duel} />
-          <Panel>
-            <RecordRow
-              first
-              onPanel
-              icon="flash-outline"
-              label={s.challenge}
-              detail={deck.length === DECK_SIZE ? s.duelReady(deckCost(deck)) : s.duelBuild(deck.length)}
-              value=""
-              onPress={() => router.push("/duel")}
-            />
-          </Panel>
-
           <SectionHeader title={s.great} aside={great.length > 0 ? String(great.length) : undefined} />
           {great.length > 0 ? (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>

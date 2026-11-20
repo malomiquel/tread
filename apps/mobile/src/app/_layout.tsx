@@ -43,7 +43,6 @@ const layoutStrings = defineStrings({
     addRun: "Ajouter une course",
     heatmap: "Toutes tes courses",
     collection: "Collection",
-    duel: "Duel",
     recap: "Récap",
     method: "Méthode",
     cardRules: "Règles des cartes",
@@ -83,7 +82,6 @@ const layoutStrings = defineStrings({
     addRun: "Add a run",
     heatmap: "All your runs",
     collection: "Collection",
-    duel: "Duel",
     recap: "Recap",
     method: "Method",
     cardRules: "Card rules",
@@ -296,9 +294,6 @@ export default function RootLayout() {
           {/* Cards are turned over and held on a stage of their own, over
               whatever opened it, and closed back onto it. */}
           <Stack.Screen name="card" options={{ headerShown: false, presentation: "fullScreenModal" }} />
-          {/* Opened from the collection, or from a friend's link
-              (tread://duel?d=…), which lands here by its path. */}
-          <Stack.Screen name="duel" options={{ title: s.duel, headerBackTitle: s.back }} />
           <Stack.Screen name="recap" options={{ title: s.recap, headerBackTitle: s.back }} />
           <Stack.Screen name="plan-method" options={{ title: s.method, headerBackTitle: s.back }} />
           <Stack.Screen name="card-rules" options={{ title: s.cardRules, headerBackTitle: s.back }} />

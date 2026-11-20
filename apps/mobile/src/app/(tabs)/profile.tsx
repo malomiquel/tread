@@ -68,8 +68,6 @@ const profileStrings = defineStrings({
     toTurn: (count: number) => `${plural(count, "carte", "cartes")} à retourner`,
     toTurnFirst: "Tes courses passées ont leurs cartes",
     toTurnDetail: "Touche pour les retourner",
-    duel: "Défier un ami",
-    duelDetail: "Cinq cartes contre les siennes",
     thisYear: (year: number) => `En ${year}`,
     yearAside: "à la même date l'an dernier",
     yearDistance: "Distance",
@@ -117,8 +115,6 @@ const profileStrings = defineStrings({
     toTurn: (count: number) => `${plural(count, "card", "cards")} to turn over`,
     toTurnFirst: "Your past runs have their cards",
     toTurnDetail: "Tap to turn them over",
-    duel: "Challenge a friend",
-    duelDetail: "Five cards against theirs",
     thisYear: (year: number) => `In ${year}`,
     yearAside: "against last year to date",
     yearDistance: "Distance",
@@ -420,15 +416,6 @@ export default function ProfileScreen() {
                 detail={s.collectionDetail(album.newest.length, album.sets.filter(isComplete).length, album.sets.length)}
                 value=""
                 onPress={() => router.push("/collection")}
-              />
-              <RecordRow
-                first={false}
-                onPanel
-                icon="flash-outline"
-                label={s.duel}
-                detail={s.duelDetail}
-                value=""
-                onPress={() => router.push("/duel")}
               />
             </Panel>
 

@@ -11,8 +11,7 @@ import { Button } from "@/components/Button";
 import { MetaCardView } from "@/components/MetaCard";
 import { CardBack, RunCard } from "@/components/RunCard";
 import { TiltCard } from "@/components/TiltCard";
-import { cardPoints, cardWords, slotName, type Card } from "@tread/core/card";
-import { duelWords } from "@tread/core/duel";
+import { TRAIT_POINTS, cardPoints, cardWords, slotName, type Card } from "@tread/core/card";
 import { defineStrings, useStrings } from "@tread/core/i18n";
 import { completedBy, metaWords, type MetaCard } from "@tread/core/metaCard";
 import { useAlbum, type Album } from "@/lib/album";
@@ -25,6 +24,7 @@ import { viewShot } from "@/lib/viewShot";
 const strings = defineStrings({
   fr: {
     reveal: "Touche la carte pour la retourner",
+    traitPoints: (points: number) => `+${points} point${points > 1 ? "s" : ""} de rareté`,
     close: "Fermer",
     next: "Carte suivante",
     done: "Terminé",
@@ -38,12 +38,12 @@ const strings = defineStrings({
     newSlot: (name: string) => `Nouvelle case : ${name}`,
     completes: (kind: string) => `Elle complète une carte : ${kind}`,
     plain: "Une carte simple. Les plus belles viennent des jours qui sortent de l'ordinaire, ou d'un footing tenu tranquille.",
-    inDuel: "En duel",
     missing: "Cette carte n'existe plus : sa course a été supprimée.",
     backFace: "Dos de la carte",
   },
   en: {
     reveal: "Tap the card to turn it over",
+    traitPoints: (points: number) => `+${points} rarity point${points > 1 ? "s" : ""}`,
     close: "Close",
     next: "Next card",
     done: "Done",
@@ -57,7 +57,6 @@ const strings = defineStrings({
     newSlot: (name: string) => `New slot: ${name}`,
     completes: (kind: string) => `It completes a card: ${kind}`,
     plain: "A plain card. The finest come from days out of the ordinary, or from an easy run kept easy.",
-    inDuel: "In a duel",
     missing: "This card is gone: its run was deleted.",
     backFace: "Back of the card",
   },
@@ -83,7 +82,6 @@ export default function CardStage() {
   const s = useStrings(strings);
   const words = useStrings(cardWords);
   const meta = useStrings(metaWords);
-  const duel = useStrings(duelWords);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { privacyRadiusM } = useSettings();
@@ -163,7 +161,7 @@ export default function CardStage() {
   if (runCard && run && album) {
     if (runCard.note) lines.push({ key: "note", text: words.note[runCard.note] });
     for (const trait of runCard.traits) {
-      lines.push({ key: trait, text: words.trait[trait], aside: `${s.inDuel} ${duel.keyword[trait]}` });
+      lines.push({ key: trait, text: words.trait[trait], aside: s.traitPoints(TRAIT_POINTS[trait]) });
     }
     if (!runCard.note && runCard.traits.length === 0) lines.push({ key: "plain", text: s.plain });
     for (const set of album.sets) {

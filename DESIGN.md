@@ -236,7 +236,6 @@ defaults.
 | `MetaCardView` + `MiniMetaCard` | The great cards (`@tread/core/metaCard`): a week held, a block of four, a race, laid out as a run's card. A race shows its outline large; a week or a block its runs' outlines as a plate four to a row, or one alone large. At the foot, three figures: runs, time, and rare cards (weeks for a block). A race is legendary. |
 | `CardBack` | The back of every card: the stage under silver, engraved, a second frame, TREAD and the number. `small` for a card in miniature. |
 | `TiltCard` + `Depth` | Every card held on its own leans with the phone (gravity, on the UI thread, 9° at most, settling flat at whatever angle it is held): its outline (`Depth`) floats a few points above the paper, the contours drift the other way, and the light runs along the metal edge. From rare up the holographic sheen slides with it. Never with reduce motion. |
-| `DuelCardFace` | A card as it arrives in a friend's deck: number, rarity, distance, the four stats with the round's own set apart, traits. No outline, no name, no date: a deck carries none. |
 | `CampaignMap` | A plan read as chapters (one per phase): a path of its sessions (filled dot run, dash passed, ring next, quiet dot ahead) with its guardians as tiles on it, then the guardians as rows, each opening its session. |
 | `LineChart` | A series against distance on a run's page (altitude, pace, heart rate): line over a soft fill, the two extremes named. |
 | `RideDashboard` | The same place on a ride: the speed of the moment large, the average beside its unit, the top speed under it. No verdict and no gauge: a ride has no pace to hold. Paused, a `warning` chip says so in the room kept for it. |
@@ -316,7 +315,7 @@ Section heading                     aside
   week banner, collection, progress, performance, all time. The collection
   sits straight under the week: a `MiniCardRow` of the newest cards, then a
   panel of rows (cards to turn over when there are some, the whole
-  collection, the duel). All time ends on a row leading to the map of every
+  collection). All time ends on a row leading to the map of every
   run. See [The card game](#the-card-game) for the Collection page itself.
 
 ### An empty tab
@@ -399,25 +398,18 @@ again wherever cards are shown.
   row, "Your card is waiting", with a card back beside it. It opens the
   card stage (`/card`, full screen): the card face down, turned by a tap (a
   rotation, moved never faded, Medium or Heavy impact), then what it earned
-  said one line at a time with a selection tick, each trait with what it is
-  worth in a duel, then the slots it filled. The great cards it completed
+  said one line at a time with a selection tick, each trait with the rarity
+  points it is worth, then the slots it filled. The great cards it completed
   follow it, each turned in turn. Cards of runs not yet seen (an import, a
   new phone, the first opening) are offered from Profile and the Collection
   banner, the finest eight at most.
-- **The Collection page**: the banner (cards, rare ones, sets), the duel,
-  the great cards in a row, the rarest in a row, every card in a grid of
+- **The Collection page**: the banner (cards, rare ones, sets), the row to
+  the rules, the great cards in a row, the rarest in a row, every card in a grid of
   three with rarity chips, then the sets. A card opens on the stage face up,
   to hold and tilt, share, or open its run.
 - **The rules** (`/card-rules`), linked from the top of the Collection: rarity and its points, every trait with what earns it and its worth, the four stats, the great cards. The points and thresholds are read from `@tread/core/card`, never written into the page.
 - **History** says a rare or exceptional card in the row, in words, as a
   chip: tinted for rare, filled for exceptional.
-- **Duels** (`/duel`, `@tread/core/duel`): five cards, 12 points at most
-  (1 to 4 by rarity), one exceptional. Built by tapping cards in a grid
-  (ringed in `accent` once in), or "Build it for me". Sent as a link or a QR
-  code holding the cards alone; the friend's link opens the match, played
-  round by round (one stat a round, traits as bonuses), and offers to send
-  it back so both phones show the same duel. Nothing is won or lost but the
-  duel.
 - **The campaign**: in Plan, a `Segmented` Sessions / Campaign under the
   next session, and the chapter under way in one `accent` line whichever is
   shown. A session passed over is passed, never failed.
