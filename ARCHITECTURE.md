@@ -80,6 +80,10 @@ sent go, at most about 5,000 fixes per request (`@tread/core/sync`): the
 phone keeps each sent run's signature (`accountSyncedRuns`), so a long
 history is neither packed on every launch nor larger than the server takes.
 The rest of the state (plan, routes, shoes, settings) goes with each request.
+The safety copy, which holds everything, is written run by run to a file and
+zipped by a small native module (`apps/mobile/modules/zip-file`, Swift and
+Kotlin) off the JavaScript thread; without it (Expo Go) it falls back to
+JSZip.
 The browser can upload that file too, or GPX files. One format, one reader
 (`apps/web/src/lib/server/ingest.ts`), whichever door it comes in by.
 

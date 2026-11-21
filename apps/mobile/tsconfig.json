@@ -14,6 +14,9 @@
       ],
       "live-activity": [
         "./modules/live-activity"
+      ],
+      "zip-file": [
+        "./modules/zip-file"
       ]
     },
     "allowImportingTsExtensions": true

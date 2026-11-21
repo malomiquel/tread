@@ -860,6 +860,11 @@ export async function transferRuns(ids: readonly number[]): Promise<TransferRun[
   return carried;
 }
 
+/** One run, track included, ready to travel. */
+export async function transferRunOf(run: Run): Promise<TransferRun> {
+  return { ...transferFields(run), points: await transferPoints(run.id) };
+}
+
 /**
  * Everything this phone holds, ready to travel to another one.
  *
