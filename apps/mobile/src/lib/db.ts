@@ -617,7 +617,7 @@ export async function dataSummary(): Promise<Record<string, number | null>> {
     planDone: await one("SELECT COUNT(*) AS v FROM plan_done"),
     sessions: await one("SELECT TOTAL(LENGTH(name || groups_json)) AS v FROM custom_sessions"),
     shoes: await one("SELECT TOTAL(LENGTH(name) + start_m + limit_m + retired + is_default) AS v FROM shoes"),
-    settings: await one("SELECT TOTAL(LENGTH(key || value)) AS v FROM settings WHERE key NOT LIKE 'backup%' AND key NOT IN ('healthAnchor', 'accountSync')"),
+    settings: await one("SELECT TOTAL(LENGTH(key || value)) AS v FROM settings WHERE key NOT LIKE 'backup%' AND key NOT IN ('healthAnchor', 'accountSync', 'accountSyncedRuns')"),
   };
 }
 
@@ -799,6 +799,72 @@ export async function effortRecords(): Promise<EffortRecord[]> {
   return EFFORT_KEYS.map((key) => best.get(key)).filter((record): record is EffortRecord => Boolean(record));
 }
 
+/** What a run says about itself when it travels, its track aside. */
+export type TransferRunFields = Omit<TransferRun, "points">;
+
+function transferFields(run: Run): TransferRunFields {
+  return {
+    startedAt: run.startedAt,
+    endedAt: run.endedAt,
+    distanceM: run.distanceM,
+    durationS: run.durationS,
+    avgPaceSKm: run.avgPaceSKm,
+    name: run.name,
+    elevationGainM: run.elevationGainM,
+    fastestKmS: run.fastestKmS,
+    cadenceSpm: run.cadenceSpm,
+    exertion: run.exertion,
+    sessionId: run.sessionId,
+    blocks: run.blocks,
+    weather: run.weather,
+    heart: run.heart,
+    laps: run.laps,
+    shoeId: run.shoeId,
+    activity: run.activity,
+    tags: run.tags,
+    note: run.note,
+  };
+}
+
+async function transferPoints(runId: number): Promise<TransferRun["points"]> {
+  const rows = await getDb().getAllAsync<{
+    ts: number; lat: number; lng: number; alt: number | null;
+    accuracy_m: number | null; speed: number | null; segment: number;
+  }>("SELECT ts, lat, lng, alt, accuracy_m, speed, segment FROM points WHERE run_id = ? ORDER BY ts", runId);
+  return rows.map((point) => ({
+    ts: point.ts, lat: point.lat, lng: point.lng, alt: point.alt,
+    accuracy: point.accuracy_m, speed: point.speed, segment: point.segment,
+  }));
+}
+
+/**
+ * Every finished run as it would travel, without its track, and how many
+ * fixes that track holds: what the account sync compares to tell which runs
+ * have to go, without reading a single point.
+ */
+export async function runsForSync(): Promise<{ id: number; fields: TransferRunFields; points: number }[]> {
+  const counts = new Map(
+    (await getDb().getAllAsync<{ run_id: number; n: number }>("SELECT run_id, COUNT(*) AS n FROM points GROUP BY run_id"))
+      .map((row) => [row.run_id, row.n]),
+  );
+  return (await listRuns()).map((run) => ({ id: run.id, fields: transferFields(run), points: counts.get(run.id) ?? 0 }));
+}
+
+/** Some runs, tracks included, ready to travel. Read one at a time, as below. */
+export async function transferRuns(ids: readonly number[]): Promise<TransferRun[]> {
+  const wanted = new Set(ids);
+  const carried: TransferRun[] = [];
+  for (const run of await listRuns()) {
+    if (wanted.has(run.id)) carried.push({ ...transferFields(run), points: await transferPoints(run.id) });
+  }
+  return carried;
+}
+
+/** One run, track included, ready to travel. */
+export async function transferRunOf(run: Run): Promise<TransferRun> {
+  return { ...transferFields(run), points: await transferPoints(run.id) };
+}
+
 /**
  * Everything this phone holds, ready to travel to another one.
  *
@@ -807,51 +873,21 @@ export async function effortRecords(): Promise<EffortRecord[]> {
  * one array is the one shape of this that a phone cannot hold in memory.
  */
 export async function everythingForTransfer(): Promise<Transfer> {
-  const db = getDb();
-  const runs = await listRuns();
   const carried: TransferRun[] = [];
-
-  for (const run of runs) {
-    const rows = await db.getAllAsync<{
-      ts: number; lat: number; lng: number; alt: number | null;
-      accuracy_m: number | null; speed: number | null; segment: number;
-    }>("SELECT ts, lat, lng, alt, accuracy_m, speed, segment FROM points WHERE run_id = ? ORDER BY ts", run.id);
-
-    carried.push({
-      startedAt: run.startedAt,
-      endedAt: run.endedAt,
-      distanceM: run.distanceM,
-      durationS: run.durationS,
-      avgPaceSKm: run.avgPaceSKm,
-      name: run.name,
-      elevationGainM: run.elevationGainM,
-      fastestKmS: run.fastestKmS,
-      cadenceSpm: run.cadenceSpm,
-      exertion: run.exertion,
-      sessionId: run.sessionId,
-      blocks: run.blocks,
-      weather: run.weather,
-      heart: run.heart,
-      laps: run.laps,
-      shoeId: run.shoeId,
-      activity: run.activity,
-      tags: run.tags,
-      note: run.note,
-      points: rows.map((point) => ({
-        ts: point.ts, lat: point.lat, lng: point.lng, alt: point.alt,
-        accuracy: point.accuracy_m, speed: point.speed, segment: point.segment,
-      })),
-    });
+  for (const run of await listRuns()) {
+    carried.push({ ...transferFields(run), points: await transferPoints(run.id) });
   }
+  return { ...(await transferExtras()), runs: carried };
+}
 
+/** Everything but the runs: routes, sessions, shoes, the plan and the settings. */
+export async function transferExtras(): Promise<Omit<Transfer, "runs">> {
   const plan = await activePlan();
   const done = plan ? await planDone(plan.id) : new Map<number, Done>();
-
   return {
     format: TRANSFER_FORMAT,
     version: TRANSFER_VERSION,
     exportedAt: Date.now(),
-    runs: carried,
     routes: (await listRoutes()).map((route) => ({
       name: route.name,
       createdAt: route.createdAt,

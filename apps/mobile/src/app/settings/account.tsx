@@ -6,7 +6,7 @@ import { Button } from "@/components/Button";
 import { Segmented } from "@/components/Segmented";
 import { SettingRow } from "@/components/SettingRow";
 import { SettingsGroup } from "@/components/SettingsGroup";
-import { API_URL, authClient, lastSync, syncNow, type SyncOutcome } from "@/lib/account";
+import { API_URL, authClient, forgetSync, lastSync, syncNow, type SyncOutcome } from "@/lib/account";
 import { defineStrings, intlLocale, useStrings } from "@tread/core/i18n";
 import { colors, font } from "@/lib/theme";
 
@@ -122,7 +122,7 @@ export default function AccountScreen() {
       await refetch();
       // The first send, straight away: that is what signing in was for.
       setSyncing(true);
-      const outcome = await syncNow(true);
+      const outcome = await syncNow("fresh");
       setSyncing(false);
       void lastSync().then((state) => setSyncedAt(state?.at ?? null));
       report(outcome);
@@ -135,7 +135,7 @@ export default function AccountScreen() {
 
   async function sendNow() {
     setSyncing(true);
-    const outcome = await syncNow(true);
+    const outcome = await syncNow("now");
     setSyncing(false);
     setSyncedAt((await lastSync())?.at ?? null);
     report(outcome);
@@ -163,7 +163,7 @@ export default function AccountScreen() {
           <SettingRow icon="globe-outline" label={s.web} onPress={() => void WebBrowser.openBrowserAsync(`${API_URL}/history`)} />
         </SettingsGroup>
         <SettingsGroup>
-          <SettingRow label={s.signOut} destructive onPress={() => void authClient.signOut().then(() => refetch())} />
+          <SettingRow label={s.signOut} destructive onPress={() => void authClient.signOut().then(forgetSync).then(() => refetch())} />
         </SettingsGroup>
       </ScrollView>
     );

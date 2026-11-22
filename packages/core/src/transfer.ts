@@ -256,8 +256,17 @@ function readRoutes(routes: unknown): TransferRoute[] {
 // The Health anchor marks what this phone's Health has already given; another
 // phone's Health has its own history.
 // The safety copy's folder and its last write belong to this phone as well.
-// So do the account's last sync and the deletions waiting for it: another phone has sent nothing yet.
-const LOCAL_SETTINGS = new Set(["routeId", "healthAnchor", "backupFolder", "backupLast", "backupRestoreOffered", "accountSync", "accountDeleted"]);
+// So do the account's last sync, the runs it has sent and the deletions
+// waiting for it: another phone has sent nothing yet.
+const LOCAL_SETTINGS = new Set([
+  "routeId", "healthAnchor", "backupFolder", "backupLast", "backupRestoreOffered",
+  "accountSync", "accountSyncedRuns", "accountDeleted",
+]);
+
+/** The settings worth sending elsewhere: all but the ones only this phone can use. */
+export function travellingSettings(settings: Record<string, string>): Record<string, string> {
+  return readSettingsBag(settings);
+}
 
 function readSettingsBag(settings: unknown): Record<string, string> {
   if (!settings || typeof settings !== "object") return {};

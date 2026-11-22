@@ -1,11 +1,14 @@
 import { Directory, File, Paths } from "expo-file-system";
 import { Platform } from "react-native";
 import { backupName, backupsIn, backupsToDrop, backupTime, copyDue, fingerprint } from "@tread/core/backup";
-import { dataSummary, everythingForTransfer, listRuns, readSettings, restoreTransfer, writeSetting } from "./db";
+import ZipFile from "zip-file";
+import {
+  dataSummary, everythingForTransfer, listRuns, readSettings, restoreTransfer, transferExtras, transferRunOf, writeSetting,
+} from "./db";
 import { refreshReminders } from "./planReminders";
 import { loadCustomSessions } from "./sessionLibrary";
 import { loadSettings } from "./settings";
-import { packTransfer, restoredSummary, unpackTransfer, type Transfer } from "@tread/core/transfer";
+import { packTransfer, restoredSummary, TRANSFER_ENTRY, unpackTransfer, type Transfer } from "@tread/core/transfer";
 
 /**
  * Where the safety copy goes, and the writing and reading of it.
@@ -81,22 +84,70 @@ async function listCopies(target: CopyTarget): Promise<string[]> {
 /** A local path without its scheme, as the iCloud library wants it. */
 const localPath = (file: File) => file.uri.replace(/^file:\/\//, "");
 
-async function writeCopy(target: CopyTarget, name: string, base64: string): Promise<void> {
+/** Put the zip staged at `staged` where copies go, under `name`. */
+async function writeCopy(target: CopyTarget, name: string, staged: File): Promise<void> {
   if (target.kind === "icloud") {
     const api = cloud();
     if (!api) throw new Error("iCloud unavailable");
-    const staged = new File(Paths.cache, name);
-    staged.writeSync(base64, { encoding: "base64" });
-    try {
-      await api.CloudStorage.uploadFile(`/${name}`, localPath(staged), { mimeType: "application/zip" }, api.CloudStorageScope.Documents);
-    } finally {
-      if (staged.exists) staged.delete();
-    }
+    await api.CloudStorage.uploadFile(`/${name}`, localPath(staged), { mimeType: "application/zip" }, api.CloudStorageScope.Documents);
     return;
   }
   if (target.kind === "folder") {
-    new Directory(target.uri).createFile(name, "application/zip").writeSync(base64, { encoding: "base64" });
+    // Read and written natively: the bytes pass through, nothing is computed on them.
+    await new Directory(target.uri).createFile(name, "application/zip").write(await staged.bytes());
   }
+}
+
+/** Text gathered before each write, so a long history is a few dozen writes, not one per run. */
+const WRITE_CHUNK = 512 * 1024;
+
+/**
+ * The transfer file's JSON, written run by run into `file`.
+ *
+ * The same text `JSON.stringify` of the whole would give, without ever
+ * holding it: stringifying a long history in one go blocked the JavaScript
+ * thread for seconds, and every run awaited here lets a touch through.
+ */
+async function writeTransferJson(file: File): Promise<void> {
+  const head = JSON.stringify({ ...(await transferExtras()), runs: [] });
+  const open = '"runs":[]}';
+  if (!head.endsWith(open)) throw new Error("unexpected transfer shape");
+  if (file.exists) file.delete();
+  file.create();
+  let pending = head.slice(0, -2);
+  let first = true;
+  for (const run of await listRuns()) {
+    pending += (first ? "" : ",") + JSON.stringify(await transferRunOf(run));
+    first = false;
+    if (pending.length >= WRITE_CHUNK) {
+      await file.write(pending, { append: true });
+      pending = "";
+    }
+  }
+  await file.write(`${pending}]}`, { append: true });
+}
+
+/**
+ * The whole state as a zip file in the cache, named `name`.
+ *
+ * Zipped natively where the app has its zip module, off the JavaScript
+ * thread; otherwise (Expo Go, an older build) in JavaScript, as before.
+ */
+async function stageCopy(name: string): Promise<File> {
+  const staged = new File(Paths.cache, name);
+  if (staged.exists) staged.delete();
+  if (ZipFile) {
+    const json = new File(Paths.cache, TRANSFER_ENTRY);
+    try {
+      await writeTransferJson(json);
+      await ZipFile.zipFile(json.uri, TRANSFER_ENTRY, staged.uri);
+    } finally {
+      if (json.exists) json.delete();
+    }
+    return staged;
+  }
+  await staged.write(await packTransfer(await everythingForTransfer()), { encoding: "base64" });
+  return staged;
 }
 
 async function removeCopy(target: CopyTarget, name: string): Promise<void> {
@@ -141,9 +192,13 @@ export function makeCopy(force = false): Promise<boolean> {
       const last = stored ? JSON.parse(stored) as { at: number; fingerprint: string } : null;
       if (!force && !copyDue(last, now, current)) return false;
 
-      const base64 = await packTransfer(await everythingForTransfer());
       const name = backupName(now);
-      await writeCopy(target, name, base64);
+      const staged = await stageCopy(name);
+      try {
+        await writeCopy(target, name, staged);
+      } finally {
+        if (staged.exists) staged.delete();
+      }
       for (const old of backupsToDrop(await listCopies(target))) await removeCopy(target, old);
       await writeSetting(LAST_KEY, JSON.stringify({ at: now, fingerprint: current }));
       return true;
