@@ -109,6 +109,9 @@ const layoutStrings = defineStrings({
 // was configured. Read once, before any screen can ask for either.
 configureServices(Constants.expoConfig?.extra?.services as Record<string, unknown> | undefined);
 
+/** How long after the first screen the launch's heavy work starts. */
+const AFTER_LAUNCH_MS = 4000;
+
 export default function RootLayout() {
   const s = useStrings(layoutStrings);
   const scheme = useColorScheme() === "dark" ? "dark" : "light";
@@ -137,50 +140,59 @@ export default function RootLayout() {
     // Health is no longer asked for here. Raised by the launch itself, its
     // sheet was the first thing a new user saw, with nothing to say what it
     // was for; the welcome asks instead, with the reason beside the button.
+    // After the first screen: see the call below.
+    const afterLaunch = () => {
+      // Runs that predate best efforts, or came from a file or another
+      // phone, have theirs worked out quietly, one at a time.
+      void backfillEfforts().catch(() => undefined);
+      // An empty app with a copy in the cloud: a reinstall, or a new phone.
+      // Offered once, and only then is a first copy of this state written.
+      void copyToOffer().then((copy) => {
+        if (!copy) {
+          void makeCopy();
+          void syncNow();
+          return;
+        }
+        const words = layoutStrings();
+        Alert.alert(
+          words.restoreTitle,
+          words.restoreMessage(copy.runs, new Date(copy.at).toLocaleDateString(intlLocale(), { day: "numeric", month: "long" })),
+          [
+            { text: words.restoreLater, style: "cancel" },
+            {
+              text: words.restoreNow,
+              onPress: () => void restoreNewestCopy()
+                .then((summary) => {
+                  if (summary) Alert.alert(words.restoredTitle, summary);
+                })
+                .catch(() => Alert.alert(words.restoreFailedTitle, words.restoreFailed)),
+            },
+          ],
+        );
+      });
+    };
     initDb()
       .then(() => Promise.all([loadSettings(), loadCustomSessions()]))
       .then(() => {
         setReady(true);
         // The home-screen widget, as things stand at launch.
         void refreshHomeWidget();
-        // Runs that predate best efforts, or came from a file or another
-        // phone, have theirs worked out quietly, one at a time.
-        void backfillEfforts().catch(() => undefined);
         // The settings are loaded by now, so this knows whether reminders are
         // wanted at all. Not awaited: it reaches the network for the weather,
         // and nothing about opening the app depends on its answer.
         void refreshReminders();
         // Runs a watch recorded while the app was closed, when that is on.
         void importFromHealth();
-        // An empty app with a copy in the cloud: a reinstall, or a new phone.
-        // Offered once, and only then is a first copy of this state written.
-        void copyToOffer().then((copy) => {
-          if (!copy) {
-            void makeCopy();
-            void syncNow();
-            return;
-          }
-          const words = layoutStrings();
-          Alert.alert(
-            words.restoreTitle,
-            words.restoreMessage(copy.runs, new Date(copy.at).toLocaleDateString(intlLocale(), { day: "numeric", month: "long" })),
-            [
-              { text: words.restoreLater, style: "cancel" },
-              {
-                text: words.restoreNow,
-                onPress: () => void restoreNewestCopy()
-                  .then((summary) => {
-                    if (summary) Alert.alert(words.restoredTitle, summary);
-                  })
-                  .catch(() => Alert.alert(words.restoreFailedTitle, words.restoreFailed)),
-              },
-            ],
-          );
-        });
+        // The heavy work waits until the first screen has settled. Packing a
+        // copy or a sync runs on the JavaScript thread, and done the moment
+        // the tabs appeared it left them drawn but deaf to every touch for
+        // seconds on a long history.
+        setTimeout(afterLaunch, AFTER_LAUNCH_MS);
       })
       .catch((cause: unknown) => {
         setError(cause instanceof Error ? cause.message : layoutStrings().databaseUnavailable);
       });
+
   }, []);
 
   // Leaving the app is when anything the widget shows may have changed — a

@@ -1,0 +1,7 @@
+{
+  "name": "zip-file",
+  "version": "1.0.0",
+  "description": "Zips one file natively, off the JavaScript thread",
+  "main": "index.ts",
+  "private": true
+}
