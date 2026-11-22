@@ -227,7 +227,7 @@ defaults.
 | `Metric` | A labelled figure: label uppercase above, value, unit. `compact` over the map, `large` for the run's distance. |
 | `TrainingCalendar` | The history as months of Monday-first weeks: a dot per day sized by distance, today outlined, each week's total at the end of its row. With every type shown, a day with a ride gets an `accent` ring of fixed size: the ride is there, but it sizes no dot and counts in no week. |
 | `RunShape` | A run's outline in a tile, from a 60-point sample, cached. |
-| `RunMap`, `TrackOverlay` | The map and the track drawn on it. |
+| `RunMap`, `TrackOverlay` | The map and the track drawn on it. On the run screen it can turn the way the runner goes, as a satnav does (see [The run screen](#the-run-screen)). |
 | `ShareCard` + `ShareRunSheet` | The picture a run leaves as, story-shaped (9:16): the distance large, date and place, time, pace, gain and steps, TREAD in the corner. The sheet lays every kind side by side, swiped through like photos with dots under them, and sends the one in view: Map (the map photographed, the track on it), Photo (one of the run's photos or any picked, the outline drawn white over it), Blue (the stage, the outline large), Transparent in white and in blue (no ground at all, to lay over a photo in a story), the same two as a small sticker (outline, distance, time and pace in the middle), and GIF (the track drawn as it was run). Transparent ones are previewed on checks and keep their alpha. |
 | `RecapCard` | A month or a year as a picture, story-shaped like the run's, swiped through on the recap page with dots under it, the one in view shared: Blue (the stage, the bars, four figures), Card (a collector's card on a night table, printed like the run cards: a year legendary, a month rare), Poster (paper and black ink, the distance as large as the paper allows, figures as ruled rows), Bars (the shape of the period first, tall, the peak lit), and Transparent in white and in blue (in the bottom corner, to lay over a photo). |
 | `CardSurface` | What every card is printed on, the one place the app is made to look printed (its paper and metal colours, contours and sheen live in `@tread/core/cardLook`, shared with the web): a metal edge, the ground, the light from the top right, contour lines engraved from the card's seed, and from rare up a holographic sheen that slides against the tilt. Five tiers: common on ivory under matte silver; notable on cool white under blue steel, lit faintly, its contours blue and a fine blue second frame; rare on the stage under polished silver, with the sheen; exceptional on night under platinum, the sheen stronger; legendary the same with a second frame inside the edge and the strongest sheen. The tier is also a word and diamonds (◆◇◇◇), never colour alone. |
@@ -377,6 +377,13 @@ would change the map but not what the run follows — the
 panel at the bottom with the figures and the controls. Toggles show state by
 colour (`accent` on, `text` off) and, for the ones that open a choice, a dot
 in the corner when one is set; never by fading.
+
+Following a route, the map turns the way the runner goes, as a satnav
+does: tilted, the street ahead above them, the runner an arrow in the
+track's colour pointing up the screen. Moving, the direction is the GPS
+course; standing, the compass. A round `navigate` control above the
+locate one switches between this and north up (`accent` while the map
+turns); without a route the map starts north up.
 
 While running, the controls take the panel's full width under a row of four
 figures, sized for a thumb mid-stride: **pause** in the middle, a filled

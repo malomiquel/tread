@@ -796,6 +796,8 @@ export default function RecordScreen() {
       <RunMap
         points={tracker.points}
         follow
+        // Following a route is a satnav's job: the map turns the way you go.
+        headingUp={routeLine !== null}
         route={routeLine}
         ghost={ghostSpot}
         initialCenter={coords}

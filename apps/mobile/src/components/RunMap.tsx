@@ -5,14 +5,14 @@ import {
   ActivityIndicator, Alert, Linking, Pressable, StyleSheet, Text, useColorScheme, View,
   type StyleProp, type ViewStyle,
 } from "react-native";
-import MapView, { Marker, Polyline } from "react-native-maps";
+import MapView, { Marker, Polyline, type UserLocationChangeEvent } from "react-native-maps";
 import Animated, { useAnimatedStyle, type SharedValue } from "react-native-reanimated";
 import { formatDistance, formatDuration } from "@tread/core/format";
 import { defineStrings, useStrings } from "@tread/core/i18n";
 import { bounds, regionAround, segments, type TrackPoint } from "@tread/core/geo";
 import { IgnCredit, IgnTiles, useIgnChosen, useIgnCoverage } from "@/components/IgnLayer";
 import { CONTROL_SIZE, CONTROLS_TOP } from "@/lib/layout";
-import { getCurrentCoords, locationAccess, type Coords } from "@/lib/location";
+import { getCurrentCoords, locationAccess, watchCompass, type Coords } from "@/lib/location";
 import { readColour } from "@tread/core/raster";
 import { buildReplay, drawnSoFar, headAt, REPLAY_MS } from "@tread/core/replay";
 import type { RoutePoint } from "@tread/core/route";
@@ -30,6 +30,7 @@ const mapStrings = defineStrings({
     shrink: "Réduire la carte",
     expand: "Agrandir la carte",
     recenter: "Recentrer la carte sur ma position",
+    headingUp: "Tourner la carte dans ma direction",
   },
   en: {
     locationOffTitle: "Location turned off",
@@ -41,6 +42,7 @@ const mapStrings = defineStrings({
     shrink: "Shrink the map",
     expand: "Expand the map",
     recenter: "Recenter the map on my location",
+    headingUp: "Turn the map the way I face",
   },
 });
 
@@ -57,6 +59,12 @@ interface Props {
    * a subject of its own and has no business chasing the phone.
    */
   locateOnFocus?: boolean;
+  /**
+   * Whether the map starts turned the way the runner faces, as a satnav
+   * does, rather than north up. Only with `follow`; the runner can switch
+   * either way with the button, and a change of this prop wins again.
+   */
+  headingUp?: boolean;
   /** On the detail screen: the whole track is framed once. */
   fitAll?: boolean;
   /** Where to centre until a first point has been recorded. */
@@ -125,6 +133,18 @@ const PARIS = { latitude: 48.8566, longitude: 2.3522, latitudeDelta: 0.05, longi
 /** Room left under the IGN credit for the platform map's own logo. */
 const CREDIT_LIFT = 28;
 const RUNNER_ZOOM = 0.006;
+/** The tilt of the map while it turns with the runner, as a satnav leans the road away. */
+const HEADING_PITCH = 35;
+/** Below this, the GPS course is noise: the compass says which way the runner faces. */
+const COURSE_MIN_SPEED = 1.2;
+/** A turn smaller than this is not worth moving the map for. */
+const HEADING_STEP = 4;
+
+/** The smallest angle between two headings, in degrees. */
+function headingGap(a: number, b: number): number {
+  const gap = Math.abs(a - b) % 360;
+  return gap > 180 ? 360 - gap : gap;
+}
 
 /**
  * The run's track on Apple Maps or Google Maps depending on the platform.
@@ -132,7 +152,7 @@ const RUNNER_ZOOM = 0.006;
  * stopped and where you picked up again.
  */
 export function RunMap({
-  points, follow = false, fitAll = false, initialCenter = null, locateOnFocus = false,
+  points, follow = false, headingUp: headingUpByDefault = false, fitAll = false, initialCenter = null, locateOnFocus = false,
   replayable = false, route = null, ghost = null, onToggleFullscreen, fullscreen = false, controlsBottom = 12,
   controlsAtTop = false, controlsArrive, controlsAbove, style,
 }: Props) {
@@ -154,6 +174,78 @@ export function RunMap({
     transform: [{ translateX: controlsArrive ? (controlsArrive.value - 1) * 34 : 0 }],
   }), [controlsAbove, controlsArrive, controlsBottom, controlsAtTop]);
   const [locating, setLocating] = useState(false);
+
+  /**
+   * The map turned the way the runner faces. The runner is then an arrow
+   * that always points up the screen, and the street ahead is the street
+   * above it, as on a satnav.
+   */
+  const [headingUp, setHeadingUp] = useState(follow && headingUpByDefault);
+  useEffect(() => setHeadingUp(follow && headingUpByDefault), [follow, headingUpByDefault]);
+  /** The phone's own fix, fresher than the track and there before the start. */
+  const [here, setHere] = useState<{ lat: number; lng: number } | null>(null);
+  const course = useRef<{ degrees: number; speed: number } | null>(null);
+  const compass = useRef<number | null>(null);
+  /** What the camera was last aimed at, so small turns and steps leave it alone. */
+  const aimed = useRef<{ lat: number; lng: number; heading: number; at: number } | null>(null);
+  const hereRef = useRef(here);
+  hereRef.current = here;
+
+  /**
+   * Point the camera where the runner is going. Moving, that is the GPS
+   * course: the compass of a phone in a pocket or swinging in a hand says
+   * nothing about the way the legs go. Standing, the course is noise, and
+   * the compass is what says which way the runner faces.
+   */
+  const aim = useCallback((force = false) => {
+    const spot = hereRef.current;
+    if (!spot) return;
+    const moving = course.current && course.current.speed >= COURSE_MIN_SPEED ? course.current.degrees : null;
+    const heading = moving ?? compass.current ?? aimed.current?.heading ?? 0;
+    const previous = aimed.current;
+    const now = Date.now();
+    if (!force && previous) {
+      const turned = headingGap(previous.heading, heading) >= HEADING_STEP;
+      const moved = previous.lat !== spot.lat || previous.lng !== spot.lng;
+      if (!turned && !moved) return;
+      // The compass speaks many times a second; a camera asked as often never settles.
+      if (!moved && now - previous.at < 250) return;
+    }
+    aimed.current = { lat: spot.lat, lng: spot.lng, heading, at: now };
+    map.current?.animateCamera(
+      { center: { latitude: spot.lat, longitude: spot.lng }, heading, pitch: HEADING_PITCH },
+      { duration: 450 },
+    );
+  }, []);
+
+  useEffect(() => {
+    if (!headingUp) return;
+    const stop = watchCompass((degrees) => {
+      compass.current = degrees;
+      aim();
+    });
+    aim(true);
+    return stop;
+  }, [headingUp, aim]);
+
+  const onUserLocation = useCallback((event: UserLocationChangeEvent) => {
+    const fix = event.nativeEvent.coordinate;
+    if (!fix) return;
+    course.current = fix.heading >= 0 ? { degrees: fix.heading, speed: fix.speed } : null;
+    setHere({ lat: fix.latitude, lng: fix.longitude });
+  }, []);
+
+  useEffect(() => {
+    if (headingUp) aim();
+  }, [headingUp, here, aim]);
+
+  const toggleHeadingUp = () => {
+    if (headingUp) {
+      aimed.current = null;
+      map.current?.animateCamera({ heading: 0, pitch: 0 }, { duration: 450 });
+    }
+    setHeadingUp(!headingUp);
+  };
 
   const empty = points.length === 0;
   const last = points.length ? points[points.length - 1] : null;
@@ -206,9 +298,10 @@ export function RunMap({
   const drawn = replay && head ? drawnSoFar(replay, head) : null;
 
   useEffect(() => {
-    if (!follow || !last) return;
+    // Turned with the runner, the camera is aimed by its own fixes instead.
+    if (!follow || !last || headingUp) return;
     map.current?.animateCamera({ center: { latitude: last.lat, longitude: last.lng } }, { duration: 600 });
-  }, [follow, last]);
+  }, [follow, last, headingUp]);
 
   // The fix lands after the map has mounted, so after initialRegion was read:
   // the camera has to be moved by hand. animateToRegion rather than
@@ -311,6 +404,7 @@ export function RunMap({
         initialRegion={initialRegion}
         userInterfaceStyle={scheme}
         showsUserLocation={!fitAll}
+        onUserLocationChange={follow ? onUserLocation : undefined}
         showsMyLocationButton={false}
         showsCompass={false}
         pitchEnabled={false}
@@ -360,7 +454,23 @@ export function RunMap({
           </Marker>
         )}
 
-        {/* The runner. A plain dot, because anything with a picture in it
+        {/* The runner, turned with the map: an arrow pointing up the screen,
+            which is the way they are going. Laid over the platform's own
+            dot, which says nothing about direction. */}
+        {headingUp && here && (
+          <Marker
+            coordinate={{ latitude: here.lat, longitude: here.lng }}
+            anchor={{ x: 0.5, y: 0.5 }}
+            tracksViewChanges={false}
+            zIndex={10}
+          >
+            <View style={[styles.arrow, { backgroundColor: literalColors.track[scheme] }]}>
+              <Ionicons name="navigate" size={15} color={literalColors.background[scheme]} style={styles.arrowIcon} />
+            </View>
+          </Marker>
+        )}
+
+        {/* The replay's head. A plain dot, because anything with a picture in it
             would be redrawn from scratch on every one of its twenty-five
             moves a second. */}
         {head && (
@@ -407,9 +517,25 @@ export function RunMap({
             <Ionicons name={fullscreen ? "contract" : "expand"} size={19} color={colors.text} />
           </Pressable>
         )}
+        {follow && (
+          <Pressable
+            onPress={toggleHeadingUp}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: headingUp }}
+            accessibilityLabel={s.headingUp}
+            hitSlop={8}
+            style={({ pressed }) => [styles.control, pressed && styles.controlPressed]}
+          >
+            <Ionicons
+              name={headingUp ? "navigate" : "navigate-outline"}
+              size={19}
+              color={headingUp ? colors.accent : colors.text}
+            />
+          </Pressable>
+        )}
         {!fitAll && (
         <Pressable
-          onPress={() => void recentreByHand()}
+          onPress={() => (headingUp ? aim(true) : void recentreByHand())}
           accessibilityRole="button"
           accessibilityLabel={s.recenter}
           // 44 points across, plus slop: below that the target gets hard to
@@ -466,6 +592,14 @@ const styles = StyleSheet.create({
     width: 13, height: 13, borderRadius: 6.5,
     backgroundColor: "#ffffff", borderWidth: 3.5,
   },
+  // The size of the platform's dot and its halo, so it covers it whole.
+  arrow: {
+    width: 28, height: 28, borderRadius: 14,
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 3, borderColor: "#ffffff",
+  },
+  // Ionicons' arrow points to the top right; turned back, it points ahead.
+  arrowIcon: { transform: [{ rotate: "-45deg" }], marginTop: 1 },
   ghost: { width: 13, height: 13, borderRadius: 6.5, borderWidth: 2.5, opacity: 0.6 },
   // In its own corner, twelve points in from both edges, which is where the
   // map's own controls sit on the other side.

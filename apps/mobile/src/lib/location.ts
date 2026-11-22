@@ -166,3 +166,29 @@ export async function placeName(lat: number, lng: number): Promise<string | null
     return null;
   }
 }
+
+/**
+ * Where the phone points, in degrees from true north, as the compass turns.
+ *
+ * True north when the phone knows it (it needs the location permission),
+ * magnetic otherwise: a few degrees off is still the right way up for a
+ * map. Returns a way to stop listening; a phone without a compass simply
+ * never calls back.
+ */
+export function watchCompass(onHeading: (degrees: number) => void): () => void {
+  let subscription: Location.LocationSubscription | null = null;
+  let stopped = false;
+  Location.watchHeadingAsync((heading) => {
+    const degrees = heading.trueHeading >= 0 ? heading.trueHeading : heading.magHeading;
+    if (degrees >= 0) onHeading(degrees);
+  })
+    .then((watching) => {
+      if (stopped) watching.remove();
+      else subscription = watching;
+    })
+    .catch(() => undefined);
+  return () => {
+    stopped = true;
+    subscription?.remove();
+  };
+}
