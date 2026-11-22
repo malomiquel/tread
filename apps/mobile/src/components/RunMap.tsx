@@ -135,15 +135,21 @@ const CREDIT_LIFT = 28;
 const RUNNER_ZOOM = 0.006;
 /** The tilt of the map while it turns with the runner, as a satnav leans the road away. */
 const HEADING_PITCH = 35;
-/** Below this, the GPS course is noise: the compass says which way the runner faces. */
+/** Below this, the GPS course is noise. */
 const COURSE_MIN_SPEED = 1.2;
-/** A turn smaller than this is not worth moving the map for. */
-const HEADING_STEP = 4;
+/**
+ * How much of the way to its target the camera covers each frame. At sixty
+ * frames a second the map has turned most of the way within a third of a
+ * second, and never jumps.
+ */
+const TURN_EASE = 0.16;
+const CENTRE_EASE = 0.1;
+/** Close enough, in degrees of latitude or longitude (about ten centimetres). */
+const CENTRE_SETTLED = 1e-6;
 
-/** The smallest angle between two headings, in degrees. */
-function headingGap(a: number, b: number): number {
-  const gap = Math.abs(a - b) % 360;
-  return gap > 180 ? 360 - gap : gap;
+/** The signed turn from one heading to another, between -180 and 180. */
+function turnBetween(from: number, to: number): number {
+  return ((to - from + 540) % 360) - 180;
 }
 
 /**
@@ -182,68 +188,109 @@ export function RunMap({
    */
   const [headingUp, setHeadingUp] = useState(follow && headingUpByDefault);
   useEffect(() => setHeadingUp(follow && headingUpByDefault), [follow, headingUpByDefault]);
+  /**
+   * Whether the runner has moved the map by hand. A camera that keeps
+   * chasing the runner while a finger drags it away makes the map shudder
+   * and impossible to look around; once dragged it stays put until the
+   * locate button brings it back.
+   */
+  const [detached, setDetached] = useState(false);
   /** The phone's own fix, fresher than the track and there before the start. */
   const [here, setHere] = useState<{ lat: number; lng: number } | null>(null);
+  const target = useRef<{ lat: number; lng: number } | null>(null);
   const course = useRef<{ degrees: number; speed: number } | null>(null);
-  const compass = useRef<number | null>(null);
-  /** What the camera was last aimed at, so small turns and steps leave it alone. */
-  const aimed = useRef<{ lat: number; lng: number; heading: number; at: number } | null>(null);
-  const hereRef = useRef(here);
-  hereRef.current = here;
+  const compass = useRef<{ degrees: number } | null>(null);
+  /** Where the camera is now, eased towards the target a frame at a time. */
+  const shown = useRef<{ lat: number; lng: number; heading: number } | null>(null);
+  const frame = useRef<number | null>(null);
+  const steering = useRef(false);
+  const steer = headingUp && !detached;
 
   /**
-   * Point the camera where the runner is going. Moving, that is the GPS
-   * course: the compass of a phone in a pocket or swinging in a hand says
-   * nothing about the way the legs go. Standing, the course is noise, and
-   * the compass is what says which way the runner faces.
+   * Which way the runner faces: the compass, whenever the phone has one.
+   * Someone looking at the map holds the phone the way they face, and it
+   * answers at once. Never the compass and the GPS course by turns: held a
+   * little askew, the two disagree, and a map switching between them swings
+   * from one to the other. The course, a second late but blind to where the
+   * phone points, only stands in for a phone without a compass.
    */
-  const aim = useCallback((force = false) => {
-    const spot = hereRef.current;
-    if (!spot) return;
-    const moving = course.current && course.current.speed >= COURSE_MIN_SPEED ? course.current.degrees : null;
-    const heading = moving ?? compass.current ?? aimed.current?.heading ?? 0;
-    const previous = aimed.current;
-    const now = Date.now();
-    if (!force && previous) {
-      const turned = headingGap(previous.heading, heading) >= HEADING_STEP;
-      const moved = previous.lat !== spot.lat || previous.lng !== spot.lng;
-      if (!turned && !moved) return;
-      // The compass speaks many times a second; a camera asked as often never settles.
-      if (!moved && now - previous.at < 250) return;
-    }
-    aimed.current = { lat: spot.lat, lng: spot.lng, heading, at: now };
-    map.current?.animateCamera(
-      { center: { latitude: spot.lat, longitude: spot.lng }, heading, pitch: HEADING_PITCH },
-      { duration: 450 },
-    );
+  const facing = useCallback((): number | null => {
+    if (compass.current) return compass.current.degrees;
+    if (course.current && course.current.speed >= COURSE_MIN_SPEED) return course.current.degrees;
+    return shown.current?.heading ?? null;
   }, []);
 
-  useEffect(() => {
-    if (!headingUp) return;
-    const stop = watchCompass((degrees) => {
-      compass.current = degrees;
-      aim();
+  /**
+   * One frame of the camera's way to the runner. Set rather than animated:
+   * the map's own animations, asked for many times a second, cut each other
+   * off and jump, where small steps every frame read as one smooth turn.
+   */
+  const step = useCallback(() => {
+    frame.current = null;
+    const spot = target.current;
+    const from = shown.current;
+    if (!steering.current || !spot || !from) return;
+    const goal = facing() ?? from.heading;
+    const turn = turnBetween(from.heading, goal);
+    const settled = Math.abs(turn) < 0.3
+      && Math.abs(spot.lat - from.lat) < CENTRE_SETTLED
+      && Math.abs(spot.lng - from.lng) < CENTRE_SETTLED;
+    shown.current = settled
+      ? { lat: spot.lat, lng: spot.lng, heading: goal }
+      : {
+          lat: from.lat + (spot.lat - from.lat) * CENTRE_EASE,
+          lng: from.lng + (spot.lng - from.lng) * CENTRE_EASE,
+          heading: (from.heading + turn * TURN_EASE + 360) % 360,
+        };
+    map.current?.setCamera({
+      center: { latitude: shown.current.lat, longitude: shown.current.lng },
+      heading: shown.current.heading,
+      pitch: HEADING_PITCH,
     });
-    aim(true);
-    return stop;
-  }, [headingUp, aim]);
+    if (!settled) frame.current = requestAnimationFrame(step);
+  }, [facing]);
+
+  const wake = useCallback(() => {
+    if (steering.current && shown.current && frame.current === null) frame.current = requestAnimationFrame(step);
+  }, [step]);
+
+  useEffect(() => {
+    steering.current = steer;
+    if (!steer) return;
+    let cancelled = false;
+    const stop = watchCompass((degrees) => {
+      compass.current = { degrees };
+      wake();
+    });
+    // Eased from wherever the camera stands, so switching on turns the map
+    // rather than snapping it.
+    void map.current?.getCamera().then((camera) => {
+      if (cancelled) return;
+      shown.current = { lat: camera.center.latitude, lng: camera.center.longitude, heading: camera.heading };
+      wake();
+    }).catch(() => undefined);
+    return () => {
+      cancelled = true;
+      steering.current = false;
+      shown.current = null;
+      if (frame.current !== null) cancelAnimationFrame(frame.current);
+      frame.current = null;
+      stop();
+    };
+  }, [steer, wake]);
 
   const onUserLocation = useCallback((event: UserLocationChangeEvent) => {
     const fix = event.nativeEvent.coordinate;
     if (!fix) return;
     course.current = fix.heading >= 0 ? { degrees: fix.heading, speed: fix.speed } : null;
-    setHere({ lat: fix.latitude, lng: fix.longitude });
-  }, []);
-
-  useEffect(() => {
-    if (headingUp) aim();
-  }, [headingUp, here, aim]);
+    target.current = { lat: fix.latitude, lng: fix.longitude };
+    setHere(target.current);
+    wake();
+  }, [wake]);
 
   const toggleHeadingUp = () => {
-    if (headingUp) {
-      aimed.current = null;
-      map.current?.animateCamera({ heading: 0, pitch: 0 }, { duration: 450 });
-    }
+    if (headingUp) map.current?.animateCamera({ heading: 0, pitch: 0 }, { duration: 450 });
+    setDetached(false);
     setHeadingUp(!headingUp);
   };
 
@@ -299,9 +346,9 @@ export function RunMap({
 
   useEffect(() => {
     // Turned with the runner, the camera is aimed by its own fixes instead.
-    if (!follow || !last || headingUp) return;
+    if (!follow || !last || headingUp || detached) return;
     map.current?.animateCamera({ center: { latitude: last.lat, longitude: last.lng } }, { duration: 600 });
-  }, [follow, last, headingUp]);
+  }, [follow, last, headingUp, detached]);
 
   // The fix lands after the map has mounted, so after initialRegion was read:
   // the camera has to be moved by hand. animateToRegion rather than
@@ -405,6 +452,7 @@ export function RunMap({
         userInterfaceStyle={scheme}
         showsUserLocation={!fitAll}
         onUserLocationChange={follow ? onUserLocation : undefined}
+        onPanDrag={follow && !detached ? () => setDetached(true) : undefined}
         showsMyLocationButton={false}
         showsCompass={false}
         pitchEnabled={false}
@@ -535,7 +583,10 @@ export function RunMap({
         )}
         {!fitAll && (
         <Pressable
-          onPress={() => (headingUp ? aim(true) : void recentreByHand())}
+          onPress={() => {
+            setDetached(false);
+            if (!headingUp) void recentreByHand();
+          }}
           accessibilityRole="button"
           accessibilityLabel={s.recenter}
           // 44 points across, plus slop: below that the target gets hard to

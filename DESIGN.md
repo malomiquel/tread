@@ -380,10 +380,12 @@ in the corner when one is set; never by fading.
 
 Following a route, the map turns the way the runner goes, as a satnav
 does: tilted, the street ahead above them, the runner an arrow in the
-track's colour pointing up the screen. Moving, the direction is the GPS
-course; standing, the compass. A round `navigate` control above the
+track's colour pointing up the screen. The direction is the compass (the
+GPS course only on a phone without one), and the camera eases towards it
+every frame rather than jumping. A round `navigate` control above the
 locate one switches between this and north up (`accent` while the map
-turns); without a route the map starts north up.
+turns); without a route the map starts north up. A map dragged by hand
+stops following, turned or not, until the locate button brings it back.
 
 While running, the controls take the panel's full width under a row of four
 figures, sized for a thumb mid-stride: **pause** in the middle, a filled
