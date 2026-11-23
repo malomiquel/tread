@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { climbAhead, daysUntil, goalVerdict, heatCost, hillFactor, planGapS, plannedAt, plannedPace, racePlan } from "./raceDay.ts";
+import {
+  climbAhead, daysUntil, goalVerdict, heatCost, hillFactor, isNewerRace, planGapS, plannedAt, plannedPace, racePlan,
+  readRaceSettings,
+} from "./raceDay.ts";
 
 /** A profile sampled every 100 m, from heights per sample. */
 const profile = (heights: number[]) => heights.map((value, i) => ({ distanceM: i * 100, value }));
@@ -77,4 +80,17 @@ test("the countdown is in days, whatever the hour", () => {
   const now = new Date(2026, 3, 10, 22, 0).getTime();
   assert.equal(daysUntil(new Date(2026, 3, 12, 8, 30).getTime(), now), 2);
   assert.equal(daysUntil(new Date(2026, 3, 10, 6, 0).getTime(), now), 0);
+});
+
+test("race settings are read strictly, and the later change wins", () => {
+  assert.equal(readRaceSettings(null), null);
+  assert.equal(readRaceSettings({ goalS: 3000 }), null, "no stamp, no settings");
+  assert.deepEqual(readRaceSettings({ goalS: 3000, date: "x", laps: 99, changedAt: 5 }), {
+    goalS: 3000, date: null, laps: 20, changedAt: 5,
+  });
+  const older = { goalS: 3000, date: null, laps: 1, changedAt: 5 };
+  const newer = { ...older, goalS: 2900, changedAt: 6 };
+  assert.ok(isNewerRace(newer, older));
+  assert.ok(!isNewerRace(older, newer));
+  assert.ok(isNewerRace(older, null));
 });

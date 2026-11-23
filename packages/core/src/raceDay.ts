@@ -227,3 +227,39 @@ export function daysUntil(date: number, now: number): number {
   };
   return Math.round((day(date) - day(now)) / 86_400_000);
 }
+
+/**
+ * What a runner decides about a race, as it travels between the phone and
+ * the web: the goal, the day, the laps of a loop. The profile does not
+ * travel, each side asks for its own. `changedAt` settles which side wins
+ * when both have changed it: the later.
+ */
+export interface RaceSettings {
+  goalS: number | null;
+  date: number | null;
+  laps: number;
+  changedAt: number;
+}
+
+/** The most laps of a loop a race can be (as `MOST_LAPS` in route.ts). */
+const MOST_RACE_LAPS = 20;
+
+/** Race settings from anything sent, or null when it is not them. */
+export function readRaceSettings(value: unknown): RaceSettings | null {
+  if (!value || typeof value !== "object") return null;
+  const raw = value as Record<string, unknown>;
+  const positive = (field: unknown) => (typeof field === "number" && Number.isFinite(field) && field > 0 ? field : null);
+  const changedAt = positive(raw.changedAt);
+  if (changedAt === null) return null;
+  const laps = positive(raw.laps);
+  return {
+    goalS: positive(raw.goalS),
+    date: positive(raw.date),
+    laps: laps === null ? 1 : Math.max(1, Math.min(MOST_RACE_LAPS, Math.round(laps))),
+    changedAt,
+  };
+}
+
+/** Whether `incoming` should replace `held`: it is newer, or there was nothing. */
+export const isNewerRace = (incoming: RaceSettings, held: RaceSettings | null): boolean =>
+  held === null || incoming.changedAt > held.changedAt;

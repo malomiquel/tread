@@ -1,4 +1,5 @@
 import { prisma, type Prisma } from "@tread/db";
+import { readRaceSettings, type RaceSettings } from "@tread/core/raceDay";
 import type { RoutePoint } from "@tread/core/route";
 
 /**
@@ -21,7 +22,10 @@ export interface RouteDraft {
 
 /** What the phone reads: every route, and the ones deleted here. */
 export interface RoutesForPhone {
-  routes: { name: string; createdAt: number; waypoints: RoutePoint[]; legs: RoutePoint[][]; place: string | null }[];
+  routes: {
+    name: string; createdAt: number; waypoints: RoutePoint[]; legs: RoutePoint[][]; place: string | null;
+    race: RaceSettings | null;
+  }[];
   deleted: number[];
 }
 
@@ -95,9 +99,25 @@ export async function routesForPhone(userId: string): Promise<RoutesForPhone> {
       waypoints: (row.waypoints ?? []) as unknown as RoutePoint[],
       legs: (row.legs ?? []) as unknown as RoutePoint[][],
       place: row.place,
+      race: readRaceSettings(row.race),
     })),
     deleted: rows.filter((row) => row.deletedAt !== null).map((row) => row.createdAt.getTime()),
   };
+}
+
+/**
+ * Set the race planned on a route from the web. Stamped here, so a phone
+ * that changed it earlier gives way, and one that changes it later wins.
+ * True when the route was the user's.
+ */
+export async function setRace(userId: string, id: string, body: unknown): Promise<RaceSettings | null> {
+  const race = readRaceSettings({ ...(body && typeof body === "object" ? body : {}), changedAt: Date.now() });
+  if (!race) return null;
+  const { count } = await prisma.route.updateMany({
+    where: { id, userId, deletedAt: null },
+    data: { race: json(race) },
+  });
+  return count > 0 ? race : null;
 }
 
 /** A route as the editor needs it: its handles and legs, not just its line. */

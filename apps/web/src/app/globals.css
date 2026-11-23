@@ -390,3 +390,25 @@ a.row:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
 .page-lede { color: var(--muted); font-size: 15.5px; line-height: 1.45; margin: 0 0 16px; max-width: 640px; min-height: 2.9em; }
 .body-text { color: var(--muted); font-size: 15px; line-height: 1.45; margin: 0 0 10px; }
 .kind-name { font-size: 16.5px; font-weight: 600; margin: 0 0 2px; }
+
+/* ---------- Race plan ---------- */
+.race-goal { display: flex; align-items: center; gap: 14px; padding-top: 16px; padding-bottom: 16px; }
+.race-goal-value { flex: 1; display: grid; justify-items: center; gap: 2px; text-align: center; }
+.race-goal-value strong { font-size: 34px; font-weight: 700; letter-spacing: -0.5px; }
+.race-goal-value span { color: var(--subtle); font-size: 14px; min-height: 2.6em; }
+.stepper-button {
+  width: 48px; height: 48px; border-radius: 24px; border: 0; cursor: pointer; flex: none;
+  background: var(--accent-soft); color: var(--accent); font-size: 24px; font-weight: 600;
+}
+.stepper-button.small { width: 36px; height: 36px; border-radius: 18px; font-size: 20px; }
+.stepper-button:disabled { cursor: default; opacity: 0.4; }
+.stepper-button:active:not(:disabled) { transform: scale(0.96); }
+.race-verdict { color: var(--muted); font-size: 15px; text-align: center; margin: 10px 0 0; min-height: 2.8em; }
+.race-verdict.warn { color: var(--warning); }
+.race-date {
+  height: 38px; border-radius: 10px; border: 1.5px solid transparent; background: var(--background);
+  padding: 0 10px; font-size: 15.5px; color: var(--text); font-family: inherit;
+}
+.race-date:focus { outline: none; border-color: var(--accent); }
+.race-laps { min-width: 34px; text-align: center; font-weight: 600; font-size: 17px; }
+.danger-text { color: var(--danger); }

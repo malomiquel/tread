@@ -1,3 +1,4 @@
+import type { RaceSettings } from "@tread/core/raceDay";
 import type { ActivityType } from "@tread/core/activity";
 import type { BestEfforts } from "@tread/core/efforts";
 import type { TrackPoint } from "@tread/core/geo";
@@ -75,6 +76,8 @@ export interface RouteRow {
   place: string | null;
   /** The whole line, legs joined. */
   line: RoutePoint[];
+  /** The race planned on it, from the phone or here, or null. */
+  race: RaceSettings | null;
 }
 
 export interface ShoeRow {

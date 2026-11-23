@@ -661,6 +661,19 @@ and profile come from Open-Meteo's elevation service, routes carrying no
 altitude of their own. What is made or deleted here reaches the phone at
 its next sync (`/api/routes`).
 
+Races are planned on the web as on the phone. A route's page has a "Race
+plan" pill, which opens `/routes/[id]/race`: the goal on the stage, its
+stepper and verdict, the profile and the pace per kilometre in the wide
+column; beside them the race day (a date-and-time field), the laps of a
+loop, the forecast and heat in the footer, and the climbs. "Race" beside
+"Import a GPX" takes an organiser's course and opens its plan; the empty
+tab offers it as "Plan a race". Upcoming races sit above the routes, as on
+the phone. What is decided (goal, day, laps) travels with the route
+(`route.race`, `RaceSettings`), each change stamped, and the later one wins
+on either side; the profile does not travel, each side asks for its own.
+An outing's page gives its stops as the phone does: total time and pace
+with stops among the figures, and a block of the stops under the laps.
+
 The landing page shares a language, not a layout. Every section uses the
 same parts — a two-tone headline (the second line in the accent), one
 object staged, panels of radius 28 set 12 px in from the window, glass for

@@ -26,6 +26,12 @@ export interface StoredRacePlan {
    * a route that does not come back to its start.
    */
   laps: number;
+  /**
+   * When the goal, the day or the laps were last changed, here or on the
+   * web: whichever side changed them last wins. Zero for a plan never
+   * decided, which has nothing to send.
+   */
+  changedAt: number;
 }
 
 const key = (routeId: number) => `racePlan.${routeId}`;
@@ -42,15 +48,19 @@ function parsePlan(raw: string | undefined): StoredRacePlan {
       elevation: parsed.elevation && Array.isArray(parsed.elevation.profile) ? parsed.elevation : null,
       date: typeof parsed.date === "number" && parsed.date > 0 ? parsed.date : null,
       laps: typeof parsed.laps === "number" ? Math.max(1, Math.min(MOST_LAPS, Math.round(parsed.laps))) : 1,
+      changedAt: typeof parsed.changedAt === "number" ? parsed.changedAt : 0,
     };
   } catch {
-    return { goalS: null, elevation: null, date: null, laps: 1 };
+    return { goalS: null, elevation: null, date: null, laps: 1, changedAt: 0 };
   }
 }
 
 /** Change part of a route's plan, keeping the rest as it is. */
 export async function updateRacePlan(routeId: number, change: Partial<StoredRacePlan>): Promise<StoredRacePlan> {
-  const next = { ...(await readRacePlan(routeId)), ...change };
+  // The runner's own decisions are stamped, so the web can tell which is newer;
+  // a profile fetched is not a decision.
+  const decided = "goalS" in change || "date" in change || "laps" in change;
+  const next = { ...(await readRacePlan(routeId)), ...change, ...(decided ? { changedAt: Date.now() } : {}) };
   await writeRacePlan(routeId, next);
   return next;
 }
@@ -108,10 +118,13 @@ export async function activeRacePlan(route: StoredRoute): Promise<RacePlan | nul
 }
 
 /** How many laps of this route a run is asked for. */
-export const lapsOf = (route: StoredRoute, stored: StoredRacePlan): number => (isLoop(route) ? stored.laps : 1);
+export const lapsOf = (route: StoredRoute, stored: Pick<StoredRacePlan, "laps">): number => (isLoop(route) ? stored.laps : 1);
 
 /** The plan over every lap of the route, split in the runner's own unit. */
-export function planFor(route: StoredRoute, stored: StoredRacePlan & { goalS: number }): RacePlan | null {
+export function planFor(
+  route: StoredRoute,
+  stored: Pick<StoredRacePlan, "elevation" | "laps"> & { goalS: number },
+): RacePlan | null {
   const laps = lapsOf(route, stored);
   const profile = stored.elevation ? repeatProfile(stored.elevation.profile, laps) : null;
   return racePlan(route.distanceM * laps, stored.goalS, profile, unitLengthM());

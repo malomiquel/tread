@@ -12,7 +12,7 @@ import { placeName } from "@/lib/place";
  * be edited, the town looked up, and the route saved. Files are read in the
  * browser; only the route is sent.
  */
-export function useGpxRoutes() {
+export function useGpxRoutes({ race = false }: { race?: boolean } = {}) {
   const router = useRouter();
   const input = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState(false);
@@ -44,8 +44,18 @@ export function useGpxRoutes() {
             place: await placeName(line[0]),
           }),
         });
-        if (response.ok) added += 1;
-        else unreadable += 1;
+        if (!response.ok) {
+          unreadable += 1;
+          continue;
+        }
+        added += 1;
+        // A race's course: one file, and straight on to planning the race.
+        if (race) {
+          const { id } = (await response.json()) as { id: string };
+          setBusy(false);
+          router.push(`/routes/${id}/race`);
+          return;
+        }
       } catch {
         unreadable += 1;
       }
@@ -66,7 +76,7 @@ export function useGpxRoutes() {
       ref: input,
       type: "file" as const,
       accept: ".gpx,application/gpx+xml",
-      multiple: true,
+      multiple: !race,
       hidden: true,
       onChange: (event: React.ChangeEvent<HTMLInputElement>) => {
         void importFiles(event.target.files);

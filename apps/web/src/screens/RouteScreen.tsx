@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { IoChevronBack, IoCreateOutline, IoTrashOutline } from "react-icons/io5";
+import { IoChevronBack, IoCreateOutline, IoSpeedometerOutline, IoTrashOutline } from "react-icons/io5";
 import { formatDistance, formatDuration, formatElevation, formatPace } from "@tread/core/format";
 import { defineStrings, intlLocale, useStrings } from "@tread/core/i18n";
 import { estimateRouteTime, type RouteRun } from "@tread/core/routeTime";
@@ -27,6 +27,7 @@ const strings = defineStrings({
     at: (pace: string) => `À ${pace}`,
     run: "Pour le courir, choisis-le dans l'app avant de partir : la voix te guide à chaque virage.",
     edit: "Modifier",
+    racePlan: "Plan de course",
     remove: "Supprimer",
     removeConfirm: "Supprimer ce parcours ? Il disparaîtra aussi de ton téléphone à la prochaine synchro.",
     removeFailed: "Le parcours n'a pas pu être supprimé. Réessaie.",
@@ -46,6 +47,7 @@ const strings = defineStrings({
     at: (pace: string) => `At ${pace}`,
     run: "To run it, pick it in the app before you set off: the voice guides you at every turn.",
     edit: "Edit",
+    racePlan: "Race plan",
     remove: "Delete",
     removeConfirm: "Delete this route? It will also leave your phone at its next sync.",
     removeFailed: "The route couldn't be deleted. Try again.",
@@ -95,6 +97,10 @@ export function RouteScreen({ route, recent }: { route: RouteRow; recent: RouteR
             <IoTrashOutline size={18} aria-hidden />
             <span>{s.remove}</span>
           </button>
+          <Link href={`/routes/${route.id}/race`} className="header-button">
+            <IoSpeedometerOutline size={18} aria-hidden />
+            <span>{s.racePlan}</span>
+          </Link>
           <Link href={`/routes/${route.id}/edit`} className="header-button">
             <IoCreateOutline size={18} aria-hidden />
             <span>{s.edit}</span>

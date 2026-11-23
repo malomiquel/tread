@@ -2,11 +2,12 @@ import { useEffect, useState } from "react";
 import { weatherRequest } from "@tread/core/services";
 import type { Coords } from "./location";
 import {
-  formatTemperature, formatWind, numberOr, rainfall, weatherLabel, weatherWords, type Weather,
+  FIELDS, forecastQuery, formatTemperature, formatWind, grid, numberOr, rainfall, readCurrent, readHourly,
+  weatherLabel, weatherWords, type Weather,
 } from "@tread/core/weather";
 
 export {
-  formatTemperature, formatWind, parseWeather, weatherIcon, weatherLabel, weatherLine,
+  formatTemperature, formatWind, parseWeather, readCurrent, readHourly, weatherIcon, weatherLabel, weatherLine,
   type Weather, type WeatherIcon,
 } from "@tread/core/weather";
 
@@ -27,21 +28,6 @@ export {
 
 // The endpoint, and the key a paid plan brings, come from services.ts.
 
-/** The five readings a runner acts on, plus the daylight the icon needs. */
-const FIELDS = "temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,is_day";
-
-/**
- * Coordinates are cut to two decimals — a little over a kilometre — before
- * they leave the phone.
- *
- * The model itself works on a grid of a few kilometres, so the digits beyond
- * this one change nothing in the answer. What they would change is what a
- * third party learns: a run starts at a front door, and the full fix is that
- * door to within a few metres. Rounding costs nothing here and is the whole
- * difference between asking about a neighbourhood and reporting an address.
- */
-const grid = (degrees: number): string => degrees.toFixed(2);
-
 /** Nothing here is worth making anyone wait for. */
 const TIMEOUT_MS = 6000;
 
@@ -61,76 +47,6 @@ async function ask(url: string): Promise<unknown | null> {
   }
 }
 
-
-/**
- * One reading, built from whichever bag of fields it came out of.
- *
- * The temperature is the one field without which there is no reading at all;
- * everything else falls back to something harmless, because a missing wind
- * speed is not a reason to throw the temperature away.
- */
-function reading(fields: Record<string, unknown>): Weather | null {
-  const temperatureC = numberOr(fields.temperature_2m, null);
-  if (temperatureC === null) return null;
-  return {
-    temperatureC,
-    feelsLikeC: numberOr(fields.apparent_temperature, temperatureC),
-    windKmh: Math.max(0, numberOr(fields.wind_speed_10m, 0)),
-    precipitationMm: Math.max(0, numberOr(fields.precipitation, 0)),
-    code: numberOr(fields.weather_code, null),
-    // Absent means daytime: the icon is the only thing that reads this, and
-    // a sun is the less surprising of the two to be wrong about.
-    day: fields.is_day === undefined ? true : numberOr(fields.is_day, 1) === 1,
-  };
-}
-
-/** The `current` block of an Open-Meteo answer. */
-export function readCurrent(payload: unknown): Weather | null {
-  const current = (payload as { current?: unknown } | null)?.current;
-  if (!current || typeof current !== "object") return null;
-  return reading(current as Record<string, unknown>);
-}
-
-/**
- * The hour nearest a given moment, out of the `hourly` block.
- *
- * Open-Meteo answers in parallel arrays — one of timestamps, one per field —
- * so the work is to find the index once and read every array at it.
- */
-export function readHourly(payload: unknown, ts: number): Weather | null {
-  const hourly = (payload as { hourly?: unknown } | null)?.hourly;
-  if (!hourly || typeof hourly !== "object") return null;
-  const fields = hourly as Record<string, unknown>;
-  const times = fields.time;
-  if (!Array.isArray(times) || times.length === 0) return null;
-
-  const wanted = Math.round(ts / 1000);
-  const distance = (index: number) =>
-    Math.abs(numberOr(times[index], Number.MAX_SAFE_INTEGER) - wanted);
-  let nearest = 0;
-  for (let i = 1; i < times.length; i += 1) {
-    if (distance(i) < distance(nearest)) nearest = i;
-  }
-
-  // Inside the range asked for, the nearest hour is half an hour away at
-  // worst. Further than that means the answer covers a different day
-  // altogether, and yesterday's weather stated as this run's would be a lie
-  // told with confidence.
-  if (distance(nearest) > 90 * 60) return null;
-
-  const at = (key: string): unknown => {
-    const column = fields[key];
-    return Array.isArray(column) ? column[nearest] : undefined;
-  };
-  return reading({
-    temperature_2m: at("temperature_2m"),
-    apparent_temperature: at("apparent_temperature"),
-    wind_speed_10m: at("wind_speed_10m"),
-    precipitation: at("precipitation"),
-    weather_code: at("weather_code"),
-    is_day: at("is_day"),
-  });
-}
 
 /** Conditions right now, where the phone is. */
 export async function currentWeather(lat: number, lng: number): Promise<Weather | null> {
@@ -168,10 +84,7 @@ export async function forecastAt(lat: number, lng: number, ts: number): Promise<
   const ahead = ts - Date.now();
   if (ahead < -3_600_000 || ahead > FORECAST_DAYS * 86_400_000) return null;
   const payload = await ask(
-    weatherRequest(
-      `latitude=${grid(lat)}&longitude=${grid(lng)}&hourly=${FIELDS}`
-      + `&forecast_days=${FORECAST_DAYS}&timeformat=unixtime&wind_speed_unit=kmh`,
-    ),
+    weatherRequest(forecastQuery(lat, lng)),
   );
   return payload === null ? null : readHourly(payload, ts);
 }

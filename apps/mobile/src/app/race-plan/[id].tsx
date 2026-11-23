@@ -283,8 +283,8 @@ export default function RacePlanScreen() {
     [route, runs, totalM, elevation, laps],
   );
   const plan = useMemo(
-    () => (route && goalS !== null ? planFor(route, { goalS, elevation, date, laps }) : null),
-    [route, goalS, elevation, date, laps],
+    () => (route && goalS !== null ? planFor(route, { goalS, elevation, laps }) : null),
+    [route, goalS, elevation, laps],
   );
 
   if (missing) {

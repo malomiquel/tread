@@ -7,6 +7,7 @@ import { bestEfforts } from "@tread/core/efforts";
 import type { TrackPoint } from "@tread/core/geo";
 import { parseGpx } from "@tread/core/gpx";
 import { measureTrack } from "@tread/core/measure";
+import { isNewerRace, readRaceSettings } from "@tread/core/raceDay";
 import { TRANSFER_ENTRY, readTransfer, type Transfer, type TransferRun } from "@tread/core/transfer";
 
 /**
@@ -113,9 +114,14 @@ export async function ingestTransfer(userId: string, transfer: Transfer, phoneUn
   const { added, updated } = await ingestRuns(userId, transfer.runs);
 
   for (const route of transfer.routes) {
-    const data = { name: route.name, waypoints: json(route.waypoints), legs: json(route.legs), place: route.place };
+    const key = { userId_createdAt: { userId, createdAt: new Date(route.createdAt) } };
+    // The race planned on it is taken only when newer than the one held:
+    // it may have been changed here since the phone last heard.
+    const held = route.race ? await prisma.route.findUnique({ where: key, select: { race: true } }) : null;
+    const race = route.race && isNewerRace(route.race, readRaceSettings(held?.race)) ? { race: json(route.race) } : {};
+    const data = { name: route.name, waypoints: json(route.waypoints), legs: json(route.legs), place: route.place, ...race };
     await prisma.route.upsert({
-      where: { userId_createdAt: { userId, createdAt: new Date(route.createdAt) } },
+      where: key,
       create: { userId, createdAt: new Date(route.createdAt), ...data },
       update: data,
     });

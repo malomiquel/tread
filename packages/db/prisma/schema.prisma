@@ -171,6 +171,9 @@ model Route {
   /// Deleted on the web. Kept as a mark, so a phone that still has the
   /// route neither sends it back to life nor keeps it: it is told to drop it.
   deletedAt DateTime?
+  /// The race planned on it (`RaceSettings`: goal, day, laps, changedAt),
+  /// from the phone or the web; the later change wins.
+  race      Json?
 
   @@unique([userId, createdAt])
   @@map("route")

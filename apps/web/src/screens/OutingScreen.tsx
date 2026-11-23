@@ -11,6 +11,7 @@ import { gradeAdjustedPace } from "@tread/core/gradePace";
 import { formatBpm, zoneName } from "@tread/core/heart";
 import { decimal, defineStrings, intlLocale, useStrings } from "@tread/core/i18n";
 import { lapsOf } from "@tread/core/laps";
+import { pausedS, pausesOf } from "@tread/core/pauses";
 import { metaWords, tierName, completedBy, type MetaCard } from "@tread/core/metaCard";
 import { readPrivacyRadius } from "@tread/core/privacy";
 import { exertionName, kindName, sessionKind } from "@tread/core/plan";
@@ -45,6 +46,12 @@ const strings = defineStrings({
     splitsMiles: "Mile par mile",
     laps: "Tours",
     lap: (n: number) => `Tour ${n}`,
+    totalTime: "Temps total",
+    realPace: "Allure avec pauses",
+    realSpeed: "Vitesse avec pauses",
+    paused: (count: number) => `${count} pause${count > 1 ? "s" : ""}`,
+    pauseAt: (distance: string) => `Au ${distance}`,
+    pauseAfter: (time: string) => `après ${time} de course`,
     finish: "Fin",
     altitude: "Altitude",
     paceAlong: "Allure en chemin",
@@ -84,6 +91,12 @@ const strings = defineStrings({
     splitsMiles: "Mile by mile",
     laps: "Laps",
     lap: (n: number) => `Lap ${n}`,
+    totalTime: "Total time",
+    realPace: "Pace with stops",
+    realSpeed: "Speed with stops",
+    paused: (count: number) => `${count} pause${count > 1 ? "s" : ""}`,
+    pauseAt: (distance: string) => `At ${distance}`,
+    pauseAfter: (time: string) => `after ${time} of running`,
     finish: "Finish",
     altitude: "Altitude",
     paceAlong: "Pace along the way",
@@ -153,12 +166,26 @@ export function OutingScreen({ outing, cardOutings, settings }: {
       { label: s.effortKm, value: decimal(effortKm(outing.distanceM, outing.elevationGainM ?? 0).toFixed(1)), unit: "km" },
     ]
     : [];
+  // The stops, read back from the track as on the phone: the time above is
+  // time moving, and the total beside it what the clock on the wall said.
+  const pauses = hasTrack ? pausesOf(points) : [];
+  const stoppedS = pausedS(pauses);
+  const elapsedS = outing.durationS + stoppedS;
+  const stopFigures = pauses.length > 0
+    ? [
+      { label: s.totalTime, value: formatDuration(elapsedS) },
+      riding
+        ? { label: s.realSpeed, value: formatSpeed(elapsedS > 0 ? outing.distanceM / elapsedS : 0), unit: speedUnit() }
+        : { label: s.realPace, value: formatPace(outing.distanceM > 0 ? elapsedS / (outing.distanceM / 1000) : null), unit: paceUnit() },
+    ]
+    : [];
   const figures = [
     { label: s.time, value: formatDuration(outing.durationS) },
     riding
       ? { label: s.speed, value: formatSpeed(outing.durationS > 0 ? outing.distanceM / outing.durationS : 0), unit: speedUnit() }
       : { label: s.pace, value: formatPace(outing.avgPaceSKm), unit: paceUnit() },
     { label: s.climb, value: formatElevation(outing.elevationGainM ?? 0), unit: elevationUnit() },
+    ...stopFigures,
     ...hillFigures,
     ...(graded && outing.avgPaceSKm && Math.abs(graded - outing.avgPaceSKm) >= 3
       ? [{ label: s.gap, value: formatPace(graded), unit: paceUnit() }]
@@ -309,6 +336,24 @@ export function OutingScreen({ outing, cardOutings, settings }: {
                     </div>
                   );
                 })}
+              </div>
+            </>
+          ) : null}
+          {pauses.length > 0 ? (
+            <>
+              <SectionHeader title={s.paused(pauses.length)} aside={formatDuration(stoppedS)} />
+              <div className="panel">
+                <ul className="rows">
+                  {pauses.map((pause) => (
+                    <li key={pause.afterS} className="row" style={{ minHeight: 52 }}>
+                      <span className="row-main">
+                        <span className="row-name">{s.pauseAt(`${formatDistance(pause.atM)} ${distanceUnit()}`)}</span>
+                        <span className="row-detail" style={{ display: "block" }}>{s.pauseAfter(formatDuration(pause.afterS))}</span>
+                      </span>
+                      <span className="row-figures num"><strong>{formatDuration(pause.durationS)}</strong></span>
+                    </li>
+                  ))}
+                </ul>
               </div>
             </>
           ) : null}

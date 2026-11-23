@@ -20,9 +20,10 @@ import type { EditedRun } from "@tread/core/runEdit";
 import type { Shoe } from "@tread/core/shoes";
 import { parseRoute, routeDistanceM, type Route, type RoutePoint, type StoredRoute } from "@tread/core/route";
 import {
-  TRANSFER_FORMAT, TRANSFER_VERSION, type Restored, type Transfer, type TransferRun, type TransferSession,
-  type TransferShoe,
+  RACE_PLAN_PREFIX, TRANSFER_FORMAT, TRANSFER_VERSION, type Restored, type Transfer, type TransferRun,
+  type TransferSession, type TransferShoe,
 } from "@tread/core/transfer";
+import { isNewerRace, readRaceSettings, type RaceSettings } from "@tread/core/raceDay";
 import { parseWeather, type Weather } from "./weather";
 import { currentEffort, currentSession, currentSessionId, type RanBlock } from "@tread/core/workout";
 
@@ -619,6 +620,8 @@ export async function dataSummary(): Promise<Record<string, number | null>> {
     sessions: await one("SELECT TOTAL(LENGTH(name || groups_json)) AS v FROM custom_sessions"),
     shoes: await one("SELECT TOTAL(LENGTH(name) + start_m + limit_m + retired + is_default) AS v FROM shoes"),
     settings: await one("SELECT TOTAL(LENGTH(key || value)) AS v FROM settings WHERE key NOT LIKE 'backup%' AND key NOT IN ('healthAnchor', 'accountSync', 'accountSyncedRuns')"),
+    // A goal moved by fifteen seconds keeps its length: the stamp is what changes.
+    races: await one("SELECT TOTAL(json_extract(value, '$.changedAt')) AS v FROM settings WHERE key LIKE 'racePlan.%' AND json_valid(value)"),
   };
 }
 
@@ -885,6 +888,7 @@ export async function everythingForTransfer(): Promise<Transfer> {
 export async function transferExtras(): Promise<Omit<Transfer, "runs">> {
   const plan = await activePlan();
   const done = plan ? await planDone(plan.id) : new Map<number, Done>();
+  const stored = await readSettings();
   return {
     format: TRANSFER_FORMAT,
     version: TRANSFER_VERSION,
@@ -896,6 +900,7 @@ export async function transferExtras(): Promise<Omit<Transfer, "runs">> {
       waypoints: route.waypoints,
       legs: route.legs,
       place: route.place,
+      ...(raceOfRoute(stored, route.id) ? { race: raceOfRoute(stored, route.id) } : {}),
     })),
     sessions: await listCustomSessionsForTransfer(),
     shoes: (await listShoes()).map((shoe): TransferShoe => ({
@@ -969,6 +974,7 @@ export async function restoreTransfer(transfer: Transfer): Promise<Restored> {
     );
     if (existing) {
       if (route.id !== undefined) routeIds.set(route.id, existing.id);
+      await mergeRace(existing.id, route.race);
       continue;
     }
     const shape = { waypoints: route.waypoints, legs: route.legs };
@@ -979,6 +985,7 @@ export async function restoreTransfer(transfer: Transfer): Promise<Restored> {
       JSON.stringify(route.waypoints), JSON.stringify(route.legs), route.place,
     );
     if (route.id !== undefined) routeIds.set(route.id, Number(inserted.lastInsertRowId));
+    await mergeRace(Number(inserted.lastInsertRowId), route.race);
     routes += 1;
   }
 
@@ -1321,6 +1328,41 @@ export interface AccountRoute {
   waypoints: RoutePoint[];
   legs: RoutePoint[][];
   place: string | null;
+  /** The race planned on it on the web or another phone, if any. */
+  race?: unknown;
+}
+
+/**
+ * The race planned on a route, as it travels: what was decided, without the
+ * profile, which each side asks for itself. Undefined when nothing was.
+ */
+function raceOfRoute(settings: Record<string, string>, routeId: number): RaceSettings | undefined {
+  const raw = settings[`${RACE_PLAN_PREFIX}${routeId}`];
+  if (!raw) return undefined;
+  try {
+    return readRaceSettings(JSON.parse(raw)) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Take in a race decided elsewhere when it is newer than the one here. The
+ * profile kept on this phone stays: the course has not changed.
+ */
+async function mergeRace(routeId: number, incoming: unknown): Promise<void> {
+  const race = readRaceSettings(incoming);
+  if (!race) return;
+  const planKey = `${RACE_PLAN_PREFIX}${routeId}`;
+  const raw = (await readSettings())[planKey];
+  let held: Record<string, unknown> = {};
+  try {
+    held = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+  } catch {
+    held = {};
+  }
+  if (!isNewerRace(race, readRaceSettings(held))) return;
+  await writeSetting(planKey, JSON.stringify({ ...held, ...race }));
 }
 
 /**
@@ -1343,15 +1385,17 @@ export async function mergeAccountRoutes(
     const local = await db.getFirstAsync<RouteRow>("SELECT * FROM routes WHERE created_at = ?", route.createdAt);
     const shape = { waypoints: route.waypoints, legs: route.legs };
     if (!local) {
-      await db.runAsync(
+      const inserted = await db.runAsync(
         "INSERT INTO routes (name, created_at, distance_m, waypoints, legs, place, preview)"
         + " VALUES (?, ?, ?, ?, ?, ?, NULL)",
         route.name, route.createdAt, routeDistanceM(shape),
         JSON.stringify(route.waypoints), JSON.stringify(route.legs), route.place,
       );
+      await mergeRace(Number(inserted.lastInsertRowId), route.race);
       added += 1;
       continue;
     }
+    await mergeRace(local.id, route.race);
     const sameShape = local.waypoints === JSON.stringify(route.waypoints) && local.legs === JSON.stringify(route.legs);
     if (sameShape && local.name === route.name && (local.place ?? null) === route.place) continue;
     // A new shape makes the old picture wrong; a new name alone does not.

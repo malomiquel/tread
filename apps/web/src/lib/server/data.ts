@@ -8,6 +8,7 @@ import type { TrackPoint } from "@tread/core/geo";
 import type { Heart } from "@tread/core/heart";
 import type { LapMark } from "@tread/core/laps";
 import type { Exertion } from "@tread/core/plan";
+import { readRaceSettings } from "@tread/core/raceDay";
 import type { RoutePoint } from "@tread/core/route";
 import type { TransferPlan } from "@tread/core/transfer";
 import type { Weather } from "@tread/core/weather";
@@ -144,14 +145,17 @@ export async function routeRows(userId: string): Promise<RouteRow[]> {
   const routes = await prisma.route.findMany({ where: { userId, deletedAt: null }, orderBy: { createdAt: "desc" } });
   return routes.map((route) => ({
     id: route.id, name: route.name, createdAt: route.createdAt.getTime(), place: route.place,
-    line: joinLegs(route.legs, route.waypoints),
+    line: joinLegs(route.legs, route.waypoints), race: readRaceSettings(route.race),
   }));
 }
 
 export async function routeById(userId: string, id: string): Promise<RouteRow | null> {
   const route = await prisma.route.findFirst({ where: { id, userId, deletedAt: null } });
   return route
-    ? { id: route.id, name: route.name, createdAt: route.createdAt.getTime(), place: route.place, line: joinLegs(route.legs, route.waypoints) }
+    ? {
+      id: route.id, name: route.name, createdAt: route.createdAt.getTime(), place: route.place,
+      line: joinLegs(route.legs, route.waypoints), race: readRaceSettings(route.race),
+    }
     : null;
 }
 

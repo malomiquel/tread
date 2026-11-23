@@ -5,6 +5,7 @@ import { parseGroups, type DraftGroup } from "./customSession.ts";
 import { parseLaps, type LapMark } from "./laps.ts";
 import type { Exertion, PerWeek, PlanGoal, PlannedSession } from "./plan.ts";
 import { defineStrings, intlLocale } from "./i18n.ts";
+import { readRaceSettings, type RaceSettings } from "./raceDay.ts";
 import type { RoutePoint } from "./route.ts";
 import type { Weather } from "./weather.ts";
 import { currentEffort, currentSession, currentSessionId, type RanBlock } from "./workout.ts";
@@ -109,6 +110,8 @@ export interface TransferRoute {
   waypoints: RoutePoint[];
   legs: RoutePoint[][];
   place: string | null;
+  /** The race planned on it, if any. Absent from older files. */
+  race?: RaceSettings;
 }
 
 /**
@@ -251,11 +254,15 @@ function readRoutes(routes: unknown): TransferRoute[] {
       && typeof (route as TransferRoute).createdAt === "number"
       && Array.isArray((route as TransferRoute).waypoints)
       && Array.isArray((route as TransferRoute).legs))
-    .map(({ id, ...route }) => ({
-      ...route,
-      ...(typeof id === "number" && Number.isInteger(id) ? { id } : {}),
-      place: typeof route.place === "string" ? route.place : null,
-    }));
+    .map(({ id, race, ...route }) => {
+      const settings = readRaceSettings(race);
+      return {
+        ...route,
+        ...(typeof id === "number" && Number.isInteger(id) ? { id } : {}),
+        ...(settings ? { race: settings } : {}),
+        place: typeof route.place === "string" ? route.place : null,
+      };
+    });
 }
 
 /**
@@ -270,6 +277,9 @@ function readRoutes(routes: unknown): TransferRoute[] {
 // The safety copy's folder and its last write belong to this phone as well.
 // So do the account's last sync, the runs it has sent and the deletions
 // waiting for it: another phone has sent nothing yet.
+/** Where the phone keeps a route's race plan: `racePlan.<route id>`. */
+export const RACE_PLAN_PREFIX = "racePlan.";
+
 const LOCAL_SETTINGS = new Set([
   "routeId", "healthAnchor", "backupFolder", "backupLast", "backupRestoreOffered",
   "accountSync", "accountSyncedRuns", "accountDeleted",
@@ -285,7 +295,10 @@ function readSettingsBag(settings: unknown): Record<string, string> {
   return Object.fromEntries(
     Object.entries(settings as Record<string, unknown>)
       .filter((entry): entry is [string, string] =>
-        typeof entry[1] === "string" && !LOCAL_SETTINGS.has(entry[0])),
+        typeof entry[1] === "string" && !LOCAL_SETTINGS.has(entry[0])
+        // A race plan is kept under the route's row id, which means nothing
+        // elsewhere: it travels with its route instead (`TransferRoute.race`).
+        && !entry[0].startsWith(RACE_PLAN_PREFIX)),
   );
 }
 
