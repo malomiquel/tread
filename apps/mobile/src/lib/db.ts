@@ -1285,6 +1285,16 @@ export async function updateRoute(
     name, routeDistanceM(route), JSON.stringify(route.waypoints), JSON.stringify(route.legs),
     look.place, look.preview, id,
   );
+  // A redrawn course has another profile: its race plan asks for it again.
+  const planKey = `racePlan.${id}`;
+  const plan = (await readSettings())[planKey];
+  if (plan) {
+    try {
+      await writeSetting(planKey, JSON.stringify({ ...JSON.parse(plan), elevation: null }));
+    } catch {
+      // An unreadable plan is read as empty anyway.
+    }
+  }
 }
 
 /**

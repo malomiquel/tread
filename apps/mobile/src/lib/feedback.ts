@@ -88,6 +88,7 @@ const spokenWords = defineStrings({
     offRoute: "Tu as quitté le parcours",
     backOnRoute: "De retour sur le parcours",
     routeDone: "Parcours terminé",
+    routeLap: (lap: number, laps: number) => (lap === laps ? `Dernier tour, ${lap} sur ${laps}` : `Tour ${lap} sur ${laps}`),
     feet: (feet: number) => `${feet} pieds`,
     lap: (number: number, distance: string, minutes: number, seconds: number) => `Tour ${number}. ${distance}, ${
       minutes > 0
@@ -119,6 +120,7 @@ const spokenWords = defineStrings({
     offRoute: "You have left the route",
     backOnRoute: "Back on the route",
     routeDone: "Route complete",
+    routeLap: (lap: number, laps: number) => (lap === laps ? `Last lap, ${lap} of ${laps}` : `Lap ${lap} of ${laps}`),
     feet: (feet: number) => `${feet} feet`,
     lap: (number: number, distance: string, minutes: number, seconds: number) => `Lap ${number}. ${distance}, ${
       minutes > 0
@@ -292,6 +294,12 @@ export function announceOffRoute(off: boolean, spoken: boolean): void {
   if (!spoken) return;
   const words = spokenWords();
   Speech.speak(off ? words.offRoute : words.backOnRoute, { language: speechLocale(), rate: 1 });
+}
+
+/** A new lap of a loop begun, run several times. */
+export function announceRouteLap(lap: number, laps: number, spoken: boolean): void {
+  if (!spoken) return;
+  Speech.speak(spokenWords().routeLap(lap, laps), { language: speechLocale(), rate: 1 });
 }
 
 /** The end of the route reached. */

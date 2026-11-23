@@ -1,9 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  autoRouteName, drawnLine, emptyRoute, isLoop, lastWaypoint, legUrl, parseRoute, readLeg,
-  legsAround, movedWaypoint, routeDistanceM, routeFromLine, runLine, snapped, thumbnail, withoutLast,
-  withoutWaypoint, withWaypoint, type RoutePoint,
+  autoRouteName, drawnLine, emptyRoute, isLoop, lastWaypoint, legUrl, parseRoute, readLeg, legsAround, movedWaypoint, routeDistanceM, routeFromLine, runLine, snapped, thumbnail, withoutLast, withoutWaypoint, withWaypoint, type RoutePoint, MOST_LAPS, repeatLine,
 } from "./route.ts";
 
 const at = (lat: number, lng: number): RoutePoint => ({ lat, lng });
@@ -334,4 +332,13 @@ test("a run's line keeps its ends and drops fixes a metre apart", () => {
   assert.deepEqual(line[line.length - 1], fixes[100]);
   assert.ok(line.length > 15 && line.length < 25);
   assert.deepEqual(runLine([fixes[0]]), [fixes[0]]);
+});
+
+test("a loop run three times is one line, the seam not counted twice", () => {
+  const loop = [{ lat: 0, lng: 0 }, { lat: 0, lng: 0.01 }, { lat: 0.01, lng: 0.01 }, { lat: 0, lng: 0 }];
+  const three = repeatLine(loop, 3);
+  assert.equal(three.length, 4 + 3 + 3);
+  assert.deepEqual(three[3], loop[0]);
+  assert.deepEqual(repeatLine(loop, 1), loop);
+  assert.equal(repeatLine(loop, 99).length, 4 + 3 * (MOST_LAPS - 1));
 });

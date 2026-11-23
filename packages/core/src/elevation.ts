@@ -85,3 +85,14 @@ export function elevationFrom(
     profile: samples.map(({ distanceM: along }, index) => ({ distanceM: along, value: heights[index] })),
   };
 }
+
+/** A loop's profile run `laps` times, each lap carried on from the last. */
+export function repeatProfile(profile: ElevationProfile, laps: number): ElevationProfile {
+  if (profile.length < 2 || laps <= 1) return profile;
+  const lapM = profile[profile.length - 1].distanceM;
+  const out: ElevationProfile = [...profile];
+  for (let lap = 1; lap < Math.round(laps); lap += 1) {
+    out.push(...profile.slice(1).map((point) => ({ distanceM: point.distanceM + lap * lapM, value: point.value })));
+  }
+  return out;
+}

@@ -452,3 +452,19 @@ export async function fetchLeg(from: RoutePoint, to: RoutePoint): Promise<RouteP
  */
 export const coversRoute = (runM: number, routeM: number): boolean =>
   routeM > 0 && runM >= routeM * 0.9;
+
+/** The most laps of a loop a run can be asked for. */
+export const MOST_LAPS = 20;
+
+/**
+ * A loop's line run `laps` times, end to end: one line to follow, so the
+ * turns, the distance left and the finish work as they do on any route.
+ * The second lap starts where the first ended, so the seam is not counted
+ * twice.
+ */
+export function repeatLine<T extends RoutePoint>(line: readonly T[], laps: number): T[] {
+  const times = Math.max(1, Math.min(MOST_LAPS, Math.round(laps)));
+  const out: T[] = [...line];
+  for (let lap = 1; lap < times; lap += 1) out.push(...line.slice(1));
+  return out;
+}

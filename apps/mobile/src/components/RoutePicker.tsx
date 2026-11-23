@@ -2,10 +2,12 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useEffect, useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { GlassPanel } from "@/components/GlassPanel";
+import { HoldButton } from "@/components/HoldButton";
+import { readRacePlan, updateRacePlan } from "@/lib/racePlan";
 import { listRoutes } from "@/lib/db";
 import { formatDistance } from "@tread/core/format";
 import { defineStrings, useStrings } from "@tread/core/i18n";
-import { isLoop, type StoredRoute } from "@tread/core/route";
+import { isLoop, MOST_LAPS, type StoredRoute } from "@tread/core/route";
 import { setRoute } from "@/lib/settings";
 import { colors, floatingShadow, font } from "@/lib/theme";
 import { distanceUnit } from "@tread/core/units";
@@ -18,6 +20,10 @@ const routePickerStrings = defineStrings({
     loop: "boucle",
     oneWay: "aller",
     empty: "Aucun parcours enregistré. Tu peux en dessiner un depuis l'onglet Parcours.",
+    laps: "Tours",
+    lapsValue: (laps: number, distance: string) => `${laps} × la boucle · ${distance} ${distanceUnit()}`,
+    fewer: "Un tour de moins",
+    more: "Un tour de plus",
   },
   en: {
     title: "Routes",
@@ -26,6 +32,10 @@ const routePickerStrings = defineStrings({
     loop: "loop",
     oneWay: "one way",
     empty: "No saved routes. You can draw one from the Routes tab.",
+    laps: "Laps",
+    lapsValue: (laps: number, distance: string) => `${laps} × the loop · ${distance} ${distanceUnit()}`,
+    fewer: "One lap fewer",
+    more: "One lap more",
   },
 });
 
@@ -74,6 +84,24 @@ function Sheet({ chosen, onClose }: Omit<Props, "visible">) {
     return () => { active = false; };
   }, []);
 
+  // How many times the chosen loop is run, kept with the route.
+  const [laps, setLaps] = useState(1);
+  useEffect(() => {
+    if (chosen === null) return;
+    let active = true;
+    readRacePlan(chosen).then((stored) => {
+      if (active) setLaps(stored.laps);
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, [chosen]);
+  const chosenLoop = (routes ?? []).find((route) => route.id === chosen && isLoop(route)) ?? null;
+  const changeLaps = (by: number) => {
+    if (chosen === null) return;
+    const next = Math.max(1, Math.min(MOST_LAPS, laps + by));
+    setLaps(next);
+    void updateRacePlan(chosen, { laps: next });
+  };
+
   const choose = (id: number | null) => {
     onClose();
     void setRoute(id);
@@ -117,6 +145,18 @@ function Sheet({ chosen, onClose }: Omit<Props, "visible">) {
                 ].filter(Boolean).join(" · "),
               ))}
           </ScrollView>
+          {chosenLoop ? (
+            <View style={styles.laps}>
+              <Text style={styles.title}>{s.laps}</Text>
+              <View style={styles.stepper}>
+                <HoldButton label="−" accessibilityLabel={s.fewer} onStep={() => changeLaps(-1)} disabled={laps <= 1} />
+                <Text style={styles.lapsValue} numberOfLines={1}>
+                  {s.lapsValue(laps, formatDistance(chosenLoop.distanceM * laps))}
+                </Text>
+                <HoldButton label="+" accessibilityLabel={s.more} onStep={() => changeLaps(1)} disabled={laps >= MOST_LAPS} />
+              </View>
+            </View>
+          ) : null}
           {routes !== null && routes.length === 0 ? (
             <Text style={styles.hint}>{s.empty}</Text>
           ) : null}
@@ -148,5 +188,14 @@ const styles = StyleSheet.create({
   name: { color: colors.text, fontSize: 17, fontFamily: font.semibold, letterSpacing: -0.2 },
   nameOn: { color: colors.accent },
   detail: { color: colors.muted, fontSize: 13.5, fontFamily: font.regular },
+  laps: {
+    gap: 8, paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline,
+  },
+  stepper: { flexDirection: "row", alignItems: "center", gap: 12 },
+  lapsValue: {
+    flex: 1, textAlign: "center", color: colors.text, fontSize: 17, fontFamily: font.semibold,
+    fontVariant: ["tabular-nums"],
+  },
   hint: { color: colors.subtle, fontSize: 13.5, fontFamily: font.regular, lineHeight: 19 },
 });

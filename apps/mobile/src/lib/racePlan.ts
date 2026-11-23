@@ -1,6 +1,6 @@
-import { elevationFrom, elevationUrl, sampleLine, type Elevation } from "@tread/core/elevation";
+import { elevationFrom, elevationUrl, repeatProfile, sampleLine, type Elevation } from "@tread/core/elevation";
 import { racePlan, type RacePlan } from "@tread/core/raceDay";
-import { drawnLine, type StoredRoute } from "@tread/core/route";
+import { drawnLine, isLoop, MOST_LAPS, type StoredRoute } from "@tread/core/route";
 import { unitLengthM } from "@tread/core/units";
 import { deleteSettings, listRoutes, readSettings, writeSetting } from "./db";
 
@@ -21,6 +21,11 @@ export interface StoredRacePlan {
    * to, and told its weather once the forecast reaches it.
    */
   date: number | null;
+  /**
+   * How many times a loop is run: a 10K on a 5 km loop is two. Always 1 on
+   * a route that does not come back to its start.
+   */
+  laps: number;
 }
 
 const key = (routeId: number) => `racePlan.${routeId}`;
@@ -36,9 +41,10 @@ function parsePlan(raw: string | undefined): StoredRacePlan {
       goalS: typeof parsed.goalS === "number" && parsed.goalS > 0 ? parsed.goalS : null,
       elevation: parsed.elevation && Array.isArray(parsed.elevation.profile) ? parsed.elevation : null,
       date: typeof parsed.date === "number" && parsed.date > 0 ? parsed.date : null,
+      laps: typeof parsed.laps === "number" ? Math.max(1, Math.min(MOST_LAPS, Math.round(parsed.laps))) : 1,
     };
   } catch {
-    return { goalS: null, elevation: null, date: null };
+    return { goalS: null, elevation: null, date: null, laps: 1 };
   }
 }
 
@@ -98,5 +104,15 @@ export async function fetchElevation(route: StoredRoute): Promise<Elevation | nu
 export async function activeRacePlan(route: StoredRoute): Promise<RacePlan | null> {
   const stored = await readRacePlan(route.id);
   if (stored.goalS === null) return null;
-  return racePlan(route.distanceM, stored.goalS, stored.elevation?.profile ?? null, unitLengthM());
+  return planFor(route, { ...stored, goalS: stored.goalS });
+}
+
+/** How many laps of this route a run is asked for. */
+export const lapsOf = (route: StoredRoute, stored: StoredRacePlan): number => (isLoop(route) ? stored.laps : 1);
+
+/** The plan over every lap of the route, split in the runner's own unit. */
+export function planFor(route: StoredRoute, stored: StoredRacePlan & { goalS: number }): RacePlan | null {
+  const laps = lapsOf(route, stored);
+  const profile = stored.elevation ? repeatProfile(stored.elevation.profile, laps) : null;
+  return racePlan(route.distanceM * laps, stored.goalS, profile, unitLengthM());
 }

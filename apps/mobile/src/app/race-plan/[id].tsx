@@ -1,6 +1,6 @@
-import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Button } from "@/components/Button";
 import { HoldButton } from "@/components/HoldButton";
 import { LineChart } from "@/components/LineChart";
@@ -12,16 +12,18 @@ import { SettingRow } from "@/components/SettingRow";
 import { SettingsGroup } from "@/components/SettingsGroup";
 import { SummaryBanner } from "@/components/SummaryBanner";
 import { forecastAt, weatherLabel, weatherLine, type Weather } from "@/lib/weather";
-import { listRuns, readRoute } from "@/lib/db";
-import { fetchElevation, readRacePlan, updateRacePlan } from "@/lib/racePlan";
-import { setRoute } from "@/lib/settings";
+import { DropdownMenu } from "@/components/DropdownMenu";
+import { deleteRoute, listRuns, readRoute, type Run } from "@/lib/db";
+import { deleteArea } from "@/lib/offlineMap";
+import { fetchElevation, lapsOf, planFor, readRacePlan, updateRacePlan } from "@/lib/racePlan";
+import { getSettings, setRoute } from "@/lib/settings";
 import { colors, font } from "@/lib/theme";
-import type { Elevation } from "@tread/core/elevation";
+import { repeatProfile, type Elevation } from "@tread/core/elevation";
 import { formatDistance, formatDuration, formatElevation, formatPace } from "@tread/core/format";
 import { decimal, defineStrings, intlLocale, plural, useStrings } from "@tread/core/i18n";
-import { daysUntil, goalVerdict, heatCost, racePlan, type GoalVerdict } from "@tread/core/raceDay";
-import { drawnLine, type StoredRoute } from "@tread/core/route";
-import { estimateRouteTime, type RouteEstimate } from "@tread/core/routeTime";
+import { daysUntil, goalVerdict, heatCost, type GoalVerdict } from "@tread/core/raceDay";
+import { drawnLine, isLoop, MOST_LAPS, type StoredRoute } from "@tread/core/route";
+import { estimateRouteTime } from "@tread/core/routeTime";
 import { distanceUnit, elevationUnit, paceUnit, toDistanceUnits, unitLengthM } from "@tread/core/units";
 
 const raceStrings = defineStrings({
@@ -65,6 +67,22 @@ const raceStrings = defineStrings({
     forecastLater: "La météo du départ arrivera seize jours avant la course.",
     forecast: (line: string) => `Prévu au départ : ${line}.`,
     heat: (extra: string) => `Avec cette chaleur, compte environ ${extra} de plus sur ton objectif.`,
+    laps: "Tours de la boucle",
+    lapsValue: (laps: number) => `${laps} ×`,
+    fewer: "Un tour de moins",
+    more: "Un tour de plus",
+    actions: "Actions sur la course",
+    editCourse: "Modifier le parcours",
+    changeDate: "Changer la date",
+    removeRace: "Retirer de mes courses",
+    deleteRace: "Supprimer",
+    deleteTitle: "Supprimer cette course ?",
+    deleteBody: "Le parcours, son plan et sa date disparaissent. Tes sorties ne sont pas touchées.",
+    removeTitle: "Retirer de tes courses à venir ?",
+    removeBody: "La date est retirée ; le parcours et ton objectif restent.",
+    cancel: "Annuler",
+    remove: "Retirer",
+    deleteFailed: "Suppression impossible",
   },
   en: {
     title: "Race plan",
@@ -106,6 +124,22 @@ const raceStrings = defineStrings({
     forecastLater: "The weather for the start will come sixteen days before the race.",
     forecast: (line: string) => `Forecast for the start: ${line}.`,
     heat: (extra: string) => `In this heat, allow about ${extra} more than your goal.`,
+    laps: "Laps of the loop",
+    lapsValue: (laps: number) => `${laps} ×`,
+    fewer: "One lap fewer",
+    more: "One lap more",
+    actions: "Race actions",
+    editCourse: "Edit the course",
+    changeDate: "Change the date",
+    removeRace: "Remove from my races",
+    deleteRace: "Delete",
+    deleteTitle: "Delete this race?",
+    deleteBody: "The course, its plan and its date go. Your runs are not touched.",
+    removeTitle: "Remove from your upcoming races?",
+    removeBody: "The date is removed; the course and your goal stay.",
+    cancel: "Cancel",
+    remove: "Remove",
+    deleteFailed: "Couldn't delete",
   },
 });
 
@@ -126,14 +160,17 @@ export default function RacePlanScreen() {
 
   const [route, setRouteData] = useState<StoredRoute | null>(null);
   const [missing, setMissing] = useState(false);
-  const [estimate, setEstimate] = useState<RouteEstimate | null>(null);
+  const [runs, setRuns] = useState<Run[]>([]);
+  const [laps, setLaps] = useState(1);
   const [elevation, setElevation] = useState<Elevation | null>(null);
   const [goalS, setGoalS] = useState<number | null>(null);
   const [date, setDate] = useState<number | null>(null);
   const [choosingDate, setChoosingDate] = useState(false);
   const [forecast, setForecast] = useState<Weather | null>(null);
 
-  useEffect(() => {
+  // Read again on every arrival: the course may have just been edited.
+  const askedDate = useRef(false);
+  useFocusEffect(useCallback(() => {
     let active = true;
     void (async () => {
       const found = await readRoute(routeId);
@@ -150,20 +187,25 @@ export default function RacePlanScreen() {
         known = await fetchElevation(found);
         if (known) await updateRacePlan(routeId, { elevation: known });
       }
-      const runs = await listRuns();
-      const guess = estimateRouteTime(runs, found.distanceM, known?.gainM ?? 0);
+      const history = await listRuns();
+      const lapCount = lapsOf(found, stored);
+      const guess = estimateRouteTime(history, found.distanceM * lapCount, (known?.gainM ?? 0) * lapCount);
       if (!active) return;
       setElevation(known);
-      setEstimate(guess);
+      setRuns(history);
+      setLaps(lapCount);
       setDate(stored.date);
-      if (pickDate === "1" && stored.date === null) setChoosingDate(true);
+      if (pickDate === "1" && stored.date === null && !askedDate.current) {
+        askedDate.current = true;
+        setChoosingDate(true);
+      }
       // A first goal from the runner's own form, never a figure from nowhere.
-      setGoalS(stored.goalS ?? (guess ? roundTo(guess.timeS, GOAL_STEP_S) : roundTo(found.distanceM * 0.33, GOAL_STEP_S)));
+      setGoalS(stored.goalS ?? (guess ? roundTo(guess.timeS, GOAL_STEP_S) : roundTo(found.distanceM * lapCount * 0.33, GOAL_STEP_S)));
     })();
     return () => {
       active = false;
     };
-  }, [routeId, pickDate]);
+  }, [routeId, pickDate]));
 
   const changeGoal = (by: number) => {
     setGoalS((current) => {
@@ -196,10 +238,53 @@ export default function RacePlanScreen() {
     void updateRacePlan(routeId, { date: next });
   };
 
+  /**
+   * Another lap changes the race, not the runner: the goal keeps its time
+   * per lap, so the plan stays as ambitious as it was.
+   */
+  const changeLaps = (by: number) => {
+    const next = Math.max(1, Math.min(MOST_LAPS, laps + by));
+    if (next === laps) return;
+    const goal = goalS === null ? null : roundTo((goalS * next) / laps, GOAL_STEP_S);
+    setLaps(next);
+    if (goal !== null) setGoalS(goal);
+    void updateRacePlan(routeId, { laps: next, ...(goal !== null ? { goalS: goal } : {}) });
+  };
+
+  const removeFromRaces = () => {
+    Alert.alert(s.removeTitle, s.removeBody, [
+      { text: s.cancel, style: "cancel" },
+      { text: s.remove, onPress: () => keepDate(null) },
+    ]);
+  };
+
+  const deleteRace = () => {
+    Alert.alert(s.deleteTitle, s.deleteBody, [
+      { text: s.cancel, style: "cancel" },
+      {
+        text: s.deleteRace,
+        style: "destructive",
+        onPress: () => {
+          // The running screen must not keep a route that no longer exists.
+          if (getSettings().routeId === routeId) void setRoute(null);
+          void deleteArea(routeId);
+          deleteRoute(routeId)
+            .then(() => router.back())
+            .catch(() => Alert.alert(s.deleteFailed));
+        },
+      },
+    ]);
+  };
+
   const unitM = unitLengthM();
+  const totalM = route ? route.distanceM * laps : 0;
+  const estimate = useMemo(
+    () => (route ? estimateRouteTime(runs, totalM, (elevation?.gainM ?? 0) * laps) : null),
+    [route, runs, totalM, elevation, laps],
+  );
   const plan = useMemo(
-    () => (route && goalS !== null ? racePlan(route.distanceM, goalS, elevation?.profile ?? null, unitM) : null),
-    [route, goalS, elevation, unitM],
+    () => (route && goalS !== null ? planFor(route, { goalS, elevation, date, laps }) : null),
+    [route, goalS, elevation, date, laps],
   );
 
   if (missing) {
@@ -232,10 +317,32 @@ export default function RacePlanScreen() {
       ].filter(Boolean).join(" ")
       : s.forecastLater;
   const metric = unitM === 1000;
+  const loop = isLoop(route);
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Stack.Screen options={{ title: s.title }} />
+      <Stack.Screen
+        options={{
+          title: s.title,
+          // What can be done to the race, behind one button, the delete last.
+          headerRight: () => (
+            <DropdownMenu
+              accessibilityLabel={s.actions}
+              items={[
+                { key: "date", label: s.changeDate, icon: "calendar-outline", onPress: () => setChoosingDate(true) },
+                {
+                  key: "course", label: s.editCourse, icon: "create-outline",
+                  onPress: () => router.push({ pathname: "/route/[id]", params: { id: String(route.id) } }),
+                },
+                ...(date !== null
+                  ? [{ key: "remove", label: s.removeRace, icon: "remove-circle-outline" as const, onPress: removeFromRaces }]
+                  : []),
+                { key: "delete", label: s.deleteRace, icon: "trash-outline", destructive: true, onPress: deleteRace },
+              ]}
+            />
+          ),
+        }}
+      />
       <Text style={styles.name} numberOfLines={2}>{route.name}</Text>
 
       <SummaryBanner
@@ -243,9 +350,9 @@ export default function RacePlanScreen() {
         value={formatDuration(goalS)}
         detail={countdown}
         figures={[
-          { value: formatPace(goalS / (route.distanceM / 1000)), unit: paceUnit(), label: s.pace },
-          { value: formatDistance(route.distanceM), unit: distanceUnit(), label: s.distance },
-          ...(elevation ? [{ value: formatElevation(elevation.gainM), unit: elevationUnit(), label: s.gain }] : []),
+          { value: formatPace(goalS / (totalM / 1000)), unit: paceUnit(), label: s.pace },
+          { value: formatDistance(totalM), unit: distanceUnit(), label: s.distance },
+          ...(elevation ? [{ value: formatElevation(elevation.gainM * laps), unit: elevationUnit(), label: s.gain }] : []),
         ]}
       />
 
@@ -270,6 +377,19 @@ export default function RacePlanScreen() {
 
       <SettingsGroup footer={dateFooter}>
         <SettingRow icon="calendar-outline" label={s.raceDay} value={dateLabel} onPress={() => setChoosingDate(true)} />
+        {loop ? (
+          <SettingRow
+            icon="repeat-outline"
+            label={s.laps}
+            right={(
+              <View style={styles.lapStepper}>
+                <HoldButton label="−" accessibilityLabel={s.fewer} onStep={() => changeLaps(-1)} disabled={laps <= 1} />
+                <Text style={styles.lapValue}>{s.lapsValue(laps)}</Text>
+                <HoldButton label="+" accessibilityLabel={s.more} onStep={() => changeLaps(1)} disabled={laps >= MOST_LAPS} />
+              </View>
+            )}
+          />
+        ) : null}
       </SettingsGroup>
 
       <Text style={styles.lede}>{s.lede}</Text>
@@ -277,7 +397,7 @@ export default function RacePlanScreen() {
       <SectionHeader title={s.profile} />
       {elevation ? (
         <View style={styles.chart}>
-          <LineChart points={elevation.profile} format={formatElevation} unit={elevationUnit()} />
+          <LineChart points={repeatProfile(elevation.profile, laps)} format={formatElevation} unit={elevationUnit()} />
         </View>
       ) : (
         <Text style={styles.lede}>{s.flatProfile}</Text>
@@ -353,5 +473,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20, paddingTop: 14,
   },
   chart: { paddingHorizontal: 20 },
+  lapStepper: { flexDirection: "row", alignItems: "center", gap: 10 },
+  lapValue: {
+    color: colors.text, fontSize: 17, fontFamily: font.semibold, minWidth: 36, textAlign: "center",
+    fontVariant: ["tabular-nums"],
+  },
   run: { marginHorizontal: 20, marginTop: 24 },
 });

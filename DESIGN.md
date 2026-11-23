@@ -478,6 +478,24 @@ how much to allow on the goal (0.3 % per degree felt above 12 °C, up to
 10 %, after Ely et al. 2007): a word to the runner, never a change made to
 the plan behind their back.
 
+A race's ⋯ holds "Change the date", "Edit the course" (the route's
+editor; a redrawn course has its profile asked for again), "Remove from my
+races" (the date goes, the course and goal stay) and, last and in red,
+"Delete" (course, plan and date, through the system Alert). A race row in
+"Upcoming races" swipes off the list the same way it is removed.
+
+A loop can be run several times: a 10K on a 5 km loop is two laps. On a
+loop, the race day block holds a "Laps of the loop" row with a stepper
+(1 to 20), and the route picker on the run screen shows the same stepper
+under the list once a loop is chosen. The loop is laid end to end as many
+times as asked (`repeatLine`, `repeatProfile`), so the distance, the
+plan, the turns, the distance left and the finish all count every lap. A
+new lap is said aloud ("Lap 2 of 3", "Last lap") and leads the status
+line ("Lap 2/3 · Route · 4.2 km left"). Changing the laps keeps the goal's
+time per lap. A run of several laps does not count as a run of the route:
+it sets no record on it and runs against no ghost, so a lap's best stays a
+lap's.
+
 Official races are added from the Routes tab: a soft "Race" header button
 beside "New" opens a `ChoiceSheet`, "Import the course GPX" (often on the
 organiser's website) or one of the runner's routes, then the race plan

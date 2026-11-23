@@ -9,7 +9,7 @@ import {
   createRun, finishRun, insertPoints, markPlanSessionDone, readRoute, readRun, routeRecords, setRunWeather,
 } from "./db";
 import { ghostGapS, ghostOf, type Ghost } from "@tread/core/ghost";
-import { coversRoute, drawnLine } from "@tread/core/route";
+import { coversRoute, drawnLine, repeatLine } from "@tread/core/route";
 import { syncRunToHealth } from "./health";
 import { defineStrings } from "@tread/core/i18n";
 import { autoName } from "@tread/core/format";
@@ -20,11 +20,11 @@ import { makeCopy } from "./safetyCopy";
 import { toPaceUnits, unitLengthM } from "@tread/core/units";
 import {
   announceAutoPause, announceKilometre, announceLap, announceOffRoute, announcePace, announceRideSplit,
-  announceRouteDone, announceStep, announceTurn, stopSpeaking,
+  announceRouteDone, announceRouteLap, announceStep, announceTurn, stopSpeaking,
 } from "./feedback";
 import { locate, nextTurn, OFF_ROUTE_M, routeLine, turnName, type RouteLine, type TurnDirection } from "@tread/core/guidance";
 import { plannedPace, type RacePlan } from "@tread/core/raceDay";
-import { activeRacePlan } from "./racePlan";
+import { lapsOf, planFor, readRacePlan } from "./racePlan";
 import {
   currentPace, elevationGainM, fastestKmS, isAcceptable, paceSecPerKm, splits, totalDistanceM,
   type TrackPoint,
@@ -53,6 +53,9 @@ export interface Guidance {
   /** The next turn and how far to it, or null past the last one. */
   next: { direction: TurnDirection; inM: number } | null;
   done: boolean;
+  /** The lap under way, and how many, on a loop run several times (1 of 1 otherwise). */
+  lap: number;
+  laps: number;
 }
 
 export interface TrackerState {
@@ -594,6 +597,7 @@ export async function start(): Promise<void> {
     const { session } = state;
     if (session) announceStep(stepLabel(session.steps[0]), getSettings().voice, paceForStep(session.steps[0], state.sessionPaceSKm));
     // Not awaited: the run starts now, and the guidance joins it once read.
+    routeLaps = 1;
     void loadGuidance(runId, state.routeId);
     void loadGhost(runId, state.routeId);
     // One clock for both: the session needs it because a block measured in
@@ -636,7 +640,18 @@ let guide: {
   /** Turns already announced, by where they are. */
   announced: Set<number>;
   doneAnnounced: boolean;
+  /** One lap of the loop, in metres, and how many the line holds. */
+  lapM: number;
+  laps: number;
+  lap: number;
 } | null = null;
+
+/**
+ * How many laps of its route this run was asked for. A run of several laps
+ * is not counted as a run of the route: its time is not one lap's, and the
+ * route's record and ghost must stay comparable from one run to the next.
+ */
+let routeLaps = 1;
 
 /** Seconds off the route before being told: a GPS jump is not a wrong turn. */
 const OFF_FOR_MS = 10_000;
@@ -660,6 +675,8 @@ const FINISH_WITHIN_M = 8;
 async function loadGhost(runId: number, routeId: number | null): Promise<void> {
   if (routeId === null) return;
   try {
+    // Several laps of a loop are not raced against one lap's best.
+    if ((await readRacePlan(routeId)).laps > 1) return;
     const record = (await routeRecords(state.sport)).get(routeId);
     if (!record) return;
     const best = await readRun(record.best.id);
@@ -674,12 +691,18 @@ async function loadGuidance(runId: number, routeId: number | null): Promise<void
   guide = null;
   if (routeId === null) return;
   const route = await readRoute(routeId).catch(() => null);
-  const line = route ? routeLine(drawnLine(route)) : null;
+  if (!route) return;
+  const stored = await readRacePlan(route.id).catch(() => null);
+  const laps = stored ? lapsOf(route, stored) : 1;
+  // The loop laid end to end as many times as asked: one line to follow.
+  const line = routeLine(repeatLine(drawnLine(route), laps));
   if (!line || state.runId !== runId) return;
+  routeLaps = laps;
   guide = {
     runId, line, lastAlongM: null, offSince: null, offAnnounced: false, announced: new Set(), doneAnnounced: false,
+    lapM: line.totalM / laps, laps, lap: 1,
   };
-  const plan = route ? await activeRacePlan(route).catch(() => null) : null;
+  const plan = stored?.goalS ? planFor(route, { ...stored, goalS: stored.goalS }) : null;
   if (plan && state.runId === runId) publish({ racePlan: plan });
 }
 
@@ -711,6 +734,13 @@ function followRoute(point: TrackPoint): void {
   }
 
   const along = guide.lastAlongM ?? position.alongM;
+  if (guide.laps > 1) {
+    const lap = Math.min(guide.laps, Math.floor(along / guide.lapM) + 1);
+    if (lap > guide.lap) {
+      guide.lap = lap;
+      announceRouteLap(lap, guide.laps, voice);
+    }
+  }
   const next = nextTurn(line, along);
   if (next && !guide.offAnnounced && next.inM <= TURN_CUE_M && !guide.announced.has(next.turn.alongM)) {
     guide.announced.add(next.turn.alongM);
@@ -736,6 +766,8 @@ function followRoute(point: TrackPoint): void {
       off: guide.offAnnounced,
       next: next ? { direction: next.turn.direction, inM: next.inM } : null,
       done,
+      lap: guide.lap,
+      laps: guide.laps,
     },
   });
 }
@@ -761,7 +793,7 @@ export function clearAutoFinished(): void {
 
 /** The route this run counts for, if it covered enough of the one it started on. */
 async function coveredRoute(runM: number): Promise<number | null> {
-  if (state.routeId === null) return null;
+  if (state.routeId === null || routeLaps > 1) return null;
   const route = await readRoute(state.routeId).catch(() => null);
   return route && coversRoute(runM, route.distanceM) ? route.id : null;
 }

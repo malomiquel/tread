@@ -105,6 +105,7 @@ const recordStrings = defineStrings({
     planAhead: (gap: string) => `${gap} d'avance sur ton plan`,
     planBehind: (gap: string) => `${gap} de retard sur ton plan`,
     planLevel: "dans ton plan",
+    lapOf: (lap: number, laps: number) => `Tour ${lap}/${laps}`,
     climbSoon: (inM: string, length: string, grade: string) => `Montée dans ${inM} · ${length} à ${grade}`,
     climbOn: (left: string, cost: number) => `En montée · encore ${left} · ${cost} s prévues`,
     routeTurn: (direction: string, metres: string) => `${direction.charAt(0).toUpperCase()}${direction.slice(1)} dans ${metres}`,
@@ -176,6 +177,7 @@ const recordStrings = defineStrings({
     planAhead: (gap: string) => `${gap} ahead of your plan`,
     planBehind: (gap: string) => `${gap} behind your plan`,
     planLevel: "on your plan",
+    lapOf: (lap: number, laps: number) => `Lap ${lap}/${laps}`,
     climbSoon: (inM: string, length: string, grade: string) => `Climb in ${inM} · ${length} at ${grade}`,
     climbOn: (left: string, cost: number) => `Climbing · ${left} to go · ${cost} s allowed`,
     routeTurn: (direction: string, metres: string) => `${direction.charAt(0).toUpperCase()}${direction.slice(1)} in ${metres}`,
@@ -695,7 +697,11 @@ export default function RecordScreen() {
         : guidance.next && guidance.next.inM <= 200
           ? s.routeTurn(turnName(guidance.next.direction), shortDistance(guidance.next.inM))
           : climbWords
-            ?? `${s.routeLeft(formatDistance(guidance.leftM))}${(planWords ?? gapWords) ? ` · ${planWords ?? gapWords}` : ""}`;
+            ?? [
+              guidance.laps > 1 ? s.lapOf(guidance.lap, guidance.laps) : null,
+              s.routeLeft(formatDistance(guidance.leftM)),
+              planWords ?? gapWords,
+            ].filter(Boolean).join(" · ");
   const guideLine = sessionLine ?? lapLine ?? followLine;
   const routeWarning = sessionLine === null && lapLine === null && guidance?.off === true;
 

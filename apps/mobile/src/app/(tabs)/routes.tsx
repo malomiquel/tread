@@ -17,7 +17,7 @@ import { RouteSnapshot, type RouteSnapshotHandle } from "@/components/RouteSnaps
 import { deleteRoute, listRoutes, routeRecords, setRoutePreview, type RouteRecord } from "@/lib/db";
 import { deleteArea } from "@/lib/offlineMap";
 import { importRaceCourse, importRouteFiles } from "@/lib/files";
-import { upcomingRaces, type UpcomingRace } from "@/lib/racePlan";
+import { updateRacePlan, upcomingRaces, type UpcomingRace } from "@/lib/racePlan";
 import { RecordRow } from "@/components/RecordRow";
 import { SectionHeader } from "@/components/SectionHeader";
 import { daysUntil } from "@tread/core/raceDay";
@@ -75,6 +75,9 @@ const routesStrings = defineStrings({
     raceToday: "Aujourd'hui",
     raceIn: (days: number) => `J-${days}`,
     raceDetail: (when: string, distance: string) => `${when} · ${distance}`,
+    removeRaceTitle: "Retirer de tes courses à venir ?",
+    removeRaceBody: (name: string) => `${name} : la date est retirée, le parcours et ton objectif restent.`,
+    removeRace: "Retirer",
     planRace: "Préparer une course",
     planRaceDetail: "Le parcours officiel, la date et ton objectif.",
   },
@@ -119,6 +122,9 @@ const routesStrings = defineStrings({
     raceToday: "Today",
     raceIn: (days: number) => `${plural(days, "day", "days")} to go`,
     raceDetail: (when: string, distance: string) => `${when} · ${distance}`,
+    removeRaceTitle: "Remove from your upcoming races?",
+    removeRaceBody: (name: string) => `${name}: the date is removed; the course and your goal stay.`,
+    removeRace: "Remove",
     planRace: "Plan a race",
     planRaceDetail: "The official course, the date and your goal.",
   },
@@ -271,6 +277,22 @@ export default function RoutesScreen() {
   const planOn = (routeId: number) =>
     router.push({ pathname: "/race-plan/[id]", params: { id: String(routeId), pickDate: "1" } });
 
+  /** Off the list of races: the date goes, the course and its plan stay. */
+  function removeRace(race: UpcomingRace) {
+    const text = routesStrings();
+    Alert.alert(text.removeRaceTitle, text.removeRaceBody(race.route.name), [
+      { text: text.cancel, style: "cancel" },
+      {
+        text: text.removeRace,
+        style: "destructive",
+        onPress: () => {
+          setRaces((current) => current.filter((held) => held.route.id !== race.route.id));
+          void updateRacePlan(race.route.id, { date: null }).catch(load);
+        },
+      },
+    ]);
+  }
+
   async function addRaceFromGpx() {
     if (importing) return;
     setImporting(true);
@@ -410,8 +432,8 @@ export default function RoutesScreen() {
                   weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
                 });
                 return (
+                  <SwipeToDelete key={race.route.id} label={race.route.name} onDelete={() => removeRace(race)}>
                   <RecordRow
-                    key={race.route.id}
                     first={index === 0}
                     icon="flag-outline"
                     label={race.route.name}
@@ -419,6 +441,7 @@ export default function RoutesScreen() {
                     value={days <= 0 ? s.raceToday : s.raceIn(days)}
                     onPress={() => router.push({ pathname: "/race-plan/[id]", params: { id: String(race.route.id) } })}
                   />
+                  </SwipeToDelete>
                 );
               })}
             </View>
