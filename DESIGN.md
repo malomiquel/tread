@@ -370,6 +370,13 @@ word in their chip. The weather keeps the right end of the status line while
 running (sky icon and degrees); at rest it has its own line, whose room is
 kept even before it answers.
 
+Afterwards, a run's page reads its stops back from the track (every resume
+opens a segment, `@tread/core/pauses`; a gap under 3 s is the GPS, not a
+stop). The duration stays time moving; when there were stops, a second row
+gives the total time and the pace with stops (the speed, on a ride), and a
+block lists each stop: where, after how long, and for how long, under a
+title with their count and total.
+
 On the map, the screen is the map. Everything else floats over it in glass: the way out
 top-left, the toggles (SESSION, ROUTE, VOICE) in a column on the right
 — SESSION and ROUTE only before the start, since a choice made mid-run

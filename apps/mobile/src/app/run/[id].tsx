@@ -34,6 +34,7 @@ import {
 import { effortKm, elevationChangeM, elevationProfile, splits, topSpeedMs, type TrackPoint } from "@tread/core/geo";
 import { gradeAdjustedPace } from "@tread/core/gradePace";
 import { lapsOf, type Lap } from "@tread/core/laps";
+import { pausedS, pausesOf } from "@tread/core/pauses";
 import { findSession } from "@/lib/sessionLibrary";
 import { effortName, sessionName, vmaFromBlocks, type RanBlock } from "@tread/core/workout";
 import { gpxFileName, toGpx } from "@tread/core/gpx";
@@ -126,6 +127,12 @@ const runStrings = defineStrings({
     lapName: (number: number) => `Tour ${number}`,
     lapRest: "Jusqu'à l'arrivée",
     fastestLap: "le plus rapide",
+    totalTime: "Temps total",
+    paused: (count: number) => `${count} pause${count > 1 ? "s" : ""}`,
+    realPace: "Allure avec pauses",
+    realSpeed: "Vitesse avec pauses",
+    pauseAt: (distance: string) => `Au ${distance}`,
+    pauseAfter: (time: string) => `après ${time} de course`,
     copiedToHealth: (store: string) => `Copiée dans ${store}`,
     importedFrom: (store: string, source: string) => `Importée depuis ${store} · ${source}`,
     sending: "Envoi…",
@@ -217,6 +224,12 @@ const runStrings = defineStrings({
     lapName: (number: number) => `Lap ${number}`,
     lapRest: "To the finish",
     fastestLap: "fastest",
+    totalTime: "Total time",
+    paused: (count: number) => `${count} pause${count > 1 ? "s" : ""}`,
+    realPace: "Pace with stops",
+    realSpeed: "Speed with stops",
+    pauseAt: (distance: string) => `At ${distance}`,
+    pauseAfter: (time: string) => `after ${time} of running`,
     copiedToHealth: (store: string) => `Copied to ${store}`,
     importedFrom: (store: string, source: string) => `Imported from ${store} · ${source}`,
     sending: "Sending…",
@@ -497,6 +510,10 @@ export default function RunDetailScreen() {
   ].filter(Boolean).join(" · ");
   const kilometres = splits(points, unitLengthM());
   const laps = lapsOf(run.laps, run.distanceM, run.durationS);
+  // The stops, read back from the track: the duration above is time moving,
+  // and the total beside it is what the clock on the wall said.
+  const pauses = pausesOf(points);
+  const stoppedS = pausedS(pauses);
   const vma = vmaFromBlocks(run.sessionId, run.blocks);
   // Only where the hills made a difference worth reading: on the flat it is
   // the pace again, and a second figure saying the same thing is noise.
@@ -850,6 +867,16 @@ export default function RunDetailScreen() {
             <Metric label={s.avgPace} value={formatPace(run.avgPaceSKm)} unit={paceUnit()} />
           )}
         </View>
+        {pauses.length > 0 ? (
+          <View style={styles.row}>
+            <Metric label={s.totalTime} value={formatDuration(run.durationS + stoppedS)} />
+            {riding ? (
+              <Metric label={s.realSpeed} value={formatSpeed(run.distanceM / (run.durationS + stoppedS))} unit={speedUnit()} />
+            ) : (
+              <Metric label={s.realPace} value={formatPace((run.durationS + stoppedS) / (run.distanceM / 1000))} unit={paceUnit()} />
+            )}
+          </View>
+        ) : null}
         {run.elevationGainM !== null && (
           <View style={styles.row}>
             <Metric label={s.elevationGain} value={formatElevation(run.elevationGainM)} unit={elevationUnit()} />
@@ -1149,6 +1176,24 @@ export default function RunDetailScreen() {
           <Text style={styles.sectionTitle}>{s.laps}</Text>
           {laps.map((lap) => (
             <LapRow key={lap.number} lap={lap} fastest={lap.number === fastestLap} words={s} />
+          ))}
+        </View>
+      )}
+
+      {pauses.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>
+            {`${s.paused(pauses.length)} · ${formatDuration(Math.round(stoppedS))}`}
+          </Text>
+          {pauses.map((pause, index) => (
+            <View key={pause.afterS} style={styles.block}>
+              <Text style={styles.blockRank}>{index + 1}</Text>
+              <View style={styles.blockText}>
+                <Text style={styles.blockName}>{s.pauseAt(`${formatDistance(pause.atM)} ${distanceUnit()}`)}</Text>
+                <Text style={styles.blockDone}>{s.pauseAfter(formatDuration(Math.round(pause.afterS)))}</Text>
+              </View>
+              <Text style={styles.blockPace}>{formatDuration(Math.round(pause.durationS))}</Text>
+            </View>
           ))}
         </View>
       )}
