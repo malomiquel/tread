@@ -16,9 +16,13 @@ import { SwipeToDelete } from "@/components/SwipeToDelete";
 import { RouteSnapshot, type RouteSnapshotHandle } from "@/components/RouteSnapshot";
 import { deleteRoute, listRoutes, routeRecords, setRoutePreview, type RouteRecord } from "@/lib/db";
 import { deleteArea } from "@/lib/offlineMap";
-import { importRouteFiles } from "@/lib/files";
+import { importRaceCourse, importRouteFiles } from "@/lib/files";
+import { upcomingRaces, type UpcomingRace } from "@/lib/racePlan";
+import { RecordRow } from "@/components/RecordRow";
+import { SectionHeader } from "@/components/SectionHeader";
+import { daysUntil } from "@tread/core/raceDay";
 import { formatDistance, formatDuration } from "@tread/core/format";
-import { defineStrings, useStrings } from "@tread/core/i18n";
+import { defineStrings, intlLocale, plural, useStrings } from "@tread/core/i18n";
 import { useTabBarSpace } from "@/lib/layout";
 import { useKnownLocation } from "@/lib/location";
 import {
@@ -60,6 +64,19 @@ const routesStrings = defineStrings({
     sortBy: (name: string) => `Trier : ${name}`,
     noMatch: "Aucun parcours ne correspond.",
     count: (shown: number, total: number) => `${shown} sur ${total}`,
+    raceShort: "Course",
+    addRace: "Ajouter une course officielle",
+    addRaceTitle: "Ajouter une course",
+    raceFromGpx: "Importer le GPX du parcours",
+    raceFromGpxDetail: "Souvent sur le site de l'organisateur.",
+    raceFromRoute: (name: string) => name,
+    raceFromRouteDetail: "Un de tes parcours",
+    upcoming: "Courses à venir",
+    raceToday: "Aujourd'hui",
+    raceIn: (days: number) => `J-${days}`,
+    raceDetail: (when: string, distance: string) => `${when} · ${distance}`,
+    planRace: "Préparer une course",
+    planRaceDetail: "Le parcours officiel, la date et ton objectif.",
   },
   en: {
     title: "Routes",
@@ -91,6 +108,19 @@ const routesStrings = defineStrings({
     sortBy: (name: string) => `Sort: ${name}`,
     noMatch: "No route matches.",
     count: (shown: number, total: number) => `${shown} of ${total}`,
+    raceShort: "Race",
+    addRace: "Add an official race",
+    addRaceTitle: "Add a race",
+    raceFromGpx: "Import the course GPX",
+    raceFromGpxDetail: "Often on the organiser's website.",
+    raceFromRoute: (name: string) => name,
+    raceFromRouteDetail: "One of your routes",
+    upcoming: "Upcoming races",
+    raceToday: "Today",
+    raceIn: (days: number) => `${plural(days, "day", "days")} to go`,
+    raceDetail: (when: string, distance: string) => `${when} · ${distance}`,
+    planRace: "Plan a race",
+    planRaceDetail: "The official course, the date and your goal.",
   },
 });
 
@@ -160,6 +190,8 @@ export default function RoutesScreen() {
   const [routes, setRoutes] = useState<StoredRoute[] | null>(null);
   const [records, setRecords] = useState<Map<number, RouteRecord>>(new Map());
   const [importing, setImporting] = useState(false);
+  const [races, setRaces] = useState<UpcomingRace[]>([]);
+  const [addingRace, setAddingRace] = useState(false);
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<RouteFilter[]>([]);
   const [sort, setSort] = useState<RouteSort>("recent");
@@ -204,6 +236,7 @@ export default function RoutesScreen() {
       .catch(() => setRoutes([]));
     // Each route's fastest run, shown under it once it has been run.
     routeRecords().then(setRecords).catch(() => undefined);
+    upcomingRaces().then(setRaces).catch(() => setRaces([]));
   }, [photograph]);
 
   // Reloaded on every arrival: the last thing somebody did before coming back
@@ -233,6 +266,26 @@ export default function RoutesScreen() {
   }
 
   const draw = () => router.push({ pathname: "/route/[id]", params: { id: "new" } });
+
+  /** A race is planned on a course: opened on its plan, the date asked first. */
+  const planOn = (routeId: number) =>
+    router.push({ pathname: "/race-plan/[id]", params: { id: String(routeId), pickDate: "1" } });
+
+  async function addRaceFromGpx() {
+    if (importing) return;
+    setImporting(true);
+    try {
+      const routeId = await importRaceCourse();
+      if (routeId === null) return;
+      load();
+      planOn(routeId);
+    } catch (cause) {
+      const text = routesStrings();
+      Alert.alert(text.importFailed, cause instanceof Error ? cause.message : text.unexpectedError);
+    } finally {
+      setImporting(false);
+    }
+  }
 
   // Every route with what it is judged on, then searched, filtered and sorted.
   const all = routes ?? [];
@@ -291,7 +344,10 @@ export default function RoutesScreen() {
           {/* One way in, said in words. Two bare icons side by side — an
               arrow and a plus — left people guessing which one drew. */}
           {routes && routes.length === 0 ? null : (
-          <HeaderButton icon="add" label={s.newShort} accessibilityLabel={s.drawNew} primary onPress={draw} />
+            <View style={styles.headActions}>
+              <HeaderButton icon="flag-outline" label={s.raceShort} accessibilityLabel={s.addRace} busy={importing} onPress={() => setAddingRace(true)} />
+              <HeaderButton icon="add" label={s.newShort} accessibilityLabel={s.drawNew} primary onPress={draw} />
+            </View>
           )}
         </View>
 
@@ -345,6 +401,28 @@ export default function RoutesScreen() {
           keyboardDismissMode="on-drag"
           keyExtractor={(route) => String(route.id)}
           contentContainerStyle={{ paddingBottom: tabBarSpace + 60 }}
+          ListHeaderComponent={races.length > 0 && !narrowed ? (
+            <View style={styles.races}>
+              <SectionHeader title={s.upcoming} />
+              {races.map((race, index) => {
+                const days = daysUntil(race.plan.date, Date.now());
+                const when = new Date(race.plan.date).toLocaleString(intlLocale(), {
+                  weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+                });
+                return (
+                  <RecordRow
+                    key={race.route.id}
+                    first={index === 0}
+                    icon="flag-outline"
+                    label={race.route.name}
+                    detail={s.raceDetail(when, `${formatDistance(race.route.distanceM)} ${distanceUnit()}`)}
+                    value={days <= 0 ? s.raceToday : s.raceIn(days)}
+                    onPress={() => router.push({ pathname: "/race-plan/[id]", params: { id: String(race.route.id) } })}
+                  />
+                );
+              })}
+            </View>
+          ) : null}
           ListEmptyComponent={
             routes === null ? null : all.length > 0 ? (
               <NoMatch message={s.noMatch} onShowAll={showAll} />
@@ -359,6 +437,7 @@ export default function RoutesScreen() {
                     busy: importing,
                     onPress: () => void importGpx(),
                   },
+                  { icon: "flag-outline", title: s.planRace, detail: s.planRaceDetail, onPress: () => void addRaceFromGpx() },
                 ]}
               />
             )
@@ -427,6 +506,24 @@ export default function RoutesScreen() {
         onClose={() => setChoosingSort(false)}
       />
 
+      {/* A race is run on a course: the official one from its file, or one
+          of the runner's own routes. */}
+      <ChoiceSheet<number | "gpx">
+        visible={addingRace}
+        title={s.addRaceTitle}
+        selected={-1}
+        choices={[
+          { value: "gpx", label: s.raceFromGpx, detail: s.raceFromGpxDetail },
+          ...all.slice(0, 6).map((route) => ({
+            value: route.id,
+            label: s.raceFromRoute(route.name),
+            detail: `${s.raceFromRouteDetail} · ${formatDistance(route.distanceM)} ${distanceUnit()}`,
+          })),
+        ]}
+        onChoose={(choice) => (choice === "gpx" ? void addRaceFromGpx() : planOn(choice))}
+        onClose={() => setAddingRace(false)}
+      />
+
       {/* Parked off screen, and only ever asked for a picture of a route that
           has none. */}
       <RouteSnapshot ref={camera} />
@@ -439,6 +536,8 @@ const GUTTER = 20;
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   fill: { flex: 1 },
+  headActions: { flexDirection: "row", gap: 8 },
+  races: { paddingBottom: 10 },
   head: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8,
     paddingHorizontal: GUTTER, paddingTop: 10, paddingBottom: 14,

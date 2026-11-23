@@ -213,6 +213,7 @@ defaults.
 | `Button` | Full-width actions in sheets and forms. `primary`, `secondary`, `danger`. Min height 50, radius 6. |
 | `HoldButton` | Steppers that repeat while held (goal, pace). |
 | `Chip` + `ChipRow` | The row under a list's title: the sort (always tinted, opens a `ChoiceSheet`) and filters (neutral with a hairline, `accentSoft` + `accent` when on). Height 36, radius 8; the row scrolls sideways from the gutter. A chip that opens a choice (`menu`) ends in a chevron. |
+| `MonthPicker` | Every date the app asks for (a plan's race, a race on a route): the month with arrows, then its days as rows of seven from Monday, the chosen one filled in `accent`, those out of reach greyed rather than hidden. |
 | `Segmented` | Two or three ways of seeing the same thing (History: list or calendar). The one showing is filled on the `sunken` track. `compact`: as wide as its words and 36 high, to share a row with a chip. |
 | `StepSlider` | A choice among a few ordered stops (1–4 runs a week). Snaps, ticks with a haptic, works with VoiceOver. |
 | `DropdownMenu` | A round ⋯ button whose menu drops just under it: the actions on the thing a page shows. |
@@ -467,6 +468,23 @@ when no turn is close, says the climb coming ("Climb in 200 m · 600 m at
 4 %") or under way ("Climbing · 300 m to go · 18 s allowed"), otherwise
 the distance left and the gap to the plan ("12 s ahead of your plan"),
 which takes the room of the gap to the record.
+
+A race has a day. Under the goal's panel, a settings row "Race day" opens
+`RaceDateSheet` (a `MonthPicker` and the start on a stepper, 15 min a
+step, "Remove the date" in red when one is set). The stage's detail counts
+down ("In 12 days", "Tomorrow", "Today"). The row's footer gives the
+forecast for the start once it is within sixteen days, and when it is warm
+how much to allow on the goal (0.3 % per degree felt above 12 °C, up to
+10 %, after Ely et al. 2007): a word to the runner, never a change made to
+the plan behind their back.
+
+Official races are added from the Routes tab: a soft "Race" header button
+beside "New" opens a `ChoiceSheet`, "Import the course GPX" (often on the
+organiser's website) or one of the runner's routes, then the race plan
+opens with its date asked first. The empty tab offers it as a third card,
+"Plan a race". Races still to run sit above the routes, under "Upcoming
+races", soonest first, one `RecordRow` each (flag, name, day and start ·
+distance, "12 days to go"), kept through their whole day.
 
 ### The welcome
 

@@ -156,3 +156,18 @@ export async function exportRunArchive(): Promise<string | null> {
   await Sharing.shareAsync(file.uri, { mimeType: "application/zip", UTI: "public.zip-archive" });
   return fileWords().exported(loaded.length);
 }
+
+/**
+ * A race's course, from the GPX its organiser publishes: kept as a route,
+ * and its id handed back so the race can be planned on it at once. Null
+ * when nothing was picked; throws when the file holds no track.
+ */
+export async function importRaceCourse(): Promise<number | null> {
+  const assets = await pickGpx();
+  const asset = assets?.[0];
+  if (!asset) return null;
+  const { name, line } = parseGpxLine(await new File(asset.uri).text());
+  if (line.length < 2) throw new Error(fileWords().noRoutes);
+  const place = await placeName(line[0].lat, line[0].lng);
+  return saveRoute(name?.trim() || autoRouteName(Date.now()), routeFromLine(line), { place, preview: null });
+}

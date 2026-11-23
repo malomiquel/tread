@@ -199,3 +199,31 @@ export function goalVerdict(goalS: number, estimate: RouteEstimate | null): Goal
   if (goalS > estimate.highS) return "cautious";
   return "realistic";
 }
+
+/**
+ * What the heat forecast for the start will cost, as a share of the time.
+ *
+ * PUBLISHED. Marathon times slow steadily as it warms past the low teens
+ * (Ely et al., Medicine & Science in Sports & Exercise, 2007), and more for
+ * slower runners, who are out in it longer.
+ *
+ * CHOSEN. One simple rule rather than their tables: 0.3 % of the time per
+ * degree felt above 12 °C, up to 10 %. It is a warning to adjust the goal,
+ * not a change made to the plan behind the runner's back.
+ */
+const HEAT_FROM_C = 12;
+const HEAT_PER_C = 0.003;
+const HEAT_MOST = 0.1;
+
+export function heatCost(feelsLikeC: number): number {
+  return Math.min(HEAT_MOST, Math.max(0, feelsLikeC - HEAT_FROM_C) * HEAT_PER_C);
+}
+
+/** Whole days from today to the race's day: 0 on the day itself. */
+export function daysUntil(date: number, now: number): number {
+  const day = (at: number) => {
+    const d = new Date(at);
+    return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+  };
+  return Math.round((day(date) - day(now)) / 86_400_000);
+}

@@ -161,6 +161,22 @@ export async function weatherAt(lat: number, lng: number, ts: number): Promise<W
 }
 
 /**
+ * Conditions forecast for a moment to come, such as a race's start. Null
+ * past the forecast's reach (sixteen days), or before it.
+ */
+export async function forecastAt(lat: number, lng: number, ts: number): Promise<Weather | null> {
+  const ahead = ts - Date.now();
+  if (ahead < -3_600_000 || ahead > FORECAST_DAYS * 86_400_000) return null;
+  const payload = await ask(
+    weatherRequest(
+      `latitude=${grid(lat)}&longitude=${grid(lng)}&hourly=${FIELDS}`
+      + `&forecast_days=${FORECAST_DAYS}&timeformat=unixtime&wind_speed_unit=kmh`,
+    ),
+  );
+  return payload === null ? null : readHourly(payload, ts);
+}
+
+/**
  * A whole day at a glance, which is all a session three days out can be told.
  *
  * Two temperatures rather than one, because a day is not a temperature: the

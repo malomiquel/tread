@@ -7,16 +7,20 @@ import { LineChart } from "@/components/LineChart";
 import { Panel } from "@/components/Panel";
 import { RecordRow } from "@/components/RecordRow";
 import { SectionHeader } from "@/components/SectionHeader";
+import { RaceDateSheet } from "@/components/RaceDateSheet";
+import { SettingRow } from "@/components/SettingRow";
+import { SettingsGroup } from "@/components/SettingsGroup";
 import { SummaryBanner } from "@/components/SummaryBanner";
+import { forecastAt, weatherLabel, weatherLine, type Weather } from "@/lib/weather";
 import { listRuns, readRoute } from "@/lib/db";
-import { fetchElevation, readRacePlan, writeRacePlan } from "@/lib/racePlan";
+import { fetchElevation, readRacePlan, updateRacePlan } from "@/lib/racePlan";
 import { setRoute } from "@/lib/settings";
 import { colors, font } from "@/lib/theme";
 import type { Elevation } from "@tread/core/elevation";
 import { formatDistance, formatDuration, formatElevation, formatPace } from "@tread/core/format";
-import { decimal, defineStrings, useStrings } from "@tread/core/i18n";
-import { goalVerdict, racePlan, type GoalVerdict } from "@tread/core/raceDay";
-import type { StoredRoute } from "@tread/core/route";
+import { decimal, defineStrings, intlLocale, plural, useStrings } from "@tread/core/i18n";
+import { daysUntil, goalVerdict, heatCost, racePlan, type GoalVerdict } from "@tread/core/raceDay";
+import { drawnLine, type StoredRoute } from "@tread/core/route";
 import { estimateRouteTime, type RouteEstimate } from "@tread/core/routeTime";
 import { distanceUnit, elevationUnit, paceUnit, toDistanceUnits, unitLengthM } from "@tread/core/units";
 
@@ -52,6 +56,15 @@ const raceStrings = defineStrings({
     climbCost: (seconds: number) => `+${seconds} s`,
     run: "Courir ce plan",
     missing: "Ce parcours n'existe plus.",
+    raceDay: "Jour de course",
+    pickDate: "Choisir",
+    today: "Aujourd'hui",
+    tomorrow: "Demain",
+    inDays: (days: number) => `Dans ${plural(days, "jour", "jours")}`,
+    noDateFooter: "Avec une date, la course apparaît dans tes courses à venir et reçoit sa météo seize jours avant.",
+    forecastLater: "La météo du départ arrivera seize jours avant la course.",
+    forecast: (line: string) => `Prévu au départ : ${line}.`,
+    heat: (extra: string) => `Avec cette chaleur, compte environ ${extra} de plus sur ton objectif.`,
   },
   en: {
     title: "Race plan",
@@ -84,6 +97,15 @@ const raceStrings = defineStrings({
     climbCost: (seconds: number) => `+${seconds} s`,
     run: "Run this plan",
     missing: "This route no longer exists.",
+    raceDay: "Race day",
+    pickDate: "Choose",
+    today: "Today",
+    tomorrow: "Tomorrow",
+    inDays: (days: number) => `In ${plural(days, "day", "days")}`,
+    noDateFooter: "With a date, the race shows among your upcoming races and gets its weather sixteen days ahead.",
+    forecastLater: "The weather for the start will come sixteen days before the race.",
+    forecast: (line: string) => `Forecast for the start: ${line}.`,
+    heat: (extra: string) => `In this heat, allow about ${extra} more than your goal.`,
   },
 });
 
@@ -98,7 +120,8 @@ const roundTo = (seconds: number, step: number) => Math.round(seconds / step) * 
 export default function RacePlanScreen() {
   const s = useStrings(raceStrings);
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  // `pickDate`: arrived from "Add a race", so the date is asked straight away.
+  const { id, pickDate } = useLocalSearchParams<{ id: string; pickDate?: string }>();
   const routeId = Number(id);
 
   const [route, setRouteData] = useState<StoredRoute | null>(null);
@@ -106,6 +129,9 @@ export default function RacePlanScreen() {
   const [estimate, setEstimate] = useState<RouteEstimate | null>(null);
   const [elevation, setElevation] = useState<Elevation | null>(null);
   const [goalS, setGoalS] = useState<number | null>(null);
+  const [date, setDate] = useState<number | null>(null);
+  const [choosingDate, setChoosingDate] = useState(false);
+  const [forecast, setForecast] = useState<Weather | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -122,28 +148,52 @@ export default function RacePlanScreen() {
       // Asked once and kept, so the plan holds on a race morning without signal.
       if (!known) {
         known = await fetchElevation(found);
-        if (known) await writeRacePlan(routeId, { ...stored, elevation: known });
+        if (known) await updateRacePlan(routeId, { elevation: known });
       }
       const runs = await listRuns();
       const guess = estimateRouteTime(runs, found.distanceM, known?.gainM ?? 0);
       if (!active) return;
       setElevation(known);
       setEstimate(guess);
+      setDate(stored.date);
+      if (pickDate === "1" && stored.date === null) setChoosingDate(true);
       // A first goal from the runner's own form, never a figure from nowhere.
       setGoalS(stored.goalS ?? (guess ? roundTo(guess.timeS, GOAL_STEP_S) : roundTo(found.distanceM * 0.33, GOAL_STEP_S)));
     })();
     return () => {
       active = false;
     };
-  }, [routeId]);
+  }, [routeId, pickDate]);
 
   const changeGoal = (by: number) => {
     setGoalS((current) => {
       if (current === null) return current;
       const next = Math.max(GOAL_STEP_S * 8, current + by);
-      void readRacePlan(routeId).then((stored) => writeRacePlan(routeId, { ...stored, goalS: next }));
+      void updateRacePlan(routeId, { goalS: next });
       return next;
     });
+  };
+
+  // The forecast for the start, once the race is within its reach.
+  useEffect(() => {
+    setForecast(null);
+    const start = route ? drawnLine(route)[0] : undefined;
+    if (date === null || !start) return;
+    let active = true;
+    forecastAt(start.lat, start.lng, date)
+      .then((found) => {
+        if (active) setForecast(found);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [route, date]);
+
+  const keepDate = (next: number | null) => {
+    setChoosingDate(false);
+    setDate(next);
+    void updateRacePlan(routeId, { date: next });
   };
 
   const unitM = unitLengthM();
@@ -165,6 +215,22 @@ export default function RacePlanScreen() {
   }
 
   const verdict = goalVerdict(goalS, estimate);
+  const days = date === null ? null : daysUntil(date, Date.now());
+  const countdown = days === null ? undefined : days <= 0 ? s.today : days === 1 ? s.tomorrow : s.inDays(days);
+  const dateLabel = date === null
+    ? s.pickDate
+    : new Date(date).toLocaleString(intlLocale(), {
+      weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+    });
+  const extraS = forecast ? Math.round((goalS * heatCost(forecast.feelsLikeC)) / 5) * 5 : 0;
+  const dateFooter = date === null
+    ? s.noDateFooter
+    : forecast
+      ? [
+        s.forecast([weatherLabel(forecast.code), weatherLine(forecast)].filter(Boolean).join(" · ")),
+        extraS >= 10 ? s.heat(formatDuration(extraS)) : null,
+      ].filter(Boolean).join(" ")
+      : s.forecastLater;
   const metric = unitM === 1000;
 
   return (
@@ -175,6 +241,7 @@ export default function RacePlanScreen() {
       <SummaryBanner
         label={s.goal}
         value={formatDuration(goalS)}
+        detail={countdown}
         figures={[
           { value: formatPace(goalS / (route.distanceM / 1000)), unit: paceUnit(), label: s.pace },
           { value: formatDistance(route.distanceM), unit: distanceUnit(), label: s.distance },
@@ -200,6 +267,10 @@ export default function RacePlanScreen() {
           {verdict ? s.verdict[verdict] : " "}
         </Text>
       </Panel>
+
+      <SettingsGroup footer={dateFooter}>
+        <SettingRow icon="calendar-outline" label={s.raceDay} value={dateLabel} onPress={() => setChoosingDate(true)} />
+      </SettingsGroup>
 
       <Text style={styles.lede}>{s.lede}</Text>
 
@@ -248,6 +319,8 @@ export default function RacePlanScreen() {
           router.push("/record");
         }}
       />
+
+      <RaceDateSheet visible={choosingDate} date={date} onKeep={keepDate} onClose={() => setChoosingDate(false)} />
     </ScrollView>
   );
 }

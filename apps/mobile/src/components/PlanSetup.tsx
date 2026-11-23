@@ -9,6 +9,7 @@ import { ofSport } from "@tread/core/activity";
 import { listRuns, personalRecords } from "@/lib/db";
 import { formatDistance, formatDuration, formatElevation, formatPace } from "@tread/core/format";
 import { HoldButton } from "@/components/HoldButton";
+import { MonthPicker } from "@/components/MonthPicker";
 import { decimal, defineStrings, intlLocale, plural, useStrings } from "@tread/core/i18n";
 import { useTabBarSpace } from "@/lib/layout";
 import {
@@ -62,8 +63,6 @@ const planSetupStrings = defineStrings({
     createFailedBody: "Tes réponses sont gardées. Réessaie dans un instant.",
     dateHint: (min: number, max: number) =>
       `Entre ${min} et ${max} semaines d'ici. En deçà, il n'y a pas le temps de construire quoi que ce soit.`,
-    previousMonth: "Mois précédent",
-    nextMonth: "Mois suivant",
     perWeekDetails: {
       1: "la sortie longue",
       2: "le minimum qui prépare",
@@ -178,8 +177,6 @@ const planSetupStrings = defineStrings({
     createFailedBody: "Your answers are kept. Try again in a moment.",
     dateHint: (min: number, max: number) =>
       `Between ${min} and ${max} weeks from now. Any sooner, and there is no time to build anything.`,
-    previousMonth: "Previous month",
-    nextMonth: "Next month",
     perWeekDetails: {
       1: "the long run",
       2: "the minimum that prepares you",
@@ -332,87 +329,6 @@ function durationName(minutes: number): string {
   const hours = Math.floor(minutes / 60);
   const rest = minutes % 60;
   return rest === 0 ? `${hours} h` : `${hours} h ${String(rest).padStart(2, "0")}`;
-}
-
-/** Where a weekday falls in a grid that starts on Monday. */
-function mondayIndex(day: number): number {
-  return (day + 6) % 7;
-}
-
-/**
- * A month of days, as rows of seven.
- *
- * Built rather than borrowed. A date picker is the one control here that
- * would have meant a native dependency, and every native dependency in this
- * project has cost a rebuild and a round of Expo Go breakage. A month grid is
- * sixty lines and owes nothing to anybody.
- */
-function MonthGrid({
-  month, chosen, earliest, latest, onPick,
-}: {
-  month: Date;
-  chosen: number | null;
-  earliest: number;
-  latest: number;
-  onPick: (at: number) => void;
-}) {
-  const first = new Date(month.getFullYear(), month.getMonth(), 1);
-  const days = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
-  const lead = mondayIndex(first.getDay());
-
-  const s = useStrings(planSetupStrings);
-  const cells: (number | null)[] = [
-    ...Array<null>(lead).fill(null),
-    ...Array.from({ length: days }, (_, i) =>
-      new Date(month.getFullYear(), month.getMonth(), i + 1).getTime()),
-  ];
-  while (cells.length % 7 !== 0) cells.push(null);
-
-  return (
-    <View>
-      <View style={styles.weekdays}>
-        {s.weekdays.map((letter, i) => (
-          <Text key={`${letter}${i}`} style={styles.weekday}>{letter}</Text>
-        ))}
-      </View>
-      {Array.from({ length: cells.length / 7 }, (_, row) => (
-        <View key={row} style={styles.week}>
-          {cells.slice(row * 7, row * 7 + 7).map((at, i) => {
-            if (at === null) return <View key={i} style={styles.day} />;
-            // Too soon and there is no time to build anything; too far and the
-            // plan would outlast the interest. Both are shown greyed rather
-            // than hidden, so the reason a date is unavailable stays visible.
-            const reachable = at >= earliest && at <= latest;
-            const picked = chosen !== null && at === chosen;
-            return (
-              <Pressable
-                key={i}
-                onPress={() => reachable && onPick(at)}
-                disabled={!reachable}
-                accessibilityRole="button"
-                accessibilityState={{ disabled: !reachable, selected: picked }}
-                // The whole date: "14, button" says nothing about which month.
-                accessibilityLabel={new Date(at).toLocaleDateString(intlLocale(), {
-                  weekday: "long", day: "numeric", month: "long",
-                })}
-                style={[styles.day, picked && styles.dayPicked]}
-              >
-                <Text
-                  style={[
-                    styles.dayLabel,
-                    !reachable && styles.dayOut,
-                    picked && styles.dayPickedLabel,
-                  ]}
-                >
-                  {new Date(at).getDate()}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      ))}
-    </View>
-  );
 }
 
 /** One answer to a question, as the welcome sets them: a card, ticked when chosen. */
@@ -798,28 +714,7 @@ export function PlanSetup({
           <>
             <Text style={styles.question}>{s.dateQuestion}</Text>
             <Text style={styles.lede}>{s.dateHint(bounds.minWeeks, bounds.maxWeeks)}</Text>
-            <View style={styles.monthHead}>
-              <Pressable
-                onPress={() => setMonth((m) => new Date(m.getFullYear(), m.getMonth() - 1, 1))}
-                accessibilityRole="button"
-                accessibilityLabel={s.previousMonth}
-                hitSlop={10}
-              >
-                <Text style={styles.monthArrow}>‹</Text>
-              </Pressable>
-              <Text style={styles.monthName}>
-                {month.toLocaleDateString(intlLocale(), { month: "long" })} {month.getFullYear()}
-              </Text>
-              <Pressable
-                onPress={() => setMonth((m) => new Date(m.getFullYear(), m.getMonth() + 1, 1))}
-                accessibilityRole="button"
-                accessibilityLabel={s.nextMonth}
-                hitSlop={10}
-              >
-                <Text style={styles.monthArrow}>›</Text>
-              </Pressable>
-            </View>
-            <MonthGrid month={month} chosen={chosen} earliest={earliest} latest={latest} onPick={setRaceAt} />
+            <MonthPicker month={month} onMonth={setMonth} chosen={chosen} earliest={earliest} latest={latest} onPick={setRaceAt} />
             {/* Kept to one line's room either way, so the grid does not jump. */}
             <Text style={styles.chosenDate}>
               {chosen !== null && weeksAway !== null
@@ -1151,23 +1046,6 @@ const styles = StyleSheet.create({
   hint: { color: colors.subtle, fontFamily: font.regular, fontSize: 13.5, lineHeight: 19, marginBottom: 10 },
 
 
-  monthHead: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingVertical: 6,
-  },
-  monthName: { color: colors.text, fontSize: 17, fontFamily: font.semibold },
-  monthArrow: { color: colors.accent, fontSize: 28, fontFamily: font.semibold, paddingHorizontal: 10 },
-  weekdays: { flexDirection: "row", paddingBottom: 4 },
-  weekday: {
-    flex: 1, textAlign: "center", color: colors.subtle,
-    fontSize: 12, fontFamily: font.semibold,
-  },
-  week: { flexDirection: "row" },
-  day: { flex: 1, aspectRatio: 1, alignItems: "center", justifyContent: "center", borderRadius: 999 },
-  dayPicked: { backgroundColor: colors.accent },
-  dayLabel: { color: colors.text, fontSize: 15, fontFamily: font.regular, fontVariant: ["tabular-nums"] },
-  dayOut: { color: colors.subtle, opacity: 0.35 },
-  dayPickedLabel: { color: colors.accentText, fontFamily: font.semibold },
 
   daysRow: { flexDirection: "row", gap: 6 },
   dayPick: {

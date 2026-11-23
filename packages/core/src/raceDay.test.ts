@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { climbAhead, goalVerdict, hillFactor, planGapS, plannedAt, plannedPace, racePlan } from "./raceDay.ts";
+import { climbAhead, daysUntil, goalVerdict, heatCost, hillFactor, planGapS, plannedAt, plannedPace, racePlan } from "./raceDay.ts";
 
 /** A profile sampled every 100 m, from heights per sample. */
 const profile = (heights: number[]) => heights.map((value, i) => ({ distanceM: i * 100, value }));
@@ -65,4 +65,16 @@ test("the goal is judged against the runner's ordinary days", () => {
   assert.equal(goalVerdict(3000, estimate), "realistic");
   assert.equal(goalVerdict(3200, estimate), "cautious");
   assert.equal(goalVerdict(3000, null), null);
+});
+
+test("heat costs nothing when cool, a little more each degree, and no more than a tenth", () => {
+  assert.equal(heatCost(10), 0);
+  assert.ok(Math.abs(heatCost(22) - 0.03) < 1e-9);
+  assert.equal(heatCost(60), 0.1);
+});
+
+test("the countdown is in days, whatever the hour", () => {
+  const now = new Date(2026, 3, 10, 22, 0).getTime();
+  assert.equal(daysUntil(new Date(2026, 3, 12, 8, 30).getTime(), now), 2);
+  assert.equal(daysUntil(new Date(2026, 3, 10, 6, 0).getTime(), now), 0);
 });
