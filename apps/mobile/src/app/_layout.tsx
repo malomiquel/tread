@@ -312,6 +312,7 @@ export default function RootLayout() {
           {/* One screen for both: drawing a route and changing one are the same
               act, and the title is set by the screen from what it was given. */}
           <Stack.Screen name="route/[id]" options={{ headerBackTitle: s.back }} />
+          <Stack.Screen name="race-plan/[id]" options={{ headerBackTitle: s.back }} />
           {/* A page of its own, with its own rooms under it. Naming each back
               button after the page it returns to is what makes a hierarchy
               readable from inside it. */}

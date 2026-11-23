@@ -433,7 +433,33 @@ destructive one last, set apart and in red. Never a row of buttons at the
 foot of the page (four abreast, their words break), never the phone's action
 sheet (it rises far from the finger and reads as a warning).
 A saved route's page follows the same rule: its ⋯ in the header holds
-"Offline map" and, last and in red, "Delete".
+"Race plan", "Offline map" and, last and in red, "Delete".
+
+### A race plan
+
+A race run on a route, from the route's ⋯ › Race plan. The route's name,
+then the stage: the goal time large, with the average pace, the distance
+and the gain beside it. Under it a panel with the goal on a stepper (15 s
+a step, held to repeat), what the runner's recent outings say about the
+course ("From your runs: 52:30 (51:40 to 54:10)") and a verdict in one
+line, its room kept: ambitious in `warning`, realistic, cautious. Then the
+course's profile, its climbs as rows (length, grade, where, the seconds
+they cost), and a row per kilometre (or mile): pace, grade and the clock
+at its end, `trending-up` or `trending-down` where it climbs or drops.
+"Run this plan" at the foot chooses the route and opens the run screen.
+
+The goal is spread for an even effort: about 3 % slower per 1 % of climb,
+1.7 % faster per 1 % of descent, nothing more past 5 % down
+(`@tread/core/raceDay`). The profile is asked of Open-Meteo once and kept
+on the phone, so the plan holds on a race morning without signal; without
+one the plan is an even pace and says so.
+
+During the race the dashboard's target is the plan's pace for the
+kilometre under way, and the voice measures against it. The status line,
+when no turn is close, says the climb coming ("Climb in 200 m · 600 m at
+4 %") or under way ("Climbing · 300 m to go · 18 s allowed"), otherwise
+the distance left and the gap to the plan ("12 s ahead of your plan"),
+which takes the room of the gap to the record.
 
 ### The welcome
 

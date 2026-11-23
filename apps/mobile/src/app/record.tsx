@@ -26,6 +26,7 @@ import { CONTROL_SIZE, CONTROLS_TOP, useTabBarBottom } from "@/lib/layout";
 import { locationAccess, useInitialLocation } from "@/lib/location";
 import { ghostAt, ghostGapS } from "@tread/core/ghost";
 import { turnName } from "@tread/core/guidance";
+import { climbAhead, planGapS, plannedPace } from "@tread/core/raceDay";
 import { drawnLine, type RoutePoint } from "@tread/core/route";
 import { measure } from "@tread/core/goals";
 import { setSport, toggleVoice, useSettings, weeklyGoal } from "@/lib/settings";
@@ -101,6 +102,11 @@ const recordStrings = defineStrings({
     ghostBehind: (gap: string) => `${gap} de retard`,
     ghostLevel: "à égalité",
     ghostOnly: (gap: string) => `Record · ${gap}`,
+    planAhead: (gap: string) => `${gap} d'avance sur ton plan`,
+    planBehind: (gap: string) => `${gap} de retard sur ton plan`,
+    planLevel: "dans ton plan",
+    climbSoon: (inM: string, length: string, grade: string) => `Montée dans ${inM} · ${length} à ${grade}`,
+    climbOn: (left: string, cost: number) => `En montée · encore ${left} · ${cost} s prévues`,
     routeTurn: (direction: string, metres: string) => `${direction.charAt(0).toUpperCase()}${direction.slice(1)} dans ${metres}`,
     routeOff: (metres: string) => `Hors parcours · à ${metres}`,
     routeDone: "Parcours terminé",
@@ -167,6 +173,11 @@ const recordStrings = defineStrings({
     ghostBehind: (gap: string) => `${gap} behind`,
     ghostLevel: "level",
     ghostOnly: (gap: string) => `Best · ${gap}`,
+    planAhead: (gap: string) => `${gap} ahead of your plan`,
+    planBehind: (gap: string) => `${gap} behind your plan`,
+    planLevel: "on your plan",
+    climbSoon: (inM: string, length: string, grade: string) => `Climb in ${inM} · ${length} at ${grade}`,
+    climbOn: (left: string, cost: number) => `Climbing · ${left} to go · ${cost} s allowed`,
     routeTurn: (direction: string, metres: string) => `${direction.charAt(0).toUpperCase()}${direction.slice(1)} in ${metres}`,
     routeOff: (metres: string) => `Off route · ${metres} away`,
     routeDone: "Route complete",
@@ -598,7 +609,10 @@ export default function RecordScreen() {
   })();
 
   /** The pace to hold now, measured against on the dashboard as the voice does. */
-  const targetPace = heldPace(session, tracker.stepIndex, tracker.sessionPaceSKm, settings.targetPaceSKm);
+  const racePlan = recording && !riding ? tracker.racePlan : null;
+  const planSpot = racePlan && tracker.guidance && !tracker.guidance.off ? tracker.guidance.alongM : null;
+  const planPace = racePlan && planSpot !== null ? plannedPace(racePlan, planSpot) : null;
+  const targetPace = heldPace(session, tracker.stepIndex, tracker.sessionPaceSKm, settings.targetPaceSKm, planPace);
   const nextStep = session?.steps[tracker.stepIndex + 1] ?? null;
   const block: DashboardBlock | null = (() => {
     if (!session || !step) return null;
@@ -654,6 +668,24 @@ export default function RecordScreen() {
       : gapS > 0
         ? s.ghostAhead(gapText(Math.round(gapS)))
         : s.ghostBehind(gapText(Math.round(-gapS)));
+  // Against the race plan, when the route has one: it is what the runner
+  // came to hold, so it wins the room over the record on this route.
+  const planGap = racePlan && planSpot !== null ? Math.round(planGapS(racePlan, planSpot, duration)) : null;
+  const planWords = planGap === null
+    ? null
+    : Math.abs(planGap) < 3
+      ? s.planLevel
+      : planGap > 0 ? s.planAhead(gapText(planGap)) : s.planBehind(gapText(-planGap));
+  const climb = racePlan && planSpot !== null ? climbAhead(racePlan, planSpot) : null;
+  const climbWords = climb === null
+    ? null
+    : climb.inM > 0
+      ? s.climbSoon(
+        shortDistance(climb.inM),
+        shortDistance(climb.climb.toM - climb.climb.fromM),
+        `${Math.round(climb.climb.grade * 100)} %`,
+      )
+      : s.climbOn(shortDistance(climb.climb.toM - planSpot!), climb.climb.costS);
   const followLine = guidance === null
     ? gapWords === null ? null : s.ghostOnly(gapWords)
     : guidance.off
@@ -662,7 +694,8 @@ export default function RecordScreen() {
         ? s.routeDone
         : guidance.next && guidance.next.inM <= 200
           ? s.routeTurn(turnName(guidance.next.direction), shortDistance(guidance.next.inM))
-          : `${s.routeLeft(formatDistance(guidance.leftM))}${gapWords ? ` · ${gapWords}` : ""}`;
+          : climbWords
+            ?? `${s.routeLeft(formatDistance(guidance.leftM))}${(planWords ?? gapWords) ? ` · ${planWords ?? gapWords}` : ""}`;
   const guideLine = sessionLine ?? lapLine ?? followLine;
   const routeWarning = sessionLine === null && lapLine === null && guidance?.off === true;
 

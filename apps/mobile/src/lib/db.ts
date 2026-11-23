@@ -1367,6 +1367,8 @@ export async function deleteRoute(id: number): Promise<void> {
   // exists could not be.
   await getDb().runAsync("UPDATE runs SET route_id = NULL WHERE route_id = ?", id);
   await getDb().runAsync("DELETE FROM routes WHERE id = ?", id);
+  // Its race plan goes with it: nothing would show it again.
+  await deleteSettings([`racePlan.${id}`]);
   if (route?.preview) forgetPicture(route.preview);
 }
 

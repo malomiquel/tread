@@ -23,6 +23,8 @@ import {
   announceRouteDone, announceStep, announceTurn, stopSpeaking,
 } from "./feedback";
 import { locate, nextTurn, OFF_ROUTE_M, routeLine, turnName, type RouteLine, type TurnDirection } from "@tread/core/guidance";
+import { plannedPace, type RacePlan } from "@tread/core/raceDay";
+import { activeRacePlan } from "./racePlan";
 import {
   currentPace, elevationGainM, fastestKmS, isAcceptable, paceSecPerKm, splits, totalDistanceM,
   type TrackPoint,
@@ -108,6 +110,11 @@ export interface TrackerState {
    */
   ghost: Ghost | null;
   /**
+   * The race plan set on the route being run, or null: the pace for each
+   * kilometre of the course, and the clock it should be reached at.
+   */
+  racePlan: RacePlan | null;
+  /**
    * The run the tracker closed by itself at the end of its route, for the
    * run screen to open. Survives the reset that follows, until read.
    */
@@ -119,7 +126,7 @@ const IDLE: TrackerState = {
   status: "idle", runId: null, sport: "running", points: [], segment: 0, startedAt: null,
   bankedS: 0, segmentStartedAt: null, announcedKm: 0,
   session: null, planOrder: null, sessionPaceSKm: null, stepIndex: 0, stepStartM: 0, stepStartS: 0, blocks: [],
-  accuracyM: null, backgroundMode: false, autoPaused: false, routeId: null, laps: [], guidance: null, ghost: null, autoFinished: null, error: null,
+  accuracyM: null, backgroundMode: false, autoPaused: false, routeId: null, laps: [], guidance: null, ghost: null, racePlan: null, autoFinished: null, error: null,
 };
 
 /** How many points may sit in memory before they are flushed to disk. */
@@ -300,8 +307,11 @@ export function heldPace(
   stepIndex: number,
   sessionPaceSKm: number | null,
   settingsPaceSKm: number | null,
+  planPaceSKm: number | null = null,
 ): number | null {
-  if (!session) return settingsPaceSKm;
+  // A race plan on the route sets the pace kilometre by kilometre, slower
+  // where the course climbs; the runner's single target would fight it.
+  if (!session) return planPaceSKm ?? settingsPaceSKm;
   // A trail session is run by effort: the same effort is a different pace on
   // every metre of slope, so no pace is held, the runner's own setting
   // included, and the voice never calls one too slow on a climb.
@@ -321,7 +331,10 @@ function checkPace(): void {
   const { voice, targetPaceSKm: settingsPace } = getSettings();
   // A pace to hold is a runner's: on a bike the road sets the speed.
   if (state.status !== "running" || state.sport === "cycling") return;
-  const targetPaceSKm = heldPace(state.session, state.stepIndex, state.sessionPaceSKm, settingsPace);
+  const planPace = state.racePlan && state.guidance && !state.guidance.off
+    ? plannedPace(state.racePlan, state.guidance.alongM)
+    : null;
+  const targetPaceSKm = heldPace(state.session, state.stepIndex, state.sessionPaceSKm, settingsPace, planPace);
   if (targetPaceSKm === null) return;
 
   const now = Date.now();
@@ -572,7 +585,7 @@ export async function start(): Promise<void> {
       ...(shelved ? { session: null, planOrder: null, sessionPaceSKm: null } : {}),
       status: "running", runId, sport, points: [], segment: 0, startedAt,
       bankedS: 0, segmentStartedAt: startedAt, announcedKm: 0,
-      stepIndex: 0, stepStartM: 0, stepStartS: 0, blocks: [], laps: [], guidance: null, ghost: null,
+      stepIndex: 0, stepStartM: 0, stepStartS: 0, blocks: [], laps: [], guidance: null, ghost: null, racePlan: null,
       backgroundMode: false, autoPaused: false,
       // Taken now rather than at the finish: the route is what was run,
       // even if the map was cleared on the way.
@@ -666,6 +679,8 @@ async function loadGuidance(runId: number, routeId: number | null): Promise<void
   guide = {
     runId, line, lastAlongM: null, offSince: null, offAnnounced: false, announced: new Set(), doneAnnounced: false,
   };
+  const plan = route ? await activeRacePlan(route).catch(() => null) : null;
+  if (plan && state.runId === runId) publish({ racePlan: plan });
 }
 
 /**

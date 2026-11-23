@@ -58,6 +58,7 @@ const routeStrings = defineStrings({
     back: "Retour",
     actions: "Actions sur ce parcours",
     offlineMap: "Carte hors ligne",
+    racePlan: "Plan de course",
     renameLabel: (name: string) => `${name}, renommer`,
     nameLabel: "Nommer ce parcours",
     untitled: "Sans nom",
@@ -102,6 +103,7 @@ const routeStrings = defineStrings({
     back: "Back",
     actions: "Actions on this route",
     offlineMap: "Offline map",
+    racePlan: "Race plan",
     renameLabel: (name: string) => `${name}, rename`,
     nameLabel: "Name this route",
     untitled: "Untitled",
@@ -554,6 +556,7 @@ export default function RouteBuilder() {
             <DropdownMenu
               accessibilityLabel={s.actions}
               items={[
+                { key: "race", label: s.racePlan, icon: "speedometer-outline", onPress: () => router.push({ pathname: "/race-plan/[id]", params: { id: String(editing) } }) },
                 { key: "offline", label: s.offlineMap, icon: "cloud-download-outline", onPress: () => setOffline(true) },
                 { key: "delete", label: s.delete, icon: "trash-outline", destructive: true, onPress: askDelete },
               ]}
